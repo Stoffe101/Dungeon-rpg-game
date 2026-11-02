@@ -35,6 +35,8 @@ var _marks: Dictionary = {}  # instance id -> {label, who:WeakRef, height}
 var _impacts: Array = []     # {sprite, t, life}
 var _impact_mat: ShaderMaterial
 var _kick := Vector2.ZERO    # directional camera nudge (screen pixels), springs back
+var _splats: Array = []      # {mesh, t, life}
+const MAX_SPLATS := 60
 var intensity := 1.0
 
 
@@ -440,6 +442,44 @@ func _update_shake(dt: float) -> void:
 	view.shake_px = Vector2(sin(tm * 61.0) + sin(tm * 27.3), cos(tm * 53.0) + sin(tm * 33.1)) * 0.5 * t * 7.0 + _kick
 
 
+# --- floor marks ---------------------------------------------------------------
+
+## A mark on the floor (death splat, scorch) that lingers, then dithers away.
+func splat(p: Vector2, col: Color, life := 24.0, scale_k := 1.0) -> void:
+	var info := SpriteLib.get_sheet("splat")
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.orientation = PlaneMesh.FACE_Y
+	q.size = Vector2(info.frame_size.x * Iso.TEXEL, info.frame_size.y * Iso.TEXEL * Iso.SQ2) * scale_k
+	q.material = info.material
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Iso.to_world(p, 0.0) + Vector3(0, 0.004 + randf() * 0.002, 0)
+	mi.set_instance_shader_parameter("frame", Vector2(randi() % maxi(info.cols, 1), 0))
+	mi.set_instance_shader_parameter("flip", 1.0 if randf() > 0.5 else 0.0)
+	mi.set_instance_shader_parameter("tint", Color(col.r, col.g, col.b, 1.0))
+	add_child(mi)
+	_splats.append({"mesh": mi, "t": 0.0, "life": life, "col": col})
+	while _splats.size() > MAX_SPLATS:
+		var old: Dictionary = _splats.pop_front()
+		if is_instance_valid(old.mesh):
+			old.mesh.queue_free()
+
+
+func _update_splats(dt: float) -> void:
+	for i in range(_splats.size() - 1, -1, -1):
+		var s: Dictionary = _splats[i]
+		s.t += dt
+		var left: float = s.life - s.t
+		if left <= 0.0 or not is_instance_valid(s.mesh):
+			if is_instance_valid(s.mesh):
+				s.mesh.queue_free()
+			_splats.remove_at(i)
+		elif left < 3.0:
+			var c: Color = s.col
+			s.mesh.set_instance_shader_parameter("tint", Color(c.r, c.g, c.b, left / 3.0))
+
+
 # --- impact flashes ----------------------------------------------------------
 
 ## A starburst at the point of contact, tinted by what landed. Animates in real
@@ -481,6 +521,7 @@ func step(dt: float) -> void:
 	_update_numbers(dt)
 	_update_says(dt)
 	_update_impacts(dt)
+	_update_splats(dt)
 	_update_marks()
 	_update_shake(dt)
 

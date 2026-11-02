@@ -43,6 +43,7 @@ static func build(dir: String) -> void:
 	_fountain(dir)
 	_wisp(dir)
 	_impact(dir)
+	_splat(dir)
 	_dummy(dir)
 	_spikes(dir)
 	_ember_well(dir)
@@ -698,6 +699,32 @@ static func _impact(dir: String) -> void:
 		fr.append(c)
 	s.add("pop", fr, 26.0, false)
 	s.save(dir, "impact")
+
+
+## Floor splats left where things die (tinted per enemy in game) and scorch
+## marks: irregular blobs with droplets, drawn in greys. 4 variants.
+static func _splat(dir: String) -> void:
+	var s := Sheet.new(24, 16, Vector2i(12, 8))
+	var fr: Array = []
+	for v in 4:
+		var c := Px.new(24, 16)
+		var m := c.mask()
+		for k in 5:
+			var ox := 12.0 + (Px.hash01(k, v, 3) - 0.5) * 10.0
+			var oy := 8.0 + (Px.hash01(v, k, 5) - 0.5) * 5.0
+			m.ellipse(ox, oy, 2.5 + Px.hash01(k, v, 9) * 3.5, 1.6 + Px.hash01(v, k, 11) * 2.0)
+		for k in 6:
+			var a := Px.hash01(k, v, 13) * TAU
+			var d := 7.0 + Px.hash01(v, k, 17) * 4.0
+			m.set_bit(int(12 + cos(a) * d), int(8 + sin(a) * d * 0.6))
+		for y in 16:
+			for x in 24:
+				if m.has(x, y):
+					var edge := not (m.has(x + 1, y) and m.has(x - 1, y) and m.has(x, y + 1) and m.has(x, y - 1))
+					c.put(x, y, Pal.BONE[2] if edge else (Pal.BONE[3] if Px.hash01(x, y, v) > 0.8 else Pal.BONE[1]))
+		fr.append(c)
+	s.add("idle", fr, 1.0)
+	s.save(dir, "splat")
 
 
 static func _dummy(dir: String) -> void:

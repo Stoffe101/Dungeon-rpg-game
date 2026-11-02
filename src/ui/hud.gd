@@ -16,6 +16,10 @@ var relic_row: HBoxContainer
 var slot_nodes: Array = []
 var flask_slot: Control
 var _flask_seen := -1
+var combo_box: VBoxContainer
+var combo_lbl: Label
+var combo := 0
+var _combo_t := 0.0
 var boss_name: Label
 var controls_card: PanelContainer
 var tooltip: PanelContainer
@@ -95,6 +99,18 @@ func _ready() -> void:
 			tw.tween_interval(2.0)
 			tw.tween_property(controls_card, "modulate:a", 0.0, 0.8)
 			tw.tween_callback(func() -> void: controls_card.visible = false))
+	# hit chain counter: consecutive hits without a 2.2 s gap
+	combo_box = UIKit.vbox(0)
+	combo_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	combo_lbl = UIKit.label("", 16, UIKit.C_TEXT, true)
+	combo_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	combo_box.add_child(combo_lbl)
+	var hits_lbl := UIKit.label("HITS", 8, UIKit.C_DIM, true)
+	hits_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	combo_box.add_child(hits_lbl)
+	combo_box.modulate.a = 0.0
+	add_child(combo_box)
+	Events.damage_dealt.connect(_on_damage_dealt)
 	Events.boss_started.connect(func(b: Node) -> void:
 		_boss = b as Enemy
 		boss_name.text = _boss.display_name.to_upper()
@@ -181,6 +197,28 @@ func _make_slot(i: int) -> Control:
 	cost.name = "Cost"
 	c.add_child(cost)
 	return c
+
+
+func _on_damage_dealt(_t: Node, _amount: float, crit: bool) -> void:
+	combo += 1
+	_combo_t = 2.2
+	if combo < 3:
+		return
+	combo_lbl.text = str(combo)
+	var col := UIKit.C_TEXT
+	if combo >= 50:
+		col = Color(1.0, 0.45, 0.3)
+	elif combo >= 25:
+		col = UIKit.C_EMBER
+	elif combo >= 10:
+		col = UIKit.C_GOLD
+	combo_lbl.add_theme_color_override("font_color", col)
+	combo_box.modulate.a = 1.0
+	combo_box.pivot_offset = combo_box.size * Vector2(1.0, 0.5)
+	var tw := combo_box.create_tween()
+	var pop := 1.35 if crit or combo % 10 == 0 else 1.18
+	tw.tween_property(combo_box, "scale", Vector2(pop, pop), 0.04)
+	tw.tween_property(combo_box, "scale", Vector2.ONE, 0.12)
 
 
 ## The flask slot: charges left, the drink in progress, empty, or a pulse
@@ -272,6 +310,14 @@ func _process(_delta: float) -> void:
 		var full: float = float(d.cooldown) * pl.stats.v("cooldown")
 		cd.size.y = 20.0 * clampf(pl.ability_cd[i] / maxf(full, 0.01), 0.0, 1.0)
 	_update_flask_slot(pl)
+	# combo counter fades out once the chain breaks
+	combo_box.position = Vector2(vp.x - 70, vp.y * 0.5 - 20)
+	combo_box.size.x = 62
+	if _combo_t > 0.0:
+		_combo_t -= get_process_delta_time()
+		if _combo_t <= 0.0:
+			combo = 0
+			combo_box.create_tween().tween_property(combo_box, "modulate:a", 0.0, 0.3)
 	# interaction prompt
 	var near := st.nearest_interactable(pl.pos) if pl.alive else null
 	if near and not Game.ui.has_modal():

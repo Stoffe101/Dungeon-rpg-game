@@ -330,7 +330,8 @@ func _start_dodge() -> void:
 	ward_t = 0.0
 	cast_t = 0.0
 	Audio.play("dodge", -2.0, randf_range(0.95, 1.05))
-	stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 6, 2.0, 0.35, 4.0, -dodge_dir, 0.8)
+	stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 10, 2.6, 0.4, 3.0, -dodge_dir, 0.8)
+	stage.fx.kick(dodge_dir, 1.0)
 	if stats.has("dodge_afterimage"):
 		Abilities.shade(self, pos, 30.0 * (2.0 if stats.has("afterimage_double") else 1.0), 0.6)
 
@@ -562,6 +563,8 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		elif h.has_tag("frost"):
 			flash_col = Color(0.65, 0.88, 1.0)
 		stage.fx.impact(t.pos, 0.75, flash_col, res.crit or finisher, h.from_dir)
+		if res.crit or finisher:
+			stage.fx.flash_light(t.pos, 0.9, flash_col, 1.8, 3.2, 0.14)
 		if h.has_tag("melee"):
 			stage.fx.kick(h.from_dir, 2.5 if res.crit or finisher else 1.2)
 			if weapon:
@@ -811,6 +814,9 @@ func _footsteps() -> void:
 		var moss := stage is Dungeon and (stage as Dungeon).layout.region == "rootmire"
 		var n := 3 if moss else 4
 		Audio.play("step_%s_%d" % ["moss" if moss else "stone", _foot_i % n], -11.0, randf_range(0.94, 1.06))
+		# a little dust kicked up behind the foot
+		var dust := Color(0.32, 0.36, 0.26) if moss else Color(0.45, 0.42, 0.42)
+		stage.fx.burst(pos + Vector2(0, 0.15), 0.05, dust, 2, 0.8, 0.3, -0.6, -vel.normalized() if vel.length() > 0.1 else Vector2.ZERO, 0.9, 0.6)
 		_foot_i += 1 + (randi() % 2)
 	_last_foot = f
 

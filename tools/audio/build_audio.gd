@@ -203,6 +203,9 @@ func _sfx() -> void:
 	fx("pickup_sunshard", 0.9, func(s):
 		for k in 4:
 			s.bell(k * 0.07, 0.8, midi(79 + [0, 4, 7, 12][k]), 0.16))
+	fx("heartbeat", 0.5, func(s):
+		s.tone(0.0, 0.14, 70.0, 42.0, "sine", 0.8, 0.004, 5.0)
+		s.tone(0.17, 0.16, 62.0, 38.0, "sine", 0.6, 0.004, 5.0))
 	# footsteps: a heel thud under a short scuff; four stone variants, three soft moss ones
 	for k in 4:
 		fx("step_stone_%d" % k, 0.12, func(s):

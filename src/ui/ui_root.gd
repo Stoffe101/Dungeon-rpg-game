@@ -16,6 +16,8 @@ var modals: Array[Control] = []
 var _banner_tw: Tween
 var _menu_open := false
 var closed_frame := -10    # process frame of the last modal close (input debounce)
+var _hurt_k := 0.0         # damage flash on the vignette
+var _beat_t := 0.0
 var _focus_index := -1     # position of the focused control among the top modal's focusables
 var _last_focus: Control
 
@@ -84,9 +86,10 @@ func _ready() -> void:
 	Settings.device_changed.connect(_on_device_changed)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_layout_banner()
 	_keep_focus()
+	_low_health(delta)
 
 
 # --- gamepad / keyboard navigation -------------------------------------------------
@@ -235,11 +238,30 @@ func toast(text: String, col := UIKit.C_TEXT) -> void:
 
 
 func _on_hurt(amount: float) -> void:
-	var m := vignette.material as ShaderMaterial
 	var k := clampf(amount / 30.0, 0.3, 1.0) * (0.5 if Settings.get_value("reduce_flashes", false) else 1.0)
-	m.set_shader_parameter("hurt", k)
+	_hurt_k = k
 	var tw := create_tween()
-	tw.tween_method(func(v: float) -> void: m.set_shader_parameter("hurt", v), k, 0.0, 0.5)
+	tw.tween_method(func(v: float) -> void: _hurt_k = v, k, 0.0, 0.5)
+
+
+## Low health: the edges pulse red in time with a heartbeat.
+func _low_health(delta: float) -> void:
+	var m := vignette.material as ShaderMaterial
+	var low := 0.0
+	var pl: Player = Game.stage.player if Game.stage and hud.visible else null
+	if pl and is_instance_valid(pl) and pl.alive and pl.hp_ratio() < 0.3 and not get_tree().paused:
+		var danger := 1.0 - pl.hp_ratio() / 0.3
+		var period := lerpf(1.0, 0.7, danger)
+		_beat_t -= delta
+		if _beat_t <= 0.0:
+			_beat_t = period
+			Audio.play("heartbeat", lerpf(-12.0, -5.0, danger))
+			Settings.rumble(0.0, 0.25 + 0.25 * danger, 0.08)
+		var ph := 1.0 - _beat_t / period
+		low = (0.18 + 0.22 * danger) * maxf(0.0, 1.0 - ph * 3.0) * (0.5 if Settings.get_value("reduce_flashes", false) else 1.0)
+	else:
+		_beat_t = 0.0
+	m.set_shader_parameter("hurt", maxf(_hurt_k, low))
 
 
 func fade(mid: Callable, t := 0.35) -> void:

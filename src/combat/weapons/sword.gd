@@ -92,6 +92,8 @@ func release_charge() -> void:
 	if hits > 0:
 		player.stage.hitstop(0.08)
 		player.stage.fx.shake(0.3)
+	player.stage.fx.flash_light(p, 1.0, Color(1.0, 0.7, 0.35), 2.6, r + 1.5, 0.25)
+	player.stage.fx.splat(p, Color(0.14, 0.1, 0.09), 14.0, 1.6)
 	player.on_weapon_strike(hits, true)
 	combo = 0
 

@@ -360,6 +360,9 @@ func die(killer: Node) -> void:
 	died_enemy.emit(self)
 	Audio.play("enemy_die", -3.0, randf_range(0.9, 1.1))
 	stage.fx.burst(pos, 0.6, hit_color(), 12, 4.0, 0.6, 9.0, last_hit_from, 1.4)
+	# what's left on the floor: a splat in the enemy's colour, or scorch if it burned
+	var mark := hit_color().darkened(0.45) if not status.burning() else Color(0.16, 0.12, 0.11)
+	stage.fx.splat(pos + last_hit_from * 0.35, mark, 26.0, 1.0 + radius * 0.6)
 	stage.fx.motes(pos, 0.3, Color(0.35, 0.95, 0.85), 6, 1.5, 0.9, 0.3)
 	if elite:
 		# champions go out with a crack of soul-light
