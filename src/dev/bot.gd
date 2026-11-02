@@ -16,6 +16,24 @@ var _last_pos := Vector2.ZERO
 var _jitter := Vector2.ZERO
 var log_every := 5.0
 var _log_t := 0.0
+var _goal := Vector2.ZERO
+var _stuck_total := 0.0
+var _dumped := false
+
+
+func _dump_area() -> void:
+	var g := pl.stage.grid
+	var c := Vector2i(pl.pos)
+	print("[bot] STUCK at ", pl.pos, " goal ", _goal, " step ", pl.stage.path_step(pl.pos, _goal))
+	var a := Vector2i(floori(pl.pos.x), floori(pl.pos.y))
+	var b := Vector2i(floori(_goal.x), floori(_goal.y))
+	print("[bot] start solid=", pl.stage.astar.is_point_solid(a), " goal solid=", pl.stage.astar.is_point_solid(b), " path len=", pl.stage.astar.get_id_path(a, b).size(), " partial=", pl.stage.astar.get_id_path(a, b, true).size())
+	var chars := {0: " ", 1: ".", 2: "#", 3: "P", 4: "~", 5: "G", 6: "o"}
+	for y in range(c.y - 8, c.y + 5):
+		var line := ""
+		for x in range(c.x - 14, c.x + 15):
+			line += "@" if Vector2i(x, y) == c else chars.get(g.at(x, y), "?")
+		print("[bot] ", line)
 
 
 func _ready() -> void:
@@ -33,7 +51,7 @@ func _process(delta: float) -> void:
 	if _log_t > log_every:
 		_log_t = 0.0
 		var d := st as Dungeon
-		print("[bot] t=%.0f hp=%d/%d kindle=%d room=%s kills=%d embers=%d" % [_t, int(pl.hp), int(pl.max_hp), int(pl.kindle), str(d.current_room.id) if d and d.current_room else "-", d.run.kills if d else 0, d.run.embers if d else 0])
+		print("[bot] t=%.0f hp=%d/%d kindle=%d room=%s kills=%d embers=%d pos=%s goal=%s active=%s enemies=%d" % [_t, int(pl.hp), int(pl.max_hp), int(pl.kindle), str(d.current_room.id) if d and d.current_room else "-", d.run.kills if d else 0, d.run.embers if d else 0, str(pl.pos.snapped(Vector2(0.1, 0.1))), str(_goal.snapped(Vector2(0.1, 0.1))), str(d.active_room.id) if d and d.active_room else "-", d.room_enemies.size() if d else 0])
 	var target := _pick_target()
 	if target:
 		_fight(target, delta)
@@ -42,11 +60,16 @@ func _process(delta: float) -> void:
 	# unstick
 	if pl.pos.distance_to(_last_pos) < 0.02 and pl.move_in.length() > 0.1:
 		_stuck_t += delta
+		_stuck_total += delta
+		if _stuck_total > 6.0 and target == null:
+			_stuck_total = -20.0
+			_dump_area()
 		if _stuck_t > 0.8:
 			_jitter = Vector2.from_angle(randf() * TAU)
 			_stuck_t = 0.0
 	else:
 		_stuck_t = 0.0
+		_stuck_total = maxf(0.0, _stuck_total - delta)
 	_last_pos = pl.pos
 	if _jitter != Vector2.ZERO:
 		pl.move_in = (pl.move_in + _jitter).normalized()
@@ -139,6 +162,7 @@ func _explore(_delta: float) -> void:
 	if best_p == Vector2.INF:
 		pl.move_in = Vector2.ZERO
 		return
+	_goal = best_p
 	pl.move_in = (st.path_step(pl.pos, best_p) - pl.pos).normalized()
 	pl.aim_point = best_p
 	pl.aim = pl.move_in if pl.move_in != Vector2.ZERO else pl.aim
@@ -176,7 +200,7 @@ func _next_room_point(d: Dungeon) -> Vector2:
 				for t: Vector2i in dd.tiles:
 					c += Vector2(t) + Vector2(0.5, 0.5)
 				c /= dd.tiles.size()
-				return c + Vector2(dd.dir) * 3.0
+				return c + Vector2(dd.dir) * 5.5
 		for door in r.doors:
 			if door.secret:
 				continue

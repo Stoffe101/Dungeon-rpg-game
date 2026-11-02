@@ -259,8 +259,9 @@ func path_step(from: Vector2, to: Vector2) -> Vector2:
 	var b := Vector2i(floori(to.x), floori(to.y))
 	if not astar.is_in_boundsv(a) or not astar.is_in_boundsv(b):
 		return to
-	if astar.is_point_solid(b):
+	if astar.is_point_solid(a):
 		return to
+	# a solid goal (a prop, a pillar) still yields a partial path to its edge
 	var pts := astar.get_id_path(a, b, true)
 	if pts.size() >= 2:
 		var idx := mini(2, pts.size() - 1)

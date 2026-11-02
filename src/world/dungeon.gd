@@ -252,6 +252,8 @@ func _enter_room(r: Room) -> void:
 # --- encounters ------------------------------------------------------------------------
 
 func _start_encounter(r: Room) -> void:
+	if OS.is_debug_build():
+		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
 	_set_gates(r, true)
@@ -339,6 +341,8 @@ func _update_encounter(_dt: float) -> void:
 
 func _room_cleared() -> void:
 	var r := active_room
+	if OS.is_debug_build():
+		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
 	r.cleared = true
 	run.rooms_cleared += 1
@@ -353,6 +357,8 @@ func _room_cleared() -> void:
 func _finish_clear() -> void:
 	var r := _clear_room
 	_clear_room = null
+	if OS.is_debug_build():
+		print("[dungeon] gates open room %s" % (str(r.id) if r else "null"))
 	if r == null:
 		return
 	_set_gates(r, false)
@@ -445,13 +451,14 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		Profile.stat_add("kills")
 		if e.elite:
 			run.elites_slain += 1
-		# loot
-		var n := e.embers
-		var chunks := clampi(n, 1, 8)
+		# loot (embers are deliberately scarce: they are both shop money and progress)
+		var total := int(round(e.embers * 0.6))
+		var n := total
+		var chunks := clampi(n, 0, 6)
 		for i in chunks:
 			if n <= 0:
 				break
-			var amt := int(ceil(float(e.embers) / chunks))
+			var amt := int(ceil(float(total) / chunks))
 			Pickup.spawn(self, "ember", e.pos, amt)
 			n -= amt
 		if e.xp > 0:

@@ -9,6 +9,7 @@ var ui: UIRoot
 var stage: Stage
 var run: RunState
 var debug_seed := -1
+var transitioning := false
 var _playtime_t := 0.0
 
 
@@ -94,10 +95,15 @@ func _enter_depth(depth: int) -> void:
 
 
 func descend() -> void:
+	if transitioning or run == null or run.result != "":
+		return
+	transitioning = true
 	if stage and stage.player:
 		stage.player.store_to(run)
+		stage.player.input_enabled = false
 	ui.fade(func() -> void:
-		_enter_depth(run.depth + 1))
+		_enter_depth(run.depth + 1)
+		transitioning = false)
 
 
 func grant_relic(id: String) -> void:

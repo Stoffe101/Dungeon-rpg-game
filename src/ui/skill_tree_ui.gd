@@ -24,7 +24,7 @@ var tip_box: VBoxContainer
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	clip_contents = true
 	var rng := RandomNumberGenerator.new()
@@ -50,15 +50,16 @@ func _ready() -> void:
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(fill)
-	hearth_btn = UIKit.button("Feed the Hearth", _feed_hearth, 90)
+	hearth_btn = UIKit.button("Feed the Hearth", _feed_hearth, 70)
 	row.add_child(hearth_btn)
-	respec_btn = UIKit.button("Respec", _respec, 70)
+	respec_btn = UIKit.button("Respec", _respec, 50)
 	row.add_child(respec_btn)
 	row.add_child(UIKit.button("Close", func() -> void: Game.ui.close_top(), 50))
-	var hint := UIKit.label("LMB unlock   RMB refund   Wheel zoom   Drag to pan", 8, UIKit.C_DIM, true)
-	hint.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	hint.position = Vector2(8, -14)
-	hint.offset_top = -16
+	var hint := UIKit.label("LMB kindle   RMB refund   Wheel zoom   Drag to pan", 8, UIKit.C_DIM, true)
+	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	hint.offset_left = 8
+	hint.offset_top = -14
+	hint.offset_bottom = -4
 	add_child(hint)
 	tip = UIKit.panel()
 	tip.add_theme_stylebox_override("panel", UIKit.theme().get_stylebox("panel", "TooltipPanel"))
@@ -69,7 +70,9 @@ func _ready() -> void:
 	add_child(tip)
 	_refresh_header()
 	Profile.changed.connect(_refresh_header)
-	zoom = clampf(get_viewport_rect().size.y / 560.0, 0.5, 1.4)
+	# fit the whole constellation below the header
+	zoom = clampf((get_viewport_rect().size.y - 50.0) / (2.0 * 7.4 * SkillDB.RING), 0.35, 1.6)
+	pan = Vector2(0, 14.0 / zoom)
 
 
 func _exit_tree() -> void:
@@ -84,7 +87,7 @@ func _exit_tree() -> void:
 
 func _refresh_header() -> void:
 	var free := Profile.skill_points_free()
-	points_lbl.text = "%d skill point%s available   (Level %d)" % [free, "" if free == 1 else "s", Profile.level()]
+	points_lbl.text = "%d point%s to spend  -  Level %d" % [free, "" if free == 1 else "s", Profile.level()]
 	var counts := SkillDB.branch_counts(Profile.skills())
 	var parts: Array = []
 	for b in SkillDB.BRANCHES:
@@ -92,17 +95,17 @@ func _refresh_header() -> void:
 			parts.append("%s %d" % [SkillDB.BRANCHES[b].name, counts[b]])
 	info_lbl.text = "  ".join(parts) if not parts.is_empty() else "Your path is unwritten."
 	var rc := Profile.respec_cost()
-	respec_btn.text = "Respec (free)" if rc == 0 else "Respec (%d)" % rc
+	respec_btn.text = "Respec" if rc == 0 else "Respec (%d)" % rc
 	respec_btn.disabled = Profile.skills().size() <= 1 or Profile.currency("embers") < rc
 	var hc := Profile.building_cost("hearth")
 	if hc.is_empty():
 		hearth_btn.text = "Hearth: max"
 		hearth_btn.disabled = true
 	else:
-		var s := "Feed Hearth %d>" % Profile.building("hearth")
+		var parts2: Array = []
 		for k in hc:
-			s += " %d%s" % [hc[k], "E" if k == "embers" else "S"]
-		hearth_btn.text = s
+			parts2.append("%d %s" % [hc[k], "Embers" if k == "embers" else "Sunshard"])
+		hearth_btn.text = "Feed Hearth (%s)" % ", ".join(parts2).replace(" Embers", "").replace(" Sunshard", "S")
 		hearth_btn.disabled = not Profile.can_afford(hc)
 		hearth_btn.tooltip_text = Profile.SANCTUARY.hearth.desc
 
@@ -152,7 +155,7 @@ func _gui_input(event: InputEvent) -> void:
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if mb.pressed:
 				var before := (mb.position - size * 0.5) / zoom - pan
-				zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 0.45, 2.4)
+				zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 0.3, 2.4)
 				pan = (mb.position - size * 0.5) / zoom - before
 			accept_event()
 			return
@@ -281,16 +284,27 @@ func _draw() -> void:
 			draw_rect(Rect2(sp.floor(), Vector2(1, 1) * (1 + int(s[2] == 2))), c)
 	var alloc: Array = Profile.skills()
 	var free := Profile.skill_points_free()
-	# guide rings and branch names
+	# faint branch sectors give each school its own colour field
 	var center := to_screen(Vector2.ZERO)
+	for b in SkillDB.BRANCHES:
+		var binfo: Dictionary = SkillDB.BRANCHES[b]
+		var a0 := deg_to_rad(float(binfo.angle) - 26.0)
+		var a1 := deg_to_rad(float(binfo.angle) + 26.0)
+		var fan := PackedVector2Array([center])
+		for k in 9:
+			var aa := lerpf(a0, a1, k / 8.0)
+			fan.append(center + Vector2(cos(aa), sin(aa)) * SkillDB.RING * 6.6 * zoom)
+		var bc: Color = binfo.color
+		draw_colored_polygon(fan, Color(bc.r, bc.g, bc.b, 0.045))
+	# guide rings and branch names
 	for ring in range(1, 7):
 		draw_arc(center, ring * SkillDB.RING * zoom, 0.0, TAU, 96, Color(0.3, 0.25, 0.35, 0.18), 1.0)
 	for b in SkillDB.BRANCHES:
 		var info: Dictionary = SkillDB.BRANCHES[b]
 		var a := deg_to_rad(float(info.angle))
-		var p := to_screen(Vector2(cos(a), sin(a)) * SkillDB.RING * 7.1)
+		var p := to_screen(Vector2(cos(a), sin(a)) * SkillDB.RING * 6.75)
 		var name: String = String(info.name).to_upper()
-		var fs := 16 if zoom > 0.8 else 8
+		var fs := 16 if zoom > 0.9 else 8
 		var w := UIKit.FONT_OUTLINE.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string(UIKit.FONT_OUTLINE, (p - Vector2(w * 0.5, -fs * 0.4)).round(), name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, (info.color as Color).darkened(0.1))
 	# edges
@@ -374,7 +388,10 @@ func _draw_node(id: String, alloc: Array, free: int) -> void:
 		fill = Color(0.12, 0.1, 0.14)
 		draw_circle(p, r + (2.0 + pulse * 2.0) * zoom, Color(col.r, col.g, col.b, 0.12 + 0.1 * pulse))
 	elif reachable:
-		edge = col.darkened(0.45)
+		edge = col.darkened(0.35)
+	else:
+		edge = col.darkened(0.62)
+		fill = Color(0.06, 0.055, 0.08).lerp(col, 0.06)
 	var pts := _shape_points(n.kind, p, r)
 	draw_colored_polygon(pts, fill)
 	var closed := pts.duplicate()

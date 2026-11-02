@@ -374,9 +374,11 @@ func _shatter(pl: Player) -> void:
 
 
 func _volatile_burst() -> void:
-	var p := pos
-	var st := stage
-	var dmg := damage * 1.6
+	_volatile_later(stage, pos, damage * 1.6)
+
+
+## Static so the delayed blast survives this enemy being freed.
+static func _volatile_later(st: Stage, p: Vector2, dmg: float) -> void:
 	st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(5, 5), TELE_COLOR, TELE_EDGE, 0.75, {"progress": 0.0})
 	st.after(0.7, func() -> void:
 		st.fx.ring(p, 2.5, Color(1.0, 0.5, 0.2), 0.3, 0.35)

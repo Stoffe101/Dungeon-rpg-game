@@ -32,6 +32,27 @@ func _ready() -> void:
 			Game.call_deferred("descend")
 		_:
 			Game.goto_menu()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("open="):
+			_open_dev_screen.call_deferred(a.substr(5))
+
+
+func _open_dev_screen(what: String) -> void:
+	match what:
+		"skilltree":
+			ui.skill_tree()
+		"forge":
+			ui.forge()
+		"descent":
+			ui.descent_prompt()
+		"settings":
+			ui.settings()
+		"relic":
+			var rng := RandomNumberGenerator.new()
+			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)
+		"summary":
+			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
+				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": ""})
 
 
 func _process(_d: float) -> void:

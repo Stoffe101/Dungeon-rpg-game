@@ -25,6 +25,7 @@ var _frac := Vector2.ZERO
 
 func _ready() -> void:
 	add_to_group("pixel_view")
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	viewport = SubViewport.new()

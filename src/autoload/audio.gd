@@ -35,6 +35,13 @@ func _ready() -> void:
 		rv.wet = 0.12
 		rv.dry = 1.0
 		AudioServer.add_bus_effect(sfx, rv)
+	var mus := AudioServer.get_bus_index("Music")
+	if AudioServer.get_bus_effect_count(mus) == 0:
+		var mrv := AudioEffectReverb.new()
+		mrv.room_size = 0.8
+		mrv.damping = 0.4
+		mrv.wet = 0.18
+		AudioServer.add_bus_effect(mus, mrv)
 	for i in POOL:
 		var p := AudioStreamPlayer.new()
 		p.bus = "SFX"

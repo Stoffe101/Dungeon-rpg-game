@@ -13,7 +13,7 @@
 class_name SkillDB
 extends RefCounted
 
-const RING := 74.0
+const RING := 60.0
 const COSTS := {"root": 0, "minor": 1, "notable": 2, "ability": 2, "hybrid": 2, "keystone": 3}
 
 const BRANCHES := {

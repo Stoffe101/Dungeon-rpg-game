@@ -4,6 +4,7 @@ extends Enemy
 
 const BLAST_R := 2.4
 var fused := false
+var exploded := false
 
 
 func behave(dt: float) -> void:
@@ -32,35 +33,36 @@ func _fuse(t: float) -> void:
 	Audio.play("bloat", -4.0)
 	telegraph(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(BLAST_R * 2, BLAST_R * 2), t)
 	var st := stage
+	var me: WeakRef = weakref(self)
 	st.after(t, func() -> void:
-		if is_instance_valid(self):
-			_explode())
+		var b = me.get_ref()
+		if b != null and b.alive:
+			b._explode())
 
 
 func die(killer: Node) -> void:
 	if not alive:
 		return
-	if not fused:
-		# dying sets the fuse; the corpse still pops
-		fused = true
-		var p := pos
-		var st := stage
-		var dmg := damage
-		st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(BLAST_R * 2, BLAST_R * 2), TELE_COLOR, TELE_EDGE, 0.5, {"progress": 0.5})
-		st.after(0.45, func() -> void:
-			_blast(st, p, dmg, null))
+	if not exploded:
+		# killing it doesn't defuse it: the corpse still pops a moment later
+		exploded = true
+		stage.fx.shape(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(BLAST_R * 2, BLAST_R * 2), TELE_COLOR, TELE_EDGE, 0.5, {"progress": 0.5})
+		_blast_later(stage, pos, damage, 0.45)
 	super.die(killer)
 
 
 func _explode() -> void:
-	if not alive:
+	if not alive or exploded:
 		return
-	var p := pos
-	var st := stage
-	alive = true
-	_blast(st, p, damage, self)
+	exploded = true
+	_blast(stage, pos, damage, self)
 	hp = 0.0
 	super.die(null)
+
+
+## Static so the delayed callback is not bound to this (soon freed) instance.
+static func _blast_later(st: Stage, p: Vector2, dmg: float, delay: float) -> void:
+	st.after(delay, func() -> void: _blast(st, p, dmg, null))
 
 
 static func _blast(st: Stage, p: Vector2, dmg: float, self_ref: Node) -> void:

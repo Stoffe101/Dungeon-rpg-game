@@ -144,13 +144,13 @@ func open(screen: Control, pause := true) -> Control:
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal_layer.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	dim.add_child(screen)
+	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.set_meta("pause", pause)
 	modals.append(dim)
 	if pause:
 		get_tree().paused = true
-	dim.modulate.a = 0.0
-	create_tween().tween_property(dim, "modulate:a", 1.0, 0.15)
 	Audio.ui("ui_open")
 	return dim
 
