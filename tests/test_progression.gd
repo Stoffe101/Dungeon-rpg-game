@@ -145,3 +145,20 @@ func test_migration_from_v1() -> void:
 	check((m.skills as Array).has("b1"), "skills converted")
 	check(m.has("sanctuary") and m.has("grudges") and m.has("stats"), "new sections added")
 	eq(int(m.level), 4, "progress preserved")
+
+
+func test_residents_arrive_with_progress() -> void:
+	Profile.data = Profile.fresh()
+	eq(Residents.count_present(), 1, "one survivor at first")
+	eq(Residents.garden_stage(), 0, "bare planters at first")
+	Profile.data.sanctuary.hearth = 3
+	Profile.data.stats.runs = 9
+	eq(Residents.count_present(), Residents.LIST.size(), "capped at the full roster")
+	eq(Residents.garden_stage(), 3, "sunblooms with a strong Hearth")
+	var rng := RandomNumberGenerator.new()
+	for r in Residents.LIST:
+		check(not Residents.talk(r.id).is_empty(), "%s has things to say" % r.id)
+		check(Residents.bark(r.id, rng) != "", "%s barks" % r.id)
+		check(ResourceLoader.exists("res://assets/sprites/%s.png" % r.sheet), "%s sheet exists" % r.id)
+	Profile.data.world.warden_kills = 1
+	check(Residents.talk("teodric") != Residents.LIST[1].talk[0], "talk changes after the Warden falls")

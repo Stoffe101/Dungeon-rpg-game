@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"idle": {
+			"fps": 3.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"sit": {
+			"fps": 1.5,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		32
+	],
+	"origin": [
+		12,
+		30
+	]
+}

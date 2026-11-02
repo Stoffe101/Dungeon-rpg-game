@@ -32,7 +32,12 @@ const MAP := [
 var menu_mode := false
 var env: Environment
 var hearth_prop: Prop
+var cookpot: Prop
+var residents: Array = []
+var spots: Array = []        # where residents like to stand or sit (see _camp)
 var _ember_t := 0.0
+var _steam_t := 0.0
+var _last_bark := -99.0
 
 
 func build(v: PixelView) -> void:
@@ -69,6 +74,7 @@ func build(v: PixelView) -> void:
 		player.kindle = player.kindle_max()
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
+		_spawn_residents()
 		if not Profile.data.flags.get("intro_done", false):
 			Profile.data.flags.intro_done = true
 			after(0.8, func() -> void:
@@ -140,10 +146,73 @@ func _place() -> void:
 	# torches along the north wall
 	for x in [7, 13, 29, 35]:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
+	_camp()
 	for i in 10:
 		var t := Vector2i(rng.randi_range(5, 37), rng.randi_range(5, 19))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and Vector2(t).distance_to(Vector2(21, 11)) > 3.0:
 			Prop.make(self, "decal", t, {"variant": rng.randi_range(4, 7)})
+
+
+## The survivors' camp around the Hearth, and the spots residents gravitate to.
+func _camp() -> void:
+	for x in [10, 32]:
+		Prop.make(self, "banner", Vector2i(x, 3), {"sheet": "hearth_banner"})
+	for b in [Vector2i(17, 12), Vector2i(25, 11)]:
+		Prop.make(self, "bench", b, {"sheet": "bench", "solid": true})
+		_spot(Vector2(b) + Vector2(0.5, 0.56), "sit", "bench")
+	cookpot = Prop.make(self, "cookpot", Vector2i(18, 9), {"sheet": "cookpot", "anim": "idle", "solid": true,
+		"light": [Color(1.0, 0.5, 0.25), 0.5, 2.5], "light_h": 0.3})
+	_spot(Vector2(17.15, 9.7), "idle", "cookpot")
+	Prop.make(self, "crates", Vector2i(12, 5), {"sheet": "crates", "solid": true})
+	_spot(Vector2(13.4, 6.0), "idle", "crates")
+	Prop.make(self, "tent", Vector2i(30, 17), {"sheet": "tent", "solid": true})
+	for t in [Vector2i(29, 17), Vector2i(31, 17)]:
+		grid.put(t.x, t.y, TileGrid.PROP)
+		set_tile_solid(t, true)
+	_spot(Vector2(30.5, 18.45), "sit", "tent")
+	var bloom := Residents.garden_stage()
+	for x in [18, 20, 22, 24]:
+		Prop.make(self, "planter", Vector2i(x, 19), {"sheet": "planter", "anim": "s%d" % bloom, "solid": true,
+			"light": [Color(1.0, 0.85, 0.45), 0.35, 1.6] if bloom >= 3 else [], "light_h": 0.5})
+	_spot(Vector2(19.5, 18.3), "idle", "planters")
+	_spot(Vector2(23.5, 18.3), "idle", "planters")
+	_spot(Vector2(19.2, 13.5), "idle", "hearth")
+	_spot(Vector2(23.0, 13.7), "sit", "hearth")
+	_spot(Vector2(9.8, 16.2), "idle", "dummies")
+	_spot(Vector2(15.5, 6.3), "idle", "posts")
+	_spot(Vector2(27.5, 6.3), "idle", "posts")
+	_spot(Vector2(18.6, 5.0), "idle", "descent")
+	if Profile.building("forge") > 0:
+		_spot(Vector2(11.6, 10.6), "idle", "forge")
+	if Profile.building("shrine") > 0:
+		_spot(Vector2(31.8, 15.3), "idle", "memorial")
+
+
+func _spot(p: Vector2, pose: String, tag: String) -> void:
+	spots.append({"p": p, "pose": pose, "tag": tag, "by": null})
+
+
+func _spawn_residents() -> void:
+	var n := Residents.count_present()
+	for i in n:
+		residents.append(Wanderer.spawn(self, Residents.LIST[i], spots, rng))
+	# newcomers are announced once
+	var seen := int(Profile.data.flags.get("residents_seen", 1))
+	if n > seen:
+		var names: Array = []
+		for i in range(seen, n):
+			names.append(Residents.LIST[i].name)
+		after(1.2, func() -> void:
+			Game.ui.toast("New at the Hearth: %s" % ", ".join(names), UIKit.C_GOLD))
+	Profile.data.flags["residents_seen"] = maxi(seen, n)
+
+
+## Residents take turns speaking so the sanctuary never turns into a chorus.
+func may_bark() -> bool:
+	if elapsed - _last_bark < 7.0:
+		return false
+	_last_bark = elapsed
+	return true
 
 
 func _spawn_dummies() -> void:
@@ -154,6 +223,10 @@ func _spawn_dummies() -> void:
 
 
 func _stage_process(real: float) -> void:
+	_steam_t += real
+	if cookpot and _steam_t > 0.22:
+		_steam_t = 0.0
+		fx.motes(cookpot.pos + Vector2(randf_range(-0.2, 0.2), 0), 1.0, Color(0.7, 0.68, 0.72), 1, 0.4, 1.8, 0.15)
 	_ember_t += real
 	if _ember_t > 0.06:
 		_ember_t = 0.0
@@ -177,6 +250,14 @@ func request(what: String, prop: Prop) -> void:
 				Game.ui.sanctuary_build({"forge_ruin": "forge", "apothecary": "apothecary", "memorial": "shrine"}[what])
 		"keeper":
 			Game.ui.dialogue("The Keeper", Keeper.lines())
+		"resident":
+			var w := prop as Wanderer
+			var d: Dictionary = w.def
+			w.listen(6.0)
+			var who := String(d.name) + ("" if String(d.title) == "" else ", " + String(d.title))
+			Game.ui.dialogue(who, Residents.talk(String(d.id)), func() -> void:
+				if is_instance_valid(w):
+					w.listen(1.5))
 	prop.set_meta("last_used", elapsed)
 
 

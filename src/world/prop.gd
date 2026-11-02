@@ -49,7 +49,7 @@ func _build() -> void:
 			ticks = true
 		"banner":
 			pos = Vector2(tile.x + 0.5, tile.y + 1.0)
-			_sprite("banner", 0.85, 0.03)
+			_sprite(String(data.get("sheet", "banner")), 0.85, 0.03)
 		"decal":
 			_decal(int(data.get("variant", 0)))
 		"urn":
@@ -183,7 +183,7 @@ func _build() -> void:
 			# generic data-driven prop (used by the sanctuary)
 			if data.has("sheet"):
 				_sprite(String(data.sheet), float(data.get("h", 0.0)), float(data.get("z", 0.0)), String(data.get("anim", "")))
-			if data.has("light"):
+			if not data.get("light", []).is_empty():
 				var L: Array = data.light
 				_light(L[0], L[1], L[2], Vector3(0, float(data.get("light_h", 1.2)) * Iso.SQ2, 0.3))
 				ticks = true

@@ -137,6 +137,12 @@ choice. Combat rooms seal with soul-light gates until cleared.
   you have the ability.
 - **Sanctuary** - Hearth (max HP, lights the sanctuary), Ashen Forge (temper and
   craft weapons), Ember Apothecary (flasks), Shrine of Memory (Grudge rewards).
+  Survivors come to the light as the Hearth grows and expeditions return (six
+  residents: a gardener, an old guard, a child, a lamplighter, a woodcutter, a
+  singer). They wander between favourite spots, sit at the fire, remark on what
+  you've done (Grudges, deaths, the Warden's fall) and talk when spoken to; their
+  lines change after the Warden falls. Planters by the south wall grow from bare
+  soil to glowing sunblooms with your progress.
 - **Undervault Memory** - each Warden kill raises Memory: stronger foes, richer
   rewards. Foundation for an endless difficulty climb.
 

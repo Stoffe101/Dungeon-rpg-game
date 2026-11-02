@@ -152,6 +152,15 @@ func _run() -> void:
 	await _close_all()
 	Game.goto_hub()
 	await _wait(10)
+	var hub := Game.stage as Hub
+	_expect(not hub.residents.is_empty(), "residents live in the sanctuary")
+	if not hub.residents.is_empty():
+		var w: Wanderer = hub.residents[0]
+		hub.player.pos = w.pos + Vector2(0.5, 0.0)
+		hub.player.try_interact()
+		await _wait(4)
+		_expect(ui.has_modal(), "talking to a resident opens a dialogue")
+		await _close_all()
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()

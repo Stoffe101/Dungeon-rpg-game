@@ -30,6 +30,7 @@ var _shapes: Array = []      # {node, t, life, update:Callable}
 var _lights: Array = []      # {light, t, life, energy}
 var _numbers: Array = []     # {label, world:Vector3, t, life, vel}
 var _ghosts: Array = []      # {sprite, t, life}
+var _says: Array = []        # {label, who:WeakRef, height, t, life}
 var intensity := 1.0
 
 
@@ -310,6 +311,44 @@ func _place_number(n: Dictionary) -> void:
 	l.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y - n.rise))
 
 
+## A speech bubble that follows a speaker (a Prop or Actor with `pos`).
+func say(who: Node, height: float, text: String, life := 3.6) -> void:
+	if view == null:
+		return
+	for s in _says:
+		if s.who.get_ref() == who:
+			s.t = s.life   # replace what they were saying
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", FONT_OUTLINE)
+	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_color_override("font_color", Color(0.98, 0.92, 0.8))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.03, 0.03, 0.06, 0.72)
+	sb.set_content_margin_all(2)
+	sb.content_margin_left = 3
+	sb.content_margin_right = 3
+	l.add_theme_stylebox_override("normal", sb)
+	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.overlay.add_child(l)
+	_says.append({"label": l, "who": weakref(who), "height": height, "t": 0.0, "life": life})
+
+
+func _update_says(dt: float) -> void:
+	for i in range(_says.size() - 1, -1, -1):
+		var s: Dictionary = _says[i]
+		s.t += dt
+		var who: Node = s.who.get_ref()
+		if s.t >= s.life or who == null or not is_instance_valid(who):
+			s.label.queue_free()
+			_says.remove_at(i)
+			continue
+		var sp := view.world_to_internal(Iso.to_world(who.get("pos"), s.height))
+		var sz: Vector2 = s.label.get_minimum_size()
+		s.label.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y))
+		s.label.modulate.a = clampf((s.life - s.t) / 0.4, 0.0, 1.0) * clampf(s.t / 0.12, 0.0, 1.0)
+
+
 func _update_numbers(dt: float) -> void:
 	for i in range(_numbers.size() - 1, -1, -1):
 		var n: Dictionary = _numbers[i]
@@ -347,6 +386,7 @@ func step(dt: float) -> void:
 	_update_lights(dt)
 	_update_ghosts(dt)
 	_update_numbers(dt)
+	_update_says(dt)
 	_update_shake(dt)
 
 

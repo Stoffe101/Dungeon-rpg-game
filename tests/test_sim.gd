@@ -187,3 +187,22 @@ func test_interact_input_uses_nearest_prop() -> void:
 	var far := _player(st, Vector2(16.5, 7.5))
 	check(far.try_interact() == null, "nothing to use far away")
 	st.queue_free()
+
+
+func test_resident_walks_between_spots() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	_player(st, Vector2(3.5, 3.5))
+	var spots := [{"p": Vector2(5.5, 7.5), "pose": "sit", "tag": "bench", "by": null},
+		{"p": Vector2(16.5, 7.5), "pose": "idle", "tag": "planters", "by": null}]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var w := Wanderer.spawn(st, Residents.LIST[0], spots, rng)
+	var start := w.pos
+	w.wait = 0.0
+	_run(st, 14.0)
+	check(w.pos.distance_to(start) > 5.0, "walked to the other spot (%s -> %s)" % [start, w.pos])
+	check(spots[w.spot].by == w, "claims the spot it stands on")
+	check(not w.moving, "settled at the spot")
+	eq(st.nearest_interactable(w.pos), w, "can be talked to")
+	st.queue_free()

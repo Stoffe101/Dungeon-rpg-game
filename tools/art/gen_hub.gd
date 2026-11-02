@@ -1,5 +1,6 @@
 ## Sanctuary structures and residents: the Hearth, the Descent, forge, smith,
-## apothecary, memorial, the Keeper, lantern posts, and the dungeon merchant.
+## apothecary, memorial, the Keeper, lantern posts, the dungeon merchant, the
+## survivors who gather at the Hearth, and the camp they build around it.
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
@@ -31,6 +32,8 @@ static func build(dir: String) -> void:
 	_keeper(dir)
 	_lantern_post(dir)
 	_merchant(dir)
+	_residents(dir)
+	_camp(dir)
 
 
 static func _flame(c: Px, cx: float, base_y: float, w: float, h: float, ph: int, r: Array) -> void:
@@ -317,3 +320,195 @@ static func _merchant(dir: String) -> void:
 		fr.append(c)
 	s.add("idle", fr, 3.0)
 	s.save(dir, "merchant")
+
+
+# --- survivors ----------------------------------------------------------------------
+
+## head: 0 hood, 1 scarf, 2 bare, 3 cap.  extra: 0 none, 1 basket, 2 lantern,
+## 3 logs, 4 sling, 5 child.
+static func _resident_specs() -> Array:
+	return [
+		{"name": "resident_ama", "cloth": Pal.EARTH, "accent": Pal.MOSS, "hair": Pal.EARTH, "head": 1, "extra": 1},
+		{"name": "resident_teodric", "cloth": Pal.STEEL, "accent": Pal.BLOOD, "hair": Pal.BONE, "head": 2, "extra": 4},
+		{"name": "resident_wren", "cloth": Pal.GLOAM, "accent": Pal.GOLD, "hair": Pal.WOOD, "head": 2, "extra": 5},
+		{"name": "resident_bram", "cloth": Pal.FROST, "accent": Pal.STEEL, "hair": Pal.EARTH, "head": 0, "extra": 2},
+		{"name": "resident_hollis", "cloth": Pal.WOOD, "accent": Pal.EARTH, "hair": Pal.EMBER, "head": 3, "extra": 3},
+		{"name": "resident_sefa", "cloth": Pal.BLOOD, "accent": Pal.BONE, "hair": Pal.WOOD, "head": 1, "extra": 0},
+	]
+
+
+static func _residents(dir: String) -> void:
+	for sp in _resident_specs():
+		var s := Sheet.new(24, 32, Vector2i(12, 30))
+		var idle: Array = []
+		var walk: Array = []
+		for i in 4:
+			idle.append(_resident(sp, "idle", i))
+			walk.append(_resident(sp, "walk", i))
+		s.add("idle", idle, 3.0)
+		s.add("walk", walk, 8.0)
+		s.add("sit", [_resident(sp, "sit", 0), _resident(sp, "sit", 1)], 1.5)
+		s.save(dir, String(sp.name))
+
+
+static func _resident(sp: Dictionary, pose: String, f: int) -> Px:
+	var c := Px.new(24, 32)
+	var child: bool = int(sp.extra) == 5
+	var cloth: Array = sp.cloth
+	var accent: Array = sp.accent
+	var b := 0
+	var sit := pose == "sit"
+	match pose:
+		"idle":
+			b = [0, 0, 1, 1][f]
+		"walk":
+			b = [0, 1, 0, 1][f]
+		"sit":
+			b = 5
+	var top := 6 if child else 0          # children stand lower
+	var hw := 4 if child else 5           # half body width
+	var head_r := 3.2 if child else 3.6
+	var hy := 8.0 + top + b               # head centre
+	var body_top := 13 + top + b
+	# legs
+	if sit:
+		c.paint(c.mask().rect(8, 28, 3, 2), Pal.EARTH, 1)
+		c.paint(c.mask().rect(13, 28, 3, 2), Pal.EARTH, 1)
+	else:
+		var swing: int = [0, 1, 0, -1][f] if pose == "walk" else 0
+		var leg_y := 26 if child else 24
+		var leg_h := 4 if child else 6
+		c.paint(c.mask().rect(9 + swing, leg_y, 2, leg_h - absi(swing)), Pal.EARTH, 1)
+		c.paint(c.mask().rect(13 - swing, leg_y, 2, leg_h - absi(swing)), Pal.EARTH, 1)
+	# body
+	var bottom := 29 if sit else (27 if child else 26)
+	var body := c.mask().poly(V([[12 - hw, body_top], [12 + hw, body_top], [12 + hw + 1, bottom], [12 - hw - 1, bottom]]))
+	c.paint(body, cloth, 2, true)
+	# belt / sash in the accent colour
+	c.paint(c.mask().rect(12 - hw, body_top + 6, hw * 2 + 1, 1), accent, 2)
+	# arms
+	var arm_swing: int = [1, 0, -1, 0][f] if pose == "walk" else 0
+	c.paint(c.mask().rect(12 - hw - 1, body_top + 1 + arm_swing, 2, 7), cloth, 1)
+	c.paint(c.mask().rect(12 + hw, body_top + 1 - arm_swing, 2, 7), cloth, 1)
+	c.put(12 - hw - 1, body_top + 8 + arm_swing, Pal.SKIN[2])
+	c.put(12 + hw + 1, body_top + 8 - arm_swing, Pal.SKIN[2])
+	# head
+	if int(sp.head) == 0:
+		c.paint(c.mask().ellipse(12.0, hy, head_r + 0.9, head_r + 1.0), cloth, 1, true)
+		c.paint(c.mask().ellipse(12.4, hy + 1.0, head_r - 1.1, head_r - 0.9), Pal.SKIN, 2)
+	else:
+		c.paint(c.mask().ellipse(12.0, hy, head_r, head_r + 0.4), Pal.SKIN, 2)
+		var hair: Array = sp.hair
+		match int(sp.head):
+			1:
+				var scarf := c.mask().ellipse(12.0, hy - 2.0, head_r + 0.6, 2.2)
+				scarf.rect(int(12 - head_r) - 1, int(hy) - 2, 2, 5)
+				c.paint(scarf, accent, 2, true)
+			2:
+				c.paint(c.mask().ellipse(12.0, hy - 2.2, head_r, 1.8), hair, 2)
+			3:
+				c.paint(c.mask().rect(int(12 - head_r) - 1, int(hy) - 4, int(head_r * 2) + 3, 2), accent, 3)
+				c.paint(c.mask().rect(int(12 - head_r), int(hy) - 6, int(head_r * 2) + 1, 2), accent, 2)
+	c.put(11, int(hy) + 1, Pal.INK)
+	c.put(13, int(hy) + 1, Pal.INK)
+	# what they carry
+	match int(sp.extra):
+		1:
+			c.paint(c.mask().rect(17, body_top + 6, 5, 4), Pal.WOOD, 2)
+			c.put(18, body_top + 5, Pal.MOSS[4])
+			c.put(20, body_top + 4, Pal.MOSS[3])
+		2:
+			c.line(18, body_top + 7 - arm_swing, 19, body_top + 9 - arm_swing, Pal.WOOD[2])
+			c.paint(c.mask().rect(18, body_top + 10 - arm_swing, 3, 4), Pal.STEEL, 2)
+			c.lit(19, body_top + 11 - arm_swing, Pal.EMBER[4 + f % 2])
+		3:
+			for k in 3:
+				c.paint(c.mask().rect(4 + k, body_top - 2 + k * 3, 3, 3), Pal.WOOD, 3 - k % 2)
+		4:
+			c.paint(c.mask().rect(13, body_top + 3, 4, 3), Pal.BONE, 3)
+	c.outline(Pal.INK)
+	return c
+
+
+# --- the camp around the Hearth ---------------------------------------------------------
+
+static func _camp(dir: String) -> void:
+	# log bench
+	var bench := Px.new(26, 12)
+	bench.paint(bench.mask().rect(3, 3, 20, 6), Pal.WOOD, 2, true)
+	bench.paint(bench.mask().ellipse(3.0, 6.0, 2.6, 3.2), Pal.WOOD, 3)
+	bench.put(3, 6, Pal.WOOD[1])
+	bench.paint(bench.mask().ellipse(23.0, 6.0, 2.6, 3.2), Pal.WOOD, 3)
+	bench.put(23, 6, Pal.WOOD[1])
+	for x in range(6, 21, 4):
+		bench.put(x, 5, Pal.WOOD[1])
+	bench.outline(Pal.INK)
+	single(dir, "bench", bench, Vector2i(13, 10))
+	# lean-to tent with a bedroll
+	var tent := Px.new(34, 28)
+	tent.line(4, 26, 17, 3, Pal.WOOD[2])
+	tent.line(30, 26, 17, 3, Pal.WOOD[2])
+	tent.paint(tent.mask().poly(V([[17, 4], [31, 25], [5, 25]])), Pal.EARTH, 2, true)
+	tent.fill(tent.mask().poly(V([[17, 10], [24, 25], [10, 25]])), Pal.STONE[0])
+	tent.paint(tent.mask().rect(11, 21, 12, 4), Pal.BLOOD, 1)
+	tent.paint(tent.mask().rect(21, 12, 5, 4), Pal.MOSS, 2)   # a patch
+	tent.outline(Pal.INK)
+	single(dir, "tent", tent, Vector2i(17, 26))
+	# crates and a barrel
+	var cr := Px.new(26, 24)
+	cr.paint(cr.mask().rect(1, 10, 11, 12), Pal.WOOD, 2, true)
+	cr.paint(cr.mask().rect(4, 2, 9, 9), Pal.WOOD, 3, true)
+	cr.line(1, 10, 11, 21, Pal.WOOD[1])
+	cr.line(4, 2, 12, 10, Pal.WOOD[1])
+	cr.paint(cr.mask().ellipse(19.0, 15.0, 5.0, 7.0), Pal.WOOD, 2, true)
+	cr.paint(cr.mask().rect(14, 11, 11, 1), Pal.STEEL, 2)
+	cr.paint(cr.mask().rect(14, 18, 11, 1), Pal.STEEL, 2)
+	cr.outline(Pal.INK)
+	single(dir, "crates", cr, Vector2i(13, 22))
+	# cookpot on a tripod over coals
+	var s := Sheet.new(20, 24, Vector2i(10, 22))
+	var fr: Array = []
+	for i in 4:
+		var c := Px.new(20, 24)
+		c.line(2, 22, 10, 2, Pal.WOOD[1])
+		c.line(18, 22, 10, 2, Pal.WOOD[1])
+		c.line(10, 3, 10, 9, Pal.STEEL[3])
+		c.paint(c.mask().ellipse(10.0, 13.0, 6.0, 4.6), Pal.STEEL, 1, true)
+		c.paint(c.mask().ellipse(10.0, 9.6, 5.0, 1.4), Pal.EARTH, 3)
+		for k in 6:
+			c.lit(5 + k * 2, 20 + (k + i) % 2, Pal.ramp(Pal.EMBER, 2 + (k + i) % 3))
+		c.outline(Pal.INK)
+		fr.append(c)
+	s.add("idle", fr, 5.0)
+	s.save(dir, "cookpot")
+	# a hearth banner for the north wall
+	var bn := Px.new(12, 24)
+	bn.paint(bn.mask().rect(0, 0, 12, 2), Pal.WOOD, 3)
+	bn.paint(bn.mask().poly(V([[1, 2], [11, 2], [11, 21], [6, 17], [1, 21]])), Pal.EMBER, 1, true)
+	var sig := bn.mask().ellipse(6.0, 10.0, 2.4, 3.2)
+	sig.poly(V([[4, 9], [6, 4], [8, 9]]))
+	bn.paint(sig, Pal.GOLD, 3, false, false)
+	bn.lit(6, 10, Pal.GOLD[4])
+	bn.outline(Pal.INK)
+	single(dir, "hearth_banner", bn, Vector2i(6, 23))
+	# planters: bare soil -> sprout -> leaves -> a glowing sunbloom
+	var ps := Sheet.new(18, 20, Vector2i(9, 18))
+	for stage in 4:
+		var c := Px.new(18, 20)
+		c.paint(c.mask().rect(2, 12, 14, 6), Pal.WOOD, 2, true)
+		c.paint(c.mask().rect(3, 11, 12, 2), Pal.EARTH, 1)
+		if stage >= 1:
+			c.line(9, 11, 9, 11 - stage * 2, Pal.MOSS[2])
+			c.put(8, 10, Pal.MOSS[3])
+		if stage >= 2:
+			c.paint(c.mask().ellipse(6.5, 8.0, 2.2, 1.2), Pal.MOSS, 3)
+			c.paint(c.mask().ellipse(11.5, 6.5, 2.2, 1.2), Pal.MOSS, 3)
+			c.put(5, 11, Pal.MOSS[2])
+			c.put(13, 10, Pal.MOSS[2])
+		if stage >= 3:
+			c.fill_lit(c.mask().ellipse(9.0, 3.0, 2.6, 2.2), Pal.GOLD[3])
+			c.lit(9, 3, Pal.EMBER[5])
+			c.lit(8, 2, Pal.GOLD[4])
+		c.outline(Pal.INK)
+		ps.add("s%d" % stage, [c], 1.0)
+	ps.save(dir, "planter")
