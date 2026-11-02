@@ -29,16 +29,18 @@ Last updated: 2026-11-02 (first development session).
 
 | Kind | What |
 |---|---|
-| Automated tests | 37 tests: combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
+| Automated tests | 38 tests (incl. Warden brazier sear): combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
 | Autopilot playtests | Headless bot runs (seed 7): clears depth 1, descends, plays depth 2. Boss run with `godmode`: Gloamfall at 54%, skitter calls, Warden dies, Hearthstone victory settles (bonus, sunshards, staff unlock). Without godmode the naive bot dies to the Warden in ~25s. Found and fixed: corridor targeting, partial pathing to solid goals, descend re-entry, freed-object timer callbacks. |
 | Visual inspection (screenshots actually viewed) | Dungeon at 1080p, 720p and 3440x1421 (ultrawide), combat with HUD/gates/traps/telegraphs, boss arena phase 1, main menu, sanctuary + dialogue, occlusion silhouette, skill tree, relic choice, forge, settings, run summary. Sprite sheets for all characters, boss, icons. See `docs/screenshots/`. |
+| UI smoke test | `-- uismoke`: opens every screen and presses its buttons (sanctuary building, forge craft/temper, weapon rack, skill allocate/refund/respec, memorial, settings tabs, merchant purchases, blood pact, chest, lore, Hearthstone confirm, extraction). Found and fixed the shop/forge refresh bug and a late-descend race. |
+| Build coverage | Bot runs with hammer, staff, and the entire skill tree allocated (`skills=all`): no script errors after fixes (Wildfire implemented; freed-source guards). |
+| Performance | Windowed 1080p autopilot: pinned at the 165 Hz vsync cap with ~200 particles and several enemies (RTX 5070). |
 | Manual (human) play | **Not yet** - needs a human to judge feel, difficulty and controls. |
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
 
 - Controller: inputs are mapped, but menus and the skill tree are mouse-first.
-- Brazier relighting (boss phase 2) is covered by a sim test but not yet seen on screen.
 - Balance is first-pass (bot clears depth 1 comfortably; humans untested).
 - UI scale 2 at 1080p not yet captured (auto picks 3).
 - Sanctuary is functional but sparse; needs more set dressing and NPC life.
@@ -47,7 +49,7 @@ Last updated: 2026-11-02 (first development session).
 ## Next priorities
 
 1. Human playtest pass on combat feel (timings, hitstop, telegraph lengths).
-2. Boss validation run (bot + screenshots), arena readability in Gloamfall.
-3. UI scale 2 check; controller navigation for menus and the skill tree.
+2. Install Godot export templates and produce a Windows build (preset is ready).
+3. Controller navigation for every menu (skill tree done; others rely on focus).
 4. Sanctuary set dressing; enemy hurt/attack frames polish.
 5. More rooms types/events, second region, more relic synergies.
