@@ -1,0 +1,18 @@
+# Godot 4
+.godot/
+*.translation
+/android/
+
+# Builds / exports
+/builds/
+/export/
+
+# Local capture output (curated screenshots go in docs/screenshots)
+/captures/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/
