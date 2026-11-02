@@ -228,6 +228,11 @@ static func _pickups(dir: String) -> void:
 
 
 static func _torch(dir: String) -> void:
+	_torch_variant(dir, "torch", Pal.SOUL)
+	_torch_variant(dir, "torch_warm", Pal.EMBER)
+
+
+static func _torch_variant(dir: String, name: String, R: Array) -> void:
 	var s := Sheet.new(9, 16, Vector2i(4, 15))
 	var fr: Array = []
 	for i in 4:
@@ -236,13 +241,13 @@ static func _torch(dir: String) -> void:
 		c.paint(c.mask().rect(2, 8, 5, 2), Pal.STEEL, 3)
 		var fh := 4.0 + (i % 2)
 		var fl := c.mask().ellipse(4.5 + (1 if i == 2 else 0) * 0.5, 7.0 - fh * 0.5, 2.2, fh * 0.75)
-		c.fill_lit(fl, Pal.SOUL[3])
-		c.fill_lit(c.mask().ellipse(4.5, 6.5, 1.2, 1.6), Pal.SOUL[5])
-		c.lit(4 + (i % 2), 2 - (i % 2), Pal.SOUL[4])
+		c.fill_lit(fl, R[3])
+		c.fill_lit(c.mask().ellipse(4.5, 6.5, 1.2, 1.6), R[5])
+		c.lit(4 + (i % 2), 2 - (i % 2), R[4])
 		c.outline(Pal.INK)
 		fr.append(c)
 	s.add("idle", fr, 8.0)
-	s.save(dir, "torch")
+	s.save(dir, name)
 
 
 static func _banner(dir: String) -> void:

@@ -22,6 +22,12 @@ static func main_menu(ui: UIRoot) -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_PASS
+	var shade := ColorRect.new()
+	shade.color = Color(0.0, 0.0, 0.02, 0.45)
+	shade.set_anchors_and_offsets_preset(Control.PRESET_LEFT_WIDE)
+	shade.offset_right = 260
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(shade)
 	var box := UIKit.vbox(6)
 	box.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	box.position = Vector2(40, -60)
@@ -30,19 +36,22 @@ static func main_menu(ui: UIRoot) -> Control:
 	box.add_child(title)
 	box.add_child(UIKit.label("Carry the last fire into the dark.", 8, UIKit.C_TEXT, true))
 	box.add_child(UIKit.spacer(14))
+	var buttons := UIKit.vbox(5)
+	buttons.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	box.add_child(buttons)
 	var has_progress := int(Profile.data.stats.get("runs", 0)) > 0 or Profile.level() > 1
 	var start := UIKit.button("Continue" if has_progress else "Begin", func() -> void:
 		ui.leave_main_menu()
 		ui.fade(Game.goto_hub), 110)
-	box.add_child(start)
+	buttons.add_child(start)
 	if has_progress:
-		box.add_child(UIKit.button("New Game", func() -> void:
+		buttons.add_child(UIKit.button("New Game", func() -> void:
 			ui.confirm("Start over?", "Your current progress will be erased. A backup of the old save is kept.", func() -> void:
 				Profile.reset_profile()
 				ui.leave_main_menu()
 				ui.fade(Game.goto_hub)), 110))
-	box.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
-	box.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
+	buttons.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
+	buttons.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
 	var ver := UIKit.label("v%s  -  Level %d  -  %d runs" % [ProjectSettings.get_setting("application/config/version"), Profile.level(), int(Profile.data.stats.get("runs", 0))], 8, UIKit.C_DIM, true)
 	ver.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	ver.position = Vector2(8, -14)

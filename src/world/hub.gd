@@ -47,6 +47,17 @@ func build(v: PixelView) -> void:
 					g.put(x, y, TileGrid.PILLAR)
 	setup(g, v)
 	add_child(LevelBuilder.build(grid, LevelBuilder.LevelTheme.named("hearth")))
+	# the sanctuary sits on a dark, wind-scoured plateau: fill the world beyond the walls
+	var ground := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(160, 160 * Iso.SQ2)
+	var gm := LevelBuilder.material(load("res://assets/textures/hearth_floor.png"), Color(0.42, 0.4, 0.45)).duplicate() as ShaderMaterial
+	gm.set_shader_parameter("uv_scale", Vector2(160.0 / 8.0, 160.0 / 8.0))
+	pm.material = gm
+	ground.mesh = pm
+	ground.position = Iso.to_world(Vector2(21, 11), 0.0) + Vector3(0, -0.05, 0)
+	ground.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(ground)
 	_environment()
 	_place()
 	if not menu_mode:
@@ -76,7 +87,7 @@ func _environment() -> void:
 	env.background_color = Color(0.02, 0.022, 0.045)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.35, 0.38, 0.62)
-	env.ambient_light_energy = 0.32 + 0.03 * Profile.building("hearth")
+	env.ambient_light_energy = 0.55 + 0.06 * Profile.building("hearth")
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.6

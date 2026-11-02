@@ -300,6 +300,7 @@ func _end_attack() -> void:
 
 
 func _begin_gloamfall() -> void:
+	print("[warden] gloamfall at %d%%" % int(hp_ratio() * 100.0))
 	phase = 2
 	attack_rate = 1.15
 	vel = Vector2.ZERO
@@ -335,7 +336,9 @@ func _lit_count() -> int:
 func on_brazier_lit() -> void:
 	var n := _lit_count()
 	braziers_changed.emit(n)
+	print("[warden] braziers lit: %d/%d" % [n, braziers.size()])
 	if phase == 2 and n >= braziers.size() and seared_t <= 0.0:
+		print("[warden] seared")
 		seared_t = 5.0
 		status.stagger_t = 5.0
 		status.exposed_t = 7.0

@@ -41,6 +41,7 @@ var aim_point := Vector2.ZERO
 var move_in := Vector2.ZERO
 var input_enabled := true
 var autopilot := false
+var godmode := "godmode" in OS.get_cmdline_user_args()
 var lantern: OmniLight3D
 var dir_name := "down"
 var hit_once := {}
@@ -63,6 +64,14 @@ func _ready() -> void:
 	mass = 1.0
 	display_name = "Kindled"
 	build_visual("player", "idle_down")
+	var mat := sprite.sheet.material
+	if mat.next_pass == null:
+		var sil := ShaderMaterial.new()
+		sil.shader = preload("res://assets/shaders/silhouette.gdshader")
+		sil.set_shader_parameter("atlas", mat.get_shader_parameter("atlas"))
+		sil.set_shader_parameter("frame_uv", mat.get_shader_parameter("frame_uv"))
+		sil.render_priority = 1
+		mat.next_pass = sil
 	lantern = OmniLight3D.new()
 	lantern.light_color = Color(1.0, 0.64, 0.34)
 	lantern.light_energy = 2.0
@@ -553,7 +562,7 @@ func _thermal_shock(t: Actor) -> void:
 ## All enemy damage to the player passes through here (dodge, ward, aegis, barrier).
 func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	var empty := Combat.Result.new()
-	if not alive:
+	if not alive or godmode:
 		return empty
 	if dodge_t > 0.0 or (invuln_t > 0.0 and dodge_age < stats.v("dodge_iframes") + 0.02):
 		if dodge_age <= PERFECT_WINDOW and not perfect_done and not h.has_tag("dot"):

@@ -251,6 +251,7 @@ func ghost(src: PixelSprite, world_pos: Vector3, col: Color, life := 0.3) -> voi
 	var g := PixelSprite.new()
 	add_child(g)
 	g.setup(src.sheet.name, src.anim)
+	g.set_instance_shader_parameter("silhouette", 0.0)
 	g.set_frame(src.frame_i)
 	g.playing = false
 	g.flip_h = src.flip_h

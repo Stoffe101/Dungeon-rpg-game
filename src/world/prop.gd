@@ -44,7 +44,7 @@ func _build() -> void:
 		"torch":
 			# mounted on the south face of a back-wall tile
 			pos = Vector2(tile.x + 0.5, tile.y + 1.0)
-			_sprite("torch", 1.1, 0.04)
+			_sprite("torch_warm" if flame.r > flame.b else "torch", 1.1, 0.04)
 			_light(flame, 1.8, 8.5, Vector3(0, 1.45 * Iso.SQ2, 0.35))
 			ticks = true
 		"banner":
@@ -101,7 +101,10 @@ func _build() -> void:
 			_solid([tile])
 		"brazier", "boss_brazier":
 			_sprite("brazier", 0.0, 0.0, "lit")
-			_light(flame, 1.6, 7.0, Vector3(0, 1.5 * Iso.SQ2, 0.2))
+			if kind == "boss_brazier":
+				_light(flame, 2.4, 11.0, Vector3(0, 1.5 * Iso.SQ2, 0.2))
+			else:
+				_light(flame, 1.6, 7.0, Vector3(0, 1.5 * Iso.SQ2, 0.2))
 			ticks = true
 			_solid([tile])
 			if kind == "boss_brazier":

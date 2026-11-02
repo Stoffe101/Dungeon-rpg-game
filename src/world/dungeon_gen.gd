@@ -682,8 +682,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})
 		Room.Type.BOSS:
 			var bc := Vector2(r.center())
-			for o in [Vector2(-0.3, -0.3), Vector2(0.3, -0.3), Vector2(-0.3, 0.3), Vector2(0.3, 0.3)]:
-				var bt := Vector2i(bc + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y))
+			for o in [Vector2(-8, -5), Vector2(8, -5), Vector2(-8, 5), Vector2(8, 5)]:
+				var bt := Vector2i(bc + o)
 				r.props.append({"kind": "boss_brazier", "tile": bt})
 
 

@@ -42,7 +42,7 @@ const ENEMIES := {
 	},
 	"warden": {
 		"name": "The Gloam Warden", "script": "res://src/entities/enemies/warden.gd", "sheet": "warden",
-		"hp": 1500.0, "speed": 3.0, "radius": 0.9, "poise": 260.0, "damage": 22.0, "armor": 0.0,
+		"hp": 1900.0, "speed": 3.0, "radius": 0.9, "poise": 260.0, "damage": 22.0, "armor": 0.0,
 		"xp": 160, "embers": 120, "cost": 99, "min_depth": 99, "boss": true,
 		"lore": "Keeper of the Ossuary's lightless heart. It swallows every flame it finds.",
 	},

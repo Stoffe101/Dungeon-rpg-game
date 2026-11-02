@@ -25,11 +25,16 @@ func _ready() -> void:
 	match scene:
 		"hub":
 			Game.goto_hub()
+		"siltest":
+			Game.goto_hub()
+			Game.stage.player.pos = Vector2(7.5, 6.4)
+			Game.stage.player.input_enabled = false
 		"dungeon":
 			Game.start_run()
 		"boss":
 			Game.start_run()
-			Game.call_deferred("descend")
+			Game.run.depth = 1
+			Game._enter_depth(2)
 		_:
 			Game.goto_menu()
 	for a in OS.get_cmdline_user_args():

@@ -143,3 +143,29 @@ func test_bloat_blast_hurts_enemies_too() -> void:
 	_run(st, 0.8)
 	check(h.hp < before or not h.alive, "the bloat's blast damages nearby enemies")
 	st.queue_free()
+
+
+func test_warden_braziers_sear() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(4, 7))
+	var w: Enemy = _enemy(st, "warden", Vector2(12, 6))
+	var bz: Array = []
+	for t in [Vector2i(6, 4), Vector2i(18, 4), Vector2i(6, 10), Vector2i(18, 10)]:
+		var p := Prop.make(st, "boss_brazier", t)
+		p.data["boss"] = w
+		bz.append(p)
+	w.set("braziers", bz)
+	w.set("intro", false)
+	_run(st, 2.0)
+	w.hp = w.max_hp * 0.5
+	_run(st, 0.2)
+	eq(w.get("phase"), 2, "Gloamfall below 55%")
+	for b in bz:
+		check(not b.lit, "braziers snuffed in phase 2")
+	for b in bz:
+		b.on_struck(pl)
+	check(w.get("seared_t") > 0.0, "relighting all braziers sears the Warden")
+	check(w.status.is_staggered(), "seared Warden is staggered")
+	check(w.status.exposed_t > 0.0, "seared Warden is exposed")
+	st.queue_free()

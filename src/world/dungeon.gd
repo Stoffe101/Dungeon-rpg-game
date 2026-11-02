@@ -52,6 +52,16 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	player.setup_from(run)
 	if "autopilot" in OS.get_cmdline_user_args():
 		player.add_child(Bot.new())
+	if "warp=boss" in OS.get_cmdline_user_args() and layout.boss_depth:
+		# dev: start in the antechamber next to the boss arena
+		var boss_room := layout.room(layout.exit_id)
+		var ante := layout.room(boss_room.doors[0].to)
+		player.pos = ante.center() + Vector2(0, 1)
+		for rm in layout.rooms:
+			if rm != boss_room:
+				rm.visited = true
+				rm.cleared = true
+		start = ante
 	view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
 	Events.player_died.connect(_on_player_died)
