@@ -66,6 +66,18 @@ func _ready() -> void:
 	Events.banner.connect(banner)
 	Events.toast.connect(toast)
 	Events.player_damaged.connect(_on_hurt)
+	Events.level_up.connect(func(lvl: int) -> void:
+		banner("Level %d" % lvl, "A skill point awaits at the Hearth")
+		Audio.play("skill_unlock", 0.0, 0.8)
+		if Game.stage and Game.stage.player:
+			var pl := Game.stage.player
+			pl.stage.fx.ring(pl.pos, 2.0, Color(0.45, 1.0, 0.9), 0.5, 0.2)
+			pl.stage.fx.motes(pl.pos, 0.3, Color(0.45, 1.0, 0.9), 24, 2.0, 1.0, 0.6))
+	Events.relic_gained.connect(func(id: String) -> void:
+		var r := RelicDB.relic(id)
+		toast("%s - %s" % [r.name, r.desc], RelicDB.RARITY_COLOR["cursed" if r.get("cursed", false) else r.rarity]))
+	_make_cursor()
+	get_window().size_changed.connect(_make_cursor)
 
 
 func _process(_delta: float) -> void:
@@ -77,6 +89,38 @@ func _layout_banner() -> void:
 	banner_box.size.x = vp.x
 	banner_box.position.x = 0
 	toast_box.position.y = vp.y * 0.45
+
+
+## A pixel crosshair, scaled with the UI so it stays crisp and visible.
+func _make_cursor() -> void:
+	var s := Settings.effective_ui_scale()
+	var base := Image.create_empty(11, 11, false, Image.FORMAT_RGBA8)
+	var ink := Color(0.04, 0.03, 0.06)
+	var hot := Color(1.0, 0.8, 0.45)
+	for i in 11:
+		for j in 11:
+			var on := (i == 5 and (j < 4 or j > 6)) or (j == 5 and (i < 4 or i > 6))
+			if on:
+				base.set_pixel(i, j, hot)
+	base.set_pixel(5, 5, hot)
+	# outline
+	var out := base.duplicate() as Image
+	for i in 11:
+		for j in 11:
+			if base.get_pixel(i, j).a > 0.0:
+				continue
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var q: Vector2i = Vector2i(i, j) + d
+				if q.x >= 0 and q.y >= 0 and q.x < 11 and q.y < 11 and base.get_pixel(q.x, q.y).a > 0.0:
+					out.set_pixel(i, j, ink)
+	out.resize(11 * s, 11 * s, Image.INTERPOLATE_NEAREST)
+	Input.set_custom_mouse_cursor(ImageTexture.create_from_image(out), Input.CURSOR_ARROW, Vector2(5 * s + s / 2, 5 * s + s / 2))
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if hud.visible and Game.stage is Dungeon and not has_modal() and not "autopilot" in OS.get_cmdline_user_args():
+			pause_menu()
 
 
 # --- feedback --------------------------------------------------------------------

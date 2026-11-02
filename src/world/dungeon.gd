@@ -340,6 +340,7 @@ func _spawn_grudge(r: Room) -> void:
 	add_actor(e)
 	register_enemy(e)
 	Events.banner.emit(String(g.name), "Your Grudge has found you. It carries %d of your Embers." % int(g.embers))
+	print("[dungeon] grudge %s (%s Lv%d) spawned in room %d" % [g.name, g.enemy, int(g.level), r.id])
 	Audio.play("boss_roar", -6.0, 1.3)
 
 
@@ -466,7 +467,8 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		if e.elite:
 			run.elites_slain += 1
 		# loot (embers are deliberately scarce: they are both shop money and progress)
-		var total := int(round(e.embers * 0.6))
+		var memory := int(Profile.data.world.get("memory", 0))
+		var total := int(round(e.embers * 0.6 * (1.0 + 0.15 * memory)))
 		var n := total
 		var chunks := clampi(n, 0, 6)
 		for i in chunks:

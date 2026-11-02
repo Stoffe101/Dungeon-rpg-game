@@ -225,6 +225,11 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos + Vector2(0, -0.05), 1.75, _flame_col.lightened(0.2), 1, 0.8, 0.6, 0.06)
 	elif (kind == "brazier" or kind == "boss_brazier") and lit and randf() < dt * 8.0:
 		stage.fx.motes(pos, 1.6, _flame_col.lightened(0.2), 1, 1.4, 0.8, 0.2)
+	elif kind == "boss_brazier" and not lit:
+		# a cold brazier calls for fire: a slow warm pulse on the floor
+		if fmod(_t, 1.4) < dt:
+			stage.fx.ring(pos, 1.5, Color(1.0, 0.6, 0.3), 0.7, 0.18)
+			stage.fx.motes(pos, 1.2, Color(1.0, 0.6, 0.3), 2, 0.6, 0.6, 0.2)
 	elif kind == "hearthstone" and randf() < dt * 5.0:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.65, 0.35), 1, 1.0, 1.0, 0.3)
 	elif kind == "relic_altar" and not used and randf() < dt * 6.0:

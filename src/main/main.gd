@@ -22,6 +22,14 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("scene="):
 			scene = a.substr(6)
+		elif a.begins_with("grudge="):
+			var rng := RandomNumberGenerator.new()
+			Profile.record_grudge(a.substr(7), 60, 1, rng)
+		elif a.begins_with("set="):
+			# dev: set=ui_scale:2
+			var kv := a.substr(4).split(":")
+			if kv.size() == 2:
+				Settings.set_value(kv[0], int(kv[1]) if kv[1].is_valid_int() else kv[1], false)
 	match scene:
 		"hub":
 			Game.goto_hub()

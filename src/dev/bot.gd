@@ -51,8 +51,23 @@ func _process(delta: float) -> void:
 	if _log_t > log_every:
 		_log_t = 0.0
 		var d := st as Dungeon
-		print("[bot] t=%.0f hp=%d/%d kindle=%d room=%s kills=%d embers=%d pos=%s goal=%s active=%s enemies=%d" % [_t, int(pl.hp), int(pl.max_hp), int(pl.kindle), str(d.current_room.id) if d and d.current_room else "-", d.run.kills if d else 0, d.run.embers if d else 0, str(pl.pos.snapped(Vector2(0.1, 0.1))), str(_goal.snapped(Vector2(0.1, 0.1))), str(d.active_room.id) if d and d.active_room else "-", d.room_enemies.size() if d else 0])
+		print("[bot] fps=%d actors=%d particles=%d t=%.0f hp=%d/%d kindle=%d room=%s kills=%d embers=%d pos=%s goal=%s active=%s enemies=%d" % [Engine.get_frames_per_second(), pl.stage.actors.size(), pl.stage.fx._p_count, _t, int(pl.hp), int(pl.max_hp), int(pl.kindle), str(d.current_room.id) if d and d.current_room else "-", d.run.kills if d else 0, d.run.embers if d else 0, str(pl.pos.snapped(Vector2(0.1, 0.1))), str(_goal.snapped(Vector2(0.1, 0.1))), str(d.active_room.id) if d and d.active_room else "-", d.room_enemies.size() if d else 0])
 	var target := _pick_target()
+	# boss phase 2: relight the braziers to sear the Warden
+	for a in pl.stage.actors:
+		if a is Enemy and a.def.get("boss", false) and a.get("phase") == 2 and a.get("seared_t") <= 0.0:
+			for b in a.get("braziers"):
+				if is_instance_valid(b) and not b.lit:
+					_goal = b.pos
+					pl.aim_point = b.pos
+					pl.aim = (b.pos - pl.pos).normalized()
+					if b.pos.distance_to(pl.pos) > 1.6:
+						pl.move_in = (pl.stage.path_step(pl.pos, b.pos) - pl.pos).normalized()
+					else:
+						pl.move_in = Vector2.ZERO
+						pl._buf.attack = 0.1
+						pl._release_pending = true
+					return
 	if target:
 		_fight(target, delta)
 	else:
