@@ -76,6 +76,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				print("[dungeon] event room %d: %s" % [rm.id, rm.event])
 	Events.player_died.connect(_on_player_died)
+	Events.parry_success.connect(_on_ward)
 	actor_died.connect(_on_actor_died)
 	Audio.play_music(region.music)
 	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
@@ -497,6 +498,26 @@ func _start_boss(r: Room) -> void:
 		Audio.play_music("boss", 0.5))
 
 
+## Counts progress on residents' requests and tells the player when one is done.
+func note_request(key: String, amount := 1) -> void:
+	var done := Residents.note(key, amount)
+	if OS.is_debug_build() and not Residents.journal().is_empty():
+		print("[request] %s x%d -> %s" % [key, amount, Residents.journal()])
+	for name in done:
+		Events.toast.emit("Request complete - return to %s at the Hearth." % name, UIKit.C_GOLD)
+		Audio.play("relic", -4.0)
+	for r in Residents.LIST:
+		var req: Dictionary = r.request
+		if req.key == key and Residents.request_state(r.id) == "active":
+			var n := Residents.request_progress(r.id)
+			if int(req.goal) <= 5 or n == int(req.goal) / 2:
+				Events.toast.emit("%s: %d/%d" % [req.title, n, int(req.goal)], UIKit.C_DIM)
+
+
+func _on_ward() -> void:
+	note_request("ward")
+
+
 func _on_actor_died(a: Actor, killer: Node) -> void:
 	if a is Enemy:
 		var e := a as Enemy
@@ -504,6 +525,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		Profile.stat_add("kills")
 		if e.elite:
 			run.elites_slain += 1
+			note_request("elite")
 		# loot (embers are deliberately scarce: they are both shop money and progress)
 		var memory := int(Profile.data.world.get("memory", 0))
 		var total := int(round(e.embers * 0.6 * (1.0 + 0.15 * memory)))
@@ -598,6 +620,11 @@ func request(what: String, prop: Prop) -> void:
 					if prop.light:
 						prop.light.light_energy = 0.3)
 		"chest":
+			note_request("chest")
+			if Residents.wants_toy():
+				fx.number(prop.pos, 2.4, "WOODEN BIRD", Color(1.0, 0.6, 0.45), true)
+				Events.toast.emit("A small wooden bird with a red wing. Wren will be glad.", Color(1.0, 0.75, 0.55))
+				note_request("toy")
 			var tier2: int = prop.data.get("tier", 1)
 			for i in 6 + tier2 * 6:
 				Pickup.spawn(self, "ember", prop.pos, 2 + tier2)

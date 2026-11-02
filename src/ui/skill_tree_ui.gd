@@ -215,6 +215,14 @@ func _refresh_bonuses() -> void:
 			l.tooltip_text = String(n.get("desc", ""))
 			l.mouse_filter = Control.MOUSE_FILTER_PASS
 			bonus_box.add_child(l)
+	var mastery_txt: Array = []
+	for id in SkillDB.unique(alloc):
+		if String(SkillDB.node(id).kind) == "mastery":
+			mastery_txt.append("%s %d/%d" % [String(SkillDB.node(id).name).replace(" Mastery", ""), SkillDB.rank(id, alloc), SkillDB.max_rank(id)])
+	if not mastery_txt.is_empty():
+		bonus_box.add_child(UIKit.spacer(3))
+		bonus_box.add_child(UIKit.label("MASTERIES", 8, UIKit.C_GOLD, true))
+		bonus_box.add_child(UIKit.para(", ".join(mastery_txt), w))
 	var abilities := SkillDB.abilities(alloc)
 	bonus_box.add_child(UIKit.spacer(3))
 	bonus_box.add_child(UIKit.label("ABILITIES", 8, UIKit.C_GOLD, true))
@@ -261,8 +269,8 @@ func _fit_view(animate: bool) -> void:
 ## Centres a branch and zooms in on it.
 func _focus_branch(b: String) -> void:
 	var a := deg_to_rad(float(SkillDB.BRANCHES[b].angle))
-	var c := Vector2(cos(a), sin(a)) * SkillDB.RING * 3.6
-	var z := clampf((size.y - 70.0) / (SkillDB.RING * 5.0), 0.4, 1.6)
+	var c := Vector2(cos(a), sin(a)) * SkillDB.RING * 3.5
+	var z := clampf((size.y - 80.0) / (SkillDB.RING * 6.2), 0.4, 1.6)
 	var shift := -(PANEL_W * 0.5 + 4.0) if bonus_panel.visible else 0.0
 	_view_to(-c + Vector2(shift / z, 10.0 / z), z, true)
 	Audio.ui("ui_click")
@@ -298,6 +306,8 @@ func _radius(kind: String) -> float:
 			return 13.0
 		"hybrid":
 			return 12.0
+		"mastery":
+			return 11.0
 	return 8.0
 
 
@@ -361,7 +371,16 @@ func _set_hovered(id: String, force := false) -> void:
 
 
 ## Kindles `id` - and, when it is not adjacent, every node on the cheapest path to it.
+## A kindled mastery takes another rank instead.
 func _try_allocate(id: String) -> void:
+	if Profile.skills().has(id):
+		if Profile.allocate(id):
+			_bursts.append({"pos": SkillDB.position_of(id), "t": 0.0, "col": _branch_color(id)})
+			Audio.play("skill_unlock", 0.0, 1.0 + 0.06 * SkillDB.rank(id, Profile.skills()))
+			_set_hovered(hovered, true)
+		else:
+			Audio.ui("deny")
+		return
 	var r := SkillDB.path_to(id, Profile.skills())
 	if r.is_empty() or int(r.cost) > Profile.skill_points_free():
 		Audio.ui("deny")
@@ -426,17 +445,20 @@ func _update_tip() -> void:
 	head.add_child(UIKit.icon_rect(SkillDB.icon_of(hovered)))
 	head.add_child(UIKit.label(n.name, 16 if n.kind in ["keystone", "root"] else 8, col, true))
 	tip_box.add_child(head)
-	var kind_txt: String = {"minor": "Minor", "notable": "Notable", "ability": "Ability", "keystone": "Keystone", "hybrid": "Hybrid", "root": "Origin"}[n.kind]
+	var kind_txt: String = {"minor": "Minor", "notable": "Notable", "ability": "Ability", "keystone": "Keystone", "hybrid": "Hybrid", "root": "Origin", "mastery": "Mastery"}[n.kind]
+	var mastery: bool = n.kind == "mastery"
 	var b := String(n.get("branch", ""))
 	var bname := ""
 	for part in b.split("|", false):
 		bname += ("/" if bname != "" else "") + String(SkillDB.BRANCHES[part].name)
-	tip_box.add_child(UIKit.label("%s%s   Cost %d" % [kind_txt, ("  -  " + bname) if bname != "" else "", SkillDB.cost(hovered)], 8, UIKit.C_DIM))
+	tip_box.add_child(UIKit.label("%s%s   Cost %d%s" % [kind_txt, ("  -  " + bname) if bname != "" else "", SkillDB.cost(hovered), " per rank" if mastery else ""], 8, UIKit.C_DIM))
+	if mastery:
+		tip_box.add_child(UIKit.label("Rank %d / %d   (each rank:)" % [SkillDB.rank(hovered, alloc), SkillDB.max_rank(hovered)], 8, UIKit.C_GOLD))
 	if n.has("desc"):
 		tip_box.add_child(UIKit.para(n.desc, 180))
 	var totals := _totals_by_key(alloc)
 	for m in n.get("mods", []):
-		if n.has("desc") and n.kind != "minor":
+		if n.has("desc") and not n.kind in ["minor", "mastery"]:
 			continue
 		tip_box.add_child(UIKit.label(UIKit.describe_mod(m), 8, UIKit.C_TEXT))
 		var key := "%s|%s" % [m[0], m[1]]
@@ -444,11 +466,12 @@ func _update_tip() -> void:
 			# what the whole tree adds up to, before and after this node
 			var now := float(totals.get(key, 0.0))
 			var after := now
-			if not is_alloc:
+			var growing := not is_alloc or (mastery and SkillDB.rank(hovered, alloc) < SkillDB.max_rank(hovered))
+			if growing:
 				after = (1.0 + now) * (1.0 + float(m[2])) - 1.0 if m[1] == "more" else now + float(m[2])
 			if absf(after - float(m[2])) > 0.0001 or is_alloc:
 				var txt := "Tree total: %s" % _short(m[0], m[1], now)
-				if not is_alloc:
+				if growing:
 					txt += "  ->  %s" % _short(m[0], m[1], after)
 				tip_box.add_child(UIKit.label(txt, 8, UIKit.C_DIM))
 	if n.has("ability"):
@@ -458,7 +481,19 @@ func _update_tip() -> void:
 	var state := ""
 	var scol := UIKit.C_DIM
 	var verb := "A" if Settings.using_pad else "Click"
-	if is_alloc:
+	if mastery and is_alloc and SkillDB.rank(hovered, alloc) < SkillDB.max_rank(hovered):
+		if free >= 1:
+			state = "%s to add a rank" % verb
+			scol = UIKit.C_GOOD
+		else:
+			state = "Needs 1 point for the next rank"
+			scol = UIKit.C_BAD
+		if SkillDB.can_refund(hovered, alloc):
+			state += "  -  %s removes one" % ("X" if Settings.using_pad else "right-click")
+	elif mastery and is_alloc:
+		state = "Mastered  -  %s removes a rank" % ("X" if Settings.using_pad else "right-click")
+		scol = UIKit.C_GOLD
+	elif is_alloc:
 		if hovered == "hearth":
 			state = "Kindled."
 		elif SkillDB.can_refund(hovered, alloc):
@@ -741,6 +776,17 @@ func _draw_node(id: String, alloc: Array, free: int) -> void:
 		draw_texture_rect(tex, Rect2((p - Vector2(s, s) * 0.5).round(), Vector2(s, s)), false, tint)
 	elif is_alloc:
 		draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.9, 0.6))
+	if kind == "mastery":
+		# rank pips in an arc under the node, and the count beside it
+		var mr := SkillDB.max_rank(id)
+		var rk := SkillDB.rank(id, alloc)
+		for i in mr:
+			var ang := deg_to_rad(50.0 + 80.0 * float(i) / maxf(mr - 1, 1))
+			var q := (p + Vector2(cos(ang), sin(ang)) * (r + 3.0 * zoom + 2.0)).round()
+			draw_rect(Rect2(q - Vector2(2, 2), Vector2(3, 3)), Color(0.02, 0.02, 0.03, fade))
+			draw_rect(Rect2(q - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.86, 0.52, fade) if i < rk else Color(col.r, col.g, col.b, 0.35 * fade))
+		if zoom > 0.45:
+			draw_string(UIKit.FONT_OUTLINE, (p + Vector2(r + 3.0, 3.0)).round(), "%d/%d" % [rk, mr], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.86, 0.52, fade) if rk > 0 else Color(col, 0.7 * fade))
 	if found:
 		draw_arc(p, r + 5.0 * zoom, 0.0, TAU, 32, Color(0.45, 0.95, 0.85, 0.55 + 0.45 * pulse), 1.5)
 	if id == hovered:
@@ -762,6 +808,9 @@ func _shape_points(kind: String, p: Vector2, r: float) -> PackedVector2Array:
 			rot = PI / 8.0
 		"minor":
 			sides = 12
+		"mastery":
+			sides = 10
+			rot = -PI / 2.0
 	for i in sides:
 		var a := rot + float(i) / sides * TAU
 		pts.append(p + Vector2(cos(a), sin(a)) * r)

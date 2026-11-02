@@ -132,6 +132,11 @@ choice. Combat rooms seal with soul-light gates until cleared.
   Frostwalk, Counterstep, Hearthguard, Ember Edge), four new abilities and six
   keystones with real trade-offs (Perfect Form, Living Pyre, Winter's Heart,
   Phantom, Unbreakable, Bonfire Soul). Respec at the Hearth (first free).
+  **Masteries**: beside each keystone, fed by a late notable, a 5-rank node
+  (1 point per rank) with a small two-stat bonus per rank - a long-term sink
+  for points that doesn't force the keystone's trade-off. Ranks are stored as
+  repeated ids in the skill list, so spending, applying and saving need no
+  special cases.
   UX: every node shows an icon; hovering any node previews the cheapest route
   from your tree (gold if affordable, red if not) and clicking it kindles the
   whole route; a search box highlights matching nodes; clicking a branch name
@@ -148,6 +153,13 @@ choice. Combat rooms seal with soul-light gates until cleared.
   you've done (Grudges, deaths, the Warden's fall) and talk when spoken to; their
   lines change after the Warden falls. Planters by the south wall grow from bare
   soil to glowing sunblooms with your progress.
+- **Resident requests** - each resident asks a favour only the Kindled can do
+  below ("!" over their head), tracked across expeditions; when it's done they
+  show "?" and hand over a permanent gift. Ama: open 4 chests (flasks heal more).
+  Teodric: Ward 15 attacks (longer Ward window). Wren: find her wooden bird (it
+  turns up in the next chest; +10% Embers). Bram: bring 3 Sunshards (+15 max
+  Kindle). Hollis: clear 25 brambles (+8% fire damage). Sefa: defeat 4 elites
+  (+10% Memories). The pause menu lists them.
 - **Undervault Memory** - each Warden kill raises Memory: stronger foes, richer
   rewards. Foundation for an endless difficulty climb.
 

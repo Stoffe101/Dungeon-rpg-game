@@ -207,6 +207,43 @@ func _spawn_residents() -> void:
 	Profile.data.flags["residents_seen"] = maxi(seen, n)
 
 
+## A conversation: a resident asks for a favour, hands over a gift for a
+## finished one, or just talks (mentioning how the favour is going).
+func _talk_to(w: Wanderer) -> void:
+	var d: Dictionary = w.def
+	var id := String(d.id)
+	var req: Dictionary = d.get("request", {})
+	var who := String(d.name) + ("" if String(d.title) == "" else ", " + String(d.title))
+	var lines: Array = Residents.talk(id).duplicate()
+	var after := func() -> void: pass
+	match Residents.request_state(id):
+		"":
+			if not req.is_empty():
+				lines = req.ask
+				after = func() -> void:
+					Residents.start_request(id)
+					Game.ui.toast("New request: %s" % req.title, UIKit.C_GOLD)
+					Profile.save_profile()
+		"active":
+			lines.append("(%s: %d/%d)" % [req.title, Residents.request_progress(id), int(req.goal)])
+		"complete":
+			lines = req.done
+			after = func() -> void:
+				if Residents.claim(id):
+					Audio.play("relic", 0.0)
+					Game.ui.toast("Gift - %s" % req.gift, UIKit.C_GOLD)
+					fx.burst(w.pos, 1.0, Color(1.0, 0.85, 0.45), 24, 3.0, 0.8, 2.0)
+					if player:
+						player.rebuild_stats()
+					Profile.save_profile()
+	w.listen(600.0)   # until the conversation closes
+	Game.ui.dialogue(who, lines, func() -> void:
+		after.call()
+		if is_instance_valid(w):
+			w.listen(1.5, false)
+			w.refresh_mark())
+
+
 ## Residents take turns speaking so the sanctuary never turns into a chorus.
 func may_bark() -> bool:
 	if elapsed - _last_bark < 7.0:
@@ -256,13 +293,7 @@ func request(what: String, prop: Prop) -> void:
 					prop.sprite.process_mode = Node.PROCESS_MODE_INHERIT
 					prop.sprite.play("idle"))
 		"resident":
-			var w := prop as Wanderer
-			var d: Dictionary = w.def
-			w.listen(600.0)   # until the conversation closes
-			var who := String(d.name) + ("" if String(d.title) == "" else ", " + String(d.title))
-			Game.ui.dialogue(who, Residents.talk(String(d.id)), func() -> void:
-				if is_instance_valid(w):
-					w.listen(1.5, false))
+			_talk_to(prop as Wanderer)
 	prop.set_meta("last_used", elapsed)
 
 

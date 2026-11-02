@@ -87,6 +87,20 @@ func _run() -> void:
 	tree.search_box.text = "burn"
 	tree._on_search("burn")
 	_expect(tree.matches.size() > 3, "search finds burn nodes")
+	# masteries take ranks; the tooltip says so
+	while Profile.skill_points_free() < 12:
+		Profile.add_xp(Combat.xp_to_next(Profile.level()))
+	tree._try_allocate("b_m")
+	tree._try_allocate("b_m")
+	tree._try_allocate("b_m")
+	_expect(SkillDB.rank("b_m", Profile.skills()) == 3, "a mastery is reached by path, then ranked up (rank %d)" % SkillDB.rank("b_m", Profile.skills()))
+	tree._set_hovered("b_m")
+	await _wait(2)
+	var lines: Array = []
+	for row in tree.tip_box.get_children():
+		if row is Label:
+			lines.append((row as Label).text)
+	print("[smoke] mastery tooltip: ", " | ".join(lines))
 	tree._toggle_bonuses()
 	tree._toggle_bonuses()
 	tree._focus_branch("rime")
@@ -174,10 +188,27 @@ func _run() -> void:
 		hub.player.try_interact()
 		await _wait(4)
 		_expect(ui.has_modal(), "talking to a resident opens a dialogue")
-		await _close_all()
+		await _finish_dialogue()
+		var rid := String(w.def.id)
+		_expect(Residents.request_state(rid) == "active", "%s's request starts after the conversation" % rid)
+		var req: Dictionary = w.def.request
+		Residents.note(String(req.key), int(req.goal))
+		_expect(Residents.request_state(rid) == "complete", "the request completes")
+		hub._talk_to(w)
+		await _finish_dialogue()
+		_expect(Residents.request_state(rid) == "rewarded", "handing it in grants the gift")
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()
+
+
+## Advances a dialogue with the confirm button until it closes.
+func _finish_dialogue() -> void:
+	for i in 16:
+		if not ui.has_modal():
+			return
+		await _pad(JOY_BUTTON_A)
+	await _close_all()
 
 
 func _expect(ok: bool, what: String) -> void:

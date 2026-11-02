@@ -37,6 +37,7 @@ static func spawn(st: Stage, d: Dictionary, spot_list: Array, rng: RandomNumberG
 		w._light(Color(1.0, 0.62, 0.32), 0.7, 3.5, Vector3(0.3, 0.9, 0.3))
 	w._arrive()
 	w.wait = rng.randf_range(1.0, 9.0)
+	w.refresh_mark()
 	w.bark_cd = rng.randf_range(2.0, 12.0)
 	return w
 
@@ -67,6 +68,17 @@ func tick(dt: float) -> void:
 		if hub == null or hub.may_bark():
 			bark_cd = randf_range(28.0, 45.0)
 			stage.fx.say(self, head_height(), Residents.bark(String(def.id), stage.rng))
+
+
+## "!" when they have something to ask, "?" when a request is ready to hand in.
+func refresh_mark() -> void:
+	match Residents.request_state(String(def.id)):
+		"":
+			stage.fx.mark(self, head_height() - 0.2, "!", UIKit.C_GOLD)
+		"complete":
+			stage.fx.mark(self, head_height() - 0.2, "?", UIKit.C_GOLD)
+		_:
+			stage.fx.unmark(self)
 
 
 ## Where a speech bubble sits: just above the head (children and sitters are lower).
@@ -109,6 +121,8 @@ func _arrive() -> void:
 func _pose_anim() -> void:
 	var pose := String(spots[spot].pose) if spot >= 0 else "idle"
 	sprite.play(pose if sprite.has_anim(pose) else "idle")
+	if stage.fx._marks.has(get_instance_id()):
+		refresh_mark()
 
 
 func _leave() -> void:

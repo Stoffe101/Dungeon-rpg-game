@@ -31,6 +31,7 @@ var _lights: Array = []      # {light, t, life, energy}
 var _numbers: Array = []     # {label, world:Vector3, t, life, vel}
 var _ghosts: Array = []      # {sprite, t, life}
 var _says: Array = []        # {label, who:WeakRef, height, t, life}
+var _marks: Dictionary = {}  # instance id -> {label, who:WeakRef, height}
 var intensity := 1.0
 
 
@@ -334,6 +335,51 @@ func say(who: Node, height: float, text: String, life := 3.6) -> void:
 	_says.append({"label": l, "who": weakref(who), "height": height, "t": 0.0, "life": life})
 
 
+## A persistent marker over someone's head ("!" = has a request, "?" = ready to hand in).
+func mark(who: Node, height: float, text: String, col: Color) -> void:
+	unmark(who)
+	if view == null or text == "":
+		return
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", FONT_OUTLINE)
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_color", col)
+	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.overlay.add_child(l)
+	_marks[who.get_instance_id()] = {"label": l, "who": weakref(who), "height": height}
+
+
+func unmark(who: Node) -> void:
+	var m: Dictionary = _marks.get(who.get_instance_id(), {})
+	if not m.is_empty():
+		(m.label as Label).queue_free()
+		_marks.erase(who.get_instance_id())
+
+
+func _update_marks() -> void:
+	for k in _marks.keys():
+		var m: Dictionary = _marks[k]
+		var who: Node = m.who.get_ref()
+		if who == null or not is_instance_valid(who):
+			(m.label as Label).queue_free()
+			_marks.erase(k)
+			continue
+		var l: Label = m.label
+		var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
+		var sz := l.get_minimum_size()
+		var bob := roundf(sin(Time.get_ticks_msec() / 260.0) * 1.5)
+		l.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y + bob))
+		l.visible = not _speaking(who)
+
+
+func _speaking(who: Node) -> bool:
+	for s in _says:
+		if s.who.get_ref() == who:
+			return true
+	return false
+
+
 func _update_says(dt: float) -> void:
 	for i in range(_says.size() - 1, -1, -1):
 		var s: Dictionary = _says[i]
@@ -387,6 +433,7 @@ func step(dt: float) -> void:
 	_update_ghosts(dt)
 	_update_numbers(dt)
 	_update_says(dt)
+	_update_marks()
 	_update_shake(dt)
 
 

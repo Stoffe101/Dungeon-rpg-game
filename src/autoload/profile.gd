@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 3
+const VERSION := 4
 const DEFAULT_PATH := "user://profile.json"
 
 var path := DEFAULT_PATH
@@ -45,6 +45,7 @@ static func fresh() -> Dictionary:
 		"stats": {"runs": 0, "deaths": 0, "extractions": 0, "victories": 0, "kills": 0, "embers_earned": 0, "best_time": 0.0},
 		"seen": {"relics": [], "enemies": []},
 		"flags": {"intro_done": false},
+		"requests": {},
 	}
 
 
@@ -130,6 +131,11 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("grudges"):
 			out["grudges"] = []
 		v = 3
+	if v < 4:
+		# v4: resident requests (id -> {state, n}); mastery ranks reuse the skills list
+		if not out.has("requests"):
+			out["requests"] = {}
+		v = 4
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -362,6 +368,7 @@ func apply_sanctuary(stats: Stats) -> void:
 		stats.add_mod("flask_heal", "add", 0.1)
 	if ap >= 3:
 		stats.add_mod("flask_charges", "add", 1.0)
+	Residents.apply_rewards(stats)
 
 
 # --- grudges -----------------------------------------------------------------

@@ -108,6 +108,8 @@ func _collect(pl: Player) -> void:
 		"sunshard":
 			pl.run.sunshards += amount
 			stage.fx.number(pl.pos, 2.4, "SUNSHARD", Color(1.0, 0.9, 0.5), true)
+			if stage is Dungeon:
+				(stage as Dungeon).note_request("sunshard", amount)
 			Audio.play("pickup_sunshard", 0.0)
 			Events.currency_changed.emit()
 	queue_free()

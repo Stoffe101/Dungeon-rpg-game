@@ -185,3 +185,58 @@ func test_skill_path_and_totals() -> void:
 	UIKit.icon("star")   # loads the atlas map
 	for id in SkillDB.all_ids():
 		check(UIKit._icon_map.has(SkillDB.icon_of(id)), "%s has an icon (%s)" % [id, SkillDB.icon_of(id)])
+
+
+func test_mastery_ranks() -> void:
+	var alloc: Array = ["hearth", "b1", "b2", "b3", "b4", "b5"]
+	check(SkillDB.can_allocate("b_m", alloc, 1), "mastery hangs off a ring-5 notable")
+	for r in 5:
+		check(SkillDB.can_allocate("b_m", alloc, 1), "rank %d available" % (r + 1))
+		alloc.append("b_m")
+	eq(SkillDB.rank("b_m", alloc), 5)
+	check(not SkillDB.can_allocate("b_m", alloc, 9), "capped at max rank")
+	eq(SkillDB.spent(alloc), SkillDB.spent(["hearth", "b1", "b2", "b3", "b4", "b5"]) + 5, "each rank costs a point")
+	var st := Stats.for_player()
+	var base := st.v("melee_damage")
+	SkillDB.apply(["hearth", "b_m", "b_m", "b_m"], st)
+	near(st.v("melee_damage") - base, 0.12, 0.0001, "ranks stack")
+	check(SkillDB.can_refund("b_m", alloc), "a rank can be removed")
+	check(not SkillDB.can_refund("b5", alloc), "the mastery depends on its notable")
+	eq(int(SkillDB.branch_counts(alloc).blade), 6, "a ranked mastery counts once per branch")
+
+
+func test_resident_requests() -> void:
+	Profile.data = Profile.fresh()
+	eq(Residents.request_state("ama"), "", "not asked yet")
+	eq(Residents.note("chest"), [], "nothing counts before the request is given")
+	Residents.start_request("ama")
+	for i in 3:
+		eq(Residents.note("chest"), [], "chest %d counted" % (i + 1))
+	eq(Residents.request_progress("ama"), 3)
+	eq(Residents.note("chest"), ["Ama"], "the fourth chest completes it")
+	eq(Residents.request_state("ama"), "complete")
+	Residents.note("chest")
+	eq(Residents.request_progress("ama"), 4, "progress stops at the goal")
+	var st := Stats.for_player()
+	var before := st.v("flask_heal")
+	Residents.apply_rewards(st)
+	near(st.v("flask_heal"), before, 0.0001, "no gift before handing in")
+	check(Residents.claim("ama"), "hand in")
+	check(not Residents.claim("ama"), "only once")
+	var st2 := Stats.for_player()
+	Residents.apply_rewards(st2)
+	near(st2.v("flask_heal") - before, 0.1, 0.0001, "the gift is permanent")
+	eq(Residents.journal().size(), 1)
+	for r in Residents.LIST:
+		var req: Dictionary = r.request
+		check(req.has_all(["key", "goal", "title", "ask", "done", "reward", "gift"]), "%s request complete" % r.id)
+
+
+func test_migrate_v3_adds_requests() -> void:
+	var old := {"version": 3, "embers": 50, "sunshards": 1, "skills": ["hearth", "b1"], "level": 3,
+		"sanctuary": {"hearth": 2, "forge": 1, "apothecary": 0, "shrine": 0}, "grudges": []}
+	var m := Profile.migrate(old)
+	eq(int(m.version), Profile.VERSION)
+	check(m.requests is Dictionary and (m.requests as Dictionary).is_empty(), "requests added")
+	eq(int(m.embers), 50, "nothing lost")
+	eq(m.skills, ["hearth", "b1"])

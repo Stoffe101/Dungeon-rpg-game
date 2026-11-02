@@ -364,8 +364,19 @@ class _Typer:
 
 static func pause(ui: UIRoot) -> Control:
 	var p := UIKit.panel()
+	var row := UIKit.hbox(12)
+	p.add_child(row)
 	var v := UIKit.vbox(5)
-	p.add_child(v)
+	row.add_child(v)
+	# residents' requests: what they asked for and how far along it is
+	var journal := Residents.journal()
+	if not journal.is_empty():
+		var jv := UIKit.vbox(3)
+		jv.add_child(UIKit.label("REQUESTS", 8, UIKit.C_GOLD, true))
+		for line in journal:
+			var col: Color = {"active": UIKit.C_TEXT, "complete": UIKit.C_GOLD, "rewarded": UIKit.C_DIM}[line[1]]
+			jv.add_child(UIKit.para(String(line[0]), 170, col))
+		row.add_child(jv)
 	v.add_child(_title("Paused"))
 	var resume := UIKit.button("Resume", func() -> void: ui.close_top(), 140)
 	v.add_child(resume)

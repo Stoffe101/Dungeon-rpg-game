@@ -6,15 +6,17 @@
 ## cross over (fire + frost, dodge + parry, ...).
 ##
 ## Node fields:
-##   id, name, branch, kind (root|minor|notable|ability|keystone|hybrid)
+##   id, name, branch, kind (root|minor|notable|ability|keystone|hybrid|mastery)
 ##   at: [ring, lateral] (polar placement around the branch axis) or pos override
 ##   links: neighbours (edges are undirected)
 ##   mods: [[stat, op, value]], flags: {flag: level}, ability: id, desc
+##   ranks: masteries can be kindled several times; each rank is one more copy
+##   of the id in the allocated list (so spending, applying and saving just work).
 class_name SkillDB
 extends RefCounted
 
 const RING := 60.0
-const COSTS := {"root": 0, "minor": 1, "notable": 2, "ability": 2, "hybrid": 2, "keystone": 3}
+const COSTS := {"root": 0, "minor": 1, "notable": 2, "ability": 2, "hybrid": 2, "keystone": 3, "mastery": 1}
 
 const BRANCHES := {
 	"blade": {"name": "Blade", "angle": -90.0, "color": Color(0.93, 0.89, 0.8), "desc": "Melee mastery, combos and critical strikes."},
@@ -135,6 +137,20 @@ const NODES := [
 	{"id": "k6", "name": "Bonfire Soul", "branch": "kindle", "kind": "keystone", "at": [6, 0], "links": [], "flags": {"bonfire_soul": 1}, "mods": [["ability_damage", "more", 0.4]],
 		"desc": "Abilities deal 40% more damage. Without enough Kindle, abilities consume health instead."},
 
+	# ---------------- Masteries (ranked, beside each keystone) ----------------
+	{"id": "b_m", "name": "Blade Mastery", "branch": "blade", "kind": "mastery", "ranks": 5, "at": [6, -1.4], "links": ["b5"],
+		"mods": [["melee_damage", "add", 0.04], ["crit_chance", "add", 0.01]]},
+	{"id": "p_m", "name": "Pyre Mastery", "branch": "pyre", "kind": "mastery", "ranks": 5, "at": [6, 1.5], "links": ["p5"],
+		"mods": [["fire_damage", "add", 0.05], ["burn_damage", "add", 0.06]]},
+	{"id": "r_m", "name": "Rime Mastery", "branch": "rime", "kind": "mastery", "ranks": 5, "at": [6, -1.5], "links": ["r5"],
+		"mods": [["frost_damage", "add", 0.05], ["chill_power", "add", 0.03]]},
+	{"id": "g_m", "name": "Gloam Mastery", "branch": "gloam", "kind": "mastery", "ranks": 5, "at": [6, 1.4], "links": ["g5"],
+		"mods": [["move_speed", "inc", 0.03], ["dodge_recharge", "more", -0.04]]},
+	{"id": "w_m", "name": "Bulwark Mastery", "branch": "bulwark", "kind": "mastery", "ranks": 5, "at": [6, -1.4], "links": ["w5"],
+		"mods": [["max_hp", "add", 8.0], ["armor", "add", 0.015]]},
+	{"id": "k_m", "name": "Kindle Mastery", "branch": "kindle", "kind": "mastery", "ranks": 5, "at": [6, 1.5], "links": ["k5l"],
+		"mods": [["kindle_max", "add", 5.0], ["ability_damage", "add", 0.04]]},
+
 	# ---------------- Hybrids (between branches) ----------------
 	{"id": "x_bp", "name": "Searing Edge", "branch": "blade|pyre", "kind": "hybrid", "links": [], "mods": [["fire_damage", "add", 0.1]], "flags": {"searing_edge": 1},
 		"desc": "Melee hits have a 20% chance to Burn. +10% fire damage."},
@@ -159,6 +175,7 @@ const ICONS := {
 	"w3": "mirror", "w3r": "aegis", "w5": "bandage", "w5r": "aegis", "w6": "shield",
 	"k3": "wisp", "k3l": "skull", "k5": "sun", "k5l": "wisp", "k6": "sun",
 	"x_bp": "flame", "x_pr": "prism", "x_rg": "snow", "x_gw": "dodge", "x_wk": "kindle", "x_kb": "sword",
+	"b_m": "sword", "p_m": "flame", "r_m": "snow", "g_m": "feather", "w_m": "shield", "k_m": "wick",
 }
 const STAT_ICONS := {
 	"melee_damage": "sword", "attack_speed": "hourglass", "crit_chance": "eye", "crit_mult": "gem_red", "poise_damage": "hammer",
@@ -207,12 +224,21 @@ static func cost(id: String) -> int:
 	return int(COSTS.get(node(id).get("kind", "minor"), 1))
 
 
-## A node can be allocated when it is adjacent to an allocated node.
+static func max_rank(id: String) -> int:
+	return int(node(id).get("ranks", 1))
+
+
+static func rank(id: String, allocated: Array) -> int:
+	return allocated.count(id)
+
+
+## A node can be allocated when it is adjacent to an allocated node; a mastery
+## that is already kindled can take further ranks up to its maximum.
 static func can_allocate(id: String, allocated: Array, points: int) -> bool:
-	if allocated.has(id) or node(id).is_empty():
+	if node(id).is_empty() or points < cost(id):
 		return false
-	if points < cost(id):
-		return false
+	if allocated.has(id):
+		return rank(id, allocated) < max_rank(id)
 	for n in neighbours(id):
 		if allocated.has(n):
 			return true
@@ -223,9 +249,18 @@ static func can_allocate(id: String, allocated: Array, points: int) -> bool:
 static func can_refund(id: String, allocated: Array) -> bool:
 	if id == "hearth" or not allocated.has(id):
 		return false
+	if rank(id, allocated) > 1:
+		return true   # dropping one rank keeps the node in the tree
 	var rest := allocated.duplicate()
 	rest.erase(id)
-	return connected_set(rest).size() == rest.size()
+	return connected_set(rest).size() == unique(rest).size()
+
+
+static func unique(allocated: Array) -> Array:
+	var seen := {}
+	for id in allocated:
+		seen[id] = true
+	return seen.keys()
 
 
 static func connected_set(allocated: Array) -> Array:
@@ -349,9 +384,10 @@ static func totals(allocated: Array) -> Array:
 	return out
 
 
+## Kindled nodes per branch (a ranked mastery counts once).
 static func branch_counts(allocated: Array) -> Dictionary:
 	var out := {}
-	for id in allocated:
+	for id in unique(allocated):
 		for b in String(node(id).get("branch", "")).split("|", false):
 			out[b] = int(out.get(b, 0)) + 1
 	return out

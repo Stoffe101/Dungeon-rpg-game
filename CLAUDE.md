@@ -72,7 +72,11 @@ Key conventions:
 - Generation must be deterministic per seed: never use `Array.shuffle()` or global
   `randf()` in `DungeonGen` (use the passed rng / `_shuffle`).
 - Saves: `Profile` writes JSON atomically with `.bak`; bump `VERSION` and extend
-  `Profile.migrate()` for any schema change. Never break old saves.
+  `Profile.migrate()` for any schema change. Never break old saves. (v4 added `requests`.)
+- Hearthtree mastery ranks are repeated ids in `Profile.data.skills`: use `SkillDB.rank()` /
+  `SkillDB.unique()` rather than assuming the list is a set.
+- Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
+  bramble, elite); gifts apply in `Profile.apply_sanctuary` via `Residents.apply_rewards`.
 
 ## Workflow
 

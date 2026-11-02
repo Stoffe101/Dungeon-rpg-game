@@ -489,6 +489,8 @@ func _burn_tick(dt: float) -> void:
 
 
 func _clear_bramble(burnt: bool) -> void:
+	if not used and stage is Dungeon and kind != "root_node":
+		(stage as Dungeon).note_request("bramble")
 	used = true
 	breakable = false
 	data["burning"] = 0.0

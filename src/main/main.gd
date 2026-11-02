@@ -88,6 +88,11 @@ func _open_dev_screen(what: String) -> void:
 						await get_tree().process_frame
 						t._set_hovered(a.substr(6))
 						t._place_tip(t.to_screen(SkillDB.position_of(a.substr(6))))
+				elif a.begins_with("focus="):
+					var tf := ui.modal_layer.find_children("*", "SkillTreeUI", true, false)
+					if not tf.is_empty():
+						await get_tree().process_frame
+						(tf[0] as SkillTreeUI)._focus_branch(a.substr(6))
 				elif a.begins_with("search="):
 					var trees := ui.modal_layer.find_children("*", "SkillTreeUI", true, false)
 					if not trees.is_empty():
