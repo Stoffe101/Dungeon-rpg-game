@@ -102,8 +102,9 @@ func descend() -> void:
 		stage.player.store_to(run)
 		stage.player.input_enabled = false
 	ui.fade(func() -> void:
-		_enter_depth(run.depth + 1)
-		transitioning = false)
+		transitioning = false
+		if run != null and run.result == "":
+			_enter_depth(run.depth + 1))
 
 
 func grant_relic(id: String) -> void:

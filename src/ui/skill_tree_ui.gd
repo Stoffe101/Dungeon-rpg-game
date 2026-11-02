@@ -21,6 +21,8 @@ var respec_btn: Button
 var hearth_btn: Button
 var tip: PanelContainer
 var tip_box: VBoxContainer
+var pad_cursor := Vector2.ZERO
+var pad_active := false
 
 
 func _ready() -> void:
@@ -267,6 +269,7 @@ func _place_tip(mp: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	_t += delta
+	_gamepad(delta)
 	for b in _bursts:
 		b.t += delta
 	_bursts = _bursts.filter(func(b): return b.t < 0.8)
@@ -338,6 +341,12 @@ func _draw() -> void:
 	# nodes
 	for id in SkillDB.all_ids():
 		_draw_node(id, alloc, free)
+	if pad_active:
+		var c := pad_cursor.round()
+		draw_rect(Rect2(c - Vector2(6, 0), Vector2(4, 1)), UIKit.C_GOLD)
+		draw_rect(Rect2(c + Vector2(3, 0), Vector2(4, 1)), UIKit.C_GOLD)
+		draw_rect(Rect2(c - Vector2(0, 6), Vector2(1, 4)), UIKit.C_GOLD)
+		draw_rect(Rect2(c + Vector2(0, 3), Vector2(1, 4)), UIKit.C_GOLD)
 	# unlock bursts
 	for b in _bursts:
 		var p := to_screen(b.pos)
@@ -362,6 +371,50 @@ func _dashed(a: Vector2, b: Vector2, col: Color) -> void:
 		if s1 > s0:
 			draw_line(a + d * s0, a + d * s1, col, 1.0)
 		s += 8.0
+
+
+## Controller support: left stick moves a cursor that snaps to nearby nodes,
+## right stick pans, triggers zoom, A kindles, X refunds, B closes.
+func _gamepad(delta: float) -> void:
+	var mv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var pn := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
+	var joy_used := mv.length() > 0.25 or pn.length() > 0.25
+	if joy_used and not pad_active:
+		pad_active = true
+		pad_cursor = size * 0.5
+	if not pad_active:
+		return
+	if mv.length() > 0.25:
+		pad_cursor += mv * 180.0 * delta
+		pad_cursor = pad_cursor.clamp(Vector2(8, 40), size - Vector2(8, 8))
+	if pn.length() > 0.25:
+		pan -= pn * 240.0 * delta / zoom
+	if Input.is_action_pressed("attack"):
+		zoom = clampf(zoom * (1.0 + delta * 1.5), 0.3, 2.4)
+	if Input.is_action_pressed("ward"):
+		zoom = clampf(zoom / (1.0 + delta * 1.5), 0.3, 2.4)
+	# snap toward the nearest node so selection is easy with a stick
+	var best := ""
+	var bd := 22.0
+	for id in SkillDB.all_ids():
+		var d := to_screen(SkillDB.position_of(id)).distance_to(pad_cursor)
+		if d < bd:
+			bd = d
+			best = id
+	if best != hovered:
+		hovered = best
+		_update_tip()
+	if tip.visible:
+		_place_tip(pad_cursor)
+	if Input.is_action_just_pressed("ui_accept") and hovered != "":
+		_try_allocate(hovered)
+	if Input.is_action_just_pressed("ability_1") and hovered != "":
+		_try_refund(hovered)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and pad_active:
+		pad_active = false
 
 
 func _draw_node(id: String, alloc: Array, free: int) -> void:

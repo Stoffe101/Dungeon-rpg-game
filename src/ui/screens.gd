@@ -162,8 +162,9 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 	v.add_child(have)
 	var list := UIKit.vbox(3)
 	v.add_child(list)
-	var rebuild: Callable
-	rebuild = func() -> void:
+	# lambdas capture by value, so self-reference goes through a shared dict
+	var ctx := {}
+	ctx.rebuild = func() -> void:
 		have.text = "Carried Embers: %d" % run.embers
 		for c in list.get_children():
 			c.queue_free()
@@ -209,11 +210,11 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 						pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
 					"heal":
 						pl.heal(pl.max_hp * 0.4)
-				rebuild.call(), 70)
+				ctx.rebuild.call(), 70)
 			b.disabled = item.get("sold", false) or run.embers < int(item.price)
 			row.add_child(b)
 			list.add_child(row)
-	rebuild.call()
+	ctx.rebuild.call()
 	v.add_child(UIKit.button("Leave", func() -> void: ui.close_top(), 70))
 	return _center(p)
 
@@ -529,8 +530,9 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 		v.add_child(UIKit.para("The forge lies cold. Rebuild it to temper and craft weapons.", 260, UIKit.C_DIM))
 	var list := UIKit.vbox(4)
 	v.add_child(list)
-	var rebuild: Callable
-	rebuild = func() -> void:
+	# lambdas capture by value, so self-reference goes through a shared dict
+	var ctx := {}
+	ctx.rebuild = func() -> void:
 		for c in list.get_children():
 			c.queue_free()
 		for id in GearDB.WEAPONS:
@@ -553,7 +555,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 					Profile.save_profile()
 					if Game.stage and Game.stage.player:
 						Game.stage.player.set_weapon(id, Profile.weapon_level(id))
-					rebuild.call(), 60)
+					ctx.rebuild.call(), 60)
 				e.disabled = eq
 				bv.add_child(e)
 				if not equip_only and forge_built:
@@ -565,7 +567,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 								Profile.save_profile()
 								if Game.stage and Game.stage.player and Profile.equipped_weapon() == id:
 									Game.stage.player.set_weapon(id, Profile.weapon_level(id))
-							rebuild.call(), 60)
+							ctx.rebuild.call(), 60)
 						up.disabled = not Profile.can_afford(cost)
 						bv.add_child(up)
 						bv.add_child(UIKit.cost_row(cost))
@@ -576,7 +578,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 						Profile.unlock_weapon(id)
 						Audio.play("forge", 0.0, 0.8)
 						Profile.save_profile()
-					rebuild.call(), 60)
+					ctx.rebuild.call(), 60)
 				cr.disabled = not Profile.can_afford(uc)
 				bv.add_child(cr)
 				bv.add_child(UIKit.cost_row(uc))
@@ -585,7 +587,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 			row.add_child(bv)
 			list.add_child(row)
 			list.add_child(HSeparator.new())
-	rebuild.call()
+	ctx.rebuild.call()
 	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
 	return _center(p)
 

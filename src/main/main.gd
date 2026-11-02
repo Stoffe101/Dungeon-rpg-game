@@ -48,6 +48,8 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("open="):
 			_open_dev_screen.call_deferred(a.substr(5))
+		elif a == "uismoke":
+			add_child(preload("res://src/dev/ui_smoke.gd").new())
 
 
 func _open_dev_screen(what: String) -> void:
