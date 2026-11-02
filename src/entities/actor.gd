@@ -161,6 +161,8 @@ func take_hit(hit: Hit) -> Combat.Result:
 	var res := Combat.Result.new()
 	if not alive or (invuln_t > 0.0 and not hit.has_tag("dot")):
 		return res
+	if not is_instance_valid(hit.source):
+		hit.source = null
 	var block := block_mult(hit)
 	var shatter := false
 	if hit.source is Player:

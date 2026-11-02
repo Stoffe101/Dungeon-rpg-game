@@ -21,9 +21,11 @@ var silent := false              # no hit-stop / number (e.g. tiny DoT ticks)
 var proc := true                 # may trigger on-hit effects (prevents infinite chains)
 
 
-static func make(src: Node, amt: float, tag_list: Array = []) -> Hit:
+## `src` may be an object that has already been freed (e.g. an archer that died
+## while its arrow was in flight); such sources are dropped.
+static func make(src: Variant, amt: float, tag_list: Array = []) -> Hit:
 	var h := Hit.new()
-	h.source = src
+	h.source = src if is_instance_valid(src) else null
 	h.amount = amt
 	h.tags = tag_list
 	return h

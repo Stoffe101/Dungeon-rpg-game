@@ -102,12 +102,15 @@ static func _sigil(pl: Player) -> bool:
 	var st := pl.stage
 	var sig := st.fx.shape(Fx.Shape.SIGIL, target, Vector2.RIGHT, Vector2(r * 2, r * 2), Color(0.5, 0.8, 1.0, 0.5), Color(0.75, 0.92, 1.0, 1.0), pulses * 0.6 + 0.3, {"glow": 1.6})
 	var data_t := [0.0]
+	var sig_ref: WeakRef = weakref(sig)
 	var hz := Hazard.spawn(st, target, r, pulses * 0.6 + 0.05, pl.team, Color(0.6, 0.85, 1.0), Callable())
 	hz.period = 0.6
 	hz.particle_rate = 10.0
 	hz.on_pulse = func(h: Hazard) -> void:
 		data_t[0] += 1.0
-		sig.set_instance_shader_parameter("progress", data_t[0] / pulses)
+		var sn = sig_ref.get_ref()
+		if sn != null:
+			sn.set_instance_shader_parameter("progress", data_t[0] / pulses)
 		st.fx.ring(h.pos, r, Color(0.6, 0.85, 1.0), 0.3, 0.2)
 		st.fx.burst(h.pos, 0.2, Color(0.75, 0.92, 1.0), 12, 4.0, 0.4, 2.0)
 		Audio.play("frost", -3.0, 1.0 + data_t[0] * 0.05)

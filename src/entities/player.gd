@@ -41,6 +41,7 @@ var aim_point := Vector2.ZERO
 var move_in := Vector2.ZERO
 var input_enabled := true
 var autopilot := false
+var last_attacker_id := ""
 var godmode := "godmode" in OS.get_cmdline_user_args()
 var lantern: OmniLight3D
 var dir_name := "down"
@@ -590,6 +591,10 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if h.amount <= 0.0:
 		return empty
 	h.can_crit = false
+	if attacker is Enemy and is_instance_valid(attacker):
+		last_attacker_id = (attacker as Enemy).id
+	elif h.source is Enemy and is_instance_valid(h.source):
+		last_attacker_id = (h.source as Enemy).id
 	var res := take_hit(h)
 	if res.amount > 0.0:
 		hurt_t = 0.25

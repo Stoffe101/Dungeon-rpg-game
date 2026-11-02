@@ -35,6 +35,7 @@ var _repath_t := 0.0
 var _goal := Vector2.ZERO
 ## Pixels from the top of the sprite frame down to where the health bar sits.
 var bar_offset := 4.0
+var _wildfire_t := 0.0
 
 
 func configure(enemy_id: String) -> Enemy:
@@ -138,6 +139,34 @@ func tick(dt: float) -> void:
 		sprite.set_tint(Color(1, 1, 1, 0.35 if phased else 1.0))
 	super.tick(dt)
 	_update_bar(dt)
+	_wildfire(dt)
+
+
+## Wildfire (Pyre notable): burning foes pass their flames to a neighbour.
+func _wildfire(dt: float) -> void:
+	if not alive or not status.burning():
+		_wildfire_t = 0.0
+		return
+	var pl := stage.player
+	if pl == null or not pl.stats.has("wildfire"):
+		return
+	_wildfire_t += dt
+	if _wildfire_t < 1.5:
+		return
+	_wildfire_t = 0.0
+	var best: Actor = null
+	var bd := 3.2
+	for a in stage.hostiles(Team.PLAYER):
+		if a == self or a.status.burning():
+			continue
+		var d := a.pos.distance_to(pos)
+		if d < bd:
+			bd = d
+			best = a
+	if best:
+		best.status.apply_burn(1, status.burn_dps_per_stack, int(pl.stats.v("burn_stacks")), pl)
+		for i in 6:
+			stage.fx.burst(pos.lerp(best.pos, i / 6.0), 0.6, Color(1.0, 0.55, 0.2), 1, 0.6, 0.3, 0.0)
 
 
 func think(dt: float) -> void:

@@ -55,7 +55,7 @@ const RELICS := [
 	{"id": "hungry_lantern", "name": "Hungry Lantern", "rarity": "rare", "tags": ["kindle"], "icon": "lantern",
 		"mods": [["kindle_gain", "inc", 0.35], ["kindle_max", "add", 25.0]], "desc": "+35% Kindle gained. +25 maximum Kindle."},
 	{"id": "forked_ember", "name": "Forked Ember", "rarity": "rare", "tags": ["pyre", "kindle"], "icon": "fork",
-		"flags": {"forked_ember": 1}, "desc": "Your ember bolts and lances fork into two when they strike."},
+		"flags": {"forked_ember": 1}, "desc": "Staff ember bolts fork into two when they strike."},
 	{"id": "quake_stone", "name": "Quake Stone", "rarity": "rare", "tags": ["blade", "bulwark"], "icon": "stone",
 		"mods": [["poise_damage", "add", 0.5]], "flags": {"quake_stone": 1}, "desc": "+50% poise damage. Staggered enemies take 25% more damage."},
 	{"id": "bloodied_bandage", "name": "Bloodied Bandage", "rarity": "rare", "tags": ["blade"], "icon": "bandage",

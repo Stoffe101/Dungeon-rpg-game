@@ -83,6 +83,9 @@ func tick(dt: float) -> void:
 
 
 func _check_hits() -> bool:
+	# the shooter may have died while this was in flight
+	if not is_instance_valid(source):
+		source = null
 	if team == Actor.Team.PLAYER:
 		for pr in stage.props:
 			if is_instance_valid(pr) and pr.breakable and not pr.used and pr.pos.distance_to(pos) <= radius + pr.strike_radius:

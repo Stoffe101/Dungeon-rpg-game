@@ -513,8 +513,12 @@ func _boss_defeated(e: Enemy) -> void:
 
 func _on_player_died() -> void:
 	_death_t = 2.6
-	_killer_id = ""
-	# whoever dealt the last blow becomes a Grudge
+	# whoever dealt the last blow becomes a Grudge (bosses never do)
+	_killer_id = player.last_attacker_id
+	if _killer_id != "" and EnemyDB.get_def(_killer_id).get("boss", false):
+		_killer_id = ""
+	if _killer_id != "":
+		return
 	for e in room_enemies:
 		if is_instance_valid(e) and e.alive and e is Enemy:
 			if e.pos.distance_to(player.pos) < 6.0 and not (e as Enemy).def.get("boss", false):

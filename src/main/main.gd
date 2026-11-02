@@ -22,6 +22,20 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("scene="):
 			scene = a.substr(6)
+		elif a.begins_with("weapon="):
+			Profile.unlock_weapon(a.substr(7))
+			Profile.data.equipped.weapon = a.substr(7)
+		elif a.begins_with("skills="):
+			# dev: skills=all grants levels and allocates the whole tree
+			for i in 120:
+				Profile.add_xp(Combat.xp_to_next(Profile.level()))
+			var changed := true
+			while changed:
+				changed = false
+				for id in SkillDB.all_ids():
+					if Profile.allocate(id):
+						changed = true
+			Profile.data.equipped.slots = ["cinder_lance", "frost_sigil"] if a.substr(7) == "all" else Profile.data.equipped.slots
 		elif a.begins_with("grudge="):
 			var rng := RandomNumberGenerator.new()
 			Profile.record_grudge(a.substr(7), 60, 1, rng)
