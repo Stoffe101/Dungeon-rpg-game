@@ -37,6 +37,7 @@ var status := StatusSet.new()
 var facing := Vector2.RIGHT
 var hit_by_player := false
 var last_hit_from := Vector2.ZERO
+var last_hit_tags: Array = []
 
 var visual: Node3D
 var sprite: PixelSprite
@@ -193,6 +194,7 @@ func take_hit(hit: Hit) -> Combat.Result:
 		return res
 	hp -= res.amount
 	last_hit_from = hit.from_dir
+	last_hit_tags = hit.tags
 	if hit.source is Player or (hit.source is Actor and (hit.source as Actor).team == Team.PLAYER):
 		hit_by_player = true
 	on_damaged(hit, res)

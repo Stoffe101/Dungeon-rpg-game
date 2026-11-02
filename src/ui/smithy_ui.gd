@@ -117,6 +117,24 @@ func _craft_list(list: VBoxContainer) -> void:
 			list.add_child(btn)
 			if first == "":
 				first = b
+	# uniques from learned blueprints; unknown ones are only hinted at
+	list.add_child(UIKit.label("BLUEPRINTS", 8, Color(1.0, 0.75, 0.35), true))
+	for b in ItemDB.blueprints():
+		var base: Dictionary = ItemDB.BASES[b]
+		if Profile.known_blueprints().has(b):
+			var ok := Profile.can_pay(ItemDB.recipe(b))
+			var btn := _list_button(base.icon, String(base.name), Color(1.0, 0.7, 0.3) if ok else Color(0.6, 0.45, 0.3), b == selected)
+			var bid: String = b
+			btn.pressed.connect(func() -> void:
+				selected = bid
+				_last_result = {}
+				rebuild())
+			list.add_child(btn)
+		else:
+			var lb := _list_button("scroll", "??? (%s)" % ItemDB.SLOT_NAMES[base.slot], Color(0.4, 0.38, 0.42), false)
+			lb.disabled = true
+			lb.tooltip_text = "Find this blueprint in the Undervault to learn it."
+			list.add_child(lb)
 	if selected == "":
 		selected = first
 
@@ -133,9 +151,14 @@ func _craft_detail(dv: VBoxContainer) -> void:
 	if selected == "":
 		return
 	var base := ItemDB.base(selected)
-	var preview := ItemDB.make_item(selected, "common", 1, RandomNumberGenerator.new())
+	var unique := ItemDB.is_unique(selected)
+	var preview := ItemDB.make_item(selected, "common", 1, RandomNumberGenerator.new(), Difficulty.craft_tier())
 	dv.add_child(GearUI.item_info(preview, {}, 220))
-	dv.add_child(UIKit.label("Rarity: Common 55%   Rare 33%   Epic 12%", 8, UIKit.C_DIM))
+	if unique:
+		dv.add_child(UIKit.label("A unique, forged from its blueprint.", 8, Color(1.0, 0.75, 0.35)))
+	else:
+		dv.add_child(UIKit.label("Rarity: Common 55%   Rare 33%   Epic 12%", 8, UIKit.C_DIM))
+	dv.add_child(UIKit.label("Forged at Tier %s (the highest you have conquered)" % Difficulty.roman(Difficulty.craft_tier()), 8, UIKit.C_DIM))
 	dv.add_child(UIKit.label("COST", 8, UIKit.C_GOLD, true))
 	var cost := ItemDB.recipe(selected)
 	dv.add_child(GearUI.cost_row(cost))
@@ -145,7 +168,8 @@ func _craft_detail(dv: VBoxContainer) -> void:
 	row.add_child(forge)
 	var cat := _catalyst()
 	var mw := UIKit.button("Masterwork (Epic)", func() -> void: _craft(true), 100)
-	mw.disabled = cat == "" or not Profile.can_pay(cost)
+	mw.disabled = cat == "" or not Profile.can_pay(cost) or unique
+	mw.visible = not unique
 	mw.tooltip_text = "Spend 1 %s for a guaranteed Epic." % (ItemDB.MATERIALS[cat].name if cat != "" else "Warden Sigil or Bloom Heart")
 	row.add_child(mw)
 	dv.add_child(row)
@@ -172,7 +196,7 @@ func _craft(masterwork: bool) -> void:
 	if not Profile.pay(cost):
 		Audio.ui("deny")
 		return
-	var it := Profile.add_item(ItemDB.craft(selected, _rng, masterwork, Profile.building("forge")))
+	var it := Profile.add_item(ItemDB.craft(selected, _rng, masterwork, Profile.building("forge"), Difficulty.craft_tier()))
 	_last_result = it
 	Audio.play("forge", 0.0)
 	Audio.play("relic", -6.0 if it.rarity == "common" else 0.0)

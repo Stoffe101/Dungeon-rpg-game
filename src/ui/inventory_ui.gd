@@ -15,6 +15,7 @@ const DOLL := {
 
 var tip: GearUI.FloatTip
 var stats_open := true
+var wardrobe_open := false
 var body: HBoxContainer
 var _focus_uid := -1
 var _player_tex: AtlasTexture
@@ -59,13 +60,16 @@ func rebuild() -> void:
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(fill)
+	head.add_child(UIKit.button("Wardrobe", func() -> void:
+		wardrobe_open = not wardrobe_open
+		rebuild(), 56))
 	head.add_child(UIKit.button("Hide stats" if stats_open else "Show stats", _toggle_stats, 60))
 	head.add_child(UIKit.button("Close", func() -> void: Game.ui.close_top(), 44))
 	outer.add_child(head)
 	body = UIKit.hbox(6)
 	outer.add_child(body)
 	body.add_child(_doll_panel())
-	body.add_child(_bag_panel())
+	body.add_child(_wardrobe_panel() if wardrobe_open else _bag_panel())
 	if stats_open:
 		body.add_child(GearUI.stats_panel())
 	var hint := UIKit.label("", 8, UIKit.C_DIM, true)
@@ -108,6 +112,7 @@ func _doll_panel() -> PanelContainer:
 	fig.size = Vector2(96, 96)
 	fig.position = Vector2(31, 22)
 	fig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fig.material = Looks.canvas_material(Looks.current())
 	doll.add_child(fig)
 	var eq := Profile.equipped()
 	for slot in DOLL:
@@ -159,6 +164,62 @@ func _weapon_button() -> Button:
 		v.add_child(UIKit.label("Click to change weapon" if in_hub else "Change weapons at the Hearth", 8, UIKit.C_DIM))
 		return v)
 	return b
+
+
+# --- the wardrobe (transmogrification) ---------------------------------------------------
+
+func _wardrobe_panel() -> PanelContainer:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(3)
+	p.add_child(v)
+	v.add_child(UIKit.label("WARDROBE", 8, UIKit.C_GOLD, true))
+	v.add_child(UIKit.para("Wear any look you have earned, whatever your gear. Tier sets (two pieces) and legendaries unlock theirs.", 196, UIKit.C_DIM))
+	var chosen := String(Profile.inv().get("look", ""))
+	var auto := UIKit.button(("> " if chosen == "" else "") + "Match my gear (%s)" % Looks.LOOKS[ItemDB.gear_look(Profile.equipped())].name, func() -> void: _wear(""), 190)
+	v.add_child(auto)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	v.add_child(grid)
+	for id in Looks.LOOKS:
+		var have := Looks.unlocked().has(id)
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(46, 52)
+		b.focus_mode = Control.FOCUS_ALL
+		b.disabled = not have
+		var fig := TextureRect.new()
+		fig.texture = _player_tex
+		fig.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		fig.stretch_mode = TextureRect.STRETCH_SCALE
+		fig.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		fig.size = Vector2(32, 32)
+		fig.position = Vector2(7, 2)
+		fig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fig.material = Looks.canvas_material(id)
+		fig.modulate = Color(1, 1, 1, 1) if have else Color(0.15, 0.15, 0.2, 0.9)
+		b.add_child(fig)
+		var nm := UIKit.label(String(Looks.LOOKS[id].short) if have else "???", 8, UIKit.C_GOLD if id == chosen else (UIKit.C_TEXT if have else UIKit.C_DIM))
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		nm.size = Vector2(46, 12)
+		nm.position = Vector2(0, 36)
+		nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(nm)
+		var look_id: String = id
+		b.pressed.connect(func() -> void: _wear(look_id))
+		_tip_on(b, func() -> Control:
+			var tv := UIKit.vbox(1)
+			tv.add_child(UIKit.label(Looks.LOOKS[look_id].name if have else "Not yet earned", 8, UIKit.C_GOLD, true))
+			tv.add_child(UIKit.label(String(Looks.LOOKS[look_id].desc), 8, UIKit.C_DIM))
+			return tv)
+		grid.add_child(b)
+	return p
+
+
+func _wear(id: String) -> void:
+	Looks.choose(id)
+	Looks.apply_player(Looks.current())
+	Audio.play("clank", -8.0, 1.3)
 
 
 # --- the bag ------------------------------------------------------------------------
@@ -213,7 +274,32 @@ func _bag_panel() -> PanelContainer:
 		h.mouse_filter = Control.MOUSE_FILTER_PASS
 		mg.add_child(h)
 	v.add_child(mg)
+	# blueprints: unread scrolls to learn, and how many are known
+	var known := Profile.known_blueprints().size()
+	v.add_child(UIKit.label("BLUEPRINTS  %d/%d known" % [known, ItemDB.blueprints().size()], 8, UIKit.C_GOLD, true))
+	var sr := UIKit.hbox(2)
+	if Profile.scrolls().is_empty():
+		sr.add_child(UIKit.label("Rare finds from elites, chests and bosses.", 8, UIKit.C_DIM))
+	for bid in Profile.scrolls():
+		var sb := GearUI.slot_button({}, 22, "scroll")
+		(sb.get_child(0) as TextureRect).modulate = Color(1, 1, 1, 1)
+		var id: String = bid
+		sb.pressed.connect(func() -> void: _learn(id))
+		_tip_on(sb, func() -> Control:
+			var tv := UIKit.vbox(2)
+			tv.add_child(UIKit.label("Blueprint: %s" % ItemDB.base(id).name, 8, Color(1.0, 0.75, 0.35), true))
+			tv.add_child(UIKit.para(String(ItemDB.base(id).get("desc", "")), 160))
+			tv.add_child(UIKit.label("Click to learn - then forge it at the smithy", 8, UIKit.C_GOLD))
+			return tv)
+		sr.add_child(sb)
+	v.add_child(sr)
 	return p
+
+
+func _learn(id: String) -> void:
+	if Profile.learn_blueprint(id):
+		Audio.play("learn", 0.0)
+		Game.ui.toast("Learned: %s - forge it at the smithy" % ItemDB.base(id).name, Color(1.0, 0.75, 0.35))
 
 
 func _item_tip(it: Dictionary, compare: Dictionary, hint: String) -> Control:

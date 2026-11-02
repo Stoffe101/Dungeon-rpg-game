@@ -508,23 +508,41 @@ func _start_boss(r: Room) -> void:
 ## drop more, and a boss's first defeat always yields its legendary.
 func _drop_loot(e: Enemy) -> void:
 	var mult := 2.0 if e.elite else 1.0
+	if player and player.stats.has("avarice"):
+		mult *= 1.6
 	for d in ItemDB.enemy_drops(e.id, layout.region):
 		if rng.randf() < float(d[1]) * mult:
 			Pickup.spawn(self, "material", e.pos, rng.randi_range(int(d[2]), int(d[3])), {"id": d[0]})
 	if e.elite:
+		_maybe_blueprint(e.pos, 0.03 + 0.01 * run.tier)
 		var rare := "spore_silk" if layout.region == "rootmire" else "soul_glass"
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
-			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.1)})
+			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier)})
 	if e == boss:
-		var cat := "bloom_heart" if layout.region == "rootmire" else "warden_sigil"
+		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
+		var cat: String = {"rootmire": "bloom_heart", "throne": "eclipse_shard"}.get(layout.region, "warden_sigil")
 		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
-		var leg := "bloom_crown" if layout.region == "rootmire" else "gloamward_lantern"
+		var leg: String = {"rootmire": "bloom_crown", "throne": "sunfall_mantle"}.get(layout.region, "gloamward_lantern")
 		var flag := "legendary_" + leg
 		if not Profile.data.flags.get(flag, false) or rng.randf() < 0.35:
 			Profile.data.flags[flag] = true
-			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.make_item(leg, "legendary", 1, rng)})
-		Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25)})
+			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.make_item(leg, "legendary", 1, rng, run.tier)})
+		Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier)})
+		if run.tier >= 2:
+			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_set_piece(rng, layout.depth, run.tier)})
+
+
+## A blueprint the Kindled doesn't have yet (else a few Ember Cores).
+func _maybe_blueprint(p: Vector2, chance: float) -> void:
+	if rng.randf() >= chance:
+		return
+	var have: Array = Profile.known_blueprints() + Profile.scrolls() + (run.loot.blueprints as Array)
+	var b := ItemDB.roll_blueprint(rng, have)
+	if b == "":
+		Pickup.spawn(self, "material", p, 3, {"id": "ember_core"})
+	else:
+		Pickup.spawn(self, "blueprint", p, 1, {"id": b})
 
 
 ## A chest's materials and its chance of gear.
@@ -535,7 +553,8 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 	if rng.randf() < 0.3 + 0.2 * tier:
 		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
 	if rng.randf() < 0.25 + 0.25 * tier:
-		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier)})
+		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier, run.tier)})
+	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
 
 
 ## Counts progress on residents' requests and tells the player when one is done.

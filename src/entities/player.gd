@@ -33,6 +33,9 @@ var aegis_hp := 0.0
 var aegis_t := 0.0
 var riposte_t := 0.0
 var ambush_t := 0.0
+var gloam_t := 0.0          # Gloamweave 4pc: empowered window after a dodge
+var _echo_n := 0            # Echoing Gauntlets hit counter
+var _aura_t := 0.0          # set aura emission
 var counter_ready := false
 var second_wind_used := false
 var phoenix_used := false
@@ -106,6 +109,7 @@ func rebuild_stats() -> void:
 	SkillDB.apply(Profile.skills(), stats)
 	Profile.apply_sanctuary(stats)
 	Profile.apply_gear(stats)
+	Looks.apply_player(Looks.current())
 	if run:
 		RelicDB.apply(run.relics, stats)
 	var old_max := max_hp
@@ -250,6 +254,9 @@ func think(dt: float) -> void:
 			mult *= 0.45
 		vel = move_in * spd * mult
 	facing = aim
+	if stats.has("featherfall"):
+		bob = 0.12 + 0.03 * sin(stage.elapsed * 3.0)
+	_set_aura(dt)
 	_update_lantern(dt)
 	_update_anim()
 	_footsteps()
@@ -263,6 +270,7 @@ func _timers(dt: float) -> void:
 	ward_recover = maxf(0.0, ward_recover - dt)
 	riposte_t = maxf(0.0, riposte_t - dt)
 	ambush_t = maxf(0.0, ambush_t - dt)
+	gloam_t = maxf(0.0, gloam_t - dt)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	dodge_age += dt
@@ -331,6 +339,8 @@ func _start_dodge() -> void:
 	ward_t = 0.0
 	cast_t = 0.0
 	Audio.play("dodge", -2.0, randf_range(0.95, 1.05))
+	if stats.has("gloam_set4"):
+		gloam_t = 2.0 + dodge_len
 	stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 10, 2.6, 0.4, 3.0, -dodge_dir, 0.8)
 	stage.fx.kick(dodge_dir, 1.0)
 	if stats.has("dodge_afterimage"):
@@ -506,6 +516,13 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		mult *= 0.75
 	if t is Enemy and (t as Enemy).elite:
 		mult *= 1.0 + stats.v("elite_damage")
+	if stats.has("berserk"):
+		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
+	if stats.has("ember_set4") and t.status.burning():
+		mult *= 1.25
+	if direct and stats.has("gloam_set4") and gloam_t > 0.0:
+		h.forced_crit = true
+		mult *= 1.3
 	h.amount *= mult
 	if direct and ambush_t > 0.0:
 		h.forced_crit = true
@@ -521,6 +538,8 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 			bc += 0.2
 		if bc > 0.0 and randf() < bc:
 			h.burn += 1
+		if stats.has("ember_set4") and h.has_tag("melee"):
+			h.burn = maxi(h.burn, 1)
 		if not stats.has("living_pyre"):
 			var cc := stats.v("chill_chance")
 			if stats.has("winters_heart"):
@@ -549,6 +568,7 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		gain_kindle(g)
 	if res.crit and h.proc and stats.has("crit_chain"):
 		_crit_chain(t, res.amount * 0.5)
+	_unique_on_hit(t, h, res, direct)
 	if h.proc and stats.has("thermal_shock"):
 		if (h.has_tag("fire") and was_chilled) or (h.has_tag("frost") and was_burning):
 			_thermal_shock(t)
@@ -583,6 +603,64 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
 			stage.fx.kick(h.from_dir, 2.0)
 	return res
+
+
+## Effects from unique gear when a hit lands.
+func _unique_on_hit(t: Actor, h: Hit, res: Combat.Result, direct: bool) -> void:
+	if stats.has("lifesteal") and direct and h.has_tag("melee") and alive:
+		hp = minf(max_hp, hp + res.amount * 0.04)
+	if res.crit and h.proc and stats.has("gamblers_coin") and randf() < 0.1:
+		for i in 4:
+			Pickup.spawn(stage, "ember", t.pos, 2)
+		stage.fx.number(t.pos, 2.8, "KA-CHING!", Color(1.0, 0.85, 0.3), true)
+		Audio.play("pickup_ember", 0.0, 1.6)
+	if res.crit and h.proc and direct and stats.has("storm_crit"):
+		_call_lightning(t, res.amount)
+	if direct and h.proc and h.has_tag("melee") and stats.has("echo_strike"):
+		_echo_n += 1
+		if _echo_n % 4 == 0:
+			Player._echo_later(stage, weakref(self), weakref(t), h.amount * 0.6, h.from_dir)
+
+
+## A delayed second strike (static so it never captures a freed player or target).
+static func _echo_later(st: Stage, pref: WeakRef, tref: WeakRef, amount: float, dir: Vector2) -> void:
+	st.after(0.14, func() -> void:
+		var pl: Player = pref.get_ref()
+		var tg: Actor = tref.get_ref()
+		if pl == null or tg == null or not is_instance_valid(tg) or not tg.alive:
+			return
+		var e := Combat.player_hit(pl, pl.stats, amount, ["melee"])
+		e.proc = false
+		e.from_dir = dir
+		e.knockback = dir * 2.0
+		st.fx.ghost(pl.sprite, pl.global_position + pl.sprite.position + pl.visual.position, Color(0.45, 0.95, 0.9), 0.2)
+		st.fx.impact(tg.pos, 0.8, Color(0.5, 1.0, 0.95), false, dir)
+		Audio.play("swing", -6.0, 1.4)
+		pl.deal_hit(tg, e))
+
+
+## Stormcaller Signet: lightning on a nearby enemy (not the one just hit if others are near).
+func _call_lightning(from: Actor, amount: float) -> void:
+	var best: Actor = null
+	var bd := 5.0
+	for a in stage.hostiles(team):
+		var d := a.pos.distance_to(from.pos)
+		if a != from and d < bd:
+			bd = d
+			best = a
+	if best == null:
+		best = from
+	for i in 6:
+		stage.fx.burst(best.pos, 0.3 + i * 0.45, Color(0.7, 0.85, 1.0), 2, 1.5, 0.15, 0.0)
+	stage.fx.impact(best.pos, 0.6, Color(0.6, 0.85, 1.0), true)
+	stage.fx.flash_light(best.pos, 2.0, Color(0.6, 0.8, 1.0), 4.0, 5.0, 0.18)
+	stage.fx.ring(best.pos, 1.2, Color(0.7, 0.9, 1.0), 0.2, 0.2)
+	Audio.play("crit", -2.0, 0.6)
+	var e := Combat.player_hit(self, stats, 18.0 + amount * 0.3, ["frost"])
+	e.can_crit = false
+	e.proc = false
+	e.from_dir = (best.pos - pos).normalized()
+	deal_hit(best, e)
 
 
 func _crit_chain(from: Actor, dmg: float) -> void:
@@ -638,6 +716,8 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		_on_ward(attacker, false)
 		return empty
 	if stats.has("hearthguard") and kindle >= stats.v("kindle_max") - 0.01:
+		h.amount *= 0.85
+	if stats.has("rime_set4") and attacker is Actor and is_instance_valid(attacker) and ((attacker as Actor).status.chill > 0.0 or (attacker as Actor).status.is_frozen()):
 		h.amount *= 0.85
 	if aegis_t > 0.0 and aegis_hp > 0.0:
 		var ab := minf(aegis_hp, h.amount)
@@ -697,6 +777,9 @@ func _perfect_dodge() -> void:
 	if stats.has("perfect_refund"):
 		dodge_charges = minf(stats.v("dodge_charges"), dodge_charges + 1.0)
 		gain_kindle(25.0)
+	if stats.has("gloam_set4"):
+		ability_cd = [0.0, 0.0]
+		stage.fx.number(pos, 2.0, "COOLDOWNS RESET", Color(0.8, 0.55, 1.0))
 	if stats.has("counterstep"):
 		counter_ready = true
 	Events.perfect_dodge.emit()
@@ -719,6 +802,13 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	if stats.has("ward_barrier"):
 		barrier = 20.0
 		barrier_t = 4.0
+	if stats.has("rime_set4"):
+		barrier = maxf(barrier, 30.0)
+		barrier_t = 4.0
+		stage.fx.ring(pos, 2.4, Color(0.7, 0.9, 1.0), 0.3, 0.3)
+		for a in stage.in_circle(team, pos, 2.6):
+			if a.status.apply_chill(2.5):
+				a.on_frozen()
 	if stats.has("counterstep"):
 		counter_ready = true
 	if not projectile and attacker is Actor and is_instance_valid(attacker):
@@ -804,6 +894,28 @@ func _update_lantern(dt: float) -> void:
 	lantern.position = Vector3(0.3 * side, (1.05 + bob) * Iso.SQ2, 0.3)
 
 
+## A full (4-piece) tier set wreathes the Kindled in its element.
+func _set_aura(dt: float) -> void:
+	var col := Color.TRANSPARENT
+	var rise := 1.2
+	if stats.has("ember_set4"):
+		col = Color(1.0, 0.6, 0.25)
+	elif stats.has("rime_set4"):
+		col = Color(0.7, 0.9, 1.0)
+		rise = 0.5
+	elif stats.has("gloam_set4"):
+		col = Color(0.75, 0.45, 1.0)
+	elif stats.has("verdant_set4"):
+		col = Color(0.55, 1.0, 0.45)
+		rise = 0.8
+	if col.a <= 0.0:
+		return
+	_aura_t += dt
+	if _aura_t > 0.09:
+		_aura_t = 0.0
+		stage.fx.motes(pos + Vector2(randf_range(-0.35, 0.35), randf_range(-0.1, 0.2)), 0.2, col, 1, rise, 0.9, 0.15)
+
+
 ## A footstep each time a foot lands in the run cycle (frames 0 and 3 of 6),
 ## so the sound always matches the feet. Moss in the Rootmire, stone elsewhere.
 func _footsteps() -> void:
@@ -815,6 +927,16 @@ func _footsteps() -> void:
 		var moss := stage is Dungeon and (stage as Dungeon).layout.region == "rootmire"
 		var n := 3 if moss else 4
 		Audio.play("step_%s_%d" % ["moss" if moss else "stone", _foot_i % n], -11.0, randf_range(0.94, 1.06))
+		if stats.has("ember_steps"):
+			stage.fx.splat(pos + Vector2(randf_range(-0.1, 0.1), 0.1), Color(0.2, 0.09, 0.05), 3.5, 0.45)
+			stage.fx.burst(pos, 0.05, Color(1.0, 0.6, 0.25), 3, 1.0, 0.35, -1.0)
+		if stats.has("squeaky"):
+			Audio.play("squeak", -8.0, randf_range(0.9, 1.15))
+			if randf() < 0.12:
+				var e := stage.nearest_hostile(team, pos, 5.0, false)
+				if e and e is Enemy and not (e as Enemy).def.get("boss", false):
+					e.status.stagger_t = maxf(e.status.stagger_t, 0.8)
+					stage.fx.number(e.pos, 2.2, "?", Color(1.0, 0.95, 0.6), true)
 		# a little dust kicked up behind the foot
 		var dust := Color(0.32, 0.36, 0.26) if moss else Color(0.45, 0.42, 0.42)
 		stage.fx.burst(pos + Vector2(0, 0.15), 0.05, dust, 2, 0.8, 0.3, -0.6, -vel.normalized() if vel.length() > 0.1 else Vector2.ZERO, 0.9, 0.6)

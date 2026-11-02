@@ -378,10 +378,26 @@ func die(killer: Node) -> void:
 			pl.gain_kindle(st.v("kindle_on_kill") / maxf(st.v("kindle_gain"), 0.01))
 		if st.has("combustion") and status.burning():
 			_combust(pl)
+		if st.has("kindle_refund") and last_hit_tags.has("ability"):
+			pl.gain_kindle(12.0 / maxf(st.v("kindle_gain"), 0.01))
+		if st.has("verdant_set4"):
+			_spore_burst(pl)
 		if st.has("shatter") and status.is_frozen():
 			_shatter(pl)
 	if affix == "volatile":
 		_volatile_burst()
+
+
+## Verdant Warden 4pc: a kill heals and bursts into poisoning spores.
+func _spore_burst(pl: Player) -> void:
+	pl.hp = minf(pl.max_hp, pl.hp + pl.max_hp * 0.03)
+	stage.fx.burst(pos, 0.5, Color(0.55, 0.95, 0.45), 14, 3.0, 0.7, -1.0)
+	stage.fx.ring(pos, 2.0, Color(0.55, 0.95, 0.45), 0.35, 0.2)
+	for a in stage.in_circle(pl.team, pos, 2.0):
+		var h := Combat.player_hit(pl, pl.stats, 14.0, ["dot"])
+		h.can_crit = false
+		h.proc = false
+		pl.deal_hit(a, h)
 
 
 func _combust(pl: Player) -> void:

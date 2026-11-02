@@ -758,6 +758,20 @@ static func _loot(dir: String) -> void:
 		fr.append(c)
 	sg.add("idle", fr, 6.0)
 	sg.save(dir, "pickup_gear")
+	# a blueprint: a rolled scroll tied with gold, glinting
+	var sc := Sheet.new(12, 10, Vector2i(6, 9))
+	fr = []
+	for i in 4:
+		var c := Px.new(12, 10)
+		c.paint(c.mask().rect(2, 3, 8, 5), Pal.BONE, 3, true)
+		c.paint(c.mask().ellipse(2.0, 5.5, 1.6, 2.6).ellipse(10.0, 5.5, 1.6, 2.6), Pal.BONE, 2, true)
+		c.paint(c.mask().rect(5, 3, 2, 5), Pal.GOLD, 3)
+		var g2: Vector2i = [Vector2i(3, 2), Vector2i(9, 1), Vector2i(10, 3), Vector2i(2, 1)][i]
+		c.lit(g2.x, g2.y, Pal.WHITE)
+		c.outline(Pal.INK)
+		fr.append(c)
+	sc.add("idle", fr, 6.0)
+	sc.save(dir, "pickup_scroll")
 
 
 static func _dummy(dir: String) -> void:

@@ -17,7 +17,7 @@ var light: OmniLight3D
 var data: Dictionary = {}     # "material": {id}; "gear": {item}
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
-	"material": "pickup_mat", "gear": "pickup_gear"}
+	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll"}
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
@@ -40,7 +40,14 @@ func _ready() -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(SHEETS.get(kind, "pickup_ember"))
-	if kind == "gear":
+	if kind == "blueprint":
+		light = OmniLight3D.new()
+		light.light_color = Color(1.0, 0.75, 0.35)
+		light.light_energy = 1.6
+		light.omni_range = 3.0
+		light.position = Vector3(0, 0.4, 0)
+		add_child(light)
+	elif kind == "gear":
 		var gc := ItemDB.color(data.get("item", {}))
 		light = OmniLight3D.new()
 		light.light_color = gc
@@ -122,6 +129,14 @@ func _collect(pl: Player) -> void:
 			pl.run.add_material(mid, amount)
 			stage.fx.number(pl.pos, 2.0, "+%d %s" % [amount, ItemDB.MATERIALS[mid].name], Color(0.85, 0.82, 0.7))
 			Audio.play("pickup_xp", -6.0, 0.8)
+		"blueprint":
+			var bid := String(data.get("id", ""))
+			(pl.run.loot.blueprints as Array).append(bid)
+			stage.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)
+			stage.fx.ring(pl.pos, 1.6, Color(1.0, 0.75, 0.35), 0.4, 0.25)
+			stage.fx.flash_light(pl.pos, 1.0, Color(1.0, 0.75, 0.35), 3.0, 5.0, 0.4)
+			Events.toast.emit("Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
+			Audio.play("learn", -2.0)
 		"gear":
 			var it: Dictionary = data.get("item", {})
 			(pl.run.loot.gear as Array).append(it)

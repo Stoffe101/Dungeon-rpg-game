@@ -44,6 +44,18 @@ func _ready() -> void:
 		elif a.begins_with("grudge="):
 			var rng := RandomNumberGenerator.new()
 			Profile.record_grudge(a.substr(7), 60, 1, rng)
+		elif a.begins_with("wear="):
+			# dev: wear=emberwrought (a whole set, made on the spot) or base ids, comma separated
+			var rng_w := RandomNumberGenerator.new()
+			var ids: Array = Array(a.substr(5).split(","))
+			if ids.size() == 1 and ItemDB.SETS.has(ids[0]):
+				ids = ItemDB.set_pieces(ids[0])
+			for b in ids:
+				var it := Profile.add_item(ItemDB.make_item(b, "rare", 1, rng_w, 2))
+				Profile.equip(int(it.uid))
+		elif a.begins_with("look="):
+			Looks.unlock(a.substr(5))
+			Looks.choose(a.substr(5))
 		elif a == "rich":
 			Profile._grant_stockpile(Profile.data)
 		elif a == "pad":
@@ -115,6 +127,12 @@ func _open_dev_screen(what: String) -> void:
 			ui.pause_menu()
 		"inventory":
 			ui.inventory()
+		"wardrobe":
+			ui.inventory()
+			var invs := ui.modal_layer.find_children("*", "InventoryUI", true, false)
+			if not invs.is_empty():
+				(invs[0] as InventoryUI).wardrobe_open = true
+				(invs[0] as InventoryUI).rebuild()
 		"smithy":
 			ui.smithy()
 		"peddler":

@@ -10,6 +10,7 @@ const VICTORY_BONUS := 0.25
 
 var seed := 0
 var region := "ossuary"
+var tier := 1               # difficulty tier (see Difficulty)
 var depth := 1
 var relics: Array = []
 var embers := 0
@@ -33,7 +34,7 @@ var killer_id := ""
 var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
 ## Materials and gear picked up this expedition, banked at the end.
-var loot := {"materials": {}, "gear": []}
+var loot := {"materials": {}, "gear": [], "blueprints": []}
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
@@ -67,7 +68,7 @@ func settle_loot(outcome: String) -> Dictionary:
 	for k in loot.materials:
 		var n := int(loot.materials[k])
 		mats[k] = int(floor(n * DEATH_KEEP)) if outcome == "died" else n
-	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true)}
+	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate()}
 
 
 ## Works out what the profile keeps from this run. Pure so it can be tested.

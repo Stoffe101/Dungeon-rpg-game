@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 5
+const VERSION := 6
 const DEFAULT_PATH := "user://profile.json"
 ## While gear and crafting are being tested, saves get a stockpile of materials,
 ## embers and a few pieces of gear (once: on upgrading to v5 or on a new save).
@@ -49,7 +49,8 @@ static func fresh() -> Dictionary:
 		"seen": {"relics": [], "enemies": []},
 		"flags": {"intro_done": false},
 		"requests": {},
-		"inventory": {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1},
+		"inventory": {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1, "known": [], "scrolls": [], "looks": ["kindled"], "look": ""},
+		"difficulty": {"unlocked": 2, "selected": 1, "cleared": 0},
 		"shop": {"stock": [], "for_run": -1},
 	}
 
@@ -70,6 +71,9 @@ func load_profile() -> void:
 	data = migrate(loaded) if not loaded.is_empty() else fresh()
 	if loaded.is_empty() and TEST_STOCKPILE:
 		_grant_stockpile(data)
+		_grant_test_v6(data)
+		for it in bag():
+			Looks.unlock(Looks.look_of_base(String(it.base)))
 	changed.emit()
 
 
@@ -152,6 +156,30 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if TEST_STOCKPILE:
 			_grant_stockpile(out)
 		v = 5
+	if v < 6:
+		# v6: blueprints (known / unread scrolls), looks (transmog), difficulty tiers
+		var inv6: Dictionary = out.inventory
+		for k in ["known", "scrolls"]:
+			if not inv6.has(k):
+				inv6[k] = []
+		if not inv6.has("looks"):
+			inv6["looks"] = ["kindled"]
+		if not inv6.has("look"):
+			inv6["look"] = ""
+		if not out.has("difficulty"):
+			out["difficulty"] = {"unlocked": 2, "selected": 1, "cleared": 0}
+		if TEST_STOCKPILE:
+			_grant_test_v6(out)
+		# looks already earned by gear the Kindled owns
+		var owned: Array = (inv6.bag as Array).duplicate()
+		for s in inv6.equipped:
+			if inv6.equipped[s] is Dictionary:
+				owned.append(inv6.equipped[s])
+		for it in owned:
+			var lk := Looks.look_of_base(String((it as Dictionary).get("base", "")))
+			if lk != "" and not (inv6.looks as Array).has(lk):
+				(inv6.looks as Array).append(lk)
+		v = 6
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -396,6 +424,50 @@ static func _grant_stockpile(d: Dictionary) -> void:
 		(inv.bag as Array).append(it)
 
 
+## For testing the v6 features: three blueprint scrolls to learn, a set piece
+## of each tier set (two Emberwrought, enough to see a set bonus and its look)
+## and more catalysts.
+static func _grant_test_v6(d: Dictionary) -> void:
+	var inv6: Dictionary = d.inventory
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6006
+	for b in ["gamblers_coin", "seven_league_boots", "squeaky_clogs"]:
+		if not (inv6.scrolls as Array).has(b) and not (inv6.known as Array).has(b):
+			(inv6.scrolls as Array).append(b)
+	for b in ["emberwrought_helm", "emberwrought_plate", "rimeguard_mail", "gloamweave_cloak", "verdant_robe"]:
+		var it := ItemDB.make_item(b, "set", 1, rng, 2)
+		it.uid = int(inv6.get("next_uid", 1))
+		inv6.next_uid = it.uid + 1
+		(inv6.bag as Array).append(it)
+	var mats: Dictionary = inv6.materials
+	for k in ["sun_gold", "eclipse_shard", "warden_sigil", "bloom_heart"]:
+		mats[k] = int(mats.get(k, 0)) + (40 if k == "sun_gold" else 6)
+
+
+## Blueprints the Kindled has learned (their uniques can be forged).
+func known_blueprints() -> Array:
+	return inv().get("known", [])
+
+
+## Blueprint scrolls carried home but not yet read.
+func scrolls() -> Array:
+	if not inv().has("scrolls"):
+		inv()["scrolls"] = []
+	return inv().scrolls
+
+
+func learn_blueprint(id: String) -> bool:
+	if not scrolls().has(id):
+		return false
+	scrolls().erase(id)
+	if not inv().has("known"):
+		inv()["known"] = []
+	if not (inv().known as Array).has(id):
+		(inv().known as Array).append(id)
+	_changed()
+	return true
+
+
 func inv() -> Dictionary:
 	if not data.has("inventory"):
 		data["inventory"] = {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1}
@@ -442,6 +514,7 @@ func pay(cost: Dictionary) -> bool:
 
 
 func add_item(item: Dictionary) -> Dictionary:
+	Looks.unlock(Looks.look_of_base(String(item.get("base", ""))))
 	var it := item.duplicate(true)
 	it.uid = int(inv().get("next_uid", 1))
 	inv().next_uid = it.uid + 1

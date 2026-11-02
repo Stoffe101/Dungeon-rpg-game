@@ -312,6 +312,8 @@ func _spike_tick() -> void:
 				h.can_crit = false
 				h.knockback = Vector2.ZERO
 				if a is Player:
+					if (a as Player).stats.has("featherfall"):
+						continue
 					(a as Player).take_enemy_hit(h, null)
 				else:
 					h.source = stage.player

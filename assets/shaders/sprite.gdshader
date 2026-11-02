@@ -12,6 +12,11 @@ uniform float bands = 4.0;
 uniform float dither_strength = 0.5;
 uniform float self_light = 0.0;
 uniform bool unshaded_sprite = false;
+// palette swap (the Kindled's looks): texels matching swap_from (sRGB) take
+// swap_to (linear)
+uniform int swap_count = 0;
+uniform vec3 swap_from[12];
+uniform vec3 swap_to[12];
 
 instance uniform vec2 frame = vec2(0.0);
 instance uniform float flip = 0.0;
@@ -45,6 +50,17 @@ void fragment() {
 	vec2 tex_size = vec2(textureSize(atlas, 0));
 	vec2 texel = floor(auv * tex_size);
 	float glow = texture(emit_atlas, auv).r;
+	// match in sRGB (dark linear tones sit too close together), write linear
+	vec3 srgb = mix(12.92 * c.rgb, 1.055 * pow(c.rgb, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c.rgb));
+	for (int i = 0; i < 12; i++) {
+		if (i >= swap_count) {
+			break;
+		}
+		if (distance(srgb, swap_from[i]) < 0.012) {
+			c.rgb = swap_to[i];
+			break;
+		}
+	}
 	vec3 col = c.rgb * tint.rgb;
 	vec3 emit = c.rgb * glow * emit_strength * glow_mult;
 	if (dissolve > 0.0) {

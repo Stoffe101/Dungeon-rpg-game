@@ -47,6 +47,9 @@ func _close_all() -> void:
 
 func _run() -> void:
 	await _wait(10)
+	# start from a clean slate so earlier smoke runs cannot change the outcome
+	if Profile.path != Profile.DEFAULT_PATH:
+		Profile.reset_profile()
 	Profile.add_currency("embers", 20000)
 	Profile.add_currency("sunshards", 20)
 	for i in 6:

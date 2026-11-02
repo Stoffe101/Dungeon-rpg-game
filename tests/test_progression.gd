@@ -259,7 +259,9 @@ func test_gear_rolls_and_stats() -> void:
 	for b in ItemDB.BASES:
 		var base: Dictionary = ItemDB.BASES[b]
 		check(String(base.slot) in ItemDB.SLOTS, "%s has a valid slot" % b)
-		check(base.has("recipe") or base.get("legendary", false), "%s can be crafted or is a boss drop" % b)
+		check(base.has("recipe") or base.get("legendary", false) or base.has("set"), "%s can be crafted, drops as a set piece or from a boss" % b)
+		if base.has("set"):
+			check(ItemDB.SETS.has(base.set), "%s belongs to a known set" % b)
 		for k in base.get("recipe", {}):
 			check(k == "embers" or ItemDB.MATERIALS.has(k), "%s recipe uses a known material %s" % [b, k])
 
@@ -303,3 +305,57 @@ func test_run_loot_settlement() -> void:
 	eq(int(died.materials.soul_glass), 0)
 	eq((died.gear as Array).size(), 1, "gear found is kept")
 	eq(int(r.settle_loot("extracted").materials.bone_dust), 5, "everything on extraction")
+
+
+func test_sets_uniques_and_looks() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	for s in ItemDB.SETS:
+		eq(ItemDB.set_pieces(s).size(), 5, "%s has five pieces" % s)
+	var eq_gear := {}
+	eq(ItemDB.gear_look(eq_gear), "kindled", "no gear, plain look")
+	eq_gear["head"] = ItemDB.make_item("emberwrought_helm", "common", 1, rng, 2)
+	eq(String(eq_gear.head.rarity), "set", "set pieces are set rarity")
+	eq(ItemDB.gear_look(eq_gear), "kindled", "one piece is not enough for the look")
+	eq_gear["chest"] = ItemDB.make_item("emberwrought_plate", "set", 1, rng, 2)
+	eq(ItemDB.gear_look(eq_gear), "emberwrought", "two pieces wear the set's look")
+	var st := Stats.for_player()
+	var fire_before := st.v("fire_damage")
+	ItemDB.apply_equipped(eq_gear, st)
+	check(st.v("fire_damage") >= fire_before + 0.2, "2-piece bonus applies")
+	check(not st.has("ember_set4"), "4-piece bonus needs four")
+	eq_gear["hands"] = ItemDB.make_item("emberwrought_gauntlets", "set", 1, rng, 2)
+	eq_gear["feet"] = ItemDB.make_item("emberwrought_greaves", "set", 1, rng, 2)
+	var st4 := Stats.for_player()
+	ItemDB.apply_equipped(eq_gear, st4)
+	check(st4.has("ember_set4"), "4-piece bonus applies")
+	var uq := ItemDB.make_item("squeaky_clogs", "common", 1, rng)
+	eq(String(uq.rarity), "legendary", "uniques are legendary")
+	var st_u := Stats.for_player()
+	ItemDB.apply_equipped({"feet": uq}, st_u)
+	check(st_u.has("squeaky"), "unique flags apply")
+	eq(st_u.v("dodge_charges"), Stats.PLAYER_BASE.dodge_charges + 1.0, "integral mods do not scale")
+	var hi := ItemDB.make_item("grave_iron_helm", "common", 1, rng, 5)
+	var lo := ItemDB.make_item("grave_iron_helm", "common", 1, rng, 1)
+	check(float(ItemDB.mods_of(hi)[0][2]) > float(ItemDB.mods_of(lo)[0][2]) * 2.0, "higher tiers are stronger")
+	for b in ItemDB.blueprints():
+		check(ItemDB.recipe(b).size() > 0, "%s has a recipe" % b)
+	check(ItemDB.roll_blueprint(rng, ItemDB.blueprints()) == "", "nothing left to find when all are known")
+
+
+func test_blueprints_and_difficulty() -> void:
+	Profile.data = Profile.fresh()
+	eq(Difficulty.unlocked(), 2, "tiers I and II open")
+	Difficulty.select(5)
+	eq(Difficulty.selected(), 2, "cannot pick a locked tier")
+	eq(Difficulty.on_victory("ossuary", 2), [], "a normal region opens nothing")
+	eq(Difficulty.craft_tier(), 2, "crafting follows the best win")
+	eq(Difficulty.on_victory("throne", 2), [3, 4], "the capstone opens the next two tiers")
+	eq(Difficulty.unlocked(), 4)
+	check(Difficulty.hp_mult(4) > Difficulty.hp_mult(3), "tiers get tougher")
+	Profile.scrolls().append("gamblers_coin")
+	check(Profile.learn_blueprint("gamblers_coin"), "learn a scroll")
+	check(Profile.known_blueprints().has("gamblers_coin"), "it is known")
+	check(Profile.scrolls().is_empty(), "the scroll is used up")
+	check(Difficulty.power() >= 90, "a fresh Kindled has about 100 power (%d)" % Difficulty.power())
+	eq(Difficulty.recommended(), 1, "fresh: Tier I")

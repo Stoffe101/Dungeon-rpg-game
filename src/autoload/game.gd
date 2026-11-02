@@ -156,6 +156,9 @@ func end_run(outcome: String, killer_id := "") -> void:
 			Profile.add_material(k, int(spoils.materials[k]))
 	for it in spoils.gear:
 		Profile.add_item(it)
+	for b in spoils.get("blueprints", []):
+		if not Profile.scrolls().has(b) and not Profile.known_blueprints().has(b):
+			Profile.scrolls().append(b)
 	Profile.save_profile()
 	var summary := {
 		"loot": spoils, "loot_found": run.loot.duplicate(true),

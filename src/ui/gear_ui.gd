@@ -46,7 +46,8 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 	head.add_child(UIKit.item_icon_rect(ItemDB.icon(item)))
 	head.add_child(UIKit.label(ItemDB.item_name(item), 8, col, true))
 	v.add_child(head)
-	v.add_child(UIKit.label("%s %s   Level %d/%d" % [ItemDB.RARITY[item.rarity].name, ItemDB.SLOT_NAMES[b.slot], int(item.level), ItemDB.MAX_LEVEL], 8, UIKit.C_DIM))
+	var kind := "Unique" if b.get("unique", false) else String(ItemDB.RARITY[item.rarity].name)
+	v.add_child(UIKit.label("%s %s   Level %d/%d   Tier %s" % [kind, ItemDB.SLOT_NAMES[b.slot], int(item.level), ItemDB.MAX_LEVEL, Difficulty.roman(int(item.get("tier", 1)))], 8, UIKit.C_DIM))
 	var mods := ItemDB.mods_of(item)
 	var nb := (b.mods as Array).size()
 	for i in mods.size():
@@ -54,12 +55,26 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 		v.add_child(UIKit.para(("  " if i < nb else "+ ") + txt, width, UIKit.C_TEXT if i < nb else Color(0.6, 0.85, 1.0)))
 	if b.has("desc"):
 		v.add_child(UIKit.para(String(b.desc), width, Color(1.0, 0.8, 0.5)))
+	if b.has("set"):
+		v.add_child(set_info(String(b.set), width))
 	if not compare.is_empty() and int(compare.get("uid", -1)) != int(item.get("uid", -2)):
 		var delta := _delta(mods, ItemDB.mods_of(compare))
 		if not delta.is_empty():
 			v.add_child(UIKit.label("Compared to %s:" % ItemDB.item_name(compare), 8, UIKit.C_DIM))
 			for d in delta:
 				v.add_child(UIKit.label("  " + UIKit.describe_mod(d), 8, UIKit.C_GOOD if _better(d) else UIKit.C_BAD))
+	return v
+
+
+## A tier set's name, how many pieces are worn, and its bonuses (lit when active).
+static func set_info(set_id: String, width := 160) -> VBoxContainer:
+	var s: Dictionary = ItemDB.SETS[set_id]
+	var worn := int(ItemDB.set_counts(Profile.equipped()).get(set_id, 0))
+	var v := UIKit.vbox(1)
+	v.add_child(UIKit.label("%s set  (%d/5 worn)" % [s.name, worn], 8, s.color, true))
+	for n in [2, 4]:
+		var on: bool = worn >= int(n)
+		v.add_child(UIKit.para("(%d) %s" % [n, s[n].desc], width, s.color if on else UIKit.C_DIM))
 	return v
 
 
