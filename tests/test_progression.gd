@@ -162,3 +162,26 @@ func test_residents_arrive_with_progress() -> void:
 		check(ResourceLoader.exists("res://assets/sprites/%s.png" % r.sheet), "%s sheet exists" % r.id)
 	Profile.data.world.warden_kills = 1
 	check(Residents.talk("teodric") != Residents.LIST[1].talk[0], "talk changes after the Warden falls")
+
+
+func test_skill_path_and_totals() -> void:
+	var alloc := ["hearth"]
+	var route := SkillDB.path_to("b3", alloc)
+	eq(route.get("from"), "hearth", "routes grow from the tree")
+	eq(route.nodes.back(), "b3", "ends at the target")
+	eq(int(route.cost), SkillDB.cost("b1") + SkillDB.cost("b2") + SkillDB.cost("b3"), "cheapest route cost")
+	# every step of the route is allocatable in order
+	var pts := 99
+	for id in route.nodes:
+		check(SkillDB.can_allocate(id, alloc, pts), "%s allocatable in order" % id)
+		alloc.append(id)
+	check(SkillDB.path_to("b3", alloc).is_empty(), "nothing to route to an allocated node")
+	var t := SkillDB.totals(["hearth", "b1", "b4", "w1", "w4"])
+	var seen := {}
+	for m in t:
+		seen["%s|%s" % [m[0], m[1]]] = m[2]
+	near(float(seen["melee_damage|add"]), 0.18, 0.001, "melee damage summed")
+	near(float(seen["max_hp|add"]), 35.0, 0.001, "health summed")
+	UIKit.icon("star")   # loads the atlas map
+	for id in SkillDB.all_ids():
+		check(UIKit._icon_map.has(SkillDB.icon_of(id)), "%s has an icon (%s)" % [id, SkillDB.icon_of(id)])

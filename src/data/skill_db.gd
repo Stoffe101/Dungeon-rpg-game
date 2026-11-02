@@ -150,6 +150,26 @@ const NODES := [
 		"desc": "Melee hits generate 50% more Kindle."},
 ]
 
+## Icons for the nodes that change how you play; minors use their stat's icon.
+const ICONS := {
+	"hearth": "hearth", "b3": "mirror", "b3l": "sword", "b5": "skull", "b5r": "flare", "b6": "crown",
+	"p3": "coal", "p3l": "lance", "p5": "flame", "p5l": "brand", "p6": "phoenix",
+	"r3": "prism", "r3r": "sigil", "r5": "mirror", "r5r": "gem_blue", "r6": "snow",
+	"g3": "gloamstep", "g3l": "boot", "g4r": "gloamstep", "g5": "eye", "g5l": "mask", "g6": "mask",
+	"w3": "mirror", "w3r": "aegis", "w5": "bandage", "w5r": "aegis", "w6": "shield",
+	"k3": "wisp", "k3l": "skull", "k5": "sun", "k5l": "wisp", "k6": "sun",
+	"x_bp": "flame", "x_pr": "prism", "x_rg": "snow", "x_gw": "dodge", "x_wk": "kindle", "x_kb": "sword",
+}
+const STAT_ICONS := {
+	"melee_damage": "sword", "attack_speed": "hourglass", "crit_chance": "eye", "crit_mult": "gem_red", "poise_damage": "hammer",
+	"fire_damage": "flame", "burn_chance": "coal", "burn_damage": "coal", "burn_stacks": "brand",
+	"frost_damage": "snow", "chill_chance": "snow", "chill_power": "gem_blue", "status_duration": "hourglass",
+	"move_speed": "boot", "dodge_recharge": "dodge", "dodge_distance": "feather", "dodge_iframes": "mask", "dodge_charges": "dodge",
+	"max_hp": "heart", "armor": "shield", "parry_window": "mirror", "thorns": "fork",
+	"kindle_max": "wick", "kindle_gain": "kindle", "ability_cost": "candle", "ability_damage": "prism", "cooldown": "hourglass",
+	"kindle_on_kill": "skull",
+}
+
 static var _by_id: Dictionary = {}
 static var _adj: Dictionary = {}
 
@@ -249,6 +269,84 @@ static func apply(allocated: Array, stats: Stats) -> void:
 			continue
 		stats.apply_mods(n.get("mods", []))
 		stats.apply_flags(n.get("flags", {}))
+
+
+static func icon_of(id: String) -> String:
+	if ICONS.has(id):
+		return ICONS[id]
+	var n := node(id)
+	if n.has("ability"):
+		return String(GearDB.ability(n.ability).get("icon", "star"))
+	var mods: Array = n.get("mods", [])
+	if not mods.is_empty():
+		return STAT_ICONS.get(String(mods[0][0]), "star")
+	return "star"
+
+
+## Cheapest route of unallocated nodes from the allocated tree to `id` (inclusive,
+## in the order they must be kindled) and the allocated node it grows from.
+## Returns {} when `id` is already allocated or cannot be reached.
+static func path_to(id: String, allocated: Array) -> Dictionary:
+	_ensure()
+	if allocated.has(id) or not _by_id.has(id) or allocated.is_empty():
+		return {}
+	var dist := {}
+	var prev := {}
+	var open: Array = []
+	for a in allocated:
+		dist[a] = 0
+		open.append(a)
+	var done := {}
+	while not open.is_empty():
+		var best := 0
+		for i in range(1, open.size()):
+			if int(dist[open[i]]) < int(dist[open[best]]):
+				best = i
+		var cur: String = open.pop_at(best)
+		if done.has(cur):
+			continue
+		done[cur] = true
+		if cur == id:
+			break
+		for nb in neighbours(cur):
+			if allocated.has(nb):
+				continue
+			var d := int(dist[cur]) + cost(nb)
+			if not dist.has(nb) or d < int(dist[nb]):
+				dist[nb] = d
+				prev[nb] = cur
+				open.append(nb)
+	if not prev.has(id):
+		return {}
+	var nodes: Array = []
+	var c := id
+	while not allocated.has(c):
+		nodes.push_front(c)
+		c = prev[c]
+	return {"nodes": nodes, "from": c, "cost": int(dist[id])}
+
+
+## Every stat bonus the allocated nodes grant, merged per stat and operation.
+## Returns [[stat, op, value], ...] in a stable order.
+static func totals(allocated: Array) -> Array:
+	var sums := {}
+	var order: Array = []
+	for id in allocated:
+		for m in node(id).get("mods", []):
+			var key := "%s|%s" % [m[0], m[1]]
+			if not sums.has(key):
+				order.append(key)
+				sums[key] = 0.0 if m[1] != "more" else 1.0
+			if m[1] == "more":
+				sums[key] = float(sums[key]) * (1.0 + float(m[2]))
+			else:
+				sums[key] = float(sums[key]) + float(m[2])
+	var out: Array = []
+	for key in order:
+		var parts: PackedStringArray = String(key).split("|")
+		var v := float(sums[key])
+		out.append([parts[0], parts[1], v - 1.0 if parts[1] == "more" else v])
+	return out
 
 
 static func branch_counts(allocated: Array) -> Dictionary:

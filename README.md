@@ -29,7 +29,8 @@ remembers who hurts it.
   and the Rootmire (burnable brambles; the Hollow Bloom, a rooted corpse-flower
   whose roots you burn to wilt it).
 - Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled.
-- The Hearthtree: a 55-node constellation skill tree with keystones and hybrids;
+- The Hearthtree: a 55-node constellation skill tree with keystones and hybrids,
+  route preview (click any node to kindle the path to it), search and a bonuses panel;
   39 relics that steer builds; a forge; an evolving sanctuary whose survivors
   arrive, wander, and talk as the Hearth grows.
 - Full gamepad support: menus, prompts, rebinding, aim assist.

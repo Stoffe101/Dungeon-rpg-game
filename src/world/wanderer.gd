@@ -50,10 +50,11 @@ func tick(dt: float) -> void:
 	if listen_t > 0.0:
 		# turned toward the Kindled while talking
 		listen_t -= dt
-		if pl:
-			sprite.flip_h = pl.pos.x < pos.x
-		if listen_t <= 0.0 and moving:
-			sprite.play("walk")
+		if listen_t <= 0.0:
+			if moving:
+				sprite.play("walk")
+			else:
+				_pose_anim()
 		return
 	if moving:
 		_walk(dt)
@@ -100,9 +101,14 @@ func _walk(dt: float) -> void:
 func _arrive() -> void:
 	moving = false
 	position = Iso.to_world(pos, 0.0)
+	sprite.flip_h = false
+	_pose_anim()
+	wait = randf_range(7.0, 16.0)
+
+
+func _pose_anim() -> void:
 	var pose := String(spots[spot].pose) if spot >= 0 else "idle"
 	sprite.play(pose if sprite.has_anim(pose) else "idle")
-	wait = randf_range(7.0, 16.0)
 
 
 func _leave() -> void:
@@ -138,6 +144,10 @@ func _pick_spot(rng: RandomNumberGenerator) -> int:
 	return best
 
 
-func listen(seconds: float) -> void:
+## Faces the Kindled and talks (or just listens, once the conversation ends).
+func listen(seconds: float, talking := true) -> void:
 	listen_t = seconds
-	sprite.play("idle")
+	sprite.flip_h = false
+	sprite.play("talk" if talking and sprite.has_anim("talk") else "idle")
+	# the dialogue pauses the world; the speaker keeps moving their lips
+	sprite.process_mode = Node.PROCESS_MODE_ALWAYS if talking else Node.PROCESS_MODE_INHERIT

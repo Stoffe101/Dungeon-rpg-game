@@ -158,6 +158,24 @@ static func icon(name: String) -> AtlasTexture:
 	return at
 
 
+static var _icons_small: ImageTexture
+
+
+## An 8px version of an icon (averaged down from the 16px atlas) for tight spots.
+static func icon_small(name: String) -> AtlasTexture:
+	icon(name)   # loads the atlas map
+	if _icons_small == null:
+		var img := ICONS.get_image()
+		img.convert(Image.FORMAT_RGBA8)
+		img.resize(img.get_width() / 2, img.get_height() / 2, Image.INTERPOLATE_BILINEAR)
+		_icons_small = ImageTexture.create_from_image(img)
+	var at := AtlasTexture.new()
+	at.atlas = _icons_small
+	var cell: Array = _icon_map.get(name, _icon_map.get("star", [0, 0]))
+	at.region = Rect2(float(cell[0]) * 8.0, float(cell[1]) * 8.0, 8, 8)
+	return at
+
+
 static func icon_rect(name: String, scale := 1) -> TextureRect:
 	var tr := TextureRect.new()
 	tr.texture = icon(name)

@@ -1,25 +1,39 @@
 ## The Hearthtree: a zoomable, pannable constellation of skills radiating from
 ## the Hearth. Allocated paths burn gold with travelling sparks; available
-## nodes pulse; hovering shows a full tooltip; unlocking bursts with light.
+## nodes pulse; hovering shows a full tooltip and previews the cheapest route
+## from your tree (clicking kindles the whole route); a search box highlights
+## matching nodes; a side panel sums up everything the tree grants.
 class_name SkillTreeUI
 extends Control
 
 const BRANCH_ICON := {"blade": "sword", "pyre": "flame", "rime": "snow", "gloam": "feather", "bulwark": "shield", "kindle": "wick"}
+const PANEL_W := 150.0
 
 var zoom := 1.0
 var pan := Vector2.ZERO
 var hovered := ""
+var route: Dictionary = {}      # cheapest path to the hovered node (SkillDB.path_to)
+var search := ""
+var matches := {}
 var _t := 0.0
 var _press_pos := Vector2.ZERO
 var _pressing := false
 var _dragged := false
 var _bursts: Array = []
 var _stars: Array = []
+var _label_rects := {}          # branch -> Rect2 of its name, for click-to-focus
+var _branch_total := {}
+var _view_tw: Tween
 var points_lbl: Label
 var info_lbl: Label
+var find_lbl: Label
+var search_box: LineEdit
 var respec_btn: Button
 var hearth_btn: Button
 var close_btn: Button
+var bonus_btn: Button
+var bonus_panel: PanelContainer
+var bonus_box: VBoxContainer
 var hint: Label
 var tip: PanelContainer
 var tip_box: VBoxContainer
@@ -35,34 +49,11 @@ func _ready() -> void:
 	rng.seed = 7
 	for i in 220:
 		_stars.append([Vector2(rng.randf_range(-700, 700), rng.randf_range(-500, 500)), rng.randf(), rng.randi_range(0, 2)])
-	var top := UIKit.panel()
-	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top.offset_left = 6
-	top.offset_right = -6
-	top.offset_top = 6
-	add_child(top)
-	var row := UIKit.hbox(8)
-	top.add_child(row)
-	var title := UIKit.label("THE HEARTHTREE", 16, UIKit.C_GOLD, true)
-	row.add_child(title)
-	var info := UIKit.vbox(0)
-	points_lbl = UIKit.label("", 8, UIKit.C_EMBER)
-	info_lbl = UIKit.label("", 8, UIKit.C_DIM)
-	info.add_child(points_lbl)
-	info.add_child(info_lbl)
-	row.add_child(info)
-	var fill := Control.new()
-	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(fill)
-	hearth_btn = UIKit.button("Feed the Hearth", _feed_hearth, 70)
-	row.add_child(hearth_btn)
-	respec_btn = UIKit.button("Respec", _respec, 50)
-	row.add_child(respec_btn)
-	close_btn = UIKit.button("Close", func() -> void: Game.ui.close_top(), 50)
-	row.add_child(close_btn)
-	# the gamepad cursor presses these; keyboard focus would double-fire with A
-	for b in [hearth_btn, respec_btn, close_btn]:
-		b.focus_mode = Control.FOCUS_NONE
+	for id in SkillDB.all_ids():
+		for b in String(SkillDB.node(id).get("branch", "")).split("|", false):
+			_branch_total[b] = int(_branch_total.get(b, 0)) + 1
+	_build_header()
+	_build_bonus_panel()
 	hint = UIKit.label("", 8, UIKit.C_DIM, true)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	hint.offset_left = 8
@@ -78,16 +69,93 @@ func _ready() -> void:
 	tip.add_child(tip_box)
 	tip.visible = false
 	add_child(tip)
-	_refresh_header()
-	Profile.changed.connect(_refresh_header)
-	# fit the whole constellation below the header
-	zoom = clampf((get_viewport_rect().size.y - 50.0) / (2.0 * 7.4 * SkillDB.RING), 0.35, 1.6)
-	pan = Vector2(0, 14.0 / zoom)
+	_on_profile_changed()
+	Profile.changed.connect(_on_profile_changed)
+	_fit_view(false)
+
+
+func _build_header() -> void:
+	var top := UIKit.panel()
+	top.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	top.offset_left = 6
+	top.offset_right = -6
+	top.offset_top = 6
+	add_child(top)
+	var row := UIKit.hbox(6)
+	top.add_child(row)
+	row.add_child(UIKit.label("HEARTHTREE", 16, UIKit.C_GOLD, true))
+	var info := UIKit.vbox(0)
+	info.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	points_lbl = UIKit.label("", 8, UIKit.C_EMBER)
+	info_lbl = UIKit.label("", 8, UIKit.C_DIM)
+	info.add_child(points_lbl)
+	info.add_child(info_lbl)
+	row.add_child(info)
+	var fill := Control.new()
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(fill)
+	search_box = LineEdit.new()
+	search_box.placeholder_text = "Search..."
+	search_box.custom_minimum_size = Vector2(64, 14)
+	search_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	search_box.add_theme_font_override("font", UIKit.FONT)
+	search_box.add_theme_font_size_override("font_size", 8)
+	search_box.add_theme_color_override("font_color", UIKit.C_TEXT)
+	search_box.add_theme_color_override("font_placeholder_color", UIKit.C_DIM)
+	search_box.add_theme_color_override("caret_color", UIKit.C_GOLD)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.035, 0.07)
+	sb.border_color = Color(0.36, 0.27, 0.21)
+	sb.set_border_width_all(1)
+	sb.set_content_margin_all(2)
+	sb.content_margin_left = 4
+	search_box.add_theme_stylebox_override("normal", sb)
+	var sbf := sb.duplicate() as StyleBoxFlat
+	sbf.border_color = UIKit.C_GOLD
+	search_box.add_theme_stylebox_override("focus", sbf)
+	search_box.text_changed.connect(_on_search)
+	search_box.focus_mode = Control.FOCUS_CLICK
+	row.add_child(search_box)
+	find_lbl = UIKit.label("", 8, UIKit.C_SOUL)
+	find_lbl.custom_minimum_size = Vector2(12, 0)
+	row.add_child(find_lbl)
+	bonus_btn = UIKit.button("Bonuses", _toggle_bonuses, 44)
+	row.add_child(bonus_btn)
+	hearth_btn = UIKit.button("Feed the Hearth", _feed_hearth, 70)
+	row.add_child(hearth_btn)
+	respec_btn = UIKit.button("Respec", _respec, 44)
+	row.add_child(respec_btn)
+	close_btn = UIKit.button("Close", func() -> void: Game.ui.close_top(), 40)
+	row.add_child(close_btn)
+	# the gamepad cursor presses these; keyboard focus would double-fire with A
+	for b in [bonus_btn, hearth_btn, respec_btn, close_btn]:
+		b.focus_mode = Control.FOCUS_NONE
+
+
+func _build_bonus_panel() -> void:
+	bonus_panel = UIKit.panel("DarkPanel")
+	bonus_panel.anchor_left = 1.0
+	bonus_panel.anchor_right = 1.0
+	bonus_panel.anchor_top = 0.0
+	bonus_panel.anchor_bottom = 1.0
+	bonus_panel.offset_left = -PANEL_W - 6.0
+	bonus_panel.offset_right = -6.0
+	bonus_panel.offset_top = 40.0
+	bonus_panel.offset_bottom = -18.0
+	bonus_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(bonus_panel)
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	bonus_panel.add_child(scroll)
+	bonus_box = UIKit.vbox(2)
+	bonus_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(bonus_box)
+	bonus_panel.visible = bool(Profile.data.flags.get("tree_bonuses", true))
 
 
 func _exit_tree() -> void:
-	if Profile.changed.is_connected(_refresh_header):
-		Profile.changed.disconnect(_refresh_header)
+	if Profile.changed.is_connected(_on_profile_changed):
+		Profile.changed.disconnect(_on_profile_changed)
 	Profile.save_profile()
 	# the player in the sanctuary feels new nodes immediately
 	if Game.stage and Game.stage.player:
@@ -95,17 +163,19 @@ func _exit_tree() -> void:
 		Game.stage.player.ability_slots = Profile.slots()
 
 
+func _on_profile_changed() -> void:
+	_refresh_header()
+	_refresh_bonuses()
+	_set_hovered(hovered, true)
+
+
 func _refresh_header() -> void:
 	var free := Profile.skill_points_free()
-	points_lbl.text = "%d point%s to spend  -  Level %d" % [free, "" if free == 1 else "s", Profile.level()]
-	var counts := SkillDB.branch_counts(Profile.skills())
-	var parts: Array = []
-	for b in SkillDB.BRANCHES:
-		if counts.has(b):
-			parts.append("%s %d" % [SkillDB.BRANCHES[b].name, counts[b]])
-	info_lbl.text = "  ".join(parts) if not parts.is_empty() else "Your path is unwritten."
+	points_lbl.text = "%d point%s" % [free, "" if free == 1 else "s"]
+	points_lbl.add_theme_color_override("font_color", UIKit.C_EMBER if free > 0 else UIKit.C_DIM)
+	info_lbl.text = "Level %d" % Profile.level()
 	var rc := Profile.respec_cost()
-	respec_btn.text = "Respec" if rc == 0 else "Respec (%d)" % rc
+	respec_btn.text = "Respec" if rc == 0 else "Respec %d" % rc
 	respec_btn.disabled = Profile.skills().size() <= 1 or Profile.currency("embers") < rc
 	var hc := Profile.building_cost("hearth")
 	if hc.is_empty():
@@ -114,10 +184,50 @@ func _refresh_header() -> void:
 	else:
 		var parts2: Array = []
 		for k in hc:
-			parts2.append("%d %s" % [hc[k], "Embers" if k == "embers" else "Sunshard"])
-		hearth_btn.text = "Feed Hearth (%s)" % ", ".join(parts2).replace(" Embers", "").replace(" Sunshard", "S")
+			parts2.append("%d%s" % [hc[k], "" if k == "embers" else (" Shard" if int(hc[k]) == 1 else " Shards")])
+		hearth_btn.text = "Feed Hearth: %s" % " / ".join(parts2)
 		hearth_btn.disabled = not Profile.can_afford(hc)
 		hearth_btn.tooltip_text = Profile.SANCTUARY.hearth.desc
+
+
+## The side panel: every bonus the tree grants, the powers it unlocked and the abilities.
+func _refresh_bonuses() -> void:
+	for c in bonus_box.get_children():
+		c.queue_free()
+	var alloc: Array = Profile.skills()
+	var w := int(PANEL_W) - 14
+	bonus_box.add_child(UIKit.label("YOUR HEARTHTREE", 8, UIKit.C_GOLD, true))
+	var tot := SkillDB.totals(alloc)
+	if alloc.size() <= 1:
+		bonus_box.add_child(UIKit.para("Kindle nodes to grow stronger. Click any node to kindle the whole path to it.", w, UIKit.C_DIM))
+	for m in tot:
+		bonus_box.add_child(UIKit.para(UIKit.describe_mod(m), w))
+	var powers: Array = []
+	for id in alloc:
+		if String(SkillDB.node(id).kind) in ["notable", "keystone", "hybrid"]:
+			powers.append(id)
+	if not powers.is_empty():
+		bonus_box.add_child(UIKit.spacer(3))
+		bonus_box.add_child(UIKit.label("POWERS", 8, UIKit.C_GOLD, true))
+		for id in powers:
+			var n := SkillDB.node(id)
+			var l := UIKit.para(String(n.name), w, _branch_color(id))
+			l.tooltip_text = String(n.get("desc", ""))
+			l.mouse_filter = Control.MOUSE_FILTER_PASS
+			bonus_box.add_child(l)
+	var abilities := SkillDB.abilities(alloc)
+	bonus_box.add_child(UIKit.spacer(3))
+	bonus_box.add_child(UIKit.label("ABILITIES", 8, UIKit.C_GOLD, true))
+	var names: Array = []
+	for a in abilities:
+		names.append(String(GearDB.ability(a).get("name", a)))
+	bonus_box.add_child(UIKit.para(", ".join(names), w, UIKit.C_EMBER))
+
+
+func _toggle_bonuses() -> void:
+	bonus_panel.visible = not bonus_panel.visible
+	Profile.data.flags["tree_bonuses"] = bonus_panel.visible
+	_fit_view(true)
 
 
 func _feed_hearth() -> void:
@@ -134,8 +244,40 @@ func _respec() -> void:
 			queue_redraw())
 
 
+# --- view -----------------------------------------------------------------------------
+
 func to_screen(p: Vector2) -> Vector2:
 	return size * 0.5 + (p + pan) * zoom
+
+
+## Fits the whole constellation between the header and the bottom hint, beside the panel.
+func _fit_view(animate: bool) -> void:
+	var vp := size if size.y > 10.0 else get_viewport_rect().size
+	var z := clampf((vp.y - 60.0) / (2.0 * 6.5 * SkillDB.RING), 0.3, 1.6)
+	var shift := -(PANEL_W * 0.5 + 4.0) if bonus_panel.visible else 0.0
+	_view_to(Vector2(shift / z, 12.0 / z), z, animate)
+
+
+## Centres a branch and zooms in on it.
+func _focus_branch(b: String) -> void:
+	var a := deg_to_rad(float(SkillDB.BRANCHES[b].angle))
+	var c := Vector2(cos(a), sin(a)) * SkillDB.RING * 3.6
+	var z := clampf((size.y - 70.0) / (SkillDB.RING * 5.0), 0.4, 1.6)
+	var shift := -(PANEL_W * 0.5 + 4.0) if bonus_panel.visible else 0.0
+	_view_to(-c + Vector2(shift / z, 10.0 / z), z, true)
+	Audio.ui("ui_click")
+
+
+func _view_to(p: Vector2, z: float, animate: bool) -> void:
+	if _view_tw:
+		_view_tw.kill()
+	if not animate:
+		pan = p
+		zoom = z
+		return
+	_view_tw = create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_view_tw.tween_property(self, "pan", p, 0.45)
+	_view_tw.tween_property(self, "zoom", z, 0.45)
 
 
 func node_at(sp: Vector2) -> String:
@@ -149,27 +291,36 @@ func node_at(sp: Vector2) -> String:
 func _radius(kind: String) -> float:
 	match kind:
 		"root":
-			return 13.0
+			return 16.0
 		"keystone":
-			return 12.0
+			return 16.0
 		"notable", "ability":
-			return 10.0
+			return 13.0
 		"hybrid":
-			return 9.0
-	return 6.5
+			return 12.0
+	return 8.0
 
+
+# --- input ----------------------------------------------------------------------------
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			if mb.pressed:
+				if _view_tw:
+					_view_tw.kill()
 				var before := (mb.position - size * 0.5) / zoom - pan
 				zoom = clampf(zoom * (1.12 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 1.12), 0.3, 2.4)
 				pan = (mb.position - size * 0.5) / zoom - before
 			accept_event()
 			return
 		if mb.pressed:
+			search_box.release_focus()
+			if mb.double_click and node_at(mb.position) == "":
+				_fit_view(true)
+				accept_event()
+				return
 			_pressing = true
 			_dragged = false
 			_press_pos = mb.position
@@ -181,36 +332,72 @@ func _gui_input(event: InputEvent) -> void:
 						_try_allocate(id)
 					elif mb.button_index == MOUSE_BUTTON_RIGHT:
 						_try_refund(id)
+				elif mb.button_index == MOUSE_BUTTON_LEFT:
+					for b in _label_rects:
+						if (_label_rects[b] as Rect2).has_point(mb.position):
+							_focus_branch(b)
 			_pressing = false
 		accept_event()
 	elif event is InputEventMouseMotion:
 		var mm := event as InputEventMouseMotion
 		if _pressing and (mm.position.distance_to(_press_pos) > 4.0 or _dragged):
+			if not _dragged and _view_tw:
+				_view_tw.kill()
 			_dragged = true
 			pan += mm.relative / zoom
 		var h := node_at(mm.position)
 		if h != hovered:
-			hovered = h
-			_update_tip()
+			_set_hovered(h)
 		if tip.visible:
 			_place_tip(mm.position)
 
 
+func _set_hovered(id: String, force := false) -> void:
+	if id == hovered and not force:
+		return
+	hovered = id
+	route = SkillDB.path_to(id, Profile.skills()) if id != "" else {}
+	_update_tip()
+
+
+## Kindles `id` - and, when it is not adjacent, every node on the cheapest path to it.
 func _try_allocate(id: String) -> void:
-	if Profile.allocate(id):
-		Audio.play("skill_unlock", 0.0, randf_range(0.95, 1.05))
-		_bursts.append({"pos": SkillDB.position_of(id), "t": 0.0, "col": _branch_color(id)})
-		_update_tip()
-	else:
+	var r := SkillDB.path_to(id, Profile.skills())
+	if r.is_empty() or int(r.cost) > Profile.skill_points_free():
 		Audio.ui("deny")
+		return
+	var k := 0
+	for nid in r.nodes:
+		if not Profile.allocate(nid):
+			break
+		_bursts.append({"pos": SkillDB.position_of(nid), "t": -0.09 * k, "col": _branch_color(nid)})
+		k += 1
+	Audio.play("skill_unlock", 0.0, randf_range(0.95, 1.05) + 0.03 * k)
+	_set_hovered(hovered, true)
 
 
 func _try_refund(id: String) -> void:
 	if Profile.refund(id):
 		Audio.play("skill_refund", -2.0)
-		_update_tip()
+		_set_hovered(hovered, true)
 	else:
 		Audio.ui("deny")
+
+
+func _on_search(text: String) -> void:
+	search = text.strip_edges().to_lower()
+	matches.clear()
+	if search != "":
+		for id in SkillDB.all_ids():
+			var n := SkillDB.node(id)
+			var hay := (String(n.name) + " " + String(n.get("desc", ""))).to_lower()
+			for m in n.get("mods", []):
+				hay += " " + UIKit.describe_mod(m).to_lower()
+			for b in String(n.get("branch", "")).split("|", false):
+				hay += " " + String(SkillDB.BRANCHES[b].name).to_lower()
+			if hay.contains(search):
+				matches[id] = true
+	find_lbl.text = "" if search == "" else str(matches.size())
 
 
 func _branch_color(id: String) -> Color:
@@ -223,6 +410,8 @@ func _branch_color(id: String) -> Color:
 	return SkillDB.BRANCHES[b].color
 
 
+# --- tooltip ----------------------------------------------------------------------------
+
 func _update_tip() -> void:
 	for c in tip_box.get_children():
 		c.queue_free()
@@ -230,9 +419,13 @@ func _update_tip() -> void:
 		tip.visible = false
 		return
 	var n := SkillDB.node(hovered)
-	var alloc := Profile.skills().has(hovered)
+	var alloc: Array = Profile.skills()
+	var is_alloc := alloc.has(hovered)
 	var col := _branch_color(hovered)
-	tip_box.add_child(UIKit.label(n.name, 16 if n.kind in ["keystone", "root"] else 8, col, true))
+	var head := UIKit.hbox(4)
+	head.add_child(UIKit.icon_rect(SkillDB.icon_of(hovered)))
+	head.add_child(UIKit.label(n.name, 16 if n.kind in ["keystone", "root"] else 8, col, true))
+	tip_box.add_child(head)
 	var kind_txt: String = {"minor": "Minor", "notable": "Notable", "ability": "Ability", "keystone": "Keystone", "hybrid": "Hybrid", "root": "Origin"}[n.kind]
 	var b := String(n.get("branch", ""))
 	var bname := ""
@@ -240,30 +433,65 @@ func _update_tip() -> void:
 		bname += ("/" if bname != "" else "") + String(SkillDB.BRANCHES[part].name)
 	tip_box.add_child(UIKit.label("%s%s   Cost %d" % [kind_txt, ("  -  " + bname) if bname != "" else "", SkillDB.cost(hovered)], 8, UIKit.C_DIM))
 	if n.has("desc"):
-		tip_box.add_child(UIKit.para(n.desc, 170))
+		tip_box.add_child(UIKit.para(n.desc, 180))
+	var totals := _totals_by_key(alloc)
 	for m in n.get("mods", []):
 		if n.has("desc") and n.kind != "minor":
 			continue
 		tip_box.add_child(UIKit.label(UIKit.describe_mod(m), 8, UIKit.C_TEXT))
+		var key := "%s|%s" % [m[0], m[1]]
+		if totals.has(key) or not is_alloc:
+			# what the whole tree adds up to, before and after this node
+			var now := float(totals.get(key, 0.0))
+			var after := now
+			if not is_alloc:
+				after = (1.0 + now) * (1.0 + float(m[2])) - 1.0 if m[1] == "more" else now + float(m[2])
+			if absf(after - float(m[2])) > 0.0001 or is_alloc:
+				var txt := "Tree total: %s" % _short(m[0], m[1], now)
+				if not is_alloc:
+					txt += "  ->  %s" % _short(m[0], m[1], after)
+				tip_box.add_child(UIKit.label(txt, 8, UIKit.C_DIM))
 	if n.has("ability"):
 		var ab := GearDB.ability(n.ability)
 		tip_box.add_child(UIKit.label("%d Kindle   %.1fs cooldown" % [int(ab.cost), float(ab.cooldown)], 8, UIKit.C_EMBER))
+	var free := Profile.skill_points_free()
 	var state := ""
 	var scol := UIKit.C_DIM
-	if alloc:
-		state = "Kindled." if hovered == "hearth" else ("Kindled - right-click to refund" if SkillDB.can_refund(hovered, Profile.skills()) else "Kindled - other nodes depend on it")
+	var verb := "A" if Settings.using_pad else "Click"
+	if is_alloc:
+		if hovered == "hearth":
+			state = "Kindled."
+		elif SkillDB.can_refund(hovered, alloc):
+			state = "Kindled - %s to refund" % ("X" if Settings.using_pad else "right-click")
+		else:
+			state = "Kindled - other nodes depend on it"
 		scol = UIKit.C_GOLD
-	elif SkillDB.can_allocate(hovered, Profile.skills(), Profile.skill_points_free()):
-		state = "Click to kindle"
-		scol = UIKit.C_GOOD
-	elif Profile.skill_points_free() < SkillDB.cost(hovered):
-		state = "Not enough skill points"
-		scol = UIKit.C_BAD
-	else:
-		state = "Must connect to a kindled node"
+	elif not route.is_empty():
+		var steps: int = (route.nodes as Array).size()
+		var cost := int(route.cost)
+		if cost <= free:
+			state = "%s to kindle" % verb if steps == 1 else "%s to kindle the path: %d nodes, %d points" % [verb, steps, cost]
+			scol = UIKit.C_GOOD
+		else:
+			state = "Needs %d point%s (you have %d)%s" % [cost, "" if cost == 1 else "s", free, "" if steps == 1 else " - path of %d nodes" % steps]
+			scol = UIKit.C_BAD
 	tip_box.add_child(UIKit.label(state, 8, scol))
 	tip.visible = true
 	tip.reset_size()
+
+
+func _totals_by_key(alloc: Array) -> Dictionary:
+	var out := {}
+	for m in SkillDB.totals(alloc):
+		out["%s|%s" % [m[0], m[1]]] = float(m[2])
+	return out
+
+
+## A stat value without its description ("+18%", "+35").
+func _short(stat: String, op: String, v: float) -> String:
+	var full := UIKit.describe_mod([stat, op, v])
+	var sp := full.find(" ")
+	return full.substr(0, sp) if sp > 0 and (full.begins_with("+") or full.begins_with("-")) else full
 
 
 func _place_tip(mp: Vector2) -> void:
@@ -274,6 +502,8 @@ func _place_tip(mp: Vector2) -> void:
 		p.y = size.y - tip.size.y - 4
 	tip.position = p
 
+
+# --- drawing ----------------------------------------------------------------------------
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -291,62 +521,33 @@ func _draw() -> void:
 		var sp: Vector2 = size * 0.5 + (s[0] + pan * 0.35) * zoom * 0.8
 		if Rect2(Vector2.ZERO, size).has_point(sp):
 			var tw: float = 0.35 + 0.65 * absf(sin(_t * (0.6 + s[1]) + s[1] * 10.0))
-			var c := Color(0.75, 0.7, 0.9, tw * 0.5)
-			draw_rect(Rect2(sp.floor(), Vector2(1, 1) * (1 + int(s[2] == 2))), c)
+			draw_rect(Rect2(sp.floor(), Vector2(1, 1) * (1 + int(s[2] == 2))), Color(0.75, 0.7, 0.9, tw * 0.5))
 	var alloc: Array = Profile.skills()
 	var free := Profile.skill_points_free()
-	# faint branch sectors give each school its own colour field
+	var counts := SkillDB.branch_counts(alloc)
 	var center := to_screen(Vector2.ZERO)
+	# the Hearth's glow grows with every point spent
+	var flick := 0.85 + 0.15 * sin(_t * 3.1) * sin(_t * 1.7)
+	var gr := (40.0 + 3.0 * SkillDB.spent(alloc)) * zoom
+	for k in 5:
+		draw_circle(center, gr * (1.0 - k * 0.17), Color(1.0, 0.55, 0.22, (0.022 + 0.012 * k) * flick))
+	# branch sectors: brighter where you have invested
 	for b in SkillDB.BRANCHES:
 		var binfo: Dictionary = SkillDB.BRANCHES[b]
 		var a0 := deg_to_rad(float(binfo.angle) - 26.0)
 		var a1 := deg_to_rad(float(binfo.angle) + 26.0)
 		var fan := PackedVector2Array([center])
-		for k in 9:
-			var aa := lerpf(a0, a1, k / 8.0)
+		for k in 13:
+			var aa := lerpf(a0, a1, k / 12.0)
 			fan.append(center + Vector2(cos(aa), sin(aa)) * SkillDB.RING * 6.6 * zoom)
 		var bc: Color = binfo.color
-		draw_colored_polygon(fan, Color(bc.r, bc.g, bc.b, 0.045))
-	# guide rings and branch names
+		var inv := clampf(float(counts.get(b, 0)) / 6.0, 0.0, 1.0)
+		draw_colored_polygon(fan, Color(bc.r, bc.g, bc.b, 0.035 + 0.05 * inv))
 	for ring in range(1, 7):
 		draw_arc(center, ring * SkillDB.RING * zoom, 0.0, TAU, 96, Color(0.3, 0.25, 0.35, 0.18), 1.0)
-	for b in SkillDB.BRANCHES:
-		var info: Dictionary = SkillDB.BRANCHES[b]
-		var a := deg_to_rad(float(info.angle))
-		var p := to_screen(Vector2(cos(a), sin(a)) * SkillDB.RING * 6.75)
-		var name: String = String(info.name).to_upper()
-		var fs := 16 if zoom > 0.9 else 8
-		var w := UIKit.FONT_OUTLINE.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		draw_string(UIKit.FONT_OUTLINE, (p - Vector2(w * 0.5, -fs * 0.4)).round(), name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, (info.color as Color).darkened(0.1))
-	# edges
-	var done := {}
-	for id in SkillDB.all_ids():
-		for nb in SkillDB.neighbours(id):
-			var key: String = id + ":" + nb if id < nb else nb + ":" + id
-			if done.has(key):
-				continue
-			done[key] = true
-			var a := to_screen(SkillDB.position_of(id))
-			var bpos := to_screen(SkillDB.position_of(nb))
-			var ia := alloc.has(id)
-			var ib := alloc.has(nb)
-			if ia and ib:
-				draw_line(a, bpos, Color(0.55, 0.38, 0.15), 3.0)
-				draw_line(a, bpos, Color(1.0, 0.75, 0.35), 1.0)
-				# travelling sparks
-				var L := a.distance_to(bpos)
-				var n := maxi(1, int(L / 40.0))
-				for k in n:
-					var f := fmod(_t * 0.6 + float(k) / n + float(hash(key) % 100) / 100.0, 1.0)
-					var sp := a.lerp(bpos, f)
-					draw_rect(Rect2(sp.round() - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.92, 0.6))
-			elif ia or ib:
-				var other: String = nb if ia else id
-				var can := SkillDB.cost(other) <= free
-				_dashed(a, bpos, Color(0.85, 0.6, 0.3, 0.7) if can else Color(0.5, 0.4, 0.35, 0.45))
-			else:
-				draw_line(a, bpos, Color(0.25, 0.22, 0.3, 0.6), 1.0)
-	# nodes
+	_draw_labels(counts)
+	_draw_edges(alloc, free)
+	_draw_route(free)
 	for id in SkillDB.all_ids():
 		_draw_node(id, alloc, free)
 	if pad_active:
@@ -355,8 +556,10 @@ func _draw() -> void:
 		draw_rect(Rect2(c + Vector2(3, 0), Vector2(4, 1)), UIKit.C_GOLD)
 		draw_rect(Rect2(c - Vector2(0, 6), Vector2(1, 4)), UIKit.C_GOLD)
 		draw_rect(Rect2(c + Vector2(0, 3), Vector2(1, 4)), UIKit.C_GOLD)
-	# unlock bursts
+	# unlock bursts (staggered along a kindled path)
 	for b in _bursts:
+		if b.t < 0.0:
+			continue
 		var p := to_screen(b.pos)
 		var k: float = b.t / 0.8
 		var col: Color = b.col
@@ -368,22 +571,211 @@ func _draw() -> void:
 			draw_rect(Rect2(q.round(), Vector2(2, 2)), col)
 
 
-func _dashed(a: Vector2, b: Vector2, col: Color) -> void:
+## Branch names sit just outside the ring, pushed away from the keystones:
+## icon, NAME and "kindled / total". Clicking one focuses that branch.
+func _draw_labels(counts: Dictionary) -> void:
+	_label_rects.clear()
+	var mp := get_local_mouse_position()
+	for b in SkillDB.BRANCHES:
+		var info: Dictionary = SkillDB.BRANCHES[b]
+		var a := deg_to_rad(float(info.angle))
+		var dir := Vector2(cos(a), sin(a))
+		var vertical := absf(dir.x) < 0.3
+		# top and bottom branches: beside their keystone, so the view stays compact
+		var p := to_screen(dir * SkillDB.RING * (6.0 if vertical else 6.7))
+		var name: String = String(info.name).to_upper()
+		var cnt := " %d/%d" % [int(counts.get(b, 0)), int(_branch_total.get(b, 0))]
+		var fs := 16 if zoom > 0.9 else 8
+		var w := UIKit.FONT_OUTLINE.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var cw := UIKit.FONT_OUTLINE.get_string_size(cnt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+		var total_w := 10.0 + w + cw
+		# left-side labels end at the anchor, right-side ones start there
+		var x0 := p.x - total_w * 0.5
+		var y_mid := p.y + dir.y * 6.0
+		if vertical:
+			x0 = p.x + _radius("keystone") * zoom + 8.0
+			y_mid = p.y
+		elif dir.x < -0.3:
+			x0 = p.x - total_w + 6.0
+		elif dir.x > 0.3:
+			x0 = p.x - 6.0
+		var rect := Rect2(Vector2(x0 - 2.0, y_mid - fs * 0.6 - 2.0), Vector2(total_w + 4.0, fs * 1.2 + 4.0))
+		_label_rects[b] = rect
+		var col: Color = (info.color as Color).darkened(0.1)
+		if rect.has_point(mp):
+			col = col.lightened(0.35)
+			draw_rect(rect, Color(col.r, col.g, col.b, 0.12))
+		var base := Vector2(x0 + 10.0, y_mid + fs * 0.4).round()
+		draw_texture_rect(UIKit.icon_small(BRANCH_ICON[b]), Rect2(Vector2(x0, y_mid - 4.0).round(), Vector2(8, 8)), false, Color(col, 0.9))
+		draw_string(UIKit.FONT_OUTLINE, base, name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+		draw_string(UIKit.FONT_OUTLINE, base + Vector2(w, 0), cnt, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(col, 0.65))
+
+
+func _draw_edges(alloc: Array, free: int) -> void:
+	var done := {}
+	for id in SkillDB.all_ids():
+		for nb in SkillDB.neighbours(id):
+			var key: String = id + ":" + nb if id < nb else nb + ":" + id
+			if done.has(key):
+				continue
+			done[key] = true
+			var a := to_screen(SkillDB.position_of(id))
+			var bpos := to_screen(SkillDB.position_of(nb))
+			var ia := alloc.has(id)
+			var ib := alloc.has(nb)
+			var fade := 1.0 if search == "" or (matches.has(id) and matches.has(nb)) else 0.45
+			if ia and ib:
+				draw_line(a, bpos, Color(0.55, 0.38, 0.15), 3.0)
+				draw_line(a, bpos, Color(1.0, 0.75, 0.35), 1.0)
+				# travelling sparks
+				var L := a.distance_to(bpos)
+				var n := maxi(1, int(L / 40.0))
+				for k in n:
+					var f := fmod(_t * 0.6 + float(k) / n + float(hash(key) % 100) / 100.0, 1.0)
+					draw_rect(Rect2(a.lerp(bpos, f).round() - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.92, 0.6))
+			elif ia or ib:
+				var other: String = nb if ia else id
+				var can := SkillDB.cost(other) <= free
+				_dashed(a, bpos, Color(0.85, 0.6, 0.3, 0.7 * fade) if can else Color(0.5, 0.4, 0.35, 0.45 * fade))
+			else:
+				draw_line(a, bpos, Color(0.25, 0.22, 0.3, 0.6 * fade), 1.0)
+
+
+## The previewed path to the hovered node, drawn as a bright marching line.
+func _draw_route(free: int) -> void:
+	if route.is_empty() or (route.nodes as Array).size() < 2:
+		return
+	var ok := int(route.cost) <= free
+	var col := Color(1.0, 0.9, 0.55) if ok else Color(1.0, 0.45, 0.4)
+	var chain: Array = [route.from] + route.nodes
+	for i in range(chain.size() - 1):
+		var a := to_screen(SkillDB.position_of(chain[i]))
+		var b := to_screen(SkillDB.position_of(chain[i + 1]))
+		draw_line(a, b, Color(col, 0.25), 3.0)
+		_dashed(a, b, col, 2.0, 24.0)
+
+
+func _dashed(a: Vector2, b: Vector2, col: Color, width := 1.0, speed := 12.0) -> void:
 	var L := a.distance_to(b)
 	var d := (b - a) / maxf(L, 0.01)
-	var off := fmod(_t * 12.0, 8.0)
-	var s := -off
+	var s := -fmod(_t * speed, 8.0)
 	while s < L:
 		var s0 := maxf(s, 0.0)
 		var s1 := minf(s + 4.0, L)
 		if s1 > s0:
-			draw_line(a + d * s0, a + d * s1, col, 1.0)
+			draw_line(a + d * s0, a + d * s1, col, width)
 		s += 8.0
 
 
+func _draw_node(id: String, alloc: Array, free: int) -> void:
+	var n := SkillDB.node(id)
+	var kind: String = n.kind
+	var p := to_screen(SkillDB.position_of(id)).round()
+	var r := _radius(kind) * zoom
+	var col := _branch_color(id)
+	var is_alloc := alloc.has(id)
+	var can := SkillDB.can_allocate(id, alloc, free)
+	var reachable := false
+	for nb in SkillDB.neighbours(id):
+		if alloc.has(nb):
+			reachable = true
+	var on_route := not is_alloc and not route.is_empty() and (route.nodes as Array).has(id) and (route.nodes as Array).size() > 1
+	var found := search != "" and matches.has(id)
+	var fade := 1.0 if search == "" or found or is_alloc else 0.35
+	var pulse := 0.5 + 0.5 * sin(_t * 4.0 + p.x * 0.013)
+	# soft glow
+	if is_alloc:
+		for k in 3:
+			draw_circle(p, r + (2.0 + k * 3.0) * zoom, Color(col.r, col.g, col.b, (0.16 - k * 0.05) * fade))
+	elif can:
+		draw_circle(p, r + (2.0 + pulse * 3.0) * zoom, Color(col.r, col.g, col.b, 0.1 + 0.1 * pulse))
+	# body: a dark socket with a lit core; the rim says what state it is in
+	var fill := Color(0.06, 0.055, 0.085).lerp(col, 0.05)
+	var core := Color(0.09, 0.08, 0.12)
+	var rim := col.darkened(0.62)
+	if is_alloc:
+		fill = col.darkened(0.6)
+		core = col.darkened(0.25)
+		rim = Color(1.0, 0.86, 0.52)
+	elif can:
+		fill = Color(0.1, 0.08, 0.12)
+		core = col.darkened(0.72)
+		rim = col.lerp(Color.WHITE, 0.3 * pulse)
+	elif reachable:
+		rim = col.darkened(0.35)
+	if on_route:
+		rim = Color(1.0, 0.9, 0.55) if int(route.cost) <= free else Color(1.0, 0.5, 0.45)
+	fill.a *= fade
+	core.a *= fade
+	rim.a *= fade
+	if kind == "keystone":
+		# a crown of points around the keystone
+		for i in 6:
+			var ang := PI / 6.0 + i * TAU / 6.0 + PI / 6.0
+			var dir := Vector2(cos(ang), sin(ang))
+			var tri := PackedVector2Array([p + dir * (r + 5.0 * zoom), p + dir.rotated(0.32) * r * 0.92, p + dir.rotated(-0.32) * r * 0.92])
+			draw_colored_polygon(tri, Color(rim.r, rim.g, rim.b, rim.a * 0.85))
+	var pts := _shape_points(kind, p, r)
+	draw_colored_polygon(pts, fill)
+	draw_colored_polygon(_shape_points(kind, p, r * 0.7), core)
+	var closed := pts.duplicate()
+	closed.append(pts[0])
+	draw_polyline(closed, Color(0.02, 0.02, 0.03, fade), 3.0)
+	draw_polyline(closed, rim, 1.5 if kind == "minor" else 2.0)
+	if kind in ["notable", "keystone", "root", "ability"]:
+		var inner := _shape_points(kind, p, r - 3.0 * zoom)
+		inner.append(inner[0])
+		draw_polyline(inner, Color(rim.r, rim.g, rim.b, rim.a * 0.55), 1.0)
+	if kind == "notable":
+		for i in 4:
+			var dir := Vector2.from_angle(i * TAU / 4.0 - PI / 2.0)
+			draw_rect(Rect2((p + dir * r).round() - Vector2(1, 1), Vector2(2, 2)), rim)
+	# icon: crisp 16px when there is room, a downsampled 8px otherwise
+	var d := r * 2.0
+	var s := 16.0 if d >= 22.0 else (8.0 if d >= 9.0 else 0.0)
+	if s > 0.0:
+		var tint := Color(1, 1, 1, fade)
+		if not is_alloc and not can:
+			tint = Color(col.r * 0.6 + 0.3, col.g * 0.6 + 0.3, col.b * 0.6 + 0.3, 0.8 * fade)
+		var tex: Texture2D = UIKit.icon(SkillDB.icon_of(id)) if s >= 16.0 else UIKit.icon_small(SkillDB.icon_of(id))
+		draw_texture_rect(tex, Rect2((p - Vector2(s, s) * 0.5).round(), Vector2(s, s)), false, tint)
+	elif is_alloc:
+		draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.9, 0.6))
+	if found:
+		draw_arc(p, r + 5.0 * zoom, 0.0, TAU, 32, Color(0.45, 0.95, 0.85, 0.55 + 0.45 * pulse), 1.5)
+	if id == hovered:
+		draw_arc(p, r + 4.0 * zoom + 1.0, 0.0, TAU, 32, Color(1, 1, 1, 0.85), 1.0)
+
+
+func _shape_points(kind: String, p: Vector2, r: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var sides := 16
+	var rot := 0.0
+	match kind:
+		"keystone":
+			sides = 6
+			rot = PI / 6.0
+		"ability":
+			sides = 4
+		"hybrid":
+			sides = 8
+			rot = PI / 8.0
+		"minor":
+			sides = 12
+	for i in sides:
+		var a := rot + float(i) / sides * TAU
+		pts.append(p + Vector2(cos(a), sin(a)) * r)
+	return pts
+
+
+# --- gamepad --------------------------------------------------------------------------
+
 ## Controller support: left stick moves a cursor that snaps to nearby nodes,
-## right stick pans, triggers zoom, A kindles, X refunds, B closes.
+## right stick pans, triggers zoom, A kindles (the whole path), X refunds,
+## Y focuses the branch under the cursor, B closes.
 func _gamepad(delta: float) -> void:
+	if search_box.has_focus():
+		return
 	var mv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var pn := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
 	var joy_used := mv.length() > 0.25 or pn.length() > 0.25
@@ -410,12 +802,11 @@ func _gamepad(delta: float) -> void:
 			bd = d
 			best = id
 	if best != hovered:
-		hovered = best
-		_update_tip()
+		_set_hovered(best)
 	if tip.visible:
 		_place_tip(pad_cursor)
 	if Input.is_action_just_pressed("ui_accept"):
-		for b: Button in [hearth_btn, respec_btn, close_btn]:
+		for b: Button in [bonus_btn, hearth_btn, respec_btn, close_btn]:
 			if b.is_visible_in_tree() and not b.disabled and b.get_global_rect().has_point(get_global_transform() * pad_cursor):
 				Audio.ui("ui_click")
 				b.pressed.emit()
@@ -424,6 +815,20 @@ func _gamepad(delta: float) -> void:
 			_try_allocate(hovered)
 	if Input.is_action_just_pressed("ability_1") and hovered != "":
 		_try_refund(hovered)
+	if Input.is_action_just_pressed("ability_2"):
+		# focus the branch nearest the cursor, or zoom back out
+		var tp := (pad_cursor - size * 0.5) / zoom - pan
+		if tp.length() < SkillDB.RING * 1.2:
+			_fit_view(true)
+		else:
+			var best_b := ""
+			var best_d := 999.0
+			for b in SkillDB.BRANCHES:
+				var da := absf(angle_difference(tp.angle(), deg_to_rad(float(SkillDB.BRANCHES[b].angle))))
+				if da < best_d:
+					best_d = da
+					best_b = b
+			_focus_branch(best_b)
 
 
 func _input(event: InputEvent) -> void:
@@ -433,85 +838,6 @@ func _input(event: InputEvent) -> void:
 
 func _update_hint(pad: bool) -> void:
 	if pad:
-		hint.text = "L-Stick cursor   A kindle   X refund   R-Stick pan   LT/RT zoom   B close"
+		hint.text = "L-Stick cursor   A kindle   X refund   Y focus branch   R-Stick pan   LT/RT zoom   B close"
 	else:
-		hint.text = "LMB kindle   RMB refund   Wheel zoom   Drag to pan"
-
-
-func _draw_node(id: String, alloc: Array, free: int) -> void:
-	var n := SkillDB.node(id)
-	var p := to_screen(SkillDB.position_of(id)).round()
-	var r := _radius(n.kind) * zoom
-	var col := _branch_color(id)
-	var is_alloc := alloc.has(id)
-	var can := SkillDB.can_allocate(id, alloc, free)
-	var reachable := false
-	for nb in SkillDB.neighbours(id):
-		if alloc.has(nb):
-			reachable = true
-	var fill := Color(0.08, 0.07, 0.11)
-	var edge := Color(0.32, 0.28, 0.36)
-	if is_alloc:
-		fill = col.darkened(0.25)
-		edge = Color(1.0, 0.85, 0.5)
-		# glow
-		draw_circle(p, r + 4.0 * zoom, Color(col.r, col.g, col.b, 0.18))
-	elif can:
-		var pulse := 0.5 + 0.5 * sin(_t * 4.0)
-		edge = col.lerp(Color.WHITE, 0.3 * pulse)
-		fill = Color(0.12, 0.1, 0.14)
-		draw_circle(p, r + (2.0 + pulse * 2.0) * zoom, Color(col.r, col.g, col.b, 0.12 + 0.1 * pulse))
-	elif reachable:
-		edge = col.darkened(0.35)
-	else:
-		edge = col.darkened(0.62)
-		fill = Color(0.06, 0.055, 0.08).lerp(col, 0.06)
-	var pts := _shape_points(n.kind, p, r)
-	draw_colored_polygon(pts, fill)
-	var closed := pts.duplicate()
-	closed.append(pts[0])
-	draw_polyline(closed, Color(0.02, 0.02, 0.03), 3.0)
-	draw_polyline(closed, edge, 1.5 if n.kind in ["minor"] else 2.0)
-	if n.kind in ["notable", "keystone", "root"]:
-		var inner := _shape_points(n.kind, p, r - 3.0 * zoom)
-		inner.append(inner[0])
-		draw_polyline(inner, edge.darkened(0.3), 1.0)
-	# icon
-	var icon_name := ""
-	match n.kind:
-		"root":
-			icon_name = "hearth"
-		"ability":
-			icon_name = GearDB.ability(n.ability).get("icon", "star")
-		"keystone":
-			icon_name = "star"
-		"notable", "hybrid":
-			icon_name = BRANCH_ICON.get(String(n.branch).split("|")[0], "star")
-	if icon_name != "" and r >= 7.0:
-		var s := 16.0 if r >= 12.0 else (12.0 if r >= 9.0 else 8.0)
-		s = roundf(s * clampf(zoom, 0.6, 1.5))
-		var tint := Color(1, 1, 1, 1) if is_alloc or can else Color(0.55, 0.52, 0.6, 0.8)
-		draw_texture_rect(UIKit.icon(icon_name), Rect2(p - Vector2(s, s) * 0.5, Vector2(s, s)).abs(), false, tint)
-	if id == hovered:
-		draw_arc(p, r + 5.0 * zoom, 0.0, TAU, 32, Color(1, 1, 1, 0.8), 1.0)
-
-
-func _shape_points(kind: String, p: Vector2, r: float) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	var sides := 16
-	var rot := 0.0
-	match kind:
-		"keystone":
-			sides = 6
-			rot = PI / 6.0
-		"ability":
-			sides = 4
-		"hybrid":
-			sides = 8
-			rot = PI / 8.0
-		"minor":
-			sides = 12
-	for i in sides:
-		var a := rot + float(i) / sides * TAU
-		pts.append(p + Vector2(cos(a), sin(a)) * r)
-	return pts
+		hint.text = "LMB kindle (whole path)   RMB refund   Wheel zoom   Drag pan   Click a branch name to focus   Double-click to reset"

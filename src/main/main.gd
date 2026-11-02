@@ -79,6 +79,20 @@ func _open_dev_screen(what: String) -> void:
 	match what:
 		"skilltree":
 			ui.skill_tree()
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("hover="):
+					# dev: show the tooltip / path preview for a node
+					var tree := ui.modal_layer.find_children("*", "SkillTreeUI", true, false)
+					if not tree.is_empty():
+						var t: SkillTreeUI = tree[0]
+						await get_tree().process_frame
+						t._set_hovered(a.substr(6))
+						t._place_tip(t.to_screen(SkillDB.position_of(a.substr(6))))
+				elif a.begins_with("search="):
+					var trees := ui.modal_layer.find_children("*", "SkillTreeUI", true, false)
+					if not trees.is_empty():
+						(trees[0] as SkillTreeUI).search_box.text = a.substr(7)
+						(trees[0] as SkillTreeUI)._on_search(a.substr(7))
 		"forge":
 			ui.forge()
 		"descent":

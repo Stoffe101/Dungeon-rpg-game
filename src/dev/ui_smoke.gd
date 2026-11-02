@@ -76,7 +76,21 @@ func _run() -> void:
 	for id in ["b1", "b2", "b3", "p1", "p2", "p3l", "g1", "w1", "k1", "k2", "k3"]:
 		tree._try_allocate(id)
 	tree._try_refund("k3")
-	await _wait()
+	# a distant node kindles the whole path to it; search and panels work
+	while Profile.skill_points_free() < 4:
+		Profile.add_xp(Combat.xp_to_next(Profile.level()))
+	var before := Profile.skills().size()
+	var route := SkillDB.path_to("w3", Profile.skills())
+	tree._try_allocate("w3")
+	_expect(Profile.skills().has("w3"), "clicking a distant node kindles the path to it")
+	_expect(Profile.skills().size() == before + (route.nodes as Array).size(), "exactly the previewed path is kindled (%d nodes)" % (route.nodes as Array).size())
+	tree.search_box.text = "burn"
+	tree._on_search("burn")
+	_expect(tree.matches.size() > 3, "search finds burn nodes")
+	tree._toggle_bonuses()
+	tree._toggle_bonuses()
+	tree._focus_branch("rime")
+	await _wait(30)
 	await _close_all()
 	print("[smoke] skills: ", Profile.skills())
 	ui.memorial()

@@ -249,15 +249,20 @@ func request(what: String, prop: Prop) -> void:
 			else:
 				Game.ui.sanctuary_build({"forge_ruin": "forge", "apothecary": "apothecary", "memorial": "shrine"}[what])
 		"keeper":
-			Game.ui.dialogue("The Keeper", Keeper.lines())
+			prop.sprite.play("talk")
+			prop.sprite.process_mode = Node.PROCESS_MODE_ALWAYS
+			Game.ui.dialogue("The Keeper", Keeper.lines(), func() -> void:
+				if is_instance_valid(prop):
+					prop.sprite.process_mode = Node.PROCESS_MODE_INHERIT
+					prop.sprite.play("idle"))
 		"resident":
 			var w := prop as Wanderer
 			var d: Dictionary = w.def
-			w.listen(6.0)
+			w.listen(600.0)   # until the conversation closes
 			var who := String(d.name) + ("" if String(d.title) == "" else ", " + String(d.title))
 			Game.ui.dialogue(who, Residents.talk(String(d.id)), func() -> void:
 				if is_instance_valid(w):
-					w.listen(1.5))
+					w.listen(1.5, false))
 	prop.set_meta("last_used", elapsed)
 
 
