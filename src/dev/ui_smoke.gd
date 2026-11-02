@@ -172,6 +172,7 @@ func _run() -> void:
 	await _wait()
 	await _close_all()
 	print("[smoke] relics: ", d.run.relics, " hp ", pl.hp, "/", pl.max_hp)
+	await _aim_checks(pl)
 	await _pad_checks(d, pl)
 	Game.descend()
 	await _wait(40)
@@ -229,6 +230,33 @@ func _pad(button: JoyButton) -> void:
 	r.pressed = false
 	Input.parse_input_event(r)
 	await _wait(2)
+
+
+func _mouse_to(p: Vector2) -> void:
+	var e := InputEventMouseMotion.new()
+	e.position = p
+	e.global_position = p
+	e.relative = Vector2(20, 0)
+	Input.parse_input_event(e)
+	Input.warp_mouse(p * get_window().content_scale_factor)
+	await _wait(3)
+
+
+## The Kindled turns to the mouse and swings where it points.
+func _aim_checks(pl: Player) -> void:
+	var view: PixelView = pl.stage.view
+	var me := view.internal_to_screen(view.world_to_internal(pl.global_position))
+	await _mouse_to(me + Vector2(-120, 0))
+	_expect(pl.aim.x < -0.7, "mouse to the left aims left (%s)" % pl.aim)
+	await _mouse_to(me + Vector2(120, 0))
+	_expect(pl.aim.x > 0.7, "mouse to the right aims right (%s)" % pl.aim)
+	await _mouse_to(me + Vector2(0, -100))
+	_expect(pl.aim.y < -0.7, "mouse above aims up (%s)" % pl.aim)
+	_expect(pl.facing.y < -0.7, "the Kindled faces the mouse")
+	pl.weapon.press()
+	pl.weapon.release()
+	await _wait(20)
+	_expect(pl.weapon.aim_dir.y < -0.7, "the swing goes where the mouse points (%s)" % pl.weapon.aim_dir)
 
 
 ## Drives menus and the world through real (synthetic) gamepad events.

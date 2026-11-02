@@ -14,6 +14,8 @@ var level_lbl: Label
 var prompt_lbl: Label
 var relic_row: HBoxContainer
 var slot_nodes: Array = []
+var flask_slot: Control
+var _flask_seen := -1
 var boss_name: Label
 var controls_card: PanelContainer
 var tooltip: PanelContainer
@@ -68,6 +70,9 @@ func _ready() -> void:
 		var slot := _make_slot(i)
 		add_child(slot)
 		slot_nodes.append(slot)
+	flask_slot = _make_slot(2)
+	(flask_slot.get_node("Icon") as TextureRect).texture = UIKit.icon("flask")
+	add_child(flask_slot)
 	boss_name = UIKit.label("", 8, UIKit.C_TEXT, true)
 	boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	boss_name.visible = false
@@ -167,7 +172,7 @@ func _make_slot(i: int) -> Control:
 	cd.name = "Cooldown"
 	cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(cd)
-	var key := UIKit.label("Q" if i == 0 else "E", 8, UIKit.C_GOLD, true)
+	var key := UIKit.label(["Q", "E", "R"][i], 8, UIKit.C_GOLD, true)
 	key.position = Vector2(-2, 17)
 	key.name = "Key"
 	c.add_child(key)
@@ -176,6 +181,36 @@ func _make_slot(i: int) -> Control:
 	cost.name = "Cost"
 	c.add_child(cost)
 	return c
+
+
+## The flask slot: charges left, the drink in progress, empty, or a pulse
+## when health is low and a flask is ready.
+func _update_flask_slot(pl: Player) -> void:
+	var ic: TextureRect = flask_slot.get_node("Icon")
+	var cd: ColorRect = flask_slot.get_node("Cooldown")
+	var cnt: Label = flask_slot.get_node("Cost")
+	var key_l: Label = flask_slot.get_node("Key")
+	key_l.text = Settings.describe_action("flask")
+	var mx := int(pl.stats.v("flask_charges"))
+	cnt.text = "%d" % pl.flask
+	cnt.add_theme_color_override("font_color", UIKit.C_TEXT if pl.flask > 0 else UIKit.C_BAD)
+	cd.size.y = 20.0 * clampf(pl.flask_t / 0.45, 0.0, 1.0)
+	var low := pl.hp_ratio() < 0.35 and pl.flask > 0 and pl.alive
+	if pl.flask <= 0:
+		ic.modulate = Color(0.4, 0.38, 0.42, 0.8)
+	elif low:
+		var p := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 110.0)
+		ic.modulate = Color(1.0, 0.75 + 0.25 * p, 0.75 + 0.25 * p).lerp(Color(1.6, 1.3, 1.1), p * 0.5)
+	else:
+		ic.modulate = Color(1, 1, 1, 1)
+	flask_slot.tooltip_text = "Flask: %d/%d charges, heals %d%% of your health" % [pl.flask, mx, int(pl.stats.v("flask_heal") * 100.0)]
+	if _flask_seen != -1 and pl.flask < _flask_seen:
+		# a quick pop when a charge is drunk
+		flask_slot.pivot_offset = Vector2(13, 13)
+		var tw := flask_slot.create_tween()
+		tw.tween_property(flask_slot, "scale", Vector2(1.25, 1.25), 0.06)
+		tw.tween_property(flask_slot, "scale", Vector2.ONE, 0.14)
+	_flask_seen = pl.flask
 
 
 func _process(_delta: float) -> void:
@@ -192,7 +227,8 @@ func _process(_delta: float) -> void:
 	big_map.position = (vp - big_map.size) * 0.5
 	var slot_y := vp.y - 40
 	for i in slot_nodes.size():
-		slot_nodes[i].position = Vector2(vp.x * 0.5 - 30 + i * 34, slot_y)
+		slot_nodes[i].position = Vector2(vp.x * 0.5 - 47 + i * 34, slot_y)
+	flask_slot.position = Vector2(vp.x * 0.5 - 47 + 2 * 34 + 6, slot_y)
 	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 18)
 	prompt_lbl.size.x = 200
 	relic_row.position = Vector2(8, vp.y - 26)
@@ -235,6 +271,7 @@ func _process(_delta: float) -> void:
 		cost_l.add_theme_color_override("font_color", UIKit.C_EMBER if afford else UIKit.C_BAD)
 		var full: float = float(d.cooldown) * pl.stats.v("cooldown")
 		cd.size.y = 20.0 * clampf(pl.ability_cd[i] / maxf(full, 0.01), 0.0, 1.0)
+	_update_flask_slot(pl)
 	# interaction prompt
 	var near := st.nearest_interactable(pl.pos) if pl.alive else null
 	if near and not Game.ui.has_modal():
@@ -307,13 +344,7 @@ func _draw() -> void:
 		var filled := pl.dodge_charges >= i + 1
 		var partial := clampf(pl.dodge_charges - i, 0.0, 1.0)
 		_diamond(Vector2(px + 2, ky + 3), filled, partial)
-	# --- flasks ---
-	var fy := ky + 9
-	var tex := UIKit.icon("flask")
-	for i in int(pl.stats.v("flask_charges")):
-		var col := Color(1, 1, 1, 1) if i < pl.flask else Color(0.3, 0.3, 0.35, 0.8)
-		draw_texture_rect(tex, Rect2(x0 + i * 13, fy, 12, 12), false, col)
-	draw_string(UIKit.FONT_OUTLINE, Vector2(x0 + int(pl.stats.v("flask_charges")) * 13 + 2, fy + 9), Settings.describe_action("flask"), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_DIM)
+	# (flasks have their own slot beside the abilities)
 	# --- xp bar along the bottom ---
 	var vp := get_viewport_rect().size
 	var need := Combat.xp_to_next(Profile.level())

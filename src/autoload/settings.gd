@@ -6,6 +6,9 @@ signal changed(key: String)
 signal device_changed(pad: bool)
 
 const PATH := "user://settings.cfg"
+const DEV_PATH := "user://settings_dev.cfg"   # dev runs (profile=...) never touch the player's settings
+
+var path := PATH
 
 const DEFAULTS := {
 	"master_volume": 0.8,
@@ -57,6 +60,9 @@ var using_pad := false   # last meaningful input came from a gamepad
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("profile="):
+			path = DEV_PATH
 	values = DEFAULTS.duplicate(true)
 	load_settings()
 	apply_bindings()
@@ -104,7 +110,7 @@ func set_value(key: String, v: Variant, persist := true) -> void:
 
 func load_settings() -> void:
 	var cf := ConfigFile.new()
-	if cf.load(PATH) != OK:
+	if cf.load(path) != OK:
 		return
 	for k in DEFAULTS:
 		if cf.has_section_key("options", k):
@@ -124,7 +130,7 @@ func save_settings() -> void:
 		cf.set_value("options", k, values[k])
 	for a in bindings_override:
 		cf.set_value("bindings", a, bindings_override[a])
-	cf.save(PATH)
+	cf.save(path)
 
 
 func apply_all() -> void:

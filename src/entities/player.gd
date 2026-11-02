@@ -56,7 +56,8 @@ var _rime_t := 0.0
 var _flicker := 0.0
 var _aegis_fx: MeshInstance3D
 var _pad_aim := false
-var _step_t := 0.0
+var _last_foot := -1
+var _foot_i := 0
 
 
 func _ready() -> void:
@@ -153,6 +154,10 @@ func _process(delta: float) -> void:
 		return
 	move_in = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
+	# the mouse wins as soon as it is used (Settings sees every input event;
+	# this node lives in the world SubViewport, which receives none)
+	if not Settings.using_pad:
+		_pad_aim = false
 	if stick.length() > 0.3:
 		_pad_aim = true
 		aim = _assisted(stick.normalized())
@@ -161,7 +166,9 @@ func _process(delta: float) -> void:
 		aim = move_in.normalized()
 		aim_point = pos + aim * 4.0
 	if not _pad_aim and stage and stage.view:
-		var mp := get_viewport().get_mouse_position()
+		# root-window UI coordinates: get_viewport() here is the world SubViewport,
+		# whose mouse position never updates
+		var mp := stage.view.get_global_mouse_position()
 		aim_point = stage.view.screen_to_plane(mp, 0.6)
 		var d := aim_point - pos
 		if d.length() > 0.05:
@@ -220,11 +227,6 @@ func _assisted(dir: Vector2) -> Vector2:
 	return dir.slerp((best.pos - pos).normalized(), clampf(k, 0.0, 1.0) * 0.85)
 
 
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		_pad_aim = false
-
-
 # --- simulation ------------------------------------------------------------------
 
 func think(dt: float) -> void:
@@ -246,14 +248,10 @@ func think(dt: float) -> void:
 		if flask_t > 0.0:
 			mult *= 0.45
 		vel = move_in * spd * mult
-		if vel.length() > 0.5:
-			_step_t += dt * vel.length()
-			if _step_t > 1.6:
-				_step_t = 0.0
-				Audio.play("step", -16.0, randf_range(0.9, 1.1))
 	facing = aim
 	_update_lantern(dt)
 	_update_anim()
+	_footsteps()
 	_update_aegis_fx()
 
 
@@ -429,8 +427,14 @@ func _drink() -> void:
 	var amount := max_hp * stats.v("flask_heal") * stats.v("heal_mult")
 	heal(amount)
 	Audio.play("flask", 0.0)
+	# hearth-fire rises through you: motes, a warm ring, a soft flash of light
 	stage.fx.motes(pos, 0.4, Color(1.0, 0.75, 0.4), 18, 1.6, 0.8, 0.4)
+	stage.fx.motes(pos, 0.1, Color(0.6, 1.0, 0.6), 10, 2.2, 0.7, 0.3)
 	stage.fx.ring(pos, 1.3, Color(1.0, 0.8, 0.45), 0.35, 0.2)
+	stage.fx.flash_light(pos, 1.0, Color(1.0, 0.75, 0.45), 2.0, 4.0, 0.4)
+	if sprite:
+		sprite.flash(Color(1.0, 0.85, 0.55), 0.25)
+	Settings.rumble(0.25, 0.0, 0.15)
 
 
 func _deny_flask() -> void:
@@ -794,6 +798,21 @@ func _update_lantern(dt: float) -> void:
 	lantern.light_energy = en
 	var side := 1.0 if aim.x >= 0.0 else -1.0
 	lantern.position = Vector3(0.3 * side, (1.05 + bob) * Iso.SQ2, 0.3)
+
+
+## A footstep each time a foot lands in the run cycle (frames 0 and 3 of 6),
+## so the sound always matches the feet. Moss in the Rootmire, stone elsewhere.
+func _footsteps() -> void:
+	if sprite == null or not sprite.anim.begins_with("run_"):
+		_last_foot = -1
+		return
+	var f := sprite.frame_i
+	if f != _last_foot and (f == 0 or f == 3):
+		var moss := stage is Dungeon and (stage as Dungeon).layout.region == "rootmire"
+		var n := 3 if moss else 4
+		Audio.play("step_%s_%d" % ["moss" if moss else "stone", _foot_i % n], -11.0, randf_range(0.94, 1.06))
+		_foot_i += 1 + (randi() % 2)
+	_last_foot = f
 
 
 func _update_anim() -> void:

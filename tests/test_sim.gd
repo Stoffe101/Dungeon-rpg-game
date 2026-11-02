@@ -206,3 +206,23 @@ func test_resident_walks_between_spots() -> void:
 	check(not w.moving, "settled at the spot")
 	eq(st.nearest_interactable(w.pos), w, "can be talked to")
 	st.queue_free()
+
+
+func test_footsteps_follow_the_run_cycle() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5.5, 7.5))
+	pl.sprite.play("run_side", true)
+	var heard := []
+	for f in [0, 1, 2, 3, 4, 5, 0, 1]:
+		var before := pl._foot_i
+		pl.sprite.set_frame(f)
+		pl._footsteps()
+		if pl._foot_i != before:
+			heard.append(f)
+	eq(heard, [0, 3, 0], "a step lands on each foot-contact frame and nowhere else")
+	pl.sprite.play("idle_side", true)
+	var before2 := pl._foot_i
+	pl._footsteps()
+	eq(pl._foot_i, before2, "no steps while standing")
+	st.queue_free()

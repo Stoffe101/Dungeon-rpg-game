@@ -203,7 +203,16 @@ func _sfx() -> void:
 	fx("pickup_sunshard", 0.9, func(s):
 		for k in 4:
 			s.bell(k * 0.07, 0.8, midi(79 + [0, 4, 7, 12][k]), 0.16))
-	fx("step", 0.05, func(s): s.noise(0.0, 0.04, 0.4, 900.0, 300.0, 80.0, 0.001, 6.0))
+	# footsteps: a heel thud under a short scuff; four stone variants, three soft moss ones
+	for k in 4:
+		fx("step_stone_%d" % k, 0.12, func(s):
+			s.tone(0.0, 0.06, 150.0 - k * 12.0, 55.0, "sine", 0.55, 0.002, 7.0)
+			s.noise(0.003, 0.07, 0.32, 4200.0 - k * 450.0, 1200.0, 500.0 + k * 60.0, 0.002, 7.5)
+			s.noise(0.035 + k * 0.004, 0.035, 0.12, 2600.0, 1400.0, 900.0, 0.002, 6.0), 31 + k)
+	for k in 3:
+		fx("step_moss_%d" % k, 0.14, func(s):
+			s.tone(0.0, 0.07, 105.0 - k * 9.0, 48.0, "sine", 0.45, 0.004, 6.0)
+			s.noise(0.0, 0.1, 0.28, 1300.0 - k * 120.0, 380.0, 70.0, 0.006, 5.0), 47 + k)
 	fx("player_death", 1.8, func(s):
 		for k in 4:
 			s.bell(k * 0.22, 1.2, midi(64 - k * 4), 0.2)
