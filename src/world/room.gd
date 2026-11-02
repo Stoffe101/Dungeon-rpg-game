@@ -2,13 +2,15 @@
 class_name Room
 extends RefCounted
 
-enum Type { START, COMBAT, ELITE, TREASURE, SHRINE, MERCHANT, REST, SECRET, STAIRS, BOSS }
+enum Type { START, COMBAT, ELITE, TREASURE, SHRINE, MERCHANT, REST, SECRET, STAIRS, BOSS, EVENT }
 
 const TYPE_NAMES := {
 	Type.START: "start", Type.COMBAT: "combat", Type.ELITE: "elite", Type.TREASURE: "treasure",
 	Type.SHRINE: "shrine", Type.MERCHANT: "merchant", Type.REST: "rest", Type.SECRET: "secret",
-	Type.STAIRS: "stairs", Type.BOSS: "boss",
+	Type.STAIRS: "stairs", Type.BOSS: "boss", Type.EVENT: "event",
 }
+
+const EVENTS := ["well", "trial", "echo"]
 
 var id := 0
 var type := Type.COMBAT
@@ -22,6 +24,7 @@ var waves := 1
 var encounter: Array = []            # enemy ids per wave: [[...], [...]]
 var elite_affix := ""
 var grudge := false
+var event := ""
 
 # runtime
 var visited := false

@@ -5,6 +5,7 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabl
 
 uniform sampler2D atlas : source_color, filter_nearest;
 uniform vec2 frame_uv = vec2(1.0, 1.0);
+uniform float detail = 0.0;   // 0 = flat silhouette, 1 = full sprite detail
 
 instance uniform vec2 frame = vec2(0.0);
 instance uniform float flip = 0.0;
@@ -24,6 +25,7 @@ void fragment() {
 	if (c.a < 0.5 || (BAYER[x + y * 4] + 0.5) / 16.0 > tint.a) {
 		discard;
 	}
-	ALBEDO = flash.rgb * 0.8;
+	float lum = dot(c.rgb, vec3(0.3, 0.55, 0.15));
+	ALBEDO = mix(flash.rgb * 0.8, flash.rgb * (0.25 + lum * 1.6), detail);
 	ALPHA = 1.0;
 }

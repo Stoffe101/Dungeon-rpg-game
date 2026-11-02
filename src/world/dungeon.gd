@@ -62,10 +62,19 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				rm.visited = true
 				rm.cleared = true
 		start = ante
+	if "warp=event" in OS.get_cmdline_user_args():
+		for rm in layout.rooms:
+			if rm.type == Room.Type.EVENT:
+				player.pos = rm.center() + Vector2(0, 3)
+				start = rm
 	view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
 	if "dumpmap" in OS.get_cmdline_user_args():
 		_dump_map()
+	if OS.is_debug_build():
+		for rm in layout.rooms:
+			if rm.type == Room.Type.EVENT:
+				print("[dungeon] event room %d: %s" % [rm.id, rm.event])
 	Events.player_died.connect(_on_player_died)
 	actor_died.connect(_on_actor_died)
 	Audio.play_music(region.music)
@@ -139,7 +148,7 @@ func _place_props() -> void:
 
 func _place_gates() -> void:
 	for r in layout.rooms:
-		if not r.is_combat():
+		if not r.is_combat() and r.event != "trial":
 			continue
 		var nodes: Array = []
 		for d in r.doors:
@@ -198,6 +207,8 @@ func _icon_key(r: Room) -> String:
 			return "stairs"
 		Room.Type.BOSS:
 			return "boss"
+		Room.Type.EVENT:
+			return {"well": "embers", "trial": "skull", "echo": "relic"}.get(r.event, "")
 	return ""
 
 
@@ -272,6 +283,9 @@ func _enter_room(r: Room) -> void:
 			Events.toast.emit("\"Embers for wares, wanderer?\"", Color(1.0, 0.8, 0.5))
 		elif r.type == Room.Type.STAIRS:
 			Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
+		elif r.type == Room.Type.EVENT:
+			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once."}
+			Events.toast.emit(msg.get(r.event, ""), Color(1.0, 0.8, 0.55))
 	if not r.is_combat():
 		r.cleared = true
 	minimap_changed.emit()
@@ -422,6 +436,12 @@ func _spawn_reward(r: Room) -> void:
 			Prop.make(self, "relic_altar", Vector2i(c) + Vector2i(0, -2), {"tier": 2})
 			for i in 6:
 				Pickup.spawn(self, "ember", c, 3)
+		"trial":
+			Pickup.spawn(self, "sunshard", c, 1)
+			Prop.make(self, "relic_altar", Vector2i(c) + Vector2i(0, 2), {"tier": 3})
+			for i in 10:
+				Pickup.spawn(self, "ember", c, 4)
+			Events.banner.emit("Trial Complete", "The Undervault grudgingly yields its prize")
 
 
 func _open_spot(p: Vector2) -> Vector2:
@@ -559,7 +579,11 @@ func request(what: String, prop: Prop) -> void:
 					Game.end_run("extracted"))
 		"relic":
 			var tier: int = prop.data.get("tier", 1)
-			var offer := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + (1 if tier > 1 else 0), true)
+			var offer := RelicDB.roll_offer(run.rng, 6 if tier >= 3 else 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + tier - 1, tier < 3)
+			if tier >= 3:
+				# trial prizes: no commons
+				var better := offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
+				offer = (better if better.size() >= 2 else offer).slice(0, 3)
 			if player.autopilot:
 				if not offer.is_empty():
 					Game.grant_relic(offer[0])
@@ -595,6 +619,47 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.lore(Lore.random_for(layout.region, rng))
 		"secret":
 			_open_secret(prop)
+		"well":
+			var gain := 40 + 25 * layout.depth
+			_ask("Draw from the Ember Well?", "Lose 20% of your health. Gain about %d Embers." % gain, func() -> void:
+				if prop.used:
+					return
+				prop.used = true
+				player.hp = maxf(1.0, player.hp - player.max_hp * 0.2)
+				player.stage.fx.burst(player.pos, 0.8, Color(0.9, 0.25, 0.3), 14, 3.0, 0.5, 4.0)
+				for i in 10:
+					Pickup.spawn(self, "ember", prop.pos, int(ceil(gain / 10.0)))
+				prop.sprite.play("empty")
+				if prop.light:
+					prop.light.light_energy = 0.2
+				Audio.play("pact", -2.0, 1.2))
+		"trial":
+			_ask("Begin the Trial?", "Three hard waves. The doors seal until it is done. The prize: a rare relic and a Sunshard.", func() -> void:
+				if prop.used:
+					return
+				prop.used = true
+				prop.sprite.play("spent")
+				var r := layout.room(prop.room_id)
+				r.cleared = false
+				active_room = r
+				wave = 0
+				_set_gates(r, true)
+				Audio.play("gate_close", 0.0)
+				Audio.play("boss_roar", -6.0, 1.4)
+				Events.banner.emit("The Trial Begins", "Survive three waves")
+				_spawn_wave(r))
+		"echo":
+			var line: Array = Lore.random_for(layout.region, rng)
+			if prop.used:
+				Game.ui.dialogue("Echo of a Fallen Kindled", ["...the light was warm, once. Go on. Carry it further than I did."])
+				return
+			var offer_fn := func() -> void:
+				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, _echo_gift.bind(prop))
+			if player.autopilot:
+				offer_fn.call()
+			else:
+				Game.ui.dialogue("Echo of a Fallen Kindled", ["I came down with a lantern like yours. %s" % line[1], "Leave a little light for me - thirty Embers - and take what I no longer need."], offer_fn)
+
 
 
 func _open_secret(prop: Prop) -> void:
@@ -618,5 +683,26 @@ func _open_secret(prop: Prop) -> void:
 	Audio.play("crumble", 0.0)
 	prop.queue_free()
 	props.erase(prop)
-	Events.toast.emit("The wall crumbles - a hidden passage!", Color(1.0, 0.85, 0.5))
+	Events.toast.emit("The brambles part - a hidden passage!" if prop.kind == "bramble_wall" else "The wall crumbles - a hidden passage!", Color(1.0, 0.85, 0.5))
 	minimap_changed.emit()
+
+
+func _echo_gift(prop: Prop) -> void:
+	if prop.used or run.embers < 30:
+		Events.toast.emit("You do not carry enough Embers.", Color(0.8, 0.7, 0.7))
+		return
+	prop.used = true
+	run.embers -= 30
+	var offer := RelicDB.roll_offer(run.rng, 1, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + 1, false)
+	if not offer.is_empty():
+		Game.grant_relic(offer[0])
+	prop.sprite.set_instance_shader_parameter("tint", Color(1, 1, 1, 0.3))
+	Audio.play("relic", 0.0, 0.9)
+
+
+## Confirmation that the autopilot answers "yes" to.
+func _ask(title: String, body: String, yes: Callable) -> void:
+	if player.autopilot:
+		yes.call()
+	else:
+		Game.ui.confirm(title, body, yes)

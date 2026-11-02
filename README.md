@@ -13,6 +13,8 @@ remembers who hurts it.
 |---|---|
 | ![The Gloam Warden](docs/screenshots/boss.png) | ![The Hearthtree](docs/screenshots/skilltree.png) |
 | ![Main menu](docs/screenshots/menu.png) | ![Relic choice](docs/screenshots/relic_choice.png) |
+| ![The Rootmire](docs/screenshots/rootmire.png) | ![Gloamfall](docs/screenshots/gloamfall.png) |
+| ![Echo of a Fallen Kindled](docs/screenshots/echo.png) | ![Trial of the Undervault](docs/screenshots/trial.png) |
 
 ## Features
 
@@ -21,9 +23,12 @@ remembers who hurts it.
   abilities, status effects and elemental reactions.
 - Procedural floors with branching routes, reward previews on doors, secret
   rooms, merchants, shrines of pacts, traps and extraction points.
-- Six enemy archetypes with readable telegraphs, elite affixes, and **Grudges**:
+- Ten enemy archetypes with readable telegraphs, elite affixes, and **Grudges**:
   the enemy that kills you returns by name, carrying your lost Embers.
-- The Gloam Warden: a two-phase boss that snuffs the arena's light.
+- Two regions: the Hollow Ossuary (the Gloam Warden snuffs the arena's light)
+  and the Rootmire (burnable brambles; the Hollow Bloom, a rooted corpse-flower
+  whose roots you burn to wilt it).
+- Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled.
 - The Hearthtree: a 55-node constellation skill tree with keystones and hybrids;
   39 relics that steer builds; a forge; an evolving sanctuary.
 - Real 3D lighting and shadows rendered as crisp pixel art; all art and audio

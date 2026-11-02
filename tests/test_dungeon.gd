@@ -113,6 +113,26 @@ func test_encounter_budget() -> void:
 		check(cost <= 9 and cost >= 5, "budget respected (%d)" % cost)
 
 
+func test_event_rooms() -> void:
+	# events appear, their centrepieces stand on open floor, and trials have three waves
+	var seen := {}
+	for s in range(1, 41):
+		for region in ["ossuary", "rootmire"]:
+			var lay := DungeonGen.generate(s, 1 + s % 2, region, false)
+			for r in lay.rooms:
+				if r.type != Room.Type.EVENT:
+					continue
+				check(r.event in Room.EVENTS, "event kind '%s'" % r.event)
+				seen[r.event] = true
+				for p in r.props:
+					if p.kind in ["ember_well", "trial_altar", "echo"]:
+						eq(lay.grid.at(p.tile.x, p.tile.y), TileGrid.FLOOR, "seed %d %s centrepiece on floor" % [s, r.event])
+				if r.event == "trial":
+					eq(r.encounter.size(), 3, "trial has three waves")
+					check(not r.spawns.is_empty(), "trial room has spawn points")
+	eq(seen.size(), Room.EVENTS.size(), "every event kind generated")
+
+
 func test_rootmire_brambles_never_seal_doors() -> void:
 	# brambles are solid until burned/cut; every door must stay reachable without them
 	for s in [1, 2, 3, 7, 42, 99, 123, 777]:

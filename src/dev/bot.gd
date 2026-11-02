@@ -169,7 +169,7 @@ func _explore(_delta: float) -> void:
 	var d := st as Dungeon
 	if best_p == Vector2.INF and d:
 		for p in st.props:
-			if is_instance_valid(p) and p.room_id == (d.current_room.id if d.current_room else -2) and p.interactable() and p.kind in ["relic_altar", "chest", "spring", "ember_pile", "fountain"]:
+			if is_instance_valid(p) and p.room_id == (d.current_room.id if d.current_room else -2) and p.interactable() and p.kind in ["relic_altar", "chest", "spring", "ember_pile", "fountain", "ember_well", "trial_altar", "echo"]:
 				best_p = p.pos
 				if p.pos.distance_to(pl.pos) < p.interact_radius + 0.6:
 					p.interact(pl)

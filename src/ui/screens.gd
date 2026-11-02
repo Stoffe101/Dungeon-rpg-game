@@ -297,7 +297,7 @@ static func lore(ui: UIRoot, entry: Array) -> Control:
 	return _center(p)
 
 
-static func dialogue(ui: UIRoot, speaker: String, lines: Array) -> Control:
+static func dialogue(ui: UIRoot, speaker: String, lines: Array, on_done: Callable = Callable()) -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var p := UIKit.panel()
@@ -328,6 +328,8 @@ static func dialogue(ui: UIRoot, speaker: String, lines: Array) -> Control:
 		state.i += 1
 		if state.i >= lines.size():
 			ui.close_top()
+			if on_done.is_valid():
+				on_done.call()
 		else:
 			show.call()
 			Audio.ui("ui_click")

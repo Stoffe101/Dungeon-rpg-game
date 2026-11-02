@@ -125,4 +125,6 @@ func _room_icon(r: Room, visited: bool) -> String:
 			return "skull" if not r.cleared else ""
 		Room.Type.REST:
 			return "vigor"
+		Room.Type.EVENT:
+			return {"well": "embers", "trial": "skull", "echo": "relic"}.get(r.event, "") if not r.visited or r.event == "trial" else ""
 	return ""

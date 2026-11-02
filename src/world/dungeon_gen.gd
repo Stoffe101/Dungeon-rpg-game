@@ -120,7 +120,7 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 		lay.exit_id = last
 
 	# 3. branches ending in special rooms
-	var specials: Array = [Room.Type.TREASURE, Room.Type.ELITE, Room.Type.SHRINE, Room.Type.MERCHANT]
+	var specials: Array = [Room.Type.TREASURE, Room.Type.ELITE, Room.Type.SHRINE, Room.Type.MERCHANT, Room.Type.EVENT]
 	if not boss_depth:
 		specials.append(Room.Type.REST)
 	_shuffle(specials, rng)
@@ -414,7 +414,7 @@ static func _stamp_pool(r: Room) -> Array:
 			return ["octagon"]
 		Room.Type.START, Room.Type.REST, Room.Type.SHRINE:
 			return ["pillars4", "corners", "alcoves"]
-		Room.Type.TREASURE, Room.Type.SECRET:
+		Room.Type.TREASURE, Room.Type.SECRET, Room.Type.EVENT:
 			return ["corners", "pillars4"]
 		Room.Type.MERCHANT, Room.Type.STAIRS:
 			return ["alcoves", "corners"]
@@ -586,6 +586,14 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 				if open:
 					r.spawns.append(Vector2i(x, y))
 		match r.type:
+			Room.Type.EVENT:
+				r.event = Room.EVENTS[rng.randi_range(0, Room.EVENTS.size() - 1)]
+				if r.event == "trial":
+					r.reward = "trial"
+					r.waves = 3
+					r.encounter = []
+					for wv in 3:
+						r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, 8 + lay.depth * 4 + wv * 2))
 			Room.Type.COMBAT:
 				r.reward = reward_pool[rng.randi_range(0, reward_pool.size() - 1)]
 			Room.Type.ELITE:
@@ -681,6 +689,18 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "brazier", "tile": c + Vector2i(-3, -1)})
 		Room.Type.REST:
 			r.props.append({"kind": "fountain", "tile": c})
+		Room.Type.EVENT:
+			match r.event:
+				"well":
+					r.props.append({"kind": "ember_well", "tile": c})
+				"trial":
+					r.props.append({"kind": "trial_altar", "tile": c + Vector2i(0, -2)})
+					r.props.append({"kind": "brazier", "tile": c + Vector2i(-4, -2)})
+					r.props.append({"kind": "brazier", "tile": c + Vector2i(4, -2)})
+				"echo":
+					r.props.append({"kind": "echo", "tile": c})
+					r.props.append({"kind": "candles", "tile": c + Vector2i(-2, 1)})
+					r.props.append({"kind": "candles", "tile": c + Vector2i(2, 1)})
 		Room.Type.STAIRS:
 			r.props.append({"kind": "stairs", "tile": c + Vector2i(0, -2)})
 			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})

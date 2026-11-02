@@ -274,8 +274,8 @@ func lore(entry: Array) -> void:
 	open(Screens.lore(self, entry))
 
 
-func dialogue(speaker: String, lines: Array) -> void:
-	open(Screens.dialogue(self, speaker, lines))
+func dialogue(speaker: String, lines: Array, on_done: Callable = Callable()) -> void:
+	open(Screens.dialogue(self, speaker, lines, on_done))
 
 
 func pause_menu() -> void:

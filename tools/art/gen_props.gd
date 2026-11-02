@@ -44,6 +44,8 @@ static func build(dir: String) -> void:
 	_wisp(dir)
 	_dummy(dir)
 	_spikes(dir)
+	_ember_well(dir)
+	_trial_altar(dir)
 
 
 static func _shadow(dir: String) -> void:
@@ -699,3 +701,54 @@ static func _spikes(dir: String) -> void:
 		up.put(h.x, h.y + 1, Pal.STEEL[1])
 	s.add("up", [up], 1.0)
 	s.save(dir, "spikes")
+
+
+static func _ember_well(dir: String) -> void:
+	var s := Sheet.new(26, 22, Vector2i(13, 20))
+	var fr: Array = []
+	for i in 4:
+		fr.append(_well_frame(i, true))
+	s.add("idle", fr, 5.0)
+	s.add("empty", [_well_frame(0, false)], 1.0)
+	s.save(dir, "ember_well")
+
+
+static func _well_frame(i: int, full: bool) -> Px:
+	var c := Px.new(26, 22)
+	var rim := c.mask().ellipse(13.0, 13.0, 11.5, 6.0)
+	rim.rect(2, 13, 23, 6)
+	c.paint(rim, Pal.STONE, 3, true)
+	for x in range(3, 24, 4):
+		c.line(x, 14, x, 18, Pal.STONE[1])
+	var pool := c.mask().ellipse(13.0, 12.5, 9.0, 4.0)
+	if full:
+		c.fill_lit(pool, Pal.EMBER[2])
+		c.fill_lit(c.mask().ellipse(13.0, 12.5, 5.0, 2.0), Pal.EMBER[3 + (i % 2)])
+		c.lit(8 + i * 3, 12, Pal.EMBER[5])
+		c.lit(17 - i, 13, Pal.EMBER[4])
+	else:
+		c.fill(pool, Pal.INK)
+	c.outline(Pal.INK)
+	return c
+
+
+static func _trial_altar(dir: String) -> void:
+	var s := Sheet.new(20, 30, Vector2i(10, 28))
+	var fr: Array = []
+	for i in 4:
+		var c := Px.new(20, 30)
+		c.paint(c.mask().rect(3, 20, 14, 8), Pal.STONE, 2, true)
+		c.paint(c.mask().rect(5, 8, 10, 13), Pal.STONE, 3, true)
+		var skull := c.mask().ellipse(10.0, 6.0, 4.0, 3.6)
+		c.paint(skull, Pal.BONE, 3)
+		c.put(8, 6, Pal.INK)
+		c.put(11, 6, Pal.INK)
+		c.lit(8, 6, Pal.BLOOD[3 + (i % 2)])
+		c.lit(11, 6, Pal.BLOOD[3 + (i % 2)])
+		for k in 3:
+			c.lit(7 + k * 3, 12 + ((k + i) % 3) * 3, Pal.BLOOD[3])
+		c.outline(Pal.INK)
+		fr.append(c)
+	s.add("idle", fr, 4.0)
+	s.add("spent", [fr[0]], 1.0)
+	s.save(dir, "trial_altar")

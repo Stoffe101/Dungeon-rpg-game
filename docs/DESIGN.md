@@ -76,6 +76,39 @@ soul-lanterns. At 55% - **Gloamfall**: it snuffs the arena braziers, calls
 skitters and gains a gloamfire rush. Strike all four braziers to relight them:
 the Warden is **Seared** (staggered and exposed). Enrages at 20%.
 
+## Region 2 - The Rootmire
+
+Unlocked by defeating the Gloam Warden. Fungal caverns among the roots of the
+dead world-tree: green soil and moss, glowing cyan/pink caps, bio-lanterns.
+
+**Region mechanic - brambles.** Solid thickets fill parts of rooms (never
+sealing a door). *Any* fire hit ignites them; fire spreads to neighbouring
+brambles and scorches enemies inside (the hearth-fire never burns its bearer).
+Non-fire builds hack through (3 hits). Secret passages hide behind bramble walls.
+Fire builds feel at home here; frost builds have to work for their shortcuts.
+
+| Enemy | Role | Counterplay |
+|---|---|---|
+| Sporeling | Hopping pack biter; bursts into a spore cloud on death | Don't finish it point-blank |
+| Thornback | Armoured beetle; telegraphed spiked roll that ricochets off walls, then dizzy (armour 0, exposed) | Sidestep, then punish |
+| Lantern Moth | Flutters around your light, dives; a hit drains 15 Kindle (your lantern dims) | Ward or swat it early |
+| Rootweaver | Kites; fans of erupting thorn lines and snaring root circles (heavy slow) | Close the gap between casts |
+
+**Boss - the Hollow Bloom.** A colossal rooted corpse-flower: it cannot move, so
+it controls space. Lash (long line), spore volley (marked circles that leave
+clouds), **Inhale** (drags you toward its maw; while inhaling it takes double
+damage, then bites). At 55% - **Full Bloom**: radial root eruptions and
+sporeling broods. Its four **root nodes** can be burned (or hacked apart): each
+wilts it for a chunk of life, a stagger and an exposed window.
+
+## Room events
+
+- **Ember Well** - trade 20% health for a pile of Embers.
+- **Trial of the Undervault** - optional sealed gauntlet of three hard waves;
+  prize: a rare-or-better relic choice and a Sunshard.
+- **Echo of a Fallen Kindled** - a ghost of a previous bearer shares a memory
+  and trades a relic for 30 Embers.
+
 ## Dungeon
 
 Cell-grid floors with a main path, side branches ending in special rooms

@@ -16,6 +16,10 @@ Last updated: 2026-11-02 (first development session).
 - Procedural floors (main path, branches, merged halls, loops, secret room),
   stamp-composed rooms, reward previews on doors, gates, waves, merchant,
   shrine of pacts, rest springs, treasure, stairs + Hearthstone extraction.
+- Second region, the Rootmire (unlocked by the Warden): new tileset, burnable
+  brambles, 4 enemies, the Hollow Bloom boss, music/ambience, lore.
+- Room events: Ember Well, Trial of the Undervault, Echo of a Fallen Kindled.
+- Gamepad aim assist; skill tree gamepad navigation; CI on GitHub Actions.
 - Hearthtree (55 nodes, 6 branches + hybrids + keystones), 39 relics,
   forge (temper/craft), sanctuary buildings, Grudge memorial, Undervault Memory.
 - Sanctuary hub (walkable), main menu, HUD, minimap/full map, skill tree UI,
@@ -29,9 +33,9 @@ Last updated: 2026-11-02 (first development session).
 
 | Kind | What |
 |---|---|
-| Automated tests | 38 tests (incl. Warden brazier sear): combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
-| Autopilot playtests | Headless bot runs (seed 7): clears depth 1, descends, plays depth 2. Boss run with `godmode`: Gloamfall at 54%, skitter calls, Warden dies, Hearthstone victory settles (bonus, sunshards, staff unlock). Without godmode the naive bot dies to the Warden in ~25s. Found and fixed: corridor targeting, partial pathing to solid goals, descend re-entry, freed-object timer callbacks. |
-| Visual inspection (screenshots actually viewed) | Dungeon at 1080p, 720p and 3440x1421 (ultrawide), combat with HUD/gates/traps/telegraphs, boss arena phase 1, main menu, sanctuary + dialogue, occlusion silhouette, skill tree, relic choice, forge, settings, run summary. Sprite sheets for all characters, boss, icons. See `docs/screenshots/`. |
+| Automated tests | 40 tests (incl. Warden brazier sear, Rootmire brambles never sealing doors, event room generation), run locally and on GitHub Actions: combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
+| Autopilot playtests | Headless bot runs (seed 7): clears depth 1, descends, plays depth 2. Boss run with `godmode`: Gloamfall at 54%, skitter calls, Warden dies, Hearthstone victory settles (bonus, sunshards, staff unlock). Without godmode the naive bot dies to the Warden in ~25s. Rootmire (godmode): depth 1-2, Bloom wilted by all four burned roots, victory. Event rooms: bot completes a Trial (3 waves, reward), Ember Well and Echo offers without script errors. Found and fixed: corridor targeting, partial pathing to solid goals, descend re-entry, freed-object timer callbacks. |
+| Visual inspection (screenshots actually viewed) | Dungeon at 1080p, 720p and 3440x1421 (ultrawide), combat with HUD/gates/traps/telegraphs, boss arena phase 1 and Gloamfall, Rootmire rooms and the Hollow Bloom arena, event rooms (Echo, Trial), main menu, sanctuary + dialogue, occlusion silhouette, skill tree, relic choice, forge, settings, run summary. Sprite sheets for all characters, boss, icons. See `docs/screenshots/`. |
 | UI smoke test | `-- uismoke`: opens every screen and presses its buttons (sanctuary building, forge craft/temper, weapon rack, skill allocate/refund/respec, memorial, settings tabs, merchant purchases, blood pact, chest, lore, Hearthstone confirm, extraction). Found and fixed the shop/forge refresh bug and a late-descend race. |
 | Build coverage | Bot runs with hammer, staff, and the entire skill tree allocated (`skills=all`): no script errors after fixes (Wildfire implemented; freed-source guards). |
 | Performance | Windowed 1080p autopilot: pinned at the 165 Hz vsync cap with ~200 particles and several enemies (RTX 5070). |
@@ -52,4 +56,4 @@ Last updated: 2026-11-02 (first development session).
 2. Install Godot export templates and produce a Windows build (preset is ready).
 3. Controller navigation for every menu (skill tree done; others rely on focus).
 4. Sanctuary set dressing; enemy hurt/attack frames polish.
-5. More rooms types/events, second region, more relic synergies.
+5. More events and relic synergies; a third region; enemy variety per depth.

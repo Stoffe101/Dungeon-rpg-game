@@ -147,6 +147,28 @@ func _build() -> void:
 			strike_radius = 1.6
 			data["hp"] = 4
 			ticks = true
+		"ember_well":
+			_sprite("ember_well", 0.0, 0.0, "idle")
+			_light(Color(1.0, 0.55, 0.25), 1.4, 5.0, Vector3(0, 0.6, 0.3))
+			interact_radius = 1.5
+			_solid([tile])
+			ticks = true
+		"trial_altar":
+			_sprite("trial_altar", 0.0, 0.0, "idle")
+			_light(Color(1.0, 0.3, 0.35), 1.6, 6.0, Vector3(0, 1.4, 0.3))
+			interact_radius = 1.4
+			_solid([tile])
+			ticks = true
+		"echo":
+			_sprite("player", 0.0, 0.0, "idle_down")
+			var gm := (stage.fx._ghost_material(sprite.sheet) as ShaderMaterial).duplicate() as ShaderMaterial
+			gm.set_shader_parameter("detail", 1.0)
+			sprite.material_override = gm
+			sprite.set_instance_shader_parameter("flash", Color(0.4, 0.95, 0.85, 1.0))
+			sprite.set_instance_shader_parameter("tint", Color(1, 1, 1, 0.7))
+			_light(Color(0.4, 0.95, 0.85), 1.3, 5.5, Vector3(0, 1.0, 0.3))
+			interact_radius = 1.3
+			ticks = true
 		"spikes":
 			_flat("spikes", "down")
 			ticks = true
@@ -301,7 +323,9 @@ func _spike_tick() -> void:
 
 func interactable() -> bool:
 	match kind:
-		"chest", "ember_pile", "relic_altar", "spring", "fountain":
+		"chest", "ember_pile", "relic_altar", "spring", "fountain", "ember_well", "trial_altar":
+			return not used
+		"echo":
 			return not used
 		"shrine", "merchant", "stairs", "hearthstone", "lore":
 			return true
@@ -328,6 +352,12 @@ func prompt() -> String:
 			return "Return to the Hearth"
 		"lore":
 			return "Read"
+		"ember_well":
+			return "Draw from the Well"
+		"trial_altar":
+			return "Begin the Trial"
+		"echo":
+			return "Speak with the Echo"
 	return String(data.get("prompt", ""))
 
 
@@ -367,6 +397,10 @@ func interact(pl: Player) -> void:
 			stage.fx.number(pl.pos, 2.6, "RESTORED", Color(1.0, 0.8, 0.55), true)
 			Audio.play("flask", 0.0, 0.8)
 			sprite.play("empty")
+		"ember_well":
+			stage.request("well", self)
+		"trial_altar":
+			stage.request("trial", self)
 		_:
 			stage.request(kind, self)
 
