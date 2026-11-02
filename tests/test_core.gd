@@ -114,3 +114,19 @@ func test_run_settlement() -> void:
 	eq(ext.embers_kept, 101)
 	var win := r.settle("victory")
 	eq(win.embers_kept, 101 + 25)
+
+
+func test_action_labels_follow_device() -> void:
+	eq(Settings.event_label(Settings._key(KEY_F)), "F")
+	eq(Settings.event_label(Settings._joy_button(JOY_BUTTON_B)), "B")
+	eq(Settings.event_label(Settings._joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)), "LT")
+	eq(Settings.event_label(Settings._mouse(MOUSE_BUTTON_LEFT)), "LMB")
+	InputMap.add_action("test_label")
+	InputMap.action_add_event("test_label", Settings._key(KEY_G))
+	InputMap.action_add_event("test_label", Settings._joy_button(JOY_BUTTON_Y))
+	eq(Settings.describe_action("test_label", false), "G", "keyboard label")
+	eq(Settings.describe_action("test_label", true), "Y", "gamepad label")
+	InputMap.action_erase_events("test_label")
+	InputMap.action_add_event("test_label", Settings._joy_button(JOY_BUTTON_Y))
+	eq(Settings.describe_action("test_label", false), "Y", "falls back to the other device")
+	InputMap.erase_action("test_label")

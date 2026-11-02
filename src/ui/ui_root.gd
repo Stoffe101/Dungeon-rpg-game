@@ -15,6 +15,9 @@ var vignette: ColorRect
 var modals: Array[Control] = []
 var _banner_tw: Tween
 var _menu_open := false
+var closed_frame := -10    # process frame of the last modal close (input debounce)
+var _focus_index := -1     # position of the focused control among the top modal's focusables
+var _last_focus: Control
 
 
 func _ready() -> void:
@@ -78,10 +81,89 @@ func _ready() -> void:
 		toast("%s - %s" % [r.name, r.desc], RelicDB.RARITY_COLOR["cursed" if r.get("cursed", false) else r.rarity]))
 	_make_cursor()
 	get_window().size_changed.connect(_make_cursor)
+	Settings.device_changed.connect(_on_device_changed)
 
 
 func _process(_delta: float) -> void:
 	_layout_banner()
+	_keep_focus()
+
+
+# --- gamepad / keyboard navigation -------------------------------------------------
+
+func _on_device_changed(pad: bool) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if pad else Input.MOUSE_MODE_VISIBLE
+	UIKit.show_focus_ring(pad)
+	if hud.controls_card.visible:
+		hud.refresh_controls()
+
+
+## Menus stay navigable with a pad: if focus is lost (screen opened or rebuilt),
+## it returns to the same slot, or the first control.
+func _keep_focus() -> void:
+	if modals.is_empty():
+		return
+	var top: Control = modals[modals.size() - 1]
+	if top.get_meta("own_nav", false):
+		return
+	var f := get_viewport().gui_get_focus_owner()
+	if f and top.is_ancestor_of(f) and f.is_visible_in_tree():
+		if f != _last_focus:
+			_last_focus = f
+			_focus_index = focusables(top).find(f)
+		return
+	if Settings.using_pad:
+		_focus_first(top)
+
+
+func _focus_first(top: Control) -> void:
+	var list := focusables(top)
+	if list.is_empty():
+		return
+	var c: Control = list[clampi(_focus_index, 0, list.size() - 1)]
+	c.grab_focus()
+	_last_focus = c
+
+
+## Visible, enabled controls that accept keyboard/pad focus, in tree order.
+static func focusables(n: Node) -> Array[Control]:
+	var out: Array[Control] = []
+	for c in n.get_children():
+		if c is Control and not (c as Control).is_visible_in_tree():
+			continue
+		if c is TabContainer:
+			var cur := (c as TabContainer).get_current_tab_control()
+			if cur:
+				out.append_array(focusables(cur))
+			continue
+		if c is Control and (c as Control).focus_mode == Control.FOCUS_ALL and not (c is BaseButton and (c as BaseButton).disabled):
+			out.append(c)
+		out.append_array(focusables(c))
+	return out
+
+
+func _first_tabs(n: Node) -> TabContainer:
+	for c in n.get_children():
+		if c is TabContainer and (c as TabContainer).is_visible_in_tree():
+			return c
+		var t := _first_tabs(c)
+		if t:
+			return t
+	return null
+
+
+func _switch_tab(top: Control, dir: int) -> bool:
+	var tabs := _first_tabs(top)
+	if tabs == null or tabs.get_tab_count() < 2:
+		return false
+	tabs.current_tab = posmod(tabs.current_tab + dir, tabs.get_tab_count())
+	Audio.ui("ui_click")
+	_focus_index = 0
+	var list := focusables(tabs.get_current_tab_control())
+	if not list.is_empty():
+		list[0].grab_focus()
+		_last_focus = list[0]
+	return true
 
 
 func _layout_banner() -> void:
@@ -193,6 +275,8 @@ func open(screen: Control, pause := true) -> Control:
 	screen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	screen.set_meta("pause", pause)
 	modals.append(dim)
+	_focus_index = -1
+	_last_focus = null
 	if pause:
 		get_tree().paused = true
 	Audio.ui("ui_open")
@@ -202,6 +286,9 @@ func open(screen: Control, pause := true) -> Control:
 func close_top() -> void:
 	if modals.is_empty():
 		return
+	closed_frame = Engine.get_process_frames()
+	_focus_index = -1
+	_last_focus = null
 	var m: Control = modals.pop_back()
 	m.queue_free()
 	Audio.ui("ui_close")
@@ -210,6 +297,7 @@ func close_top() -> void:
 
 
 func close_all() -> void:
+	closed_frame = Engine.get_process_frames()
 	for m in modals:
 		m.queue_free()
 	modals.clear()
@@ -221,6 +309,14 @@ func has_modal() -> bool:
 	return not modals.is_empty()
 
 
+func _input(event: InputEvent) -> void:
+	# keyboard navigation shows the focus ring too; the mouse hides it
+	if event is InputEventKey and event.pressed and (event.is_action("ui_up") or event.is_action("ui_down") or event.is_action("ui_left") or event.is_action("ui_right") or event.is_action("ui_focus_next")):
+		UIKit.show_focus_ring(true)
+	elif event is InputEventMouseButton and event.pressed:
+		UIKit.show_focus_ring(false)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause"):
 		if has_modal():
@@ -230,6 +326,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif hud.visible and Game.stage and not _menu_open:
 			pause_menu()
 		get_viewport().set_input_as_handled()
+	elif has_modal() and event.is_action_pressed("ui_cancel"):
+		var top := modals[modals.size() - 1]
+		if not top.get_meta("sticky", false) and not top.get_meta("no_cancel", false):
+			close_top()
+		get_viewport().set_input_as_handled()
+	elif has_modal() and event is InputEventJoypadButton and event.pressed and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
+		if _switch_tab(modals[modals.size() - 1], -1 if event.button_index == JOY_BUTTON_LEFT_SHOULDER else 1):
+			get_viewport().set_input_as_handled()
+	elif has_modal() and (event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down") or event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right") or event.is_action_pressed("ui_accept")):
+		# nothing had focus yet: the first navigation press selects a control
+		var top := modals[modals.size() - 1]
+		if not top.get_meta("own_nav", false):
+			_focus_first(top)
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("map") and hud.visible and not has_modal():
 		hud.toggle_big_map()
 		get_viewport().set_input_as_handled()
@@ -287,7 +397,7 @@ func settings() -> void:
 
 
 func skill_tree() -> void:
-	open(SkillTreeUI.new())
+	open(SkillTreeUI.new()).set_meta("own_nav", true)
 
 
 func forge() -> void:

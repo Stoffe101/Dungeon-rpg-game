@@ -1,6 +1,7 @@
 ## Root of the running game: owns the pixel world view and the UI layer,
 ## then hands control to the Game autoload.
 ## Dev command line (after `--`): scene=menu|hub|dungeon|boss  seed=N  capture=name frames=N quit
+## pad (pretend a gamepad is in use)  open=skilltree|forge|descent|settings|controls|pause|relic|summary
 extends Control
 
 var view: PixelView
@@ -43,6 +44,10 @@ func _ready() -> void:
 		elif a.begins_with("grudge="):
 			var rng := RandomNumberGenerator.new()
 			Profile.record_grudge(a.substr(7), 60, 1, rng)
+		elif a == "pad":
+			# dev: start as if a gamepad were in use (prompts, focus)
+			Settings.using_pad = true
+			UIKit.show_focus_ring(true)
 		elif a.begins_with("set="):
 			# dev: set=ui_scale:2
 			var kv := a.substr(4).split(":")
@@ -80,6 +85,13 @@ func _open_dev_screen(what: String) -> void:
 			ui.descent_prompt()
 		"settings":
 			ui.settings()
+		"controls":
+			ui.settings()
+			var tabs := ui.modal_layer.find_children("*", "TabContainer", true, false)
+			if not tabs.is_empty():
+				(tabs[0] as TabContainer).current_tab = 3
+		"pause":
+			ui.pause_menu()
 		"relic":
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)

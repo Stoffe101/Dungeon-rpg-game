@@ -19,6 +19,8 @@ var points_lbl: Label
 var info_lbl: Label
 var respec_btn: Button
 var hearth_btn: Button
+var close_btn: Button
+var hint: Label
 var tip: PanelContainer
 var tip_box: VBoxContainer
 var pad_cursor := Vector2.ZERO
@@ -56,13 +58,19 @@ func _ready() -> void:
 	row.add_child(hearth_btn)
 	respec_btn = UIKit.button("Respec", _respec, 50)
 	row.add_child(respec_btn)
-	row.add_child(UIKit.button("Close", func() -> void: Game.ui.close_top(), 50))
-	var hint := UIKit.label("LMB kindle   RMB refund   Wheel zoom   Drag to pan", 8, UIKit.C_DIM, true)
+	close_btn = UIKit.button("Close", func() -> void: Game.ui.close_top(), 50)
+	row.add_child(close_btn)
+	# the gamepad cursor presses these; keyboard focus would double-fire with A
+	for b in [hearth_btn, respec_btn, close_btn]:
+		b.focus_mode = Control.FOCUS_NONE
+	hint = UIKit.label("", 8, UIKit.C_DIM, true)
 	hint.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	hint.offset_left = 8
 	hint.offset_top = -14
 	hint.offset_bottom = -4
 	add_child(hint)
+	_update_hint(Settings.using_pad)
+	Settings.device_changed.connect(_update_hint)
 	tip = UIKit.panel()
 	tip.add_theme_stylebox_override("panel", UIKit.theme().get_stylebox("panel", "TooltipPanel"))
 	tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -379,14 +387,14 @@ func _gamepad(delta: float) -> void:
 	var mv := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var pn := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
 	var joy_used := mv.length() > 0.25 or pn.length() > 0.25
-	if joy_used and not pad_active:
+	if (joy_used or Settings.using_pad) and not pad_active:
 		pad_active = true
 		pad_cursor = size * 0.5
 	if not pad_active:
 		return
 	if mv.length() > 0.25:
 		pad_cursor += mv * 180.0 * delta
-		pad_cursor = pad_cursor.clamp(Vector2(8, 40), size - Vector2(8, 8))
+		pad_cursor = pad_cursor.clamp(Vector2(8, 8), size - Vector2(8, 8))
 	if pn.length() > 0.25:
 		pan -= pn * 240.0 * delta / zoom
 	if Input.is_action_pressed("attack"):
@@ -406,15 +414,28 @@ func _gamepad(delta: float) -> void:
 		_update_tip()
 	if tip.visible:
 		_place_tip(pad_cursor)
-	if Input.is_action_just_pressed("ui_accept") and hovered != "":
-		_try_allocate(hovered)
+	if Input.is_action_just_pressed("ui_accept"):
+		for b: Button in [hearth_btn, respec_btn, close_btn]:
+			if b.is_visible_in_tree() and not b.disabled and b.get_global_rect().has_point(get_global_transform() * pad_cursor):
+				Audio.ui("ui_click")
+				b.pressed.emit()
+				return
+		if hovered != "":
+			_try_allocate(hovered)
 	if Input.is_action_just_pressed("ability_1") and hovered != "":
 		_try_refund(hovered)
 
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion and pad_active:
+	if event is InputEventMouseMotion and pad_active and (event as InputEventMouseMotion).relative.length() > 6.0:
 		pad_active = false
+
+
+func _update_hint(pad: bool) -> void:
+	if pad:
+		hint.text = "L-Stick cursor   A kindle   X refund   R-Stick pan   LT/RT zoom   B close"
+	else:
+		hint.text = "LMB kindle   RMB refund   Wheel zoom   Drag to pan"
 
 
 func _draw_node(id: String, alloc: Array, free: int) -> void:

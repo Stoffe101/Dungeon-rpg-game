@@ -17,6 +17,23 @@ const C_GOOD := Color(0.55, 1.0, 0.6)
 
 static var _theme: Theme
 static var _icon_map: Dictionary = {}
+## Gold ring around the focused control; only visible while navigating
+## with a pad or keys (mouse users never see it).
+static var focus_ring: StyleBoxFlat
+
+
+static func _focus_box() -> StyleBoxFlat:
+	if focus_ring == null:
+		focus_ring = StyleBoxFlat.new()
+		focus_ring.draw_center = false
+		focus_ring.set_border_width_all(1)
+		focus_ring.set_expand_margin_all(1)
+		focus_ring.border_color = Color(C_GOLD, 0.0)
+	return focus_ring
+
+
+static func show_focus_ring(on: bool) -> void:
+	_focus_box().border_color = Color(C_GOLD, 1.0 if on else 0.0)
 
 
 static func theme() -> Theme:
@@ -42,9 +59,11 @@ static func theme() -> Theme:
 		sb.content_margin_top = 4
 		sb.content_margin_bottom = 4
 		if st == "focus":
-			sb = StyleBoxEmpty.new()
+			sb = _focus_box()
 		t.set_stylebox(st, "Button", sb)
-		t.set_stylebox(st, "OptionButton", sb if st != "focus" else StyleBoxEmpty.new())
+		t.set_stylebox(st, "OptionButton", sb)
+	t.set_stylebox("focus", "CheckBox", _focus_box())
+	t.set_stylebox("focus", "HSlider", _focus_box())
 	t.set_color("font_color", "Button", C_TEXT)
 	t.set_color("font_hover_color", "Button", C_GOLD)
 	t.set_color("font_pressed_color", "Button", C_EMBER)

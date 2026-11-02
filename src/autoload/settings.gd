@@ -3,6 +3,7 @@
 extends Node
 
 signal changed(key: String)
+signal device_changed(pad: bool)
 
 const PATH := "user://settings.cfg"
 
@@ -50,6 +51,7 @@ var DEFAULT_BINDINGS := {
 
 var values: Dictionary = {}
 var bindings_override: Dictionary = {}
+var using_pad := false   # last meaningful input came from a gamepad
 
 
 func _ready() -> void:
@@ -59,6 +61,23 @@ func _ready() -> void:
 	apply_bindings()
 	get_window().size_changed.connect(_on_window_resized)
 	apply_all.call_deferred()
+
+
+## Tracks whether the player is on a gamepad or keyboard/mouse so prompts and
+## menus can follow the device in hand.
+func _input(e: InputEvent) -> void:
+	var pad := using_pad
+	if e is InputEventJoypadButton and e.pressed:
+		pad = true
+	elif e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.5:
+		pad = true
+	elif (e is InputEventKey and e.pressed) or (e is InputEventMouseButton and e.pressed):
+		pad = false
+	elif e is InputEventMouseMotion and (e as InputEventMouseMotion).relative.length() > 6.0:
+		pad = false
+	if pad != using_pad:
+		using_pad = pad
+		device_changed.emit(pad)
 
 
 func get_value(key: String, fallback: Variant = null) -> Variant:
@@ -161,15 +180,27 @@ func apply_bindings() -> void:
 					evs.append(e)
 		for e in evs:
 			InputMap.action_add_event(action, e)
+	# Godot's built-in menu actions have no face buttons: A confirms, B backs out
+	for pair in [["ui_accept", JOY_BUTTON_A], ["ui_cancel", JOY_BUTTON_B]]:
+		var jb := _joy_button(pair[1])
+		if not InputMap.action_has_event(pair[0], jb):
+			InputMap.action_add_event(pair[0], jb)
 
 
-func rebind(action: String, slot: int, ev: InputEvent) -> void:
+## Replaces the action's first binding of the same device family as `ev`
+## (keyboard/mouse or gamepad), keeping the other family untouched.
+func rebind(action: String, ev: InputEvent) -> void:
+	var pad := is_pad_event(ev)
 	var cur: Array = []
+	var replaced := false
 	for e in InputMap.action_get_events(action):
-		cur.append(_serialize(e))
-	while cur.size() <= slot:
-		cur.append({})
-	cur[slot] = _serialize(ev)
+		if not replaced and is_pad_event(e) == pad:
+			cur.append(_serialize(ev))
+			replaced = true
+		else:
+			cur.append(_serialize(e))
+	if not replaced:
+		cur.append(_serialize(ev))
 	bindings_override[action] = cur.filter(func(d): return not d.is_empty())
 	apply_bindings()
 	save_settings()
@@ -181,30 +212,78 @@ func reset_bindings() -> void:
 	save_settings()
 
 
-func describe_action(action: String) -> String:
+## Short label for an action's binding on the given device family
+## (default: the device currently in use), falling back to the other family.
+func describe_action(action: String, pad: Variant = null) -> String:
+	var want: bool = using_pad if pad == null else bool(pad)
+	var fallback := "-"
+	if not InputMap.has_action(action):
+		return fallback
 	for e in InputMap.action_get_events(action):
-		if e is InputEventKey:
-			return OS.get_keycode_string(e.physical_keycode if e.physical_keycode != 0 else e.keycode)
-		if e is InputEventMouseButton:
-			return {MOUSE_BUTTON_LEFT: "LMB", MOUSE_BUTTON_RIGHT: "RMB", MOUSE_BUTTON_MIDDLE: "MMB"}.get(e.button_index, "Mouse")
-	return "-"
+		var s := event_label(e)
+		if s == "":
+			continue
+		if is_pad_event(e) == want:
+			return s
+		if fallback == "-":
+			fallback = s
+	return fallback
 
 
+static func is_pad_event(e: InputEvent) -> bool:
+	return e is InputEventJoypadButton or e is InputEventJoypadMotion
+
+
+const PAD_BUTTONS := {
+	JOY_BUTTON_A: "A", JOY_BUTTON_B: "B", JOY_BUTTON_X: "X", JOY_BUTTON_Y: "Y",
+	JOY_BUTTON_LEFT_SHOULDER: "LB", JOY_BUTTON_RIGHT_SHOULDER: "RB",
+	JOY_BUTTON_LEFT_STICK: "LS", JOY_BUTTON_RIGHT_STICK: "RS",
+	JOY_BUTTON_BACK: "View", JOY_BUTTON_START: "Menu", JOY_BUTTON_GUIDE: "Home",
+	JOY_BUTTON_DPAD_UP: "D-Up", JOY_BUTTON_DPAD_DOWN: "D-Down",
+	JOY_BUTTON_DPAD_LEFT: "D-Left", JOY_BUTTON_DPAD_RIGHT: "D-Right",
+}
+
+
+static func event_label(e: InputEvent) -> String:
+	if e is InputEventKey:
+		var k := e as InputEventKey
+		return OS.get_keycode_string(k.physical_keycode if k.physical_keycode != 0 else k.keycode)
+	if e is InputEventMouseButton:
+		return {MOUSE_BUTTON_LEFT: "LMB", MOUSE_BUTTON_RIGHT: "RMB", MOUSE_BUTTON_MIDDLE: "MMB"}.get((e as InputEventMouseButton).button_index, "Mouse")
+	if e is InputEventJoypadButton:
+		return PAD_BUTTONS.get((e as InputEventJoypadButton).button_index, "Btn %d" % (e as InputEventJoypadButton).button_index)
+	if e is InputEventJoypadMotion:
+		match (e as InputEventJoypadMotion).axis:
+			JOY_AXIS_TRIGGER_LEFT:
+				return "LT"
+			JOY_AXIS_TRIGGER_RIGHT:
+				return "RT"
+			JOY_AXIS_LEFT_X, JOY_AXIS_LEFT_Y:
+				return "L-Stick"
+			JOY_AXIS_RIGHT_X, JOY_AXIS_RIGHT_Y:
+				return "R-Stick"
+	return ""
+
+
+# Bindings match every device (-1), so a pad that registers as device 1 works too.
 static func _key(k: Key) -> InputEventKey:
 	var e := InputEventKey.new()
 	e.physical_keycode = k
+	e.device = -1
 	return e
 
 
 static func _mouse(b: MouseButton) -> InputEventMouseButton:
 	var e := InputEventMouseButton.new()
 	e.button_index = b
+	e.device = -1
 	return e
 
 
 static func _joy_button(b: JoyButton) -> InputEventJoypadButton:
 	var e := InputEventJoypadButton.new()
 	e.button_index = b
+	e.device = -1
 	return e
 
 
@@ -212,6 +291,7 @@ static func _joy_axis(a: JoyAxis, v: float) -> InputEventJoypadMotion:
 	var e := InputEventJoypadMotion.new()
 	e.axis = a
 	e.axis_value = v
+	e.device = -1
 	return e
 
 

@@ -106,15 +106,23 @@ func set_dungeon(on: bool) -> void:
 	_relic_count = -1
 
 
-## First-expedition reminder of the controls (rebinding-aware).
+## First-expedition reminder of the controls (rebinding- and device-aware).
 func show_controls() -> void:
+	refresh_controls()
+	controls_card.modulate.a = 1.0
+	controls_card.visible = true
+
+
+func refresh_controls() -> void:
 	for c in controls_card.get_children():
 		c.queue_free()
 	var v := UIKit.vbox(1)
 	controls_card.add_child(v)
 	v.add_child(UIKit.label("CONTROLS", 8, UIKit.C_GOLD, true))
+	var pad := Settings.using_pad
 	var rows := [
-		["Move", "WASD"],
+		["Move", "L-Stick" if pad else "%s%s%s%s" % [Settings.describe_action("move_up"), Settings.describe_action("move_left"), Settings.describe_action("move_down"), Settings.describe_action("move_right")]],
+		["Aim", "R-Stick" if pad else "Mouse"],
 		["Attack / hold to charge", Settings.describe_action("attack")],
 		["Dodge (perfect = slow-mo)", Settings.describe_action("dodge")],
 		["Ward: parry & reflect", Settings.describe_action("ward")],
@@ -130,8 +138,6 @@ func show_controls() -> void:
 		h.add_child(k)
 		h.add_child(UIKit.label(r[0], 8, UIKit.C_TEXT))
 		v.add_child(h)
-	controls_card.modulate.a = 1.0
-	controls_card.visible = true
 
 
 func toggle_big_map() -> void:

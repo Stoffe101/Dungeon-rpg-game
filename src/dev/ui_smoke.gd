@@ -144,6 +144,7 @@ func _run() -> void:
 	await _wait()
 	await _close_all()
 	print("[smoke] relics: ", d.run.relics, " hp ", pl.hp, "/", pl.max_hp)
+	await _pad_checks(d, pl)
 	Game.descend()
 	await _wait(40)
 	Game.end_run("extracted")
@@ -154,6 +155,65 @@ func _run() -> void:
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()
+
+
+func _expect(ok: bool, what: String) -> void:
+	if ok:
+		print("[smoke] ok: ", what)
+	else:
+		push_error("[smoke] FAILED: " + what)
+
+
+func _pad(button: JoyButton) -> void:
+	var e := InputEventJoypadButton.new()
+	e.button_index = button
+	e.pressed = true
+	Input.parse_input_event(e)
+	await _wait(2)
+	var r := InputEventJoypadButton.new()
+	r.button_index = button
+	r.pressed = false
+	Input.parse_input_event(r)
+	await _wait(2)
+
+
+## Drives menus and the world through real (synthetic) gamepad events.
+func _pad_checks(d: Dungeon, pl: Player) -> void:
+	var spring := Prop.make(d, "spring", Vector2i(pl.pos) + Vector2i(1, 0))
+	pl.pos = spring.pos + Vector2(-0.9, 0.0)
+	pl.hp = pl.max_hp * 0.5
+	await _pad(JOY_BUTTON_B)
+	_expect(Settings.using_pad, "pad detected")
+	_expect(spring.used, "B interacts with a nearby spring")
+	ui.pause_menu()
+	await _wait()
+	var f := get_viewport().gui_get_focus_owner()
+	_expect(f != null and ui.modals[ui.modals.size() - 1].is_ancestor_of(f), "pause menu takes pad focus")
+	ui.settings()
+	await _wait()
+	var tabs: Array = []
+	_find_tabs(ui.modals[ui.modals.size() - 1], tabs)
+	var before: int = tabs[0].current_tab
+	await _pad(JOY_BUTTON_RIGHT_SHOULDER)
+	_expect(tabs[0].current_tab == (before + 1) % tabs[0].get_tab_count(), "RB switches the settings tab")
+	await _pad(JOY_BUTTON_DPAD_DOWN)
+	f = get_viewport().gui_get_focus_owner()
+	_expect(f != null and tabs[0].get_current_tab_control().is_ancestor_of(f), "focus moves inside the new tab")
+	await _pad(JOY_BUTTON_B)
+	_expect(ui.modals.size() == 1, "B closes settings")
+	await _pad(JOY_BUTTON_B)
+	_expect(ui.modals.is_empty() and not get_tree().paused, "B closes the pause menu and resumes")
+	ui.skill_tree()
+	await _wait()
+	await _pad(JOY_BUTTON_B)
+	_expect(ui.modals.is_empty(), "B closes the skill tree")
+	ui.pause_menu()
+	await _wait()
+	var dodges := pl.dodge_t
+	await _pad(JOY_BUTTON_A)
+	_expect(ui.modals.is_empty(), "A presses the focused Resume button")
+	await _wait(2)
+	_expect(pl.dodge_t <= dodges, "the A that closed the menu does not also dodge")
 
 
 func _find_tabs(n: Node, out: Array) -> void:

@@ -96,7 +96,7 @@ static func relic_choice(ui: UIRoot, ids: Array, on_pick: Callable) -> Control:
 		fill.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		cv.add_child(fill)
 		var key := i
-		var pick := UIKit.button("[%d] Take" % key, func() -> void:
+		var pick := UIKit.button("Take" if Settings.using_pad else "[%d] Take" % key, func() -> void:
 			ui.close_top()
 			on_pick.call(id), 90)
 		cv.add_child(pick)
@@ -310,7 +310,7 @@ static func dialogue(ui: UIRoot, speaker: String, lines: Array, on_done: Callabl
 	v.add_child(UIKit.label(speaker, 8, UIKit.C_GOLD, true))
 	var body := UIKit.para("", 300)
 	v.add_child(body)
-	var hint := UIKit.label("[click / F] continue", 8, UIKit.C_DIM)
+	var hint := UIKit.label("[A] continue" if Settings.using_pad else "[click / %s] continue" % Settings.describe_action("interact", false), 8, UIKit.C_DIM)
 	v.add_child(hint)
 	var state := {"i": 0, "chars": 0.0}
 	var show := func() -> void:
@@ -469,25 +469,24 @@ static func settings(ui: UIRoot) -> Control:
 	ctl.custom_minimum_size = Vector2(280, 170)
 	var cv := UIKit.vbox(2)
 	ctl.add_child(cv)
+	var head := UIKit.hbox(6)
+	for h in [["Action", 74], ["Keyboard", 84], ["Gamepad", 84]]:
+		var hl := UIKit.label(h[0], 8, UIKit.C_GOLD)
+		hl.custom_minimum_size = Vector2(h[1], 0)
+		head.add_child(hl)
+	cv.add_child(head)
 	var actions := [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"],
 		["attack", "Attack"], ["ward", "Ward"], ["dodge", "Dodge"], ["ability_1", "Ability 1"], ["ability_2", "Ability 2"],
 		["flask", "Flask"], ["interact", "Interact"], ["map", "Map"]]
 	for a in actions:
 		var row := UIKit.hbox(6)
 		var l := UIKit.label(a[1], 8)
-		l.custom_minimum_size = Vector2(80, 0)
+		l.custom_minimum_size = Vector2(74, 0)
 		row.add_child(l)
-		var b := Button.new()
-		b.text = Settings.describe_action(a[0])
-		b.custom_minimum_size = Vector2(80, 14)
-		var act: String = a[0]
-		b.pressed.connect(func() -> void:
-			b.text = "press a key..."
-			var cap := _Rebind.new()
-			cap.action = act
-			cap.done = func() -> void: b.text = Settings.describe_action(act)
-			b.add_child(cap))
-		row.add_child(b)
+		row.add_child(_bind_button(a[0], false))
+		var pb := _bind_button(a[0], true)
+		pb.disabled = String(a[0]).begins_with("move_")   # movement stays on the left stick
+		row.add_child(pb)
 		cv.add_child(row)
 	cv.add_child(UIKit.button("Reset controls", func() -> void:
 		Settings.reset_bindings()
@@ -498,27 +497,57 @@ static func settings(ui: UIRoot) -> Control:
 	return _center(p)
 
 
+static func _bind_button(act: String, pad: bool) -> Button:
+	var b := Button.new()
+	b.text = Settings.describe_action(act, pad)
+	b.custom_minimum_size = Vector2(84, 14)
+	b.focus_mode = Control.FOCUS_ALL
+	b.pressed.connect(func() -> void:
+		if b.has_node("Rebind"):
+			return
+		b.text = "press a button..." if pad else "press a key..."
+		var cap := _Rebind.new()
+		cap.name = "Rebind"
+		cap.action = act
+		cap.pad = pad
+		cap.done = func() -> void: b.text = Settings.describe_action(act, pad)
+		b.add_child(cap))
+	return b
+
+
+## Captures the next key/mouse button (or pad button/trigger) for an action.
+## Esc or Menu cancels.
 class _Rebind:
 	extends Node
 	var action := ""
+	var pad := false
 	var done: Callable
+	var _frames := 0
 	func _ready() -> void:
 		process_mode = Node.PROCESS_MODE_ALWAYS
+	func _process(_d: float) -> void:
+		_frames += 1
 	func _input(e: InputEvent) -> void:
-		if (e is InputEventKey and e.pressed) or (e is InputEventMouseButton and e.pressed and e.button_index <= MOUSE_BUTTON_MIDDLE):
-			if e is InputEventKey and (e as InputEventKey).keycode == KEY_ESCAPE:
-				done.call()
-				queue_free()
-				get_viewport().set_input_as_handled()
-				return
-			var ev: InputEvent = e
-			if e is InputEventKey:
-				ev = InputEventKey.new()
-				(ev as InputEventKey).physical_keycode = (e as InputEventKey).physical_keycode
-			Settings.rebind(action, 0, ev)
-			done.call()
-			get_viewport().set_input_as_handled()
-			queue_free()
+		if _frames < 2:
+			return   # the press that started the capture
+		var cancel: bool = (e is InputEventKey and e.pressed and (e as InputEventKey).keycode == KEY_ESCAPE) 			or (e is InputEventJoypadButton and e.pressed and (e as InputEventJoypadButton).button_index == JOY_BUTTON_START)
+		var ev: InputEvent = null
+		if pad:
+			if e is InputEventJoypadButton and e.pressed:
+				ev = Settings._joy_button((e as InputEventJoypadButton).button_index)
+			elif e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.6 					and (e as InputEventJoypadMotion).axis in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT]:
+				ev = Settings._joy_axis((e as InputEventJoypadMotion).axis, 1.0)
+		elif e is InputEventKey and e.pressed:
+			ev = Settings._key((e as InputEventKey).physical_keycode)
+		elif e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index <= MOUSE_BUTTON_MIDDLE:
+			ev = Settings._mouse((e as InputEventMouseButton).button_index)
+		if not cancel and ev == null:
+			return
+		if not cancel:
+			Settings.rebind(action, ev)
+		get_viewport().set_input_as_handled()
+		done.call()
+		queue_free()
 
 
 # --- sanctuary ------------------------------------------------------------------------------

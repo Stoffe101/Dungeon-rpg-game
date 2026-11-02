@@ -169,3 +169,21 @@ func test_warden_braziers_sear() -> void:
 	check(w.status.is_staggered(), "seared Warden is staggered")
 	check(w.status.exposed_t > 0.0, "seared Warden is exposed")
 	st.queue_free()
+
+
+func test_interact_input_uses_nearest_prop() -> void:
+	# a human pressing Interact (not just the bot) must reach props
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5.5, 7.5))
+	var spring := Prop.make(st, "spring", Vector2i(6, 7))
+	pl.hp = pl.max_hp * 0.5
+	pl.input_enabled = true
+	Input.action_press("interact")
+	pl._process(1.0 / 60.0)
+	Input.action_release("interact")
+	check(spring.used, "pressing interact drinks from the nearby spring")
+	check(pl.hp > pl.max_hp * 0.5, "the spring heals")
+	var far := _player(st, Vector2(16.5, 7.5))
+	check(far.try_interact() == null, "nothing to use far away")
+	st.queue_free()

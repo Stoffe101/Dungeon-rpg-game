@@ -166,6 +166,11 @@ func _process(delta: float) -> void:
 		var d := aim_point - pos
 		if d.length() > 0.05:
 			aim = d.normalized()
+	# the press that closed a menu must not also act in the world
+	if Game.ui and Engine.get_process_frames() - Game.ui.closed_frame <= 1:
+		return
+	if Input.is_action_just_pressed("interact"):
+		try_interact()
 	if Input.is_action_just_pressed("attack"):
 		_buf.attack = 0.18
 		_attack_down = true
@@ -182,6 +187,16 @@ func _process(delta: float) -> void:
 		_buf.a2 = 0.15
 	if Input.is_action_just_pressed("flask"):
 		_buf.flask = 0.15
+
+
+## Uses the nearest interactable prop (chest, merchant, stairs...). Returns it, or null.
+func try_interact() -> Prop:
+	if stage == null or not alive:
+		return null
+	var near := stage.nearest_interactable(pos)
+	if near:
+		near.interact(self)
+	return near
 
 
 ## Gamepad aim assist: bend the stick direction toward the enemy closest to it.

@@ -35,9 +35,14 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Rebuild audio: `"$GODOT" --headless --path . -s res://tools/audio/build_audio.gd [-- only=sfx|music|amb]`
 - Preview a sprite sheet upscaled: `"$GODOT" --headless --path . -s res://tools/art/preview.gd -- res://assets/sprites/husk.png scale=5`
 - Run the game: `"$GODOT" --path .`
-- Dev args (after `--`): `scene=menu|hub|dungeon|boss`, `seed=N`, `open=skilltree|forge|descent|settings|relic|summary`,
-  `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
-  `frames=N quit` (quit after N frames), `autopilot` (bot plays), `profile=<file>` (use a separate save).
+- Dev args (after `--`): `scene=menu|hub|dungeon|boss`, `region=ossuary|rootmire`, `seed=N`,
+  `open=skilltree|forge|descent|settings|controls|pause|relic|summary`, `warp=boss|event`, `pad` (act as if a
+  gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
+  `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
+  `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`).
+- Input: the bot and smoke test call `prop.interact()` directly, so they cannot catch a missing
+  input path; `tests/test_sim.gd` presses the real `interact` action. Bindings are created with
+  `device = -1` (all pads). Godot's `ui_accept`/`ui_cancel` get pad A/B added in `Settings.apply_bindings`.
 - Always use `profile=dev_profile.json` (or similar) for dev runs so the real save is untouched.
 - `-s` tool scripts cannot see autoloads; anything needing `Profile`/`Settings`
   must run as a scene (see `tests/test_runner.tscn`).
