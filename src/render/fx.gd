@@ -251,13 +251,27 @@ func ghost(src: PixelSprite, world_pos: Vector3, col: Color, life := 0.3) -> voi
 	var g := PixelSprite.new()
 	add_child(g)
 	g.setup(src.sheet.name, src.anim)
-	g.set_instance_shader_parameter("silhouette", 0.0)
+	g.material_override = _ghost_material(src.sheet)
 	g.set_frame(src.frame_i)
 	g.playing = false
 	g.flip_h = src.flip_h
 	g.position = world_pos + Vector3(0, 0, -0.02)
 	g.set_instance_shader_parameter("flash", Color(col.r, col.g, col.b, 0.85))
 	_ghosts.append({"sprite": g, "t": 0.0, "life": life})
+
+
+var _ghost_mats := {}
+
+
+func _ghost_material(sheet: SpriteLib.SheetInfo) -> ShaderMaterial:
+	if _ghost_mats.has(sheet.name):
+		return _ghost_mats[sheet.name]
+	var m := ShaderMaterial.new()
+	m.shader = preload("res://assets/shaders/ghost.gdshader")
+	m.set_shader_parameter("atlas", sheet.texture)
+	m.set_shader_parameter("frame_uv", Vector2(1.0 / sheet.cols, 1.0 / sheet.rows))
+	_ghost_mats[sheet.name] = m
+	return m
 
 
 func _update_ghosts(dt: float) -> void:

@@ -149,7 +149,7 @@ static func _gloamstep(pl: Player) -> bool:
 ## A shadow afterimage that detonates after `delay`.
 static func shade(pl: Player, p: Vector2, dmg: float, delay: float, twice := false) -> void:
 	var st := pl.stage
-	var mark := st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(4.0, 4.0), Color(0.55, 0.3, 0.75, 0.25), Color(0.75, 0.5, 0.95, 1.0), delay + 0.05, {"glow": 1.2})
+	var mark := st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(4.0, 4.0), Color(0.55, 0.3, 0.75, 0.15), Color(0.75, 0.5, 0.95, 0.55), delay + 0.05, {"glow": 1.1})
 	var mark_t := [0.0]
 	st.after(delay * 0.5, func() -> void:
 		if is_instance_valid(mark):

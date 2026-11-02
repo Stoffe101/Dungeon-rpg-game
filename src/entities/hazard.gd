@@ -30,7 +30,12 @@ static func spawn(st: Stage, p: Vector2, r: float, duration: float, t: int, col:
 	h.effect = fn
 	st.add_child(h)
 	st.register_hazard(h)
-	h.shape_node = st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(r * 2, r * 2), Color(col.r, col.g, col.b, 0.35), col.lightened(0.3), duration, {"progress": 1.0, "glow": 1.3})
+	# the player's own hazards stay quiet so enemy telegraphs keep priority
+	var fill_a := 0.18 if t == Actor.Team.PLAYER else 0.35
+	var edge_a := 0.45 if t == Actor.Team.PLAYER else 1.0
+	var edge := col.lightened(0.3)
+	edge.a = edge_a
+	h.shape_node = st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(r * 2, r * 2), Color(col.r, col.g, col.b, fill_a), edge, duration, {"progress": 1.0, "glow": 1.1})
 	return h
 
 
