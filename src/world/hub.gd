@@ -119,10 +119,14 @@ func _place() -> void:
 	if Profile.building("forge") > 0:
 		Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.5, 0.25), 1.6, 6.0], "light_h": 0.8})
-		Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Talk", "radius": 1.0})
+		Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
 	else:
 		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
 	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack", "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
+	# the peddler's stall: gear for Embers, restocked after every descent
+	Prop.make(self, "peddler", Vector2i(14, 15), {"sheet": "merchant", "anim": "idle", "prompt": "Browse the Peddler's wares", "radius": 1.4, "solid": true,
+		"light": [Color(1.0, 0.75, 0.4), 0.9, 3.5], "light_h": 1.0})
+	Prop.make(self, "peddler_crates", Vector2i(16, 15), {"sheet": "crates", "solid": true})
 	if Profile.building("apothecary") > 0:
 		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary", "anim": "idle", "prompt": "Ember Apothecary", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.45, 0.5), 1.2, 5.0], "light_h": 1.0})
@@ -278,8 +282,12 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.descent_prompt()
 		"rack":
 			Game.ui.weapon_select()
-		"forge", "smith":
+		"forge":
 			Game.ui.forge()
+		"smith":
+			Game.ui.smithy()
+		"peddler":
+			Game.ui.peddler()
 		"forge_ruin", "apothecary", "memorial":
 			if what == "memorial" and Profile.building("shrine") > 0:
 				Game.ui.memorial()

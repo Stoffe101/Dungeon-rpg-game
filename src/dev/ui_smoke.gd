@@ -198,6 +198,7 @@ func _run() -> void:
 		hub._talk_to(w)
 		await _finish_dialogue()
 		_expect(Residents.request_state(rid) == "rewarded", "handing it in grants the gift")
+	await _gear_checks(hub)
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()
@@ -209,6 +210,65 @@ func _finish_dialogue() -> void:
 		if not ui.has_modal():
 			return
 		await _pad(JOY_BUTTON_A)
+	await _close_all()
+
+
+## Satchel, smithy and peddler through their screens.
+func _gear_checks(hub: Hub) -> void:
+	Profile._grant_stockpile(Profile.data)
+	if Profile.building("forge") == 0:
+		Profile.data.sanctuary.forge = 1
+	ui.inventory()
+	await _wait()
+	var inv: InventoryUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	var it: Dictionary = Profile.bag()[0]
+	var slot := String(ItemDB.base(String(it.base)).slot)
+	inv._equip(int(it.uid))
+	await _wait(3)
+	_expect(Profile.equipped().get(slot, {}).get("uid", -1) == it.uid, "equipping from the satchel")
+	var before := hub.player.max_hp
+	await _close_all()
+	_expect(hub.player.max_hp >= before, "closing the satchel applies gear stats")
+	ui.smithy()
+	await _wait()
+	var sm: SmithyUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	var n := Profile.bag().size()
+	sm.selected = "grave_iron_helm"
+	sm._craft(false)
+	await _wait(2)
+	_expect(Profile.bag().size() == n + 1, "the smith forges a piece")
+	var crafted: Dictionary = Profile.bag().back()
+	sm._craft(true)
+	await _wait(2)
+	_expect(String(Profile.bag().back().rarity) == "epic", "a masterwork is epic")
+	sm.tab = "temper"
+	sm.selected = str(int(crafted.uid))
+	sm.rebuild()
+	await _wait(2)
+	var cost := ItemDB.temper_cost(crafted)
+	_expect(Profile.can_pay(cost), "tempering is affordable with the stockpile")
+	var lvl := int(crafted.level)
+	if Profile.pay(cost):
+		crafted.level = lvl + 1
+	_expect(int(Profile.find_item(int(crafted.uid)).level) == lvl + 1, "tempering raises the level")
+	var mats := Profile.material("grave_iron")
+	Profile.salvage(int(crafted.uid))
+	_expect(Profile.material("grave_iron") > mats, "salvage returns grave iron")
+	await _close_all()
+	ui.peddler()
+	await _wait()
+	var pd: PeddlerUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	var stock_n := (Profile.data.shop.stock as Array).size()
+	_expect(stock_n == PeddlerUI.STOCK_SIZE, "the peddler has wares")
+	var embers := Profile.currency("embers")
+	pd._buy(0)
+	await _wait(2)
+	_expect((Profile.data.shop.stock as Array).size() == stock_n - 1 and Profile.currency("embers") < embers, "buying from the peddler")
+	var sell_uid := int(Profile.bag().back().uid)
+	if String(Profile.bag().back().rarity) not in ["epic", "legendary"]:
+		pd._sell(sell_uid)
+		await _wait(2)
+		_expect(Profile.find_item(sell_uid).is_empty(), "selling to the peddler")
 	await _close_all()
 
 

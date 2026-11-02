@@ -504,6 +504,40 @@ func _start_boss(r: Room) -> void:
 		Audio.play_music("boss", 0.5))
 
 
+## Materials (and now and then gear) from a fallen enemy; elites and bosses
+## drop more, and a boss's first defeat always yields its legendary.
+func _drop_loot(e: Enemy) -> void:
+	var mult := 2.0 if e.elite else 1.0
+	for d in ItemDB.enemy_drops(e.id, layout.region):
+		if rng.randf() < float(d[1]) * mult:
+			Pickup.spawn(self, "material", e.pos, rng.randi_range(int(d[2]), int(d[3])), {"id": d[0]})
+	if e.elite:
+		var rare := "spore_silk" if layout.region == "rootmire" else "soul_glass"
+		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
+		if rng.randf() < 0.3:
+			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.1)})
+	if e == boss:
+		var cat := "bloom_heart" if layout.region == "rootmire" else "warden_sigil"
+		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
+		var leg := "bloom_crown" if layout.region == "rootmire" else "gloamward_lantern"
+		var flag := "legendary_" + leg
+		if not Profile.data.flags.get(flag, false) or rng.randf() < 0.35:
+			Profile.data.flags[flag] = true
+			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.make_item(leg, "legendary", 1, rng)})
+		Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25)})
+
+
+## A chest's materials and its chance of gear.
+func _chest_loot(prop: Prop, tier: int) -> void:
+	var pool: Array = ["rootwood", "spore_silk"] if layout.region == "rootmire" else ["bone_dust", "grave_iron", "soul_glass"]
+	for i in 1 + tier:
+		Pickup.spawn(self, "material", prop.pos, rng.randi_range(1, 2 + tier), {"id": pool[rng.randi_range(0, pool.size() - 1)]})
+	if rng.randf() < 0.3 + 0.2 * tier:
+		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
+	if rng.randf() < 0.25 + 0.25 * tier:
+		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier)})
+
+
 ## Counts progress on residents' requests and tells the player when one is done.
 func note_request(key: String, amount := 1) -> void:
 	var done := Residents.note(key, amount)
@@ -545,6 +579,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			n -= amt
 		if e.xp > 0:
 			Pickup.spawn(self, "xp", e.pos, e.xp)
+		_drop_loot(e)
 		if rng.randf() < 0.06:
 			Pickup.spawn(self, "heal", e.pos, 10)
 		if e.has_meta("grudge_id"):
@@ -627,6 +662,7 @@ func request(what: String, prop: Prop) -> void:
 						prop.light.light_energy = 0.3)
 		"chest":
 			note_request("chest")
+			_chest_loot(prop, int(prop.data.get("tier", 1)))
 			if Residents.wants_toy():
 				fx.number(prop.pos, 2.4, "WOODEN BIRD", Color(1.0, 0.6, 0.45), true)
 				Events.toast.emit("A small wooden bird with a red wing. Wren will be glad.", Color(1.0, 0.75, 0.55))

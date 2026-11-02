@@ -348,6 +348,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif hud.visible and Game.stage and not _menu_open:
 			pause_menu()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("inventory") and hud.visible and Game.stage:
+		# the satchel opens and closes on the same key
+		if has_modal():
+			var top := modals[modals.size() - 1]
+			if top.get_child_count() > 0 and top.get_child(0) is InventoryUI:
+				close_top()
+		elif not _menu_open:
+			inventory()
+		get_viewport().set_input_as_handled()
 	elif has_modal() and event.is_action_pressed("ui_cancel"):
 		var top := modals[modals.size() - 1]
 		if not top.get_meta("sticky", false) and not top.get_meta("no_cancel", false):
@@ -416,6 +425,18 @@ func pause_menu() -> void:
 
 func settings() -> void:
 	open(Screens.settings(self))
+
+
+func inventory() -> void:
+	open(InventoryUI.new())
+
+
+func smithy() -> void:
+	open(SmithyUI.new())
+
+
+func peddler() -> void:
+	open(PeddlerUI.new())
 
 
 func skill_tree() -> void:

@@ -141,7 +141,7 @@ func test_migration_from_v1() -> void:
 	var old := {"version": 1, "currency": 77, "skills": {"hearth": true, "b1": true}, "level": 4}
 	var m := Profile.migrate(old)
 	eq(int(m.version), Profile.VERSION)
-	eq(int(m.embers), 77)
+	eq(int(m.embers), 77 + (1500 if Profile.TEST_STOCKPILE else 0), "currency carried over (plus the v5 test stockpile)")
 	check((m.skills as Array).has("b1"), "skills converted")
 	check(m.has("sanctuary") and m.has("grudges") and m.has("stats"), "new sections added")
 	eq(int(m.level), 4, "progress preserved")
@@ -238,5 +238,68 @@ func test_migrate_v3_adds_requests() -> void:
 	var m := Profile.migrate(old)
 	eq(int(m.version), Profile.VERSION)
 	check(m.requests is Dictionary and (m.requests as Dictionary).is_empty(), "requests added")
-	eq(int(m.embers), 50, "nothing lost")
+	eq(int(m.embers), 50 + (1500 if Profile.TEST_STOCKPILE else 0), "nothing lost")
 	eq(m.skills, ["hearth", "b1"])
+
+
+func test_gear_rolls_and_stats() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var common := ItemDB.make_item("grave_iron_helm", "common", 1, rng)
+	eq((common.affixes as Array).size(), 0, "commons have no affixes")
+	var epic := ItemDB.make_item("grave_iron_helm", "epic", 3, rng)
+	eq((epic.affixes as Array).size(), 2, "epics roll two")
+	var armor := 0.0
+	for m in ItemDB.mods_of(epic):
+		if m[0] == "armor" and m[1] == "add":
+			armor += float(m[2])
+	check(armor > 0.06 * 1.3, "level and rarity scale the base (%.3f)" % armor)
+	var leg := ItemDB.make_item("gloamward_lantern", "common", 1, rng)
+	eq(leg.rarity, "legendary", "boss pieces are always legendary")
+	for b in ItemDB.BASES:
+		var base: Dictionary = ItemDB.BASES[b]
+		check(String(base.slot) in ItemDB.SLOTS, "%s has a valid slot" % b)
+		check(base.has("recipe") or base.get("legendary", false), "%s can be crafted or is a boss drop" % b)
+		for k in base.get("recipe", {}):
+			check(k == "embers" or ItemDB.MATERIALS.has(k), "%s recipe uses a known material %s" % [b, k])
+
+
+func test_inventory_equip_craft_salvage() -> void:
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	check(not Profile.can_pay(ItemDB.recipe("grave_iron_helm")), "nothing to craft with at first")
+	Profile.add_material("grave_iron", 5)
+	Profile.add_material("bone_dust", 3)
+	Profile.add_currency("embers", 80)
+	check(Profile.pay(ItemDB.recipe("grave_iron_helm")), "the recipe is paid")
+	eq(Profile.material("grave_iron"), 0)
+	eq(Profile.currency("embers"), 0)
+	var it := Profile.add_item(ItemDB.craft("grave_iron_helm", rng))
+	check(int(it.uid) > 0, "items get ids")
+	var base_st := Stats.for_player()
+	var before := base_st.v("armor")
+	check(Profile.equip(it.uid), "equip")
+	eq(Profile.bag().size(), 0, "moved out of the bag")
+	var st := Stats.for_player()
+	Profile.apply_gear(st)
+	check(st.v("armor") > before, "equipped gear adds its stats")
+	var other := Profile.add_item(ItemDB.make_item("gravecloth_hood", "common", 1, rng))
+	check(Profile.equip(other.uid), "swap")
+	eq(Profile.bag().size(), 1, "the old helm went back to the bag")
+	eq(int(Profile.equipped().head.uid), int(other.uid))
+	var y := Profile.salvage(it.uid)
+	check(int(y.get("grave_iron", 0)) >= 1, "salvage returns materials")
+	eq(Profile.bag().size(), 0)
+
+
+func test_run_loot_settlement() -> void:
+	var r := RunState.create(1, "ossuary", "sword", 0, ["flare", ""])
+	r.add_material("bone_dust", 5)
+	r.add_material("soul_glass", 1)
+	(r.loot.gear as Array).append({"base": "soft_boots", "rarity": "common", "level": 1, "affixes": []})
+	var died := r.settle_loot("died")
+	eq(int(died.materials.bone_dust), 2, "half the materials (rounded down) on a death")
+	eq(int(died.materials.soul_glass), 0)
+	eq((died.gear as Array).size(), 1, "gear found is kept")
+	eq(int(r.settle_loot("extracted").materials.bone_dust), 5, "everything on extraction")

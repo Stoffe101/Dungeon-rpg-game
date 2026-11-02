@@ -8,8 +8,11 @@ extends Node
 
 signal changed
 
-const VERSION := 4
+const VERSION := 5
 const DEFAULT_PATH := "user://profile.json"
+## While gear and crafting are being tested, saves get a stockpile of materials,
+## embers and a few pieces of gear (once: on upgrading to v5 or on a new save).
+const TEST_STOCKPILE := true
 
 var path := DEFAULT_PATH
 var data: Dictionary = {}
@@ -46,6 +49,8 @@ static func fresh() -> Dictionary:
 		"seen": {"relics": [], "enemies": []},
 		"flags": {"intro_done": false},
 		"requests": {},
+		"inventory": {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1},
+		"shop": {"stock": [], "for_run": -1},
 	}
 
 
@@ -63,6 +68,8 @@ func load_profile() -> void:
 	else:
 		last_load_status = "ok"
 	data = migrate(loaded) if not loaded.is_empty() else fresh()
+	if loaded.is_empty() and TEST_STOCKPILE:
+		_grant_stockpile(data)
 	changed.emit()
 
 
@@ -136,6 +143,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("requests"):
 			out["requests"] = {}
 		v = 4
+	if v < 5:
+		# v5: gear, materials and the peddler's stock
+		if not out.has("inventory"):
+			out["inventory"] = {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1}
+		if not out.has("shop"):
+			out["shop"] = {"stock": [], "for_run": -1}
+		if TEST_STOCKPILE:
+			_grant_stockpile(out)
+		v = 5
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -224,16 +240,6 @@ func spend(kind: String, amount: int) -> bool:
 	if currency(kind) < amount:
 		return false
 	data[kind] = currency(kind) - amount
-	_changed()
-	Events.currency_changed.emit()
-	return true
-
-
-func pay(cost: Dictionary) -> bool:
-	if not can_afford(cost):
-		return false
-	for k in cost:
-		data[k] = currency(k) - int(cost[k])
 	_changed()
 	Events.currency_changed.emit()
 	return true
@@ -371,6 +377,140 @@ func apply_sanctuary(stats: Stats) -> void:
 	Residents.apply_rewards(stats)
 
 
+# --- gear and materials --------------------------------------------------------
+
+## Materials, embers and three starter pieces, for trying crafting and gear.
+static func _grant_stockpile(d: Dictionary) -> void:
+	var inv: Dictionary = d.inventory
+	var mats: Dictionary = inv.materials
+	var pile := ItemDB.stockpile()
+	for k in pile:
+		mats[k] = int(mats.get(k, 0)) + int(pile[k])
+	d["embers"] = int(d.get("embers", 0)) + 1500
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2026
+	for b in [["gravecloth_hood", "common"], ["bone_gauntlets", "rare"], ["soft_boots", "epic"]]:
+		var it := ItemDB.make_item(b[0], b[1], 1, rng)
+		it.uid = int(inv.get("next_uid", 1))
+		inv.next_uid = it.uid + 1
+		(inv.bag as Array).append(it)
+
+
+func inv() -> Dictionary:
+	if not data.has("inventory"):
+		data["inventory"] = {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1}
+	return data.inventory
+
+
+func bag() -> Array:
+	return inv().bag
+
+
+func equipped() -> Dictionary:
+	return inv().equipped
+
+
+func material(id: String) -> int:
+	return int(inv().materials.get(id, 0))
+
+
+func add_material(id: String, n: int) -> void:
+	inv().materials[id] = maxi(0, material(id) + n)
+	_changed()
+
+
+## Can pay a cost made of materials and/or currencies ({"grave_iron": 3, "embers": 80}).
+func can_pay(cost: Dictionary) -> bool:
+	for k in cost:
+		var have := material(k) if ItemDB.MATERIALS.has(k) else currency(k)
+		if have < int(cost[k]):
+			return false
+	return true
+
+
+func pay(cost: Dictionary) -> bool:
+	if not can_pay(cost):
+		return false
+	for k in cost:
+		if ItemDB.MATERIALS.has(k):
+			inv().materials[k] = material(k) - int(cost[k])
+		else:
+			data[k] = currency(k) - int(cost[k])
+	_changed()
+	Events.currency_changed.emit()
+	return true
+
+
+func add_item(item: Dictionary) -> Dictionary:
+	var it := item.duplicate(true)
+	it.uid = int(inv().get("next_uid", 1))
+	inv().next_uid = it.uid + 1
+	bag().append(it)
+	_changed()
+	return it
+
+
+func find_item(uid: int) -> Dictionary:
+	for it in bag():
+		if int(it.uid) == uid:
+			return it
+	for s in equipped():
+		var e: Variant = equipped()[s]
+		if e is Dictionary and int((e as Dictionary).get("uid", -1)) == uid:
+			return e
+	return {}
+
+
+func remove_item(uid: int) -> Dictionary:
+	for i in bag().size():
+		if int(bag()[i].uid) == uid:
+			var it: Dictionary = bag()[i]
+			bag().remove_at(i)
+			_changed()
+			return it
+	return {}
+
+
+## Equips a bag item into its slot; whatever was there goes back in the bag.
+func equip(uid: int) -> bool:
+	var it := remove_item(uid)
+	if it.is_empty():
+		return false
+	var slot := String(ItemDB.base(String(it.base)).get("slot", ""))
+	var old: Variant = equipped().get(slot)
+	if old is Dictionary and not (old as Dictionary).is_empty():
+		bag().append(old)
+	equipped()[slot] = it
+	_changed()
+	return true
+
+
+func unequip(slot: String) -> bool:
+	var old: Variant = equipped().get(slot)
+	if not (old is Dictionary) or (old as Dictionary).is_empty():
+		return false
+	equipped().erase(slot)
+	bag().append(old)
+	_changed()
+	return true
+
+
+## Breaks a bag item down into materials.
+func salvage(uid: int) -> Dictionary:
+	var it := remove_item(uid)
+	if it.is_empty():
+		return {}
+	var y := ItemDB.salvage_yield(it)
+	for k in y:
+		inv().materials[k] = material(k) + int(y[k])
+	_changed()
+	return y
+
+
+func apply_gear(stats: Stats) -> void:
+	ItemDB.apply_equipped(equipped(), stats)
+
+
 # --- grudges -----------------------------------------------------------------
 
 const GRUDGE_NAMES := ["Morrow", "Vesk", "Ilgra", "Thane", "Corvin", "Ossa", "Brenn", "Ysolde", "Grisk", "Maul", "Sorrel", "Hake"]
@@ -425,6 +565,11 @@ func note_seen(kind: String, id: String) -> void:
 
 func stat_add(key: String, n: float = 1.0) -> void:
 	data.stats[key] = float(data.stats.get(key, 0)) + n
+
+
+## For edits made directly to profile data (e.g. tempering an item in place).
+func mark_changed() -> void:
+	_changed()
 
 
 func _changed() -> void:

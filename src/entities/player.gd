@@ -105,6 +105,7 @@ func rebuild_stats() -> void:
 	stats = Stats.for_player()
 	SkillDB.apply(Profile.skills(), stats)
 	Profile.apply_sanctuary(stats)
+	Profile.apply_gear(stats)
 	if run:
 		RelicDB.apply(run.relics, stats)
 	var old_max := max_hp

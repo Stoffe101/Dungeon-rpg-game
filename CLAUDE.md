@@ -77,6 +77,13 @@ Key conventions:
   `Profile.migrate()` for any schema change. Never break old saves. (v4 added `requests`.)
 - Hearthtree mastery ranks are repeated ids in `Profile.data.skills`: use `SkillDB.rank()` /
   `SkillDB.unique()` rather than assuming the list is a set.
+- Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
+  (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
+  `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v5. `Profile.TEST_STOCKPILE` grants a
+  testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
+- Player code lives in the world SubViewport, which receives no input: read the mouse via
+  `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
   bramble, elite); gifts apply in `Profile.apply_sanctuary` via `Residents.apply_rewards`.
 

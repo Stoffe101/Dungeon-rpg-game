@@ -14,16 +14,19 @@ var age := 0.0
 var magnet := false
 var sprite: PixelSprite
 var light: OmniLight3D
+var data: Dictionary = {}     # "material": {id}; "gear": {item}
 
-const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard"}
+const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
+	"material": "pickup_mat", "gear": "pickup_gear"}
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
-static func spawn(st: Stage, k: String, p: Vector2, amt: int) -> Pickup:
+static func spawn(st: Stage, k: String, p: Vector2, amt: int, extra := {}) -> Pickup:
 	var pk := Pickup.new()
 	pk.stage = st
 	pk.kind = k
 	pk.amount = amt
+	pk.data = extra
 	pk.pos = p
 	var a := randf() * TAU
 	pk.vel = Vector2.from_angle(a) * randf_range(1.0, 3.5)
@@ -37,7 +40,16 @@ func _ready() -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(SHEETS.get(kind, "pickup_ember"))
-	if kind == "sunshard" or kind == "heal":
+	if kind == "gear":
+		var gc := ItemDB.color(data.get("item", {}))
+		light = OmniLight3D.new()
+		light.light_color = gc
+		light.light_energy = 1.0 + (0.8 if data.get("item", {}).get("rarity", "") in ["epic", "legendary"] else 0.0)
+		light.omni_range = 2.8
+		light.position = Vector3(0, 0.4, 0)
+		add_child(light)
+		sprite.flash(gc, 0.6)
+	elif kind == "sunshard" or kind == "heal":
 		light = OmniLight3D.new()
 		light.light_color = COLORS[kind]
 		light.light_energy = 0.8
@@ -105,6 +117,19 @@ func _collect(pl: Player) -> void:
 		"heal":
 			pl.heal(amount * pl.stats.v("heal_mult"))
 			Audio.play("pickup_heal", -4.0)
+		"material":
+			var mid := String(data.get("id", "bone_dust"))
+			pl.run.add_material(mid, amount)
+			stage.fx.number(pl.pos, 2.0, "+%d %s" % [amount, ItemDB.MATERIALS[mid].name], Color(0.85, 0.82, 0.7))
+			Audio.play("pickup_xp", -6.0, 0.8)
+		"gear":
+			var it: Dictionary = data.get("item", {})
+			(pl.run.loot.gear as Array).append(it)
+			var rc := ItemDB.color(it)
+			stage.fx.number(pl.pos, 2.4, ItemDB.item_name(it).to_upper(), rc, true)
+			stage.fx.ring(pl.pos, 1.2, rc, 0.3, 0.2)
+			Events.toast.emit("Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
+			Audio.play("relic", -4.0)
 		"sunshard":
 			pl.run.sunshards += amount
 			stage.fx.number(pl.pos, 2.4, "SUNSHARD", Color(1.0, 0.9, 0.5), true)

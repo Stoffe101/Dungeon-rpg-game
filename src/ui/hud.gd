@@ -150,6 +150,7 @@ func refresh_controls() -> void:
 		["Abilities (cost Kindle)", "%s / %s" % [Settings.describe_action("ability_1"), Settings.describe_action("ability_2")]],
 		["Flask", Settings.describe_action("flask")],
 		["Interact", Settings.describe_action("interact")],
+		["Satchel (gear)", Settings.describe_action("inventory")],
 		["Map", Settings.describe_action("map")],
 	]
 	for r in rows:

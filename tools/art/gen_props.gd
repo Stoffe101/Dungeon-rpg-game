@@ -44,6 +44,7 @@ static func build(dir: String) -> void:
 	_wisp(dir)
 	_impact(dir)
 	_splat(dir)
+	_loot(dir)
 	_dummy(dir)
 	_spikes(dir)
 	_ember_well(dir)
@@ -725,6 +726,38 @@ static func _splat(dir: String) -> void:
 		fr.append(c)
 	s.add("idle", fr, 1.0)
 	s.save(dir, "splat")
+
+
+## Loot on the floor: a material bundle (a tied pouch) and gear (a wrapped
+## bundle with a glint). Drawn neutral; the game tints the glow by rarity.
+static func _loot(dir: String) -> void:
+	var sm := Sheet.new(10, 10, Vector2i(5, 9))
+	var fr: Array = []
+	for i in 4:
+		var c := Px.new(10, 10)
+		c.paint(c.mask().ellipse(5.0, 6.5, 3.6, 3.0), Pal.EARTH, 3, true)
+		c.paint(c.mask().rect(3, 2, 4, 2), Pal.EARTH, 2)
+		c.put(4, 4, Pal.GOLD[3])
+		c.put(5, 4, Pal.GOLD[3])
+		c.lit(7 - (i % 2), 3, Pal.BONE[4] if i < 2 else Pal.SOUL[4])
+		c.outline(Pal.INK)
+		fr.append(c)
+	sm.add("idle", fr, 5.0)
+	sm.save(dir, "pickup_mat")
+	var sg := Sheet.new(14, 13, Vector2i(7, 12))
+	fr = []
+	for i in 4:
+		var c := Px.new(14, 13)
+		c.paint(c.mask().rect(2, 5, 10, 6), Pal.WOOD, 3, true)
+		c.paint(c.mask().rect(2, 4, 10, 2), Pal.STEEL, 3)
+		c.paint(c.mask().rect(6, 4, 2, 7), Pal.GOLD, 3)
+		var g: Vector2i = [Vector2i(3, 2), Vector2i(10, 1), Vector2i(11, 3), Vector2i(4, 1)][i]
+		c.lit(g.x, g.y, Pal.WHITE)
+		c.lit(g.x + 1, g.y, Pal.GOLD[4])
+		c.outline(Pal.INK)
+		fr.append(c)
+	sg.add("idle", fr, 6.0)
+	sg.save(dir, "pickup_gear")
 
 
 static func _dummy(dir: String) -> void:

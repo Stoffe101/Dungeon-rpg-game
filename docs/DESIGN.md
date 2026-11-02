@@ -163,6 +163,29 @@ choice. Combat rooms seal with soul-light gates until cleared.
 - **Undervault Memory** - each Warden kill raises Memory: stronger foes, richer
   rewards. Foundation for an endless difficulty climb.
 
+## Gear, materials and the smithy
+
+- **Slots**: Head, Chest, Hands, Feet, Ring, Charm (plus the weapon, which keeps
+  its own forge). 19 craftable bases across the slots and two boss legendaries
+  (Gloamward Lantern from the Warden, Crown of the Hollow Bloom).
+- **Items** are instances: base + rarity (Common, Rare with one random affix,
+  Epic with two, Legendary fixed) + level 1-5. Stats scale with level and rarity.
+- **Materials**: Bone Dust, Grave Iron, Soul Glass (Ossuary); Rootwood, Spore
+  Silk (Rootmire); Ember Cores (chests); Warden Sigils and Bloom Hearts (bosses,
+  masterwork catalysts). Each enemy type has its own drop table; elites drop
+  more and sometimes gear; chests drop materials and often gear; bosses drop
+  catalysts, an extra piece and (always the first time) their legendary.
+- **Keeping it**: loot is carried in the run; on extraction or victory all of it
+  is banked, on a death half the materials (gear found is always kept).
+- **Smithy** (talk to the smith): craft (rarity rolls 55/33/12; a catalyst makes
+  a guaranteed Epic masterwork), temper (+1 level for half the recipe's
+  materials plus Embers), salvage (half the recipe back; legendaries return
+  their catalyst).
+- **Peddler** stall in the sanctuary: six pieces that change after every
+  expedition, bought with Embers; sells gear back for half its price.
+- **Satchel** (I / right-stick click / pause menu): the Kindled with their
+  equipment, the bag, materials, and a stats panel that opens and closes.
+
 ## Signature: the dungeon remembers
 
 - **Grudges.** The enemy type that kills you becomes a named nemesis
@@ -209,5 +232,10 @@ along the killing blow as it dissolves; elites go out with a soul-light flash.
   new residents cost a dictionary, and the cast stays visually consistent.
 - **Click-to-route in the Hearthtree** instead of node-by-node clicking: refunds
   are free for leaf nodes, so buying a route is low-risk and saves a lot of clicks.
+- **Gear in its own slots beside the weapon forge** rather than replacing it:
+  weapons already carry combos and tempering; gear is where builds get numbers
+  and where materials from the dungeon pay off.
+- **Death keeps half the materials but all gear found**: losing a rare drop to a
+  death feels worse than losing a pile of dust, and gear is the exciting part.
 - **Data in GDScript tables** (not .tres): diffable, compile-checked, easy to
   extend; migrate to Resources if an in-editor content workflow is needed.

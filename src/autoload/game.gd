@@ -149,8 +149,16 @@ func end_run(outcome: String, killer_id := "") -> void:
 			var best := float(Profile.data.stats.get("best_time", 0.0))
 			if best <= 0.0 or run.elapsed < best:
 				Profile.data.stats.best_time = run.elapsed
+	# bank the materials and gear carried out (half the materials on a death)
+	var spoils := run.settle_loot(outcome)
+	for k in spoils.materials:
+		if int(spoils.materials[k]) > 0:
+			Profile.add_material(k, int(spoils.materials[k]))
+	for it in spoils.gear:
+		Profile.add_item(it)
 	Profile.save_profile()
 	var summary := {
+		"loot": spoils, "loot_found": run.loot.duplicate(true),
 		"outcome": outcome, "depth": run.depth, "kills": run.kills, "rooms": run.rooms_cleared,
 		"time": run.elapsed, "xp": run.xp_gained, "relics": run.relics.duplicate(),
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,

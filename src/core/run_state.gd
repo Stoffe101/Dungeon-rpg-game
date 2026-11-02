@@ -32,6 +32,8 @@ var result := ""            # "", "extracted", "died", "victory"
 var killer_id := ""
 var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
+## Materials and gear picked up this expedition, banked at the end.
+var loot := {"materials": {}, "gear": []}
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
@@ -52,6 +54,20 @@ func add_relic(id: String) -> void:
 
 func has_relic(id: String) -> bool:
 	return relics.has(id)
+
+
+func add_material(id: String, n: int) -> void:
+	loot.materials[id] = int(loot.materials.get(id, 0)) + n
+
+
+## What of the loot survives: everything, or half the materials on a death
+## (gear found is always kept).
+func settle_loot(outcome: String) -> Dictionary:
+	var mats := {}
+	for k in loot.materials:
+		var n := int(loot.materials[k])
+		mats[k] = int(floor(n * DEATH_KEEP)) if outcome == "died" else n
+	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true)}
 
 
 ## Works out what the profile keeps from this run. Pure so it can be tested.

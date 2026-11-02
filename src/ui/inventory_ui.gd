@@ -1,0 +1,278 @@
+## The satchel: the Kindled with their equipment around them, the bag of gear
+## gathered so far, materials, and a side panel of character stats that can be
+## opened and closed. Click a bag item to equip it (what was worn goes back in
+## the bag), click a worn item to take it off, right-click (pad: X) to salvage.
+class_name InventoryUI
+extends Control
+
+const BAG_COLS := 8
+const BAG_SLOTS := 40
+const DOLL := {
+	"head": Vector2(6, 6), "chest": Vector2(6, 46), "hands": Vector2(6, 86),
+	"ring": Vector2(128, 6), "charm": Vector2(128, 46), "feet": Vector2(128, 86),
+	"weapon": Vector2(67, 128),
+}
+
+var tip: GearUI.FloatTip
+var stats_open := true
+var body: HBoxContainer
+var _focus_uid := -1
+var _player_tex: AtlasTexture
+
+
+func _ready() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	stats_open = bool(Profile.data.flags.get("satchel_stats", true))
+	var info := SpriteLib.get_sheet("player")
+	_player_tex = AtlasTexture.new()
+	_player_tex.atlas = info.texture
+	var a: Dictionary = info.anims["idle_down"]
+	_player_tex.region = Rect2(0, float(a.row) * info.frame_size.y, info.frame_size.x, info.frame_size.y)
+	rebuild()
+	Profile.changed.connect(_on_changed)
+
+
+func _exit_tree() -> void:
+	if Profile.changed.is_connected(_on_changed):
+		Profile.changed.disconnect(_on_changed)
+	Profile.save_profile()
+	if Game.stage and Game.stage.player:
+		Game.stage.player.rebuild_stats()
+
+
+func _on_changed() -> void:
+	rebuild.call_deferred()
+
+
+func rebuild() -> void:
+	for c in get_children():
+		c.queue_free()
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(center)
+	var outer := UIKit.vbox(4)
+	center.add_child(outer)
+	# header
+	var head := UIKit.hbox(8)
+	head.add_child(UIKit.label("SATCHEL", 16, UIKit.C_GOLD, true))
+	var fill := Control.new()
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(fill)
+	head.add_child(UIKit.button("Hide stats" if stats_open else "Show stats", _toggle_stats, 60))
+	head.add_child(UIKit.button("Close", func() -> void: Game.ui.close_top(), 44))
+	outer.add_child(head)
+	body = UIKit.hbox(6)
+	outer.add_child(body)
+	body.add_child(_doll_panel())
+	body.add_child(_bag_panel())
+	if stats_open:
+		body.add_child(GearUI.stats_panel())
+	var hint := UIKit.label("", 8, UIKit.C_DIM, true)
+	hint.text = "A equip / take off   X salvage   B close" if Settings.using_pad else "Click: equip / take off    Right-click: salvage    %s: close" % Settings.describe_action("inventory")
+	outer.add_child(hint)
+	tip = GearUI.FloatTip.new()
+	add_child(tip)
+	# keep pad focus on the same item across rebuilds
+	if _focus_uid >= 0:
+		var b := find_child("uid_%d" % _focus_uid, true, false)
+		if b:
+			(b as Control).grab_focus.call_deferred()
+
+
+func _toggle_stats() -> void:
+	stats_open = not stats_open
+	Profile.data.flags["satchel_stats"] = stats_open
+	rebuild()
+
+
+# --- the Kindled and what they wear -----------------------------------------------
+
+func _doll_panel() -> PanelContainer:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(2)
+	p.add_child(v)
+	v.add_child(UIKit.label("THE KINDLED   Lv %d" % Profile.level(), 8, UIKit.C_GOLD, true))
+	var doll := Control.new()
+	doll.custom_minimum_size = Vector2(158, 156)
+	v.add_child(doll)
+	# a soft hearth glow behind the figure
+	var glow := _Glow.new()
+	glow.position = Vector2(79, 74)
+	doll.add_child(glow)
+	var fig := TextureRect.new()
+	fig.texture = _player_tex
+	fig.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fig.stretch_mode = TextureRect.STRETCH_SCALE
+	fig.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	fig.size = Vector2(96, 96)
+	fig.position = Vector2(31, 22)
+	fig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	doll.add_child(fig)
+	var eq := Profile.equipped()
+	for slot in DOLL:
+		var b: Button
+		if slot == "weapon":
+			b = _weapon_button()
+		else:
+			var it: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
+			b = GearUI.slot_button(it, 26, _empty_icon(slot))
+			if not it.is_empty():
+				b.name = "uid_%d" % int(it.uid)
+				var u := int(it.uid)
+				b.pressed.connect(func() -> void: _unequip(slot, u))
+				_tip_on(b, func() -> Control: return _item_tip(it, {}, "Click to take off"))
+			else:
+				_tip_on(b, func() -> Control: return UIKit.label("%s: empty" % ItemDB.SLOT_NAMES[slot], 8, UIKit.C_DIM))
+		b.position = DOLL[slot]
+		doll.add_child(b)
+		var lbl := UIKit.label(ItemDB.SLOT_NAMES[slot], 8, UIKit.C_DIM)
+		lbl.position = DOLL[slot] + (Vector2(0, 26) if slot != "weapon" else Vector2(-4, 26))
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		doll.add_child(lbl)
+	return p
+
+
+func _empty_icon(slot: String) -> String:
+	return {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem"}.get(slot, "bag")
+
+
+func _weapon_button() -> Button:
+	var wid := Profile.equipped_weapon()
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(26, 26)
+	b.focus_mode = Control.FOCUS_ALL
+	var tr := UIKit.icon_rect({"sword": "sword", "hammer": "hammer", "staff": "staff"}.get(wid, "sword"))
+	tr.position = Vector2(5, 5)
+	tr.size = Vector2(16, 16)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(tr)
+	var def := GearDB.weapon(wid)
+	var in_hub := Game.stage is Hub
+	b.pressed.connect(func() -> void:
+		if in_hub:
+			Game.ui.weapon_select())
+	_tip_on(b, func() -> Control:
+		var v := UIKit.vbox(2)
+		v.add_child(UIKit.label("%s   (forge +%d)" % [def.get("name", wid), Profile.weapon_level(wid)], 8, UIKit.C_GOLD, true))
+		v.add_child(UIKit.para(String(def.get("desc", "")), 160))
+		v.add_child(UIKit.label("Click to change weapon" if in_hub else "Change weapons at the Hearth", 8, UIKit.C_DIM))
+		return v)
+	return b
+
+
+# --- the bag ------------------------------------------------------------------------
+
+func _bag_panel() -> PanelContainer:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(3)
+	p.add_child(v)
+	var bag := Profile.bag()
+	v.add_child(UIKit.label("GEAR  %d" % bag.size(), 8, UIKit.C_GOLD, true))
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(BAG_COLS * 25 + 8, 5 * 25)
+	v.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = BAG_COLS
+	grid.add_theme_constant_override("h_separation", 1)
+	grid.add_theme_constant_override("v_separation", 1)
+	scroll.add_child(grid)
+	var eq := Profile.equipped()
+	for i in maxi(BAG_SLOTS, bag.size()):
+		if i >= bag.size():
+			var e := GearUI.slot_button({}, 24)
+			e.focus_mode = Control.FOCUS_NONE
+			grid.add_child(e)
+			continue
+		var it: Dictionary = bag[i]
+		var b := GearUI.slot_button(it, 24)
+		b.name = "uid_%d" % int(it.uid)
+		var u := int(it.uid)
+		var slot := String(ItemDB.base(String(it.base)).slot)
+		var worn: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
+		b.pressed.connect(func() -> void: _equip(u))
+		b.gui_input.connect(func(ev: InputEvent) -> void:
+			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_RIGHT:
+				_salvage(u))
+		b.focus_entered.connect(func() -> void: _focus_uid = u)
+		_tip_on(b, func() -> Control: return _item_tip(it, worn, "Click to equip   Right-click to salvage"))
+		grid.add_child(b)
+	# materials
+	v.add_child(UIKit.label("MATERIALS", 8, UIKit.C_GOLD, true))
+	var mg := GridContainer.new()
+	mg.columns = 4
+	mg.add_theme_constant_override("h_separation", 8)
+	for k in ItemDB.MATERIALS:
+		var h := UIKit.hbox(2)
+		var ic := UIKit.item_icon_rect(ItemDB.MATERIALS[k].icon)
+		h.add_child(ic)
+		var n := Profile.material(k)
+		h.add_child(UIKit.label(str(n), 8, UIKit.C_TEXT if n > 0 else UIKit.C_DIM))
+		h.tooltip_text = "%s - %s" % [ItemDB.MATERIALS[k].name, ItemDB.MATERIALS[k].desc]
+		h.mouse_filter = Control.MOUSE_FILTER_PASS
+		mg.add_child(h)
+	v.add_child(mg)
+	return p
+
+
+func _item_tip(it: Dictionary, compare: Dictionary, hint: String) -> Control:
+	var v := GearUI.item_info(it, compare)
+	v.add_child(UIKit.label("Worth %d Embers to the peddler" % ItemDB.value(it), 8, UIKit.C_DIM))
+	v.add_child(UIKit.label(hint if not Settings.using_pad else hint.replace("Click", "A").replace("Right-click", "X"), 8, UIKit.C_GOLD))
+	return v
+
+
+func _tip_on(b: Control, make: Callable) -> void:
+	b.mouse_entered.connect(func() -> void: tip.show_content(make.call(), get_global_mouse_position()))
+	b.mouse_exited.connect(func() -> void: tip.visible = false)
+	b.focus_entered.connect(func() -> void: tip.show_content(make.call(), b.global_position + Vector2(b.size.x, 0)))
+	b.focus_exited.connect(func() -> void: tip.visible = false)
+
+
+func _input(event: InputEvent) -> void:
+	# pad: X salvages the focused bag item
+	if event.is_action_pressed("ability_1") and Settings.using_pad:
+		var f := get_viewport().gui_get_focus_owner()
+		if f and String(f.name).begins_with("uid_") and not Profile.find_item(int(String(f.name).substr(4))).is_empty():
+			var u := int(String(f.name).substr(4))
+			for it in Profile.bag():
+				if int(it.uid) == u:
+					_salvage(u)
+					get_viewport().set_input_as_handled()
+					return
+
+
+# --- actions ---------------------------------------------------------------------
+
+func _equip(uid: int) -> void:
+	_focus_uid = uid
+	if Profile.equip(uid):
+		Audio.play("clank", -4.0, 1.1)
+
+
+func _unequip(slot: String, uid: int) -> void:
+	_focus_uid = uid
+	if Profile.unequip(slot):
+		Audio.play("clank", -6.0, 0.9)
+
+
+func _salvage(uid: int) -> void:
+	var it := Profile.find_item(uid)
+	if it.is_empty():
+		return
+	var y := ItemDB.salvage_yield(it)
+	var parts: Array = []
+	for k in y:
+		parts.append("%d %s" % [int(y[k]), ItemDB.MATERIALS[k].name])
+	Game.ui.confirm("Salvage %s?" % ItemDB.item_name(it), "It breaks down into %s." % ", ".join(parts), func() -> void:
+		Profile.salvage(uid)
+		Audio.play("forge", -4.0, 1.2))
+
+
+## The warm halo behind the figure.
+class _Glow:
+	extends Node2D
+	func _draw() -> void:
+		for k in 5:
+			draw_circle(Vector2.ZERO, 46.0 - k * 8.0, Color(1.0, 0.55, 0.22, 0.04 + 0.02 * k))

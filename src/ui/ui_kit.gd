@@ -158,6 +158,24 @@ static func icon(name: String) -> AtlasTexture:
 	return at
 
 
+static var _item_map: Dictionary = {}
+static var _items_tex: Texture2D
+
+
+## Gear and material icons (16px, items atlas).
+static func item_icon(name: String) -> AtlasTexture:
+	if _item_map.is_empty():
+		var meta: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://assets/sprites/items.json"))
+		if meta is Dictionary:
+			_item_map = meta.icons
+		_items_tex = load("res://assets/sprites/items.png")
+	var at := AtlasTexture.new()
+	at.atlas = _items_tex
+	var cell: Array = _item_map.get(name, _item_map.get("bag", [0, 0]))
+	at.region = Rect2(float(cell[0]) * 16.0, float(cell[1]) * 16.0, 16, 16)
+	return at
+
+
 static var _icons_small: ImageTexture
 
 
@@ -174,6 +192,12 @@ static func icon_small(name: String) -> AtlasTexture:
 	var cell: Array = _icon_map.get(name, _icon_map.get("star", [0, 0]))
 	at.region = Rect2(float(cell[0]) * 8.0, float(cell[1]) * 8.0, 8, 8)
 	return at
+
+
+static func item_icon_rect(name: String, scale := 1) -> TextureRect:
+	var tr := icon_rect("star", scale)
+	tr.texture = item_icon(name)
+	return tr
 
 
 static func icon_rect(name: String, scale := 1) -> TextureRect:
@@ -271,6 +295,7 @@ static func describe_mod(m: Array) -> String:
 		"chill_power": "Chill strength", "status_duration": "status duration", "move_speed": "movement speed", "dodge_distance": "dodge distance",
 		"armor": "armor", "parry_window": "Ward window", "kindle_gain": "Kindle gained", "summon_damage": "wisp damage", "ember_gain": "Embers found",
 		"flask_heal": "flask healing", "kindle_max": "maximum Kindle", "max_hp": "maximum health",
+		"xp_gain": "Memories gained", "heal_mult": "healing received",
 	}
 	match stat:
 		"max_hp":
