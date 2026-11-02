@@ -15,6 +15,7 @@ var prompt_lbl: Label
 var relic_row: HBoxContainer
 var slot_nodes: Array = []
 var boss_name: Label
+var controls_card: PanelContainer
 var tooltip: PanelContainer
 var tooltip_lbl: Label
 var _relic_count := -1
@@ -79,6 +80,16 @@ func _ready() -> void:
 	tooltip.visible = false
 	tooltip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(tooltip)
+	controls_card = UIKit.panel()
+	controls_card.visible = false
+	controls_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(controls_card)
+	Events.room_cleared.connect(func(_id: int) -> void:
+		if controls_card.visible:
+			var tw := controls_card.create_tween()
+			tw.tween_interval(2.0)
+			tw.tween_property(controls_card, "modulate:a", 0.0, 0.8)
+			tw.tween_callback(func() -> void: controls_card.visible = false))
 	Events.boss_started.connect(func(b: Node) -> void:
 		_boss = b as Enemy
 		boss_name.text = _boss.display_name.to_upper()
@@ -93,6 +104,34 @@ func set_dungeon(on: bool) -> void:
 	minimap.visible = on
 	depth_lbl.visible = on
 	_relic_count = -1
+
+
+## First-expedition reminder of the controls (rebinding-aware).
+func show_controls() -> void:
+	for c in controls_card.get_children():
+		c.queue_free()
+	var v := UIKit.vbox(1)
+	controls_card.add_child(v)
+	v.add_child(UIKit.label("CONTROLS", 8, UIKit.C_GOLD, true))
+	var rows := [
+		["Move", "WASD"],
+		["Attack / hold to charge", Settings.describe_action("attack")],
+		["Dodge (perfect = slow-mo)", Settings.describe_action("dodge")],
+		["Ward: parry & reflect", Settings.describe_action("ward")],
+		["Abilities (cost Kindle)", "%s / %s" % [Settings.describe_action("ability_1"), Settings.describe_action("ability_2")]],
+		["Flask", Settings.describe_action("flask")],
+		["Interact", Settings.describe_action("interact")],
+		["Map", Settings.describe_action("map")],
+	]
+	for r in rows:
+		var h := UIKit.hbox(6)
+		var k := UIKit.label(r[1], 8, UIKit.C_EMBER)
+		k.custom_minimum_size = Vector2(40, 0)
+		h.add_child(k)
+		h.add_child(UIKit.label(r[0], 8, UIKit.C_TEXT))
+		v.add_child(h)
+	controls_card.modulate.a = 1.0
+	controls_card.visible = true
 
 
 func toggle_big_map() -> void:
@@ -151,6 +190,9 @@ func _process(_delta: float) -> void:
 	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 18)
 	prompt_lbl.size.x = 200
 	relic_row.position = Vector2(8, vp.y - 26)
+	if controls_card.visible:
+		controls_card.reset_size()
+		controls_card.position = Vector2(8, vp.y - 40 - controls_card.size.y)
 	level_lbl.position = Vector2(8, vp.y - 12)
 	boss_name.position = Vector2(vp.x * 0.5 - 150, 14)
 	boss_name.size.x = 300

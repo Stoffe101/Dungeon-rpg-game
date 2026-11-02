@@ -70,6 +70,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	Audio.play_ambience("amb_crypt")
 	var title: String = region.name
 	Events.banner.emit(title, "Depth %d%s" % [lay.depth, "  -  the Warden waits below" if lay.boss_depth else ""])
+	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
+		Game.ui.hud.show_controls.call_deferred()
 
 
 func _environment() -> void:
@@ -101,6 +103,8 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
+			if pd.has("phase"):
+				extra["phase"] = pd.phase
 			var p := Prop.make(self, pd.kind, pd.tile, extra)
 			p.room_id = r.id
 		# secret entrances: a cracked wall on the visible side

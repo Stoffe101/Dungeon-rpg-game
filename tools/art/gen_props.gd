@@ -43,6 +43,7 @@ static func build(dir: String) -> void:
 	_fountain(dir)
 	_wisp(dir)
 	_dummy(dir)
+	_spikes(dir)
 
 
 static func _shadow(dir: String) -> void:
@@ -671,3 +672,30 @@ static func _dummy_frame(lean: int) -> Px:
 	c.put(11 + lean, 5, Pal.INK)
 	c.outline(Pal.INK)
 	return c
+
+
+## Floor spike trap (flat, seen from above): holes, warning glint, spikes up.
+static func _spikes(dir: String) -> void:
+	var s := Sheet.new(16, 16, Vector2i(8, 8))
+	var holes := [Vector2i(3, 3), Vector2i(8, 3), Vector2i(12, 4), Vector2i(5, 8), Vector2i(10, 8), Vector2i(3, 12), Vector2i(8, 12), Vector2i(12, 12)]
+	var down := Px.new(16, 16)
+	down.rect(1, 1, 14, 14, Pal.STONE[1])
+	down.rect(1, 1, 14, 1, Pal.STONE[2])
+	for h in holes:
+		down.put(h.x, h.y, Pal.INK)
+		down.put(h.x + 1, h.y, Pal.INK)
+	s.add("down", [down], 1.0)
+	var warn := Px.new(16, 16)
+	warn.blit(down, 0, 0)
+	for h in holes:
+		warn.lit(h.x, h.y, Pal.BLOOD[3])
+	s.add("warn", [warn], 1.0)
+	var up := Px.new(16, 16)
+	up.blit(down, 0, 0)
+	for h in holes:
+		up.put(h.x, h.y - 1, Pal.STEEL[5])
+		up.put(h.x, h.y, Pal.STEEL[4])
+		up.put(h.x + 1, h.y, Pal.STEEL[2])
+		up.put(h.x, h.y + 1, Pal.STEEL[1])
+	s.add("up", [up], 1.0)
+	s.save(dir, "spikes")

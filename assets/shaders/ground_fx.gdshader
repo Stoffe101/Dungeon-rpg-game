@@ -77,7 +77,7 @@ void fragment() {
 	vec4 col = mix(color, edge_color, clamp(e, 0.0, 1.0));
 	float alpha = clamp(max(a, e), 0.0, 1.0) * col.a * fade;
 	// solid where strong, ordered dither only in the soft falloff
-	float thr = alpha > 0.62 ? 0.0 : bayer4(FRAGCOORD.xy);
+	float thr = alpha > 0.35 ? 0.0 : bayer4(FRAGCOORD.xy);
 	if (thr > alpha * 1.3) discard;
 	ALBEDO = col.rgb * glow;
 }

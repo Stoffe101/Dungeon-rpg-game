@@ -85,7 +85,7 @@ func _build() -> void:
 			ticks = true
 			_solid([tile])
 		"stairs":
-			_sprite("stairs", 0.0, -0.4)
+			_flat("stairs", "idle")
 			interact_radius = 1.5
 			_light(Color(0.35, 0.95, 0.85), 1.0, 5.0, Vector3(0, -0.5, 0.0))
 		"hearthstone":
@@ -121,6 +121,10 @@ func _build() -> void:
 			_light(Color(1.0, 0.55, 0.45), 1.0, 4.0, Vector3(0, 0.8, 0.3))
 			interact_radius = 1.1
 			ticks = true
+		"spikes":
+			_flat("spikes", "down")
+			ticks = true
+			_t = float(data.get("phase", 0.0))
 		"cracked_wall":
 			pos = Vector2(data.get("center", Vector2(tile) + Vector2(0.5, 1.0)))
 			_sprite("cracks", 0.6, 0.05)
@@ -146,6 +150,24 @@ func _sprite(sheet: String, h: float, z := 0.0, anim := "") -> void:
 	sprite.setup(sheet, anim)
 	position = Iso.to_world(pos, 0.0)
 	sprite.position = Vector3(0, h * Iso.SQ2, z)
+
+
+## A sprite lying flat on the floor (traps, stairs).
+func _flat(sheet: String, anim: String) -> void:
+	sprite = PixelSprite.new()
+	add_child(sprite)
+	sprite.setup(sheet, anim)
+	var info := sprite.sheet
+	var q := QuadMesh.new()
+	q.orientation = PlaneMesh.FACE_Y
+	q.size = Vector2(info.frame_size.x * Iso.TEXEL, info.frame_size.y * Iso.TEXEL * Iso.SQ2)
+	q.material = info.material
+	sprite.mesh = q
+	position = Iso.to_world(pos, 0.0)
+	sprite.position = Vector3(0, 0.008, 0)
+
+
+const SPIKE_CYCLE := 2.6
 
 
 func _light(col: Color, energy: float, rng: float, at: Vector3) -> void:
@@ -193,6 +215,9 @@ func unsolid() -> void:
 
 func tick(dt: float) -> void:
 	_t += dt
+	if kind == "spikes":
+		_spike_tick()
+		return
 	if light and lit:
 		var fl := 0.85 + 0.15 * sin(_t * 11.0 + pos.x) * sin(_t * 4.3 + pos.y * 2.0)
 		light.light_energy = _base_energy * fl
@@ -206,6 +231,34 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
 	elif kind == "fountain" and not used and randf() < dt * 6.0:
 		stage.fx.motes(pos, 0.9, Color(1.0, 0.6, 0.4), 1, 1.0, 0.8, 0.3)
+
+
+func _spike_tick() -> void:
+	var k := fmod(_t, SPIKE_CYCLE)
+	var state := "down"
+	if k > SPIKE_CYCLE - 1.0:
+		state = "up"
+	elif k > SPIKE_CYCLE - 1.6:
+		state = "warn"
+	if sprite.anim != state:
+		sprite.play(state)
+		if state == "up":
+			used = false
+			Audio.play("spikes", -10.0, randf_range(0.9, 1.1))
+	if state == "up" and not used:
+		used = true
+		# spikes don't care whose foot is on them
+		for a in stage.actors.duplicate():
+			if a.alive and not a.flying and a.height < 0.3 and absf(a.pos.x - pos.x) < 0.5 + a.radius * 0.5 and absf(a.pos.y - pos.y) < 0.5 + a.radius * 0.5:
+				var h := Hit.make(null, 14.0, ["melee"])
+				h.can_crit = false
+				h.knockback = Vector2.ZERO
+				if a is Player:
+					(a as Player).take_enemy_hit(h, null)
+				else:
+					h.source = stage.player
+					a.take_hit(h)
+				stage.fx.burst(a.pos, 0.3, Color(0.85, 0.85, 0.9), 4, 2.0, 0.2, 6.0)
 
 
 # --- interaction ---------------------------------------------------------------

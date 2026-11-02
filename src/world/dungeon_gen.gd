@@ -657,6 +657,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 		r.props.append({"kind": "urn", "tile": t})
 	var c := Vector2i(r.center())
+	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
+		_trap_line(lay, r, rng)
 	match r.type:
 		Room.Type.START:
 			r.props.append({"kind": "lore", "tile": c + Vector2i(0, -3)})
@@ -685,6 +687,32 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			for o in [Vector2(-8, -5), Vector2(8, -5), Vector2(-8, 5), Vector2(8, 5)]:
 				var bt := Vector2i(bc + o)
 				r.props.append({"kind": "boss_brazier", "tile": bt})
+
+
+## A line of spike traps across the room, firing in a rolling wave.
+static func _trap_line(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
+	var g := lay.grid
+	var horizontal := rng.randf() < 0.5
+	var len := rng.randi_range(5, 9)
+	for attempt in 8:
+		var start := Vector2i(rng.randi_range(r.rect.position.x + 2, r.rect.end.x - 3), rng.randi_range(r.rect.position.y + 2, r.rect.end.y - 3))
+		var tiles: Array[Vector2i] = []
+		for i in len:
+			var t := start + (Vector2i(i, 0) if horizontal else Vector2i(0, i))
+			if g.at(t.x, t.y) != TileGrid.FLOOR or not r.rect.has_point(t):
+				break
+			var near_door := false
+			for d in r.doors:
+				for dt: Vector2i in d.tiles:
+					if absi(dt.x - t.x) + absi(dt.y - t.y) < 4:
+						near_door = true
+			if near_door:
+				break
+			tiles.append(t)
+		if tiles.size() >= 4:
+			for i in tiles.size():
+				r.props.append({"kind": "spikes", "tile": tiles[i], "phase": i * 0.18})
+			return
 
 
 static func _prop_at(r: Room, t: Vector2i) -> bool:

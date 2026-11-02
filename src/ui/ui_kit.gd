@@ -71,6 +71,22 @@ static func theme() -> Theme:
 	var grab := _solid_tex(6, 10, C_GOLD)
 	t.set_icon("grabber", "HSlider", grab)
 	t.set_icon("grabber_highlight", "HSlider", _solid_tex(6, 10, Color(1, 1, 1)))
+	# tabs share the button look; the tab body is a dark inset panel
+	t.set_stylebox("panel", "TabContainer", _tex_box("res://assets/ui/ui_panel_dark.png", 4, 6))
+	t.set_stylebox("tab_selected", "TabContainer", _tex_box("res://assets/ui/ui_button_hover.png", 4, 6))
+	t.set_stylebox("tab_unselected", "TabContainer", _tex_box("res://assets/ui/ui_button.png", 4, 6))
+	t.set_stylebox("tab_hovered", "TabContainer", _tex_box("res://assets/ui/ui_button_hover.png", 4, 6))
+	t.set_stylebox("tab_disabled", "TabContainer", _tex_box("res://assets/ui/ui_button_disabled.png", 4, 6))
+	t.set_stylebox("tab_focus", "TabContainer", StyleBoxEmpty.new())
+	t.set_color("font_selected_color", "TabContainer", C_GOLD)
+	t.set_color("font_unselected_color", "TabContainer", C_DIM)
+	t.set_color("font_hovered_color", "TabContainer", C_TEXT)
+	t.set_font("font", "TabContainer", FONT)
+	t.set_font_size("font_size", "TabContainer", 8)
+	var pop := _tex_box("res://assets/ui/ui_tooltip.png", 4, 4)
+	t.set_stylebox("panel", "PopupMenu", pop)
+	t.set_color("font_color", "PopupMenu", C_TEXT)
+	t.set_color("font_hover_color", "PopupMenu", C_GOLD)
 	t.set_constant("separation", "VBoxContainer", 4)
 	t.set_constant("separation", "HBoxContainer", 4)
 	var sep := StyleBoxLine.new()
@@ -92,6 +108,8 @@ static func _tex_box(path: String, margin: int, content: int) -> StyleBoxTexture
 	sb.content_margin_right = content
 	sb.content_margin_top = content
 	sb.content_margin_bottom = content
+	sb.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+	sb.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
 	return sb
 
 
@@ -155,6 +173,7 @@ static func button(text: String, cb: Callable, min_w := 60) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(min_w, 16)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	b.pressed.connect(func() -> void:
 		Audio.ui("ui_click")
 		cb.call())

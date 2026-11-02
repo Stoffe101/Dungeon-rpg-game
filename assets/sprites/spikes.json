@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"down": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"up": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"warn": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		16,
+		16
+	],
+	"origin": [
+		8,
+		8
+	]
+}
