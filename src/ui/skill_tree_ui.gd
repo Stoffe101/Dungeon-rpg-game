@@ -24,6 +24,9 @@ var _stars: Array = []
 var _label_rects := {}          # branch -> Rect2 of its name, for click-to-focus
 var _branch_total := {}
 var _view_tw: Tween
+var _embers: Array = []         # drifting sparks rising off the tree: [pos, vel, life, max]
+var _hearth_tex: AtlasTexture
+var _hearth_info: SpriteLib.SheetInfo
 var points_lbl: Label
 var info_lbl: Label
 var find_lbl: Label
@@ -52,6 +55,9 @@ func _ready() -> void:
 	for id in SkillDB.all_ids():
 		for b in String(SkillDB.node(id).get("branch", "")).split("|", false):
 			_branch_total[b] = int(_branch_total.get(b, 0)) + 1
+	_hearth_info = SpriteLib.get_sheet("hearth")
+	_hearth_tex = AtlasTexture.new()
+	_hearth_tex.atlas = _hearth_info.texture
 	_build_header()
 	_build_bonus_panel()
 	hint = UIKit.label("", 8, UIKit.C_DIM, true)
@@ -543,6 +549,7 @@ func _place_tip(mp: Vector2) -> void:
 func _process(delta: float) -> void:
 	_t += delta
 	_gamepad(delta)
+	_step_embers(delta)
 	for b in _bursts:
 		b.t += delta
 	_bursts = _bursts.filter(func(b): return b.t < 0.8)
@@ -550,41 +557,36 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.025, 0.02, 0.04, 0.97))
-	# star field (parallax)
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.017, 0.035, 0.98))
+	var alloc: Array = Profile.skills()
+	var free := Profile.skill_points_free()
+	var counts := SkillDB.branch_counts(alloc)
+	var center := to_screen(Vector2.ZERO)
+	_draw_nebula(center, counts)
+	# star field (parallax, twinkling)
 	for s in _stars:
 		var sp: Vector2 = size * 0.5 + (s[0] + pan * 0.35) * zoom * 0.8
 		if Rect2(Vector2.ZERO, size).has_point(sp):
 			var tw: float = 0.35 + 0.65 * absf(sin(_t * (0.6 + s[1]) + s[1] * 10.0))
 			draw_rect(Rect2(sp.floor(), Vector2(1, 1) * (1 + int(s[2] == 2))), Color(0.75, 0.7, 0.9, tw * 0.5))
-	var alloc: Array = Profile.skills()
-	var free := Profile.skill_points_free()
-	var counts := SkillDB.branch_counts(alloc)
-	var center := to_screen(Vector2.ZERO)
+	# faint orbit rings
+	for ring in range(1, 7):
+		draw_arc(center, ring * SkillDB.RING * zoom, 0.0, TAU, 96, Color(0.35, 0.28, 0.4, 0.09), 1.0)
+	_draw_trunks(center, counts)
 	# the Hearth's glow grows with every point spent
 	var flick := 0.85 + 0.15 * sin(_t * 3.1) * sin(_t * 1.7)
-	var gr := (40.0 + 3.0 * SkillDB.spent(alloc)) * zoom
-	for k in 5:
-		draw_circle(center, gr * (1.0 - k * 0.17), Color(1.0, 0.55, 0.22, (0.022 + 0.012 * k) * flick))
-	# branch sectors: brighter where you have invested
-	for b in SkillDB.BRANCHES:
-		var binfo: Dictionary = SkillDB.BRANCHES[b]
-		var a0 := deg_to_rad(float(binfo.angle) - 26.0)
-		var a1 := deg_to_rad(float(binfo.angle) + 26.0)
-		var fan := PackedVector2Array([center])
-		for k in 13:
-			var aa := lerpf(a0, a1, k / 12.0)
-			fan.append(center + Vector2(cos(aa), sin(aa)) * SkillDB.RING * 6.6 * zoom)
-		var bc: Color = binfo.color
-		var inv := clampf(float(counts.get(b, 0)) / 6.0, 0.0, 1.0)
-		draw_colored_polygon(fan, Color(bc.r, bc.g, bc.b, 0.035 + 0.05 * inv))
-	for ring in range(1, 7):
-		draw_arc(center, ring * SkillDB.RING * zoom, 0.0, TAU, 96, Color(0.3, 0.25, 0.35, 0.18), 1.0)
+	var gr := (44.0 + 3.0 * SkillDB.spent(alloc)) * zoom
+	for k in 6:
+		draw_circle(center, gr * (1.0 - k * 0.15), Color(1.0, 0.52, 0.2, (0.02 + 0.012 * k) * flick))
 	_draw_labels(counts)
 	_draw_edges(alloc, free)
 	_draw_route(free)
 	for id in SkillDB.all_ids():
 		_draw_node(id, alloc, free)
+	_draw_embers()
+	_draw_vignette()
+	# nothing peeks out above the header bar
+	draw_rect(Rect2(0, 0, size.x, 7), Color(0.02, 0.017, 0.035))
 	if pad_active:
 		var c := pad_cursor.round()
 		draw_rect(Rect2(c - Vector2(6, 0), Vector2(4, 1)), UIKit.C_GOLD)
@@ -604,6 +606,124 @@ func _draw() -> void:
 			var ang := i * TAU / 10.0 + k
 			var q := p + Vector2(cos(ang), sin(ang)) * (8.0 + k * 50.0) * zoom
 			draw_rect(Rect2(q.round(), Vector2(2, 2)), col)
+
+
+## Soft clouds of each branch's colour drifting along its axis; brighter where
+## you have invested.
+func _draw_nebula(center: Vector2, counts: Dictionary) -> void:
+	for b in SkillDB.BRANCHES:
+		var info: Dictionary = SkillDB.BRANCHES[b]
+		var a := deg_to_rad(float(info.angle))
+		var dir := Vector2(cos(a), sin(a))
+		var bc: Color = info.color
+		var inv := clampf(float(counts.get(b, 0)) / 8.0, 0.0, 1.0)
+		for k in 4:
+			var along := (1.6 + k * 1.25 + 0.15 * sin(_t * 0.3 + k + a)) * SkillDB.RING
+			var side := sin(_t * 0.21 + k * 1.7 + a * 3.0) * 0.5 * SkillDB.RING
+			var p := center + (dir * along + dir.orthogonal() * side) * zoom
+			var r := (70.0 + 22.0 * k) * zoom
+			for ring in 4:
+				draw_circle(p, r * (1.0 - ring * 0.22), Color(bc.r, bc.g, bc.b, (0.012 + 0.018 * inv) * (1.0 + ring * 0.6)))
+
+
+## Dark trunks from the Hearth out to each keystone, so the constellation reads
+## as a tree; they take on their branch's colour as you invest.
+func _draw_trunks(center: Vector2, counts: Dictionary) -> void:
+	for b in SkillDB.BRANCHES:
+		var info: Dictionary = SkillDB.BRANCHES[b]
+		var a := deg_to_rad(float(info.angle))
+		var dir := Vector2(cos(a), sin(a))
+		var perp := dir.orthogonal()
+		var inv := clampf(float(counts.get(b, 0)) / 8.0, 0.0, 1.0)
+		var bark := Color(0.09, 0.07, 0.09).lerp((info.color as Color).darkened(0.7), 0.4 + 0.4 * inv)
+		var left := PackedVector2Array()
+		var right := PackedVector2Array()
+		for i in 13:
+			var f := i / 12.0
+			var bend := sin(f * PI) * 0.35 * SkillDB.RING
+			var p := dir * f * SkillDB.RING * 6.2 + perp * bend
+			var w := lerpf(16.0, 2.0, f) * zoom
+			left.append(center + p * zoom + perp * w)
+			right.append(center + p * zoom - perp * w)
+		var edge := left.duplicate()
+		right.reverse()
+		draw_colored_polygon(left + right, Color(bark, 0.75))
+		draw_polyline(edge, Color(bark.lightened(0.25), 0.35), 1.0)
+
+
+## Embers rising off the tree, more of them the more is kindled.
+func _draw_embers() -> void:
+	for e in _embers:
+		var k: float = e[2] / e[3]
+		var c := Color(1.0, 0.65 + 0.3 * k, 0.3, k * 0.9)
+		draw_rect(Rect2(to_screen(e[0]).round(), Vector2(1, 1) * (2 if k > 0.6 else 1)), c)
+
+
+func _step_embers(delta: float) -> void:
+	var alloc: Array = Profile.skills()
+	var rate := 2.0 + alloc.size() * 0.35
+	if randf() < delta * rate:
+		var src: String = alloc[randi() % alloc.size()]
+		var p := SkillDB.position_of(src) + Vector2(randf_range(-6, 6), randf_range(-6, 6))
+		var life := randf_range(1.6, 3.2)
+		_embers.append([p, Vector2(randf_range(-6, 6), randf_range(-28, -16)), life, life])
+	for i in range(_embers.size() - 1, -1, -1):
+		var e: Array = _embers[i]
+		e[2] -= delta
+		if e[2] <= 0.0:
+			_embers.remove_at(i)
+			continue
+		e[0] += e[1] * delta
+		e[1].x += sin(_t * 2.0 + i) * 4.0 * delta
+
+
+## Darkened edges frame the tree.
+func _draw_vignette() -> void:
+	for i in 6:
+		var a := 0.13 * (1.0 - i / 6.0)
+		var m := i * 5.0
+		draw_rect(Rect2(m, m, size.x - m * 2.0, 5.0), Color(0, 0, 0, a))
+		draw_rect(Rect2(m, size.y - m - 5.0, size.x - m * 2.0, 5.0), Color(0, 0, 0, a))
+		draw_rect(Rect2(m, m + 5.0, 5.0, size.y - m * 2.0 - 10.0), Color(0, 0, 0, a))
+		draw_rect(Rect2(size.x - m - 5.0, m + 5.0, 5.0, size.y - m * 2.0 - 10.0), Color(0, 0, 0, a))
+
+
+## A gently curved connection between two nodes (stable per pair).
+func _curve(a: Vector2, b: Vector2, key: String) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var d := b - a
+	var bend := (float(absi(hash(key)) % 200) / 100.0 - 1.0) * 0.16 * d.length()
+	var ctrl := (a + b) * 0.5 + d.orthogonal().normalized() * bend
+	var n := clampi(int(d.length() / 6.0), 3, 14)
+	for i in n + 1:
+		var t := float(i) / n
+		pts.append(a.lerp(ctrl, t).lerp(ctrl.lerp(b, t), t))
+	return pts
+
+
+func _point_on(pts: PackedVector2Array, f: float) -> Vector2:
+	var x := clampf(f, 0.0, 1.0) * (pts.size() - 1)
+	var i := mini(int(x), pts.size() - 2)
+	return pts[i].lerp(pts[i + 1], x - i)
+
+
+func _dashed_curve(pts: PackedVector2Array, col: Color, width := 1.0, speed := 12.0) -> void:
+	var off := fmod(_t * speed, 8.0)
+	var walked := 0.0
+	for i in pts.size() - 1:
+		var a := pts[i]
+		var b := pts[i + 1]
+		var L := a.distance_to(b)
+		if L < 0.01:
+			continue
+		var s := 0.0
+		while s < L:
+			var phase := fmod(walked + s - off + 80.0, 8.0)
+			var seg := minf((4.0 if phase < 4.0 else 8.0) - phase, L - s)
+			if phase < 4.0:
+				draw_line(a.lerp(b, s / L), a.lerp(b, (s + seg) / L), col, width)
+			s += maxf(seg, 0.25)
+		walked += L
 
 
 ## Branch names sit just outside the ring, pushed away from the keystones:
@@ -654,26 +774,34 @@ func _draw_edges(alloc: Array, free: int) -> void:
 			if done.has(key):
 				continue
 			done[key] = true
-			var a := to_screen(SkillDB.position_of(id))
-			var bpos := to_screen(SkillDB.position_of(nb))
+			var lo: String = id if id < nb else nb
+			var hi: String = nb if id < nb else id
+			var a := to_screen(SkillDB.position_of(lo))
+			var bpos := to_screen(SkillDB.position_of(hi))
 			var ia := alloc.has(id)
 			var ib := alloc.has(nb)
 			var fade := 1.0 if search == "" or (matches.has(id) and matches.has(nb)) else 0.45
+			var pts := _curve(a, bpos, key)
 			if ia and ib:
-				draw_line(a, bpos, Color(0.55, 0.38, 0.15), 3.0)
-				draw_line(a, bpos, Color(1.0, 0.75, 0.35), 1.0)
-				# travelling sparks
+				# a living branch: dark bark, a glowing core and sap-light running along it
+				draw_polyline(pts, Color(0.12, 0.06, 0.03), 5.0)
+				draw_polyline(pts, Color(0.6, 0.36, 0.14), 3.0)
+				draw_polyline(pts, Color(1.0, 0.78, 0.4), 1.0)
 				var L := a.distance_to(bpos)
-				var n := maxi(1, int(L / 40.0))
+				var n := maxi(1, int(L / 34.0))
 				for k in n:
-					var f := fmod(_t * 0.6 + float(k) / n + float(hash(key) % 100) / 100.0, 1.0)
-					draw_rect(Rect2(a.lerp(bpos, f).round() - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.92, 0.6))
+					var f := fmod(_t * 0.55 + float(k) / n + float(absi(hash(key)) % 100) / 100.0, 1.0)
+					var sp := _point_on(pts, f)
+					draw_rect(Rect2(sp.round() - Vector2(1, 1), Vector2(3, 3)), Color(1.0, 0.75, 0.35, 0.35))
+					draw_rect(Rect2(sp.round(), Vector2(1, 1)), Color(1.0, 0.95, 0.75))
 			elif ia or ib:
 				var other: String = nb if ia else id
 				var can := SkillDB.cost(other) <= free
-				_dashed(a, bpos, Color(0.85, 0.6, 0.3, 0.7 * fade) if can else Color(0.5, 0.4, 0.35, 0.45 * fade))
+				draw_polyline(pts, Color(0.08, 0.06, 0.08, 0.8 * fade), 3.0)
+				_dashed_curve(pts, Color(0.95, 0.65, 0.3, 0.8 * fade) if can else Color(0.5, 0.4, 0.35, 0.45 * fade))
 			else:
-				draw_line(a, bpos, Color(0.25, 0.22, 0.3, 0.6 * fade), 1.0)
+				draw_polyline(pts, Color(0.06, 0.05, 0.07, 0.7 * fade), 3.0)
+				draw_polyline(pts, Color(0.3, 0.26, 0.34, 0.55 * fade), 1.0)
 
 
 ## The previewed path to the hovered node, drawn as a bright marching line.
@@ -684,10 +812,13 @@ func _draw_route(free: int) -> void:
 	var col := Color(1.0, 0.9, 0.55) if ok else Color(1.0, 0.45, 0.4)
 	var chain: Array = [route.from] + route.nodes
 	for i in range(chain.size() - 1):
-		var a := to_screen(SkillDB.position_of(chain[i]))
-		var b := to_screen(SkillDB.position_of(chain[i + 1]))
-		draw_line(a, b, Color(col, 0.25), 3.0)
-		_dashed(a, b, col, 2.0, 24.0)
+		var ida: String = chain[i]
+		var idb: String = chain[i + 1]
+		var lo: String = ida if ida < idb else idb
+		var hi: String = idb if ida < idb else ida
+		var pts := _curve(to_screen(SkillDB.position_of(lo)), to_screen(SkillDB.position_of(hi)), lo + ":" + hi)
+		draw_polyline(pts, Color(col, 0.25), 4.0)
+		_dashed_curve(pts, col, 2.0, 24.0)
 
 
 func _dashed(a: Vector2, b: Vector2, col: Color, width := 1.0, speed := 12.0) -> void:
@@ -750,13 +881,32 @@ func _draw_node(id: String, alloc: Array, free: int) -> void:
 			var dir := Vector2(cos(ang), sin(ang))
 			var tri := PackedVector2Array([p + dir * (r + 5.0 * zoom), p + dir.rotated(0.32) * r * 0.92, p + dir.rotated(-0.32) * r * 0.92])
 			draw_colored_polygon(tri, Color(rim.r, rim.g, rim.b, rim.a * 0.85))
+	if kind == "root":
+		_draw_hearth_root(p, r, fade)
+		return
 	var pts := _shape_points(kind, p, r)
+	# drop shadow, body, then a core graded toward the light
+	draw_colored_polygon(_shape_points(kind, p + Vector2(1, 2), r), Color(0, 0, 0, 0.45 * fade))
 	draw_colored_polygon(pts, fill)
-	draw_colored_polygon(_shape_points(kind, p, r * 0.7), core)
+	draw_colored_polygon(_shape_points(kind, p, r * 0.74), core)
+	draw_colored_polygon(_shape_points(kind, p + Vector2(-0.18, -0.22) * r, r * 0.42), core.lightened(0.12 if is_alloc else 0.05))
+	if is_alloc:
+		# embers shimmer inside a kindled node
+		var sh := 0.5 + 0.5 * sin(_t * 5.0 + p.y * 0.07)
+		draw_circle(p + Vector2(0, r * 0.15), r * 0.38, Color(1.0, 0.7, 0.3, (0.08 + 0.1 * sh) * fade))
 	var closed := pts.duplicate()
 	closed.append(pts[0])
 	draw_polyline(closed, Color(0.02, 0.02, 0.03, fade), 3.0)
-	draw_polyline(closed, rim, 1.5 if kind == "minor" else 2.0)
+	# a bevelled rim: lit along the top-left, shaded along the bottom-right
+	var lit_rim := rim.lightened(0.35)
+	var dark_rim := rim.darkened(0.45)
+	for i in pts.size():
+		var a := pts[i]
+		var b := pts[(i + 1) % pts.size()]
+		var mid := ((a + b) * 0.5 - p).normalized()
+		var light := clampf(-(mid.x + mid.y) * 0.7071, -1.0, 1.0)
+		var c := rim.lerp(lit_rim, light) if light > 0.0 else rim.lerp(dark_rim, -light)
+		draw_line(a, b, c, 1.5 if kind == "minor" else 2.0)
 	if kind in ["notable", "keystone", "root", "ability"]:
 		var inner := _shape_points(kind, p, r - 3.0 * zoom)
 		inner.append(inner[0])
@@ -791,6 +941,23 @@ func _draw_node(id: String, alloc: Array, free: int) -> void:
 		draw_arc(p, r + 5.0 * zoom, 0.0, TAU, 32, Color(0.45, 0.95, 0.85, 0.55 + 0.45 * pulse), 1.5)
 	if id == hovered:
 		draw_arc(p, r + 4.0 * zoom + 1.0, 0.0, TAU, 32, Color(1, 1, 1, 0.85), 1.0)
+
+
+## The origin of the tree: the Hearth itself, burning, ringed in gold.
+func _draw_hearth_root(p: Vector2, r: float, fade: float) -> void:
+	var info: Dictionary = _hearth_info.anims["burn"]
+	var f := int(_t * float(info.fps)) % int(info.frames)
+	var fs := Vector2(_hearth_info.frame_size)
+	_hearth_tex.region = Rect2(Vector2(f * fs.x, float(info.row) * fs.y), fs)
+	var k := maxf(0.5, roundf(zoom * 2.0) / 2.0)
+	var sz := fs * k
+	var origin := Vector2(_hearth_info.origin) * k
+	draw_circle(p, r + 6.0 * zoom, Color(1.0, 0.55, 0.2, 0.18 * fade))
+	draw_arc(p, r + 2.0, 0.0, TAU, 40, Color(0.02, 0.02, 0.03, fade), 3.0)
+	draw_arc(p, r + 2.0, 0.0, TAU, 40, Color(1.0, 0.86, 0.52, fade), 1.5)
+	draw_texture_rect(_hearth_tex, Rect2((p - origin + Vector2(0, r * 0.55)).round(), sz), false, Color(1, 1, 1, fade))
+	if hovered == "hearth":
+		draw_arc(p, r + 6.0, 0.0, TAU, 40, Color(1, 1, 1, 0.85), 1.0)
 
 
 func _shape_points(kind: String, p: Vector2, r: float) -> PackedVector2Array:
