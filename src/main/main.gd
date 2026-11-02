@@ -19,6 +19,10 @@ func _ready() -> void:
 	fps_label.position = Vector2(4, 0)
 	ui.root.add_child(fps_label)
 	var scene := "menu"
+	var region := "ossuary"
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("region="):
+			region = a.substr(7)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("scene="):
 			scene = a.substr(6)
@@ -52,9 +56,9 @@ func _ready() -> void:
 			Game.stage.player.pos = Vector2(7.5, 6.4)
 			Game.stage.player.input_enabled = false
 		"dungeon":
-			Game.start_run()
+			Game.start_run(region)
 		"boss":
-			Game.start_run()
+			Game.start_run(region)
 			Game.run.depth = 1
 			Game._enter_depth(2)
 		_:

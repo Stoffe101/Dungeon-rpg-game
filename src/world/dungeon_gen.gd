@@ -659,6 +659,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 	var c := Vector2i(r.center())
 	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
 		_trap_line(lay, r, rng)
+	if lay.region == "rootmire":
+		_root_decor(lay, r, rng, floor_tiles, wall_adj)
 	match r.type:
 		Room.Type.START:
 			r.props.append({"kind": "lore", "tile": c + Vector2i(0, -3)})
@@ -684,9 +686,10 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})
 		Room.Type.BOSS:
 			var bc := Vector2(r.center())
+			var node_kind := "root_node" if lay.region == "rootmire" else "boss_brazier"
 			for o in [Vector2(-8, -5), Vector2(8, -5), Vector2(-8, 5), Vector2(8, 5)]:
 				var bt := Vector2i(bc + o)
-				r.props.append({"kind": "boss_brazier", "tile": bt})
+				r.props.append({"kind": node_kind, "tile": bt})
 
 
 ## A line of spike traps across the room, firing in a rolling wave.
@@ -713,6 +716,80 @@ static func _trap_line(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void
 			for i in tiles.size():
 				r.props.append({"kind": "spikes", "tile": tiles[i], "phase": i * 0.18})
 			return
+
+
+## Rootmire dressing: glowing fungus along the walls and thickets of bramble.
+## Brambles are solid (until burned or cut), so each cluster is only kept if
+## every door of the room can still reach every other.
+static func _root_decor(lay: Layout, r: Room, rng: RandomNumberGenerator, floor_tiles: Array[Vector2i], wall_adj: Array[Vector2i]) -> void:
+	for i in (8 if r.type == Room.Type.BOSS else rng.randi_range(2, 4)):
+		if wall_adj.is_empty():
+			break
+		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
+		r.props.append({"kind": "glowcap", "tile": t})
+	if r.type == Room.Type.BOSS or r.type == Room.Type.START or floor_tiles.is_empty():
+		return
+	var g := lay.grid
+	var taken := {}
+	var solid: Array[Vector2i] = []
+	for p in r.props:
+		taken[p.tile] = true
+	var clusters := rng.randi_range(1, 3) if r.is_combat() else rng.randi_range(0, 1)
+	for c in clusters:
+		for attempt in 6:
+			var seed_t: Vector2i = floor_tiles[rng.randi_range(0, floor_tiles.size() - 1)]
+			var cluster: Array[Vector2i] = [seed_t]
+			for k in rng.randi_range(1, 4):
+				var base: Vector2i = cluster[rng.randi_range(0, cluster.size() - 1)]
+				cluster.append(base + DIRS[rng.randi_range(0, 3)])
+			var ok := true
+			for t in cluster:
+				if g.at(t.x, t.y) != TileGrid.FLOOR or taken.has(t) or not r.rect.has_point(t):
+					ok = false
+					break
+				for d in r.doors:
+					for dt: Vector2i in d.tiles:
+						if absi(dt.x - t.x) + absi(dt.y - t.y) < 4:
+							ok = false
+			# validate against every bramble placed so far, not just this cluster
+			var trial: Array[Vector2i] = solid.duplicate()
+			trial.append_array(cluster)
+			if not ok or not _doors_connected(lay, r, trial):
+				continue
+			for t in cluster:
+				taken[t] = true
+				solid.append(t)
+				r.props.append({"kind": "bramble", "tile": t})
+			break
+
+
+static func _doors_connected(lay: Layout, r: Room, blocked: Array[Vector2i]) -> bool:
+	var g := lay.grid
+	var block := {}
+	for t in blocked:
+		block[t] = true
+	var starts: Array[Vector2i] = []
+	for d in r.doors:
+		if d.secret:
+			continue
+		var t: Vector2i = d.tiles[d.tiles.size() / 2] - Vector2i(d.dir)
+		starts.append(t)
+	if starts.size() < 2:
+		return true
+	var seen := {starts[0]: true}
+	var q: Array[Vector2i] = [starts[0]]
+	while not q.is_empty():
+		var c: Vector2i = q.pop_back()
+		for dd in DIRS:
+			var n: Vector2i = c + dd
+			if seen.has(n) or block.has(n) or not r.rect.has_point(n) or g.at(n.x, n.y) != TileGrid.FLOOR:
+				continue
+			seen[n] = true
+			q.append(n)
+	for s in starts:
+		if not seen.has(s):
+			return false
+	return true
 
 
 static func _prop_at(r: Room, t: Vector2i) -> bool:

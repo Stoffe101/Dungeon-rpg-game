@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"curl": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 2
+		},
+		"dizzy": {
+			"fps": 4.0,
+			"frames": 2,
+			"loop": true,
+			"row": 4
+		},
+		"idle": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"roll": {
+			"fps": 16.0,
+			"frames": 4,
+			"loop": true,
+			"row": 3
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		32,
+		26
+	],
+	"origin": [
+		16,
+		24
+	]
+}

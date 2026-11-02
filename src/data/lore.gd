@@ -14,5 +14,20 @@ const OSSUARY := [
 ]
 
 
+const ROOTMIRE := [
+	["The World-Tree", "Its crown held the sun. When the sun went out, the tree died from the top down. The roots never noticed."],
+	["Mycologist's Warning", "The caps glow because they are eating something. Do not ask what. Do not stand still."],
+	["Carved in Bark", "BURN THE BRAMBLES. THEY REMEMBER FIRE AND THEY FEAR IT."],
+	["The Bloom", "It sprouted where the last seed of sunlight fell. It is very, very hungry for more."],
+	["Moth Song", "Cover your lantern, they said. As if the dark were any kinder than the moths."],
+	["A Rootweaver's Hymn", "Grow, grow, around the bones; grow, grow, through the stones; drink the light the stranger brings."],
+]
+
+
 static func random_ossuary(rng: RandomNumberGenerator) -> Array:
 	return OSSUARY[rng.randi_range(0, OSSUARY.size() - 1)]
+
+
+static func random_for(region: String, rng: RandomNumberGenerator) -> Array:
+	var pool: Array = ROOTMIRE if region == "rootmire" else OSSUARY
+	return pool[rng.randi_range(0, pool.size() - 1)]

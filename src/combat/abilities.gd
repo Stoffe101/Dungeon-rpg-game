@@ -38,6 +38,7 @@ static func _flare(pl: Player) -> bool:
 	st.fx.flash_light(pl.pos, 0.8, Color(1.0, 0.6, 0.3), 5.0, r * 2.4, 0.4)
 	st.fx.shake(0.3)
 	Audio.play("flare", 0.0)
+	st.strike_props_circle(pl.pos, r, pl, true)
 	for a in st.in_circle(pl.team, pl.pos, r):
 		var h := _hit(pl, d.damage, ["fire"])
 		h.burn = 2

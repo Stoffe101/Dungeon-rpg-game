@@ -40,6 +40,37 @@ const ENEMIES := {
 		"xp": 6, "embers": 4, "cost": 3, "min_depth": 1,
 		"lore": "Swollen with grave-gas. Its end is everyone's problem - including its friends'.",
 	},
+	# --- the Rootmire ---
+	"sporeling": {
+		"name": "Sporeling", "script": "res://src/entities/enemies/sporeling.gd", "sheet": "sporeling",
+		"hp": 24.0, "speed": 3.6, "radius": 0.3, "poise": 8.0, "damage": 9.0,
+		"xp": 4, "embers": 2, "cost": 1, "min_depth": 1, "pack": [2, 4],
+		"lore": "It wants to share. Mostly what it shares is spores.",
+	},
+	"thornback": {
+		"name": "Thornback", "script": "res://src/entities/enemies/thornback.gd", "sheet": "thornback",
+		"hp": 80.0, "speed": 2.2, "radius": 0.5, "poise": 60.0, "damage": 18.0, "armor": 0.35,
+		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
+		"lore": "Rolls first, thinks never. Leaves it dizzy and soft-bellied.",
+	},
+	"moth": {
+		"name": "Lantern Moth", "script": "res://src/entities/enemies/moth.gd", "sheet": "moth",
+		"hp": 18.0, "speed": 4.2, "radius": 0.3, "poise": 6.0, "damage": 7.0,
+		"xp": 5, "embers": 3, "cost": 2, "min_depth": 1,
+		"lore": "Drawn to your flame. It drinks the light out of your lantern.",
+	},
+	"rootweaver": {
+		"name": "Rootweaver", "script": "res://src/entities/enemies/rootweaver.gd", "sheet": "rootweaver",
+		"hp": 55.0, "speed": 2.1, "radius": 0.36, "poise": 20.0, "damage": 14.0,
+		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
+		"lore": "It sings to the roots, and the roots answer with thorns.",
+	},
+	"bloom": {
+		"name": "The Hollow Bloom", "script": "res://src/entities/enemies/bloom.gd", "sheet": "bloom",
+		"hp": 2600.0, "speed": 0.0, "radius": 1.6, "poise": 340.0, "damage": 20.0, "armor": 0.25,
+		"xp": 240, "embers": 180, "cost": 99, "min_depth": 99, "boss": true,
+		"lore": "Where the sun's last seed fell, something grew that is not a flower.",
+	},
 	"warden": {
 		"name": "The Gloam Warden", "script": "res://src/entities/enemies/warden.gd", "sheet": "warden",
 		"hp": 1900.0, "speed": 3.0, "radius": 0.9, "poise": 260.0, "damage": 22.0, "armor": 0.0,
@@ -69,8 +100,35 @@ const REGIONS := {
 		"ambient": Color(0.3, 0.33, 0.55),
 		"flame": Color(0.35, 0.95, 0.85),
 		"music": "crypt",
+		"ambience": "amb_crypt",
+		"torch": "torch",
+		"unlock": {},
+		"blurb": "Two depths of bone and soul-light, then the Gloam Warden.",
+	},
+	"rootmire": {
+		"name": "The Rootmire",
+		"theme": "root",
+		"depths": 2,
+		"pool": ["sporeling", "thornback", "moth", "rootweaver", "husk", "archer"],
+		"boss": "bloom",
+		"ambient": Color(0.3, 0.46, 0.38),
+		"flame": Color(0.55, 1.0, 0.45),
+		"music": "rootmire",
+		"ambience": "amb_root",
+		"torch": "torch_bio",
+		"unlock": {"warden_kills": 1},
+		"blurb": "Fungal caverns among the roots of a dead world-tree. Brambles burn. The Hollow Bloom waits.",
+		"memory_bonus": 1,
 	},
 }
+
+
+static func region_unlocked(id: String) -> bool:
+	var req: Dictionary = REGIONS.get(id, {}).get("unlock", {})
+	for k in req:
+		if int(Profile.data.world.get(k, 0)) < int(req[k]):
+			return false
+	return true
 
 
 static func get_def(id: String) -> Dictionary:

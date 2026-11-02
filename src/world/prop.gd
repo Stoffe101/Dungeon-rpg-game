@@ -44,7 +44,7 @@ func _build() -> void:
 		"torch":
 			# mounted on the south face of a back-wall tile
 			pos = Vector2(tile.x + 0.5, tile.y + 1.0)
-			_sprite("torch_warm" if flame.r > flame.b else "torch", 1.1, 0.04)
+			_sprite(String(data.get("sheet", "torch_warm" if flame.r > flame.b + 0.3 else "torch")), 1.1, 0.04)
 			_light(flame, 1.8, 8.5, Vector3(0, 1.45 * Iso.SQ2, 0.35))
 			ticks = true
 		"banner":
@@ -120,6 +120,32 @@ func _build() -> void:
 			_sprite("spring", 0.0, 0.0, "idle")
 			_light(Color(1.0, 0.55, 0.45), 1.0, 4.0, Vector3(0, 0.8, 0.3))
 			interact_radius = 1.1
+			ticks = true
+		"glowcap":
+			_sprite("glowcap", 0.0, 0.0, "idle")
+			var gc := Color(0.4, 1.0, 0.9) if (tile.x + tile.y) % 2 == 0 else Color(0.9, 0.5, 1.0)
+			_light(gc, 1.1, 5.0, Vector3(0, 0.9, 0.2))
+			_flame_col = gc
+			ticks = true
+		"bramble", "root_node":
+			_sprite("bramble", 0.0, 0.0, "idle")
+			_solid([tile])
+			breakable = true
+			stops_shots = true
+			strike_radius = 0.55
+			data["hp"] = 3 if kind == "bramble" else 6
+			if kind == "root_node":
+				sprite.set_tint(Color(1.0, 0.55, 0.6))
+				_light(Color(1.0, 0.4, 0.6), 1.2, 4.0, Vector3(0, 0.8, 0.2))
+				_flame_col = Color(1.0, 0.4, 0.6)
+			ticks = true
+		"bramble_wall":
+			pos = Vector2(data.get("center", Vector2(tile) + Vector2(0.5, 1.0)))
+			_sprite("bramble", 0.0, 0.05, "idle")
+			breakable = true
+			stops_shots = true
+			strike_radius = 1.6
+			data["hp"] = 4
 			ticks = true
 		"spikes":
 			_flat("spikes", "down")
@@ -218,6 +244,9 @@ func tick(dt: float) -> void:
 	if kind == "spikes":
 		_spike_tick()
 		return
+	if data.get("burning", 0.0) > 0.0:
+		_burn_tick(dt)
+		return
 	if light and lit:
 		var fl := 0.85 + 0.15 * sin(_t * 11.0 + pos.x) * sin(_t * 4.3 + pos.y * 2.0)
 		light.light_energy = _base_energy * fl
@@ -234,6 +263,8 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.65, 0.35), 1, 1.0, 1.0, 0.3)
 	elif kind == "relic_altar" and not used and randf() < dt * 6.0:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
+	elif kind == "glowcap" and randf() < dt * 1.5:
+		stage.fx.motes(pos + Vector2(randf_range(-0.4, 0.4), 0), 0.8, _flame_col, 1, 0.5, 1.6, 0.2)
 	elif kind == "fountain" and not used and randf() < dt * 6.0:
 		stage.fx.motes(pos, 0.9, Color(1.0, 0.6, 0.4), 1, 1.0, 0.8, 0.3)
 
@@ -340,8 +371,19 @@ func interact(pl: Player) -> void:
 			stage.request(kind, self)
 
 
-func on_struck(src: Node) -> void:
+func on_struck(src: Node, fire := false) -> void:
 	match kind:
+		"bramble", "root_node", "bramble_wall":
+			if data.get("burning", 0.0) > 0.0 or used:
+				return
+			if fire:
+				ignite()
+				return
+			data["hp"] = int(data.get("hp", 3)) - 1
+			stage.fx.burst(pos, 0.5, Color(0.45, 0.6, 0.3), 6, 3.0, 0.3, 6.0)
+			Audio.play("claw", -6.0, randf_range(1.1, 1.3))
+			if int(data.hp) <= 0:
+				_clear_bramble(false)
 		"urn":
 			used = true
 			breakable = false
@@ -368,6 +410,68 @@ func on_struck(src: Node) -> void:
 			used = true
 			breakable = false
 			stage.request("secret", self)
+
+
+## Brambles catch fire from any fire hit, burn for a moment (scorching nearby
+## enemies) and pass the flames on to neighbouring brambles.
+func ignite() -> void:
+	if used or data.get("burning", 0.0) > 0.0:
+		return
+	data["burning"] = 1.1
+	sprite.play("burning")
+	if light == null:
+		_light(Color(1.0, 0.55, 0.25), 1.6, 4.0, Vector3(0, 0.6, 0.2))
+	else:
+		light.light_color = Color(1.0, 0.55, 0.25)
+		_base_energy = 1.8
+	Audio.play("ignite", -6.0, randf_range(0.9, 1.15))
+	var st := stage
+	var me: WeakRef = weakref(self)
+	st.after(0.3, func() -> void:
+		var self_ref = me.get_ref()
+		if self_ref == null:
+			return
+		for p in st.props:
+			if is_instance_valid(p) and p != self_ref and p.kind in ["bramble", "root_node", "bramble_wall"] and not p.used and p.pos.distance_to(self_ref.pos) < 1.6:
+				p.ignite())
+
+
+func _burn_tick(dt: float) -> void:
+	data["burning"] = float(data.burning) - dt
+	_t += dt
+	if light:
+		light.light_energy = _base_energy * (0.8 + 0.2 * sin(_t * 20.0))
+	if randf() < dt * 20.0:
+		stage.fx.motes(pos, 0.4, Color(1.0, randf_range(0.4, 0.8), 0.2), 1, 2.0, 0.6, 0.4)
+	if fmod(_t, 0.35) < dt:
+		for a in stage.in_circle(Actor.Team.PLAYER, pos, 1.3):
+			var h := Hit.make(stage.player, 6.0, ["fire", "dot"])
+			h.burn = 1
+			h.can_crit = false
+			h.silent = true
+			a.take_hit(h)
+	if float(data.burning) <= 0.0:
+		_clear_bramble(true)
+
+
+func _clear_bramble(burnt: bool) -> void:
+	used = true
+	breakable = false
+	data["burning"] = 0.0
+	stops_shots = false
+	unsolid()
+	if light:
+		light.visible = false
+	if kind == "bramble_wall":
+		stage.request("secret", self)
+		return
+	sprite.play("burnt" if burnt else "burnt")
+	if not burnt:
+		stage.fx.burst(pos, 0.5, Color(0.45, 0.6, 0.3), 12, 4.0, 0.4, 6.0)
+	if kind == "root_node":
+		var b = data.get("boss")
+		if b and is_instance_valid(b):
+			b.on_root_burned(self)
 
 
 func set_lit(on: bool, col := Color(-1, 0, 0)) -> void:

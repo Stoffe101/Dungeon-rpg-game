@@ -11,6 +11,7 @@ const GenProps = preload("res://tools/art/gen_props.gd")
 const GenHub = preload("res://tools/art/gen_hub.gd")
 const GenIcons = preload("res://tools/art/gen_icons.gd")
 const GenUI = preload("res://tools/art/gen_ui.gd")
+const GenRootmire = preload("res://tools/art/gen_rootmire.gd")
 
 
 func _init() -> void:
@@ -29,6 +30,7 @@ func _init() -> void:
 		"hub": func(): GenHub.build("res://assets/sprites"),
 		"icons": func(): GenIcons.build("res://assets/sprites"),
 		"ui": func(): GenUI.build("res://assets/ui"),
+		"rootmire": func(): GenRootmire.build("res://assets/sprites"),
 	}
 	for k in jobs:
 		if only.is_empty() or k in only:

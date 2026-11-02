@@ -55,9 +55,11 @@ func _process(delta: float) -> void:
 	var target := _pick_target()
 	# boss phase 2: relight the braziers to sear the Warden
 	for a in pl.stage.actors:
-		if a is Enemy and a.def.get("boss", false) and a.get("phase") == 2 and a.get("seared_t") <= 0.0:
+		var warden_window: bool = a is Enemy and a.def.get("boss", false) and a.get("phase") == 2 and a.get("seared_t") != null and a.get("seared_t") <= 0.0
+		var bloom_roots: bool = a is Enemy and a.id == "bloom"
+		if warden_window or bloom_roots:
 			for b in a.get("braziers"):
-				if is_instance_valid(b) and not b.lit:
+				if is_instance_valid(b) and ((b.kind == "boss_brazier" and not b.lit) or (b.kind == "root_node" and not b.used)):
 					_goal = b.pos
 					pl.aim_point = b.pos
 					pl.aim = (b.pos - pl.pos).normalized()
@@ -179,6 +181,8 @@ func _explore(_delta: float) -> void:
 		return
 	_goal = best_p
 	pl.move_in = (st.path_step(pl.pos, best_p) - pl.pos).normalized()
+	if "botdebug" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 30 == 0:
+		print("[botdbg] pos=%s goal=%s step=%s pickups=%d" % [pl.pos.snapped(Vector2(0.1, 0.1)), best_p.snapped(Vector2(0.1, 0.1)), st.path_step(pl.pos, best_p).snapped(Vector2(0.1, 0.1)), st.pickups.size()])
 	pl.aim_point = best_p
 	pl.aim = pl.move_in if pl.move_in != Vector2.ZERO else pl.aim
 

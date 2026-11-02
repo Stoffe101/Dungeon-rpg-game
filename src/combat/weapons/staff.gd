@@ -116,6 +116,7 @@ func _explode(at: Vector2, dmg: float) -> void:
 	player.stage.fx.flash_light(at, 0.6, Color(1.0, 0.55, 0.25), 4.0, 6.0, 0.35)
 	player.stage.fx.shake(0.35)
 	Audio.play("explode", 0.0)
+	player.stage.strike_props_circle(at, r, player, true)
 	for a in player.stage.in_circle(player.team, at, r):
 		var h := Combat.player_hit(player, player.stats, dmg, ["ranged", "fire"])
 		h.knockback = (a.pos - at).normalized() * 8.0

@@ -258,10 +258,28 @@ func _ambience() -> void:
 		var t := h.rng.randf_range(0.0, 20.0)
 		h.noise(t, 0.02, h.rng.randf_range(0.1, 0.5), 5000.0, 2000.0, 800.0, 0.001, 8.0)
 	h.save(MUS + "amb_hearth.wav", 0.5)
+	var rt := Synth.new(22050, 24.0, true, 13)
+	rt.noise(0.0, 24.0, 0.35, 160.0, 160.0, 30.0, 1.0, 0.0)
+	# insects: fast chirps in short bursts
+	for k in 40:
+		var t := rt.rng.randf_range(0.0, 23.5)
+		var f := rt.rng.randf_range(3200.0, 4600.0)
+		for c in 4:
+			rt.tone(t + c * 0.045, 0.03, f, f * 1.02, "sine", 0.05, 0.002, 4.0)
+	# slow drips and creaking roots
+	for k in 18:
+		var t2 := rt.rng.randf_range(0.0, 23.5)
+		var f2 := rt.rng.randf_range(900.0, 1500.0)
+		rt.tone(t2, 0.15, f2, f2 * 0.55, "sine", 0.1, 0.001, 8.0)
+	for k in 4:
+		var t3 := rt.rng.randf_range(0.0, 21.0)
+		rt.tone(t3, 2.0, 70.0, 64.0, "saw", 0.05, 0.4, 1.5, 0.02, 3.0, 300.0)
+	rt.save(MUS + "amb_root.wav", 0.5)
 
 
 func _music() -> void:
 	_crypt()
+	_rootmire()
 	_boss()
 	_hearth()
 	_victory()
@@ -368,3 +386,31 @@ func _victory() -> void:
 		for k in 4:
 			s.bell(c * 8 * beat + k * 2 * beat, 2.5, midi(prog[c][k % 3] + 24), 0.06)
 	s.save(MUS + "victory.wav", 0.75)
+
+
+## Rootmire: humid and alive. E dorian, woody marimba plucks, breathing pads.
+func _rootmire() -> void:
+	var bpm := 76.0
+	var beat := 60.0 / bpm
+	var bars := 8
+	var L := bars * 4 * beat
+	var s := Synth.new(22050, L, true, 61)
+	var dr: float = roundf(midi(40) * L) / L
+	s.tone(0.0, L, dr, dr, "sine", 0.18, 0.0001, 0.0)
+	var chords := [[52, 55, 59, 62], [50, 54, 57, 61], [48, 52, 55, 59], [50, 54, 57, 62]]
+	for c in 4:
+		var fr: Array = []
+		for n in chords[c]:
+			fr.append(midi(n))
+		s.pad(c * 2 * 4 * beat, 2 * 4 * beat + 0.8, fr, 0.12, 1100.0, 1.2, 1.2)
+	# marimba-like ostinato (wooden bell partials)
+	var pattern := [64, 67, 71, 69, 67, 64, 62, 64]
+	for b in bars * 8:
+		if b % 8 in [0, 3, 5] or s.rng.randf() < 0.25:
+			var n: int = pattern[b % pattern.size()] + (12 if (b / 16) % 2 == 1 and b % 8 == 0 else 0)
+			s.bell(b * beat * 0.5, 0.9, midi(n), 0.12, [[1.0, 1.0, 7.0], [3.99, 0.3, 12.0], [9.2, 0.08, 18.0]])
+	# breathy gusts
+	for b in range(0, bars, 2):
+		s.noise(b * 4 * beat, 3.0, 0.08, 900.0, 600.0, 200.0, 1.2, 1.0)
+	s.echo(beat * 0.75, 0.3, 1.0)
+	s.save(MUS + "rootmire.wav", 0.8)

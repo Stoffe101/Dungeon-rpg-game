@@ -64,14 +64,29 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		start = ante
 	view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
+	if "dumpmap" in OS.get_cmdline_user_args():
+		_dump_map()
 	Events.player_died.connect(_on_player_died)
 	actor_died.connect(_on_actor_died)
 	Audio.play_music(region.music)
-	Audio.play_ambience("amb_crypt")
+	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
 	var title: String = region.name
 	Events.banner.emit(title, "Depth %d%s" % [lay.depth, "  -  the Warden waits below" if lay.boss_depth else ""])
 	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
 		Game.ui.hud.show_controls.call_deferred()
+
+
+## Dev: prints the floor as ASCII (o = solid prop such as a bramble).
+func _dump_map() -> void:
+	var chars := {0: " ", 1: ".", 2: "#", 3: "P", 4: "~", 5: "G", 6: "o"}
+	for y in grid.height:
+		var line := ""
+		for x in grid.width:
+			line += chars.get(grid.at(x, y), "?")
+		if line.strip_edges() != "":
+			print("%3d %s" % [y, line])
+	for r in layout.rooms:
+		print("room %d %s rect=%s doors=%s" % [r.id, r.type_name(), r.rect, r.doors.map(func(d): return d.to)])
 
 
 func _environment() -> void:
@@ -105,6 +120,8 @@ func _place_props() -> void:
 				extra["tier"] = pd.get("tier", 1)
 			if pd.has("phase"):
 				extra["phase"] = pd.phase
+			if pd.kind == "torch":
+				extra["sheet"] = String(region.get("torch", "torch"))
 			var p := Prop.make(self, pd.kind, pd.tile, extra)
 			p.room_id = r.id
 		# secret entrances: a cracked wall on the visible side
@@ -115,7 +132,8 @@ func _place_props() -> void:
 				for t: Vector2i in tiles:
 					c += Vector2(t) + Vector2(0.5, 0.5)
 				c /= tiles.size()
-				var cw := Prop.make(self, "cracked_wall", tiles[0], {"center": c + Vector2(0, 0.5), "door": d, "room": r.id})
+				var kind := "bramble_wall" if layout.region == "rootmire" else "cracked_wall"
+				var cw := Prop.make(self, kind, tiles[0], {"center": c + Vector2(0, 0.5), "door": d, "room": r.id})
 				cw.room_id = r.id
 
 
@@ -282,13 +300,13 @@ func _start_encounter(r: Room) -> void:
 
 func _spawn_wave(r: Room) -> void:
 	var ids: Array = r.encounter[wave] if wave < r.encounter.size() else []
-	var spots := r.spawns.duplicate()
+	var spots := r.spawns.filter(func(t): return grid.at(t.x, t.y) == TileGrid.FLOOR)
 	spots.shuffle()
 	var far: Array = spots.filter(func(t): return (Vector2(t) + Vector2(0.5, 0.5)).distance_to(player.pos) > 4.5)
 	if far.size() >= ids.size():
 		spots = far
 	var elite_done := false
-	var memory := int(Profile.data.world.get("memory", 0))
+	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
 	for i in ids.size():
 		var id: String = ids[i]
 		var t: Vector2i = spots[i % spots.size()] if not spots.is_empty() else Vector2i(r.center())
@@ -450,7 +468,7 @@ func _start_boss(r: Room) -> void:
 		w.set("arena_center", c)
 		var bz: Array = []
 		for p in props:
-			if is_instance_valid(p) and p.kind == "boss_brazier" and p.room_id == r.id:
+			if is_instance_valid(p) and p.kind in ["boss_brazier", "root_node"] and p.room_id == r.id:
 				p.data["boss"] = e
 				bz.append(p)
 		w.set("braziers", bz)
@@ -508,7 +526,8 @@ func _boss_defeated(e: Enemy) -> void:
 		Prop.make(self, "hearthstone", Vector2i(r.center()) + Vector2i(0, 2), {"victory": true})
 		Events.banner.emit("The Warden Falls", "Touch the Hearthstone to return in triumph"))
 	Audio.play_music("victory", 2.0)
-	Profile.data.world.warden_kills = int(Profile.data.world.get("warden_kills", 0)) + 1
+	var key := "%s_kills" % e.id
+	Profile.data.world[key] = int(Profile.data.world.get(key, 0)) + 1
 
 
 func _on_player_died() -> void:
@@ -573,7 +592,7 @@ func request(what: String, prop: Prop) -> void:
 		"merchant":
 			Game.ui.shop(prop)
 		"lore":
-			Game.ui.lore(Lore.random_ossuary(rng))
+			Game.ui.lore(Lore.random_for(layout.region, rng))
 		"secret":
 			_open_secret(prop)
 

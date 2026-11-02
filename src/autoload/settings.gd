@@ -22,7 +22,7 @@ const DEFAULTS := {
 	"effects_intensity": 1.0,
 	"damage_numbers": true,
 	"show_fps": false,
-	"aim_assist": 0.0,
+	"aim_assist": 0.5,
 }
 
 ## action -> list of default events

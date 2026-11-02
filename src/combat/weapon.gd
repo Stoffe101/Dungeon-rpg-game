@@ -225,7 +225,7 @@ func update_visual(_dt: float) -> void:
 ## Hits every enemy in an arc; returns how many were struck.
 func arc_hit(origin: Vector2, dir: Vector2, rng: float, half_angle: float, dmg: float, tags: Array, kb: float, poise: float, opts := {}) -> int:
 	var n := 0
-	player.stage.strike_props(origin, dir, rng, half_angle, player)
+	player.stage.strike_props(origin, dir, rng, half_angle, player, tags.has("fire") or player.stats.has("living_pyre") or player.stats.has("searing_edge"))
 	for a in player.stage.in_arc(player.team, origin, dir, rng * player.stats.v("area") if opts.get("area", false) else rng, half_angle):
 		if hit_ids.has(a.get_instance_id()):
 			continue

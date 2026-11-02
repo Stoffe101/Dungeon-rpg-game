@@ -22,6 +22,7 @@ static func lines() -> Array:
 		out.append("The Warden swallows light. When it snuffs the braziers, give them back their fire. It cannot abide the flame.")
 	if int(d.world.get("warden_kills", 0)) > 0:
 		out.append("The Warden fell, and the Undervault noticed. Its dead will be stronger now - and so will what they guard.")
+		out.append("With the Warden gone, the way to the Rootmire lies open. Bring fire. The brambles there remember it, and they are afraid.")
 	out.append("Ward with the right hand: a well-timed Ward turns arrows back and leaves brutes reeling.")
 	out.append("The Hearthstone at each stairway can carry you home. There's no shame in returning with full pockets.")
 	return [out[randi() % out.size()]]

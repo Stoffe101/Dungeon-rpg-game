@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"cast": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"walk": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		32
+	],
+	"origin": [
+		12,
+		30
+	]
+}

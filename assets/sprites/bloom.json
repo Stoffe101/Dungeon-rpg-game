@@ -1,0 +1,49 @@
+{
+	"anims": {
+		"close": {
+			"fps": 10.0,
+			"frames": 3,
+			"loop": false,
+			"row": 3
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"inhale": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"open": {
+			"fps": 8.0,
+			"frames": 3,
+			"loop": false,
+			"row": 1
+		},
+		"spit": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"wilt": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 5
+		}
+	},
+	"emit": true,
+	"frame": [
+		80,
+		80
+	],
+	"origin": [
+		40,
+		76
+	]
+}

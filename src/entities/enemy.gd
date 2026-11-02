@@ -443,7 +443,7 @@ func _update_bar(dt: float) -> void:
 	_hb_show_t -= dt
 	if stage.view == null:
 		return
-	var show := (_hb_show_t > 0.0 or elite) and alive and hp < max_hp or shield > 0.0 or not grudge.is_empty()
+	var show: bool = ((_hb_show_t > 0.0 or elite) and alive and hp < max_hp or shield > 0.0 or not grudge.is_empty()) and not def.get("boss", false)
 	if show and bar == null:
 		bar = _HealthBar.new()
 		stage.view.overlay.add_child(bar)

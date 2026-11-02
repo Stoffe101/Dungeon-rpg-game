@@ -111,3 +111,16 @@ func test_encounter_budget() -> void:
 			cost += int(EnemyDB.get_def(id).cost)
 			check(int(EnemyDB.get_def(id).min_depth) <= 1, "%s too deep for depth 1" % id)
 		check(cost <= 9 and cost >= 5, "budget respected (%d)" % cost)
+
+
+func test_rootmire_brambles_never_seal_doors() -> void:
+	# brambles are solid until burned/cut; every door must stay reachable without them
+	for s in [1, 2, 3, 7, 42, 99, 123, 777]:
+		for depth in [1, 2]:
+			var lay := DungeonGen.generate(s, depth, "rootmire", depth == 2)
+			for r in lay.rooms:
+				var blocked: Array[Vector2i] = []
+				for p in r.props:
+					if p.kind in ["bramble", "root_node"]:
+						blocked.append(p.tile)
+				check(DungeonGen._doors_connected(lay, r, blocked), "seed %d depth %d room %d sealed by brambles" % [s, depth, r.id])

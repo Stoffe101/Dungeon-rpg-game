@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"burning": {
+			"fps": 10.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"burnt": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"idle": {
+			"fps": 2.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		22
+	],
+	"origin": [
+		12,
+		20
+	]
+}

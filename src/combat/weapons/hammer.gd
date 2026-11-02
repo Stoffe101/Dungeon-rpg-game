@@ -135,6 +135,7 @@ func _land() -> void:
 	player.stage.fx.burst(c, 0.1, Color(1.0, 0.6, 0.25), 18, 5.0, 0.5, 3.0)
 	player.stage.fx.flash_light(c, 0.5, Color(1.0, 0.6, 0.3), 4.0, 6.0, 0.3)
 	var hits := 0
+	player.stage.strike_props_circle(c, r, player, player.stats.has("living_pyre"))
 	for a in player.stage.in_circle(player.team, c, r):
 		hits += _smash(a, def.charged, c)
 	player.stage.fx.shake(0.6)

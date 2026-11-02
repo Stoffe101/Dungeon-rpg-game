@@ -457,6 +457,7 @@ static func settings(ui: UIRoot) -> Control:
 	gp.name = "Gameplay"
 	gp.add_child(_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05))
 	gp.add_child(_slider("Effects", "effects_intensity", 0.25, 1.0, 0.05))
+	gp.add_child(_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05))
 	gp.add_child(_toggle("Hit-stop", "hitstop"))
 	gp.add_child(_toggle("Reduce flashes", "reduce_flashes"))
 	gp.add_child(_toggle("Damage numbers", "damage_numbers"))
@@ -644,16 +645,31 @@ static func descent(ui: UIRoot) -> Control:
 	var v := UIKit.vbox(5)
 	p.add_child(v)
 	v.add_child(_title("The Descent"))
-	var reg: Dictionary = EnemyDB.REGIONS.ossuary
-	var card := UIKit.panel("DarkPanel")
-	var cv := UIKit.vbox(2)
-	card.add_child(cv)
-	cv.add_child(UIKit.label(reg.name, 8, UIKit.C_SOUL, true))
 	var mem := int(Profile.data.world.get("memory", 0))
-	cv.add_child(UIKit.para("%d depths, then the Gloam Warden.%s" % [int(reg.depths), ("  The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem) if mem > 0 else ""], 240))
-	v.add_child(card)
-	var locked := UIKit.label("Further regions: sealed (defeat the Warden...)", 8, UIKit.C_DIM)
-	v.add_child(locked)
+	var ctx := {"region": "ossuary"}
+	var cards: Array = []
+	for rid in EnemyDB.REGIONS:
+		var reg: Dictionary = EnemyDB.REGIONS[rid]
+		var open := EnemyDB.region_unlocked(rid)
+		var card := Button.new()
+		card.toggle_mode = true
+		card.button_pressed = rid == ctx.region
+		card.disabled = not open
+		card.custom_minimum_size = Vector2(250, 30)
+		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		card.text = "%s
+%s" % [reg.name, reg.blurb if open else "Sealed. Defeat the Gloam Warden to open the way."]
+		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var region_id: String = rid
+		card.pressed.connect(func() -> void:
+			ctx.region = region_id
+			for c in cards:
+				c.button_pressed = c == card
+			Audio.ui("ui_click"))
+		cards.append(card)
+		v.add_child(card)
+	if mem > 0:
+		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
 	v.add_child(UIKit.label("LOADOUT", 8, UIKit.C_GOLD, true))
 	v.add_child(UIKit.label("Weapon: %s +%d" % [GearDB.weapon(Profile.equipped_weapon()).name, Profile.weapon_level(Profile.equipped_weapon())], 8))
 	var avail := SkillDB.abilities(Profile.skills())
@@ -678,7 +694,7 @@ static func descent(ui: UIRoot) -> Control:
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var go := UIKit.button("Descend", func() -> void:
 		ui.close_all()
-		ui.fade(func() -> void: Game.start_run("ossuary")), 80)
+		ui.fade(func() -> void: Game.start_run(ctx.region)), 80)
 	row2.add_child(go)
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)

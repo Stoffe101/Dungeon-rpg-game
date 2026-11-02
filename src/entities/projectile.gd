@@ -89,7 +89,7 @@ func _check_hits() -> bool:
 	if team == Actor.Team.PLAYER:
 		for pr in stage.props:
 			if is_instance_valid(pr) and pr.breakable and not pr.used and pr.pos.distance_to(pos) <= radius + pr.strike_radius:
-				pr.on_struck(source)
+				pr.on_struck(source, tags.has("fire"))
 				if pr.stops_shots:
 					_end()
 					return true

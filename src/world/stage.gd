@@ -286,7 +286,7 @@ func _clear_walk(a: Vector2, b: Vector2) -> bool:
 
 
 ## Props that react to being struck (urns, braziers, cracked walls).
-func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, src: Node) -> void:
+func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, src: Node, fire := false) -> void:
 	for pr in props:
 		if not is_instance_valid(pr) or not pr.breakable or pr.used:
 			continue
@@ -296,13 +296,13 @@ func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, 
 			continue
 		if dist > 0.6 and absf(dir.angle_to(to)) > half_angle + 0.3:
 			continue
-		pr.on_struck(src)
+		pr.on_struck(src, fire)
 
 
-func strike_props_circle(p: Vector2, r: float, src: Node) -> void:
-	for pr in props:
+func strike_props_circle(p: Vector2, r: float, src: Node, fire := false) -> void:
+	for pr in props.duplicate():
 		if is_instance_valid(pr) and pr.breakable and not pr.used and pr.pos.distance_to(p) <= r + pr.strike_radius:
-			pr.on_struck(src)
+			pr.on_struck(src, fire)
 
 
 func nearest_interactable(p: Vector2, max_r := 1.6) -> Prop:

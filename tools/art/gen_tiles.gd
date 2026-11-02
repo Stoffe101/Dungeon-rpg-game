@@ -19,6 +19,12 @@ static func build(out_dir: String) -> void:
 	_top(out_dir.path_join("hearth_top.png"), 64, Pal.EARTH, 42)
 	_ledge(out_dir.path_join("hearth_ledge.png"), 64, Pal.EARTH, 2, 52)
 	_pit(out_dir.path_join("pit.png"), 64)
+	_root_floor(out_dir.path_join("root_floor.png"), 128, 61)
+	_wall(out_dir.path_join("root_wall.png"), 64, Pal.EARTH, 1, 62)
+	_root_overlay(out_dir.path_join("root_wall.png"), 63)
+	_top(out_dir.path_join("root_top.png"), 64, [Pal.INK, Pal.MOSS[0], Pal.MOSS[1]], 64)
+	_ledge(out_dir.path_join("root_ledge.png"), 64, Pal.EARTH, 1, 65)
+	_trunk(out_dir.path_join("root_pillar.png"))
 
 
 ## Periodic value noise so textures wrap seamlessly.
@@ -358,4 +364,92 @@ static func _pit(path: String, size: int) -> void:
 			if Px.hash01(x, y, 99) > 0.985:
 				col = Pal.SOUL[1]
 			c.put(x, y, col)
+	c.save(path)
+
+
+## Rootmire floor: dark wet soil, moss carpets, leaf litter and creeping roots.
+static func _root_floor(path: String, size: int, seed_v: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var c := Px.new(size, size)
+	for y in size:
+		for x in size:
+			var n := pnoise(x / 8.0, y / 8.0, size / 8, seed_v)
+			var m := pnoise(x / 16.0, y / 16.0, size / 16, seed_v + 1)
+			var col: Color = Pal.EARTH[1] if n > 0.45 else Pal.EARTH[0]
+			if m > 0.55:
+				var mm := pnoise(x / 4.0, y / 4.0, size / 4, seed_v + 2)
+				col = Pal.MOSS[2] if mm > 0.55 else Pal.MOSS[1]
+				if Px.hash01(x, y, seed_v) > 0.94:
+					col = Pal.MOSS[3]
+			elif Px.hash01(x, y, seed_v + 3) > 0.965:
+				col = Pal.EARTH[2]
+			c.put(x, y, col)
+	# leaf litter
+	for k in 70:
+		var x := rng.randi_range(0, size - 1)
+		var y := rng.randi_range(0, size - 1)
+		var lc: Color = [Pal.EARTH[3], Pal.WOOD[2], Pal.BLOOD[1], Pal.MOSS[3]][rng.randi_range(0, 3)]
+		c.put(x, y, lc)
+		c.put((x + 1) % size, y, lc.darkened(0.25))
+	# creeping roots (wrap around the edges)
+	for k in 6:
+		var x := float(rng.randi_range(0, size - 1))
+		var y := float(rng.randi_range(0, size - 1))
+		var a := rng.randf() * TAU
+		for s in rng.randi_range(30, 70):
+			a += rng.randf_range(-0.35, 0.35)
+			x += cos(a)
+			y += sin(a)
+			var px := posmod(int(x), size)
+			var py := posmod(int(y), size)
+			c.put(px, py, Pal.WOOD[1])
+			c.put(px, posmod(py - 1, size), Pal.WOOD[2])
+	c.save(path)
+
+
+## Paints thick roots snaking across an existing wall texture.
+static func _root_overlay(path: String, seed_v: int) -> void:
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	var c := Px.new(img.get_width(), img.get_height())
+	c.blit_image(img, 0, 0)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	for k in 4:
+		var x := float(rng.randi_range(0, c.w - 1))
+		var y := 2.0
+		for s in 40:
+			x += rng.randf_range(-0.9, 0.9)
+			y += 0.75
+			if y >= c.h - 1:
+				break
+			var px := posmod(int(x), c.w)
+			c.put(px, int(y), Pal.WOOD[2])
+			c.put(posmod(px + 1, c.w), int(y), Pal.WOOD[1])
+			c.put(posmod(px - 1, c.w), int(y), Pal.WOOD[3])
+	# glowing fungus specks
+	for k in 6:
+		var gx := rng.randi_range(0, c.w - 1)
+		var gy := rng.randi_range(8, c.h - 4)
+		c.put(gx, gy, Pal.SOUL[4])
+		c.put(gx + 1, gy, Pal.SOUL[3])
+	c.save(path)
+
+
+## Giant root trunk used for pillars in the Rootmire.
+static func _trunk(path: String) -> void:
+	var c := Px.new(16, 32)
+	for y in 32:
+		for x in 16:
+			var col: Color
+			if x == 0 or x == 15:
+				col = Pal.WOOD[0]
+			else:
+				var stripe := (x + int(y * 0.35)) % 4
+				col = Pal.WOOD[[2, 3, 2, 1][stripe]]
+			if y > 26:
+				col = col.lerp(Pal.MOSS[1], 0.5)
+			c.put(x, y, col)
+	for k in 5:
+		c.put(3 + k * 2, 6 + k * 4, Pal.MOSS[3])
 	c.save(path)

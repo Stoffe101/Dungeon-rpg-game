@@ -155,7 +155,7 @@ func _process(delta: float) -> void:
 	var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
 	if stick.length() > 0.3:
 		_pad_aim = true
-		aim = stick.normalized()
+		aim = _assisted(stick.normalized())
 		aim_point = pos + aim * 4.0
 	elif _pad_aim and move_in.length() > 0.3 and not _attack_down:
 		aim = move_in.normalized()
@@ -182,6 +182,27 @@ func _process(delta: float) -> void:
 		_buf.a2 = 0.15
 	if Input.is_action_just_pressed("flask"):
 		_buf.flask = 0.15
+
+
+## Gamepad aim assist: bend the stick direction toward the enemy closest to it.
+func _assisted(dir: Vector2) -> Vector2:
+	var k := float(Settings.get_value("aim_assist", 0.5))
+	if k <= 0.0 or stage == null:
+		return dir
+	var cone := deg_to_rad(12.0 + 18.0 * k)
+	var best: Actor = null
+	var best_ang := cone
+	for a in stage.hostiles(team):
+		var to := a.pos - pos
+		if to.length() > 9.0:
+			continue
+		var ang := absf(dir.angle_to(to))
+		if ang < best_ang and stage.grid.line_clear(pos, a.pos):
+			best_ang = ang
+			best = a
+	if best == null:
+		return dir
+	return dir.slerp((best.pos - pos).normalized(), clampf(k, 0.0, 1.0) * 0.85)
 
 
 func _input(event: InputEvent) -> void:
