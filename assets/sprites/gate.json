@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"closed": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"fall": {
+			"fps": 16.0,
+			"frames": 4,
+			"loop": false,
+			"row": 2
+		},
+		"rise": {
+			"fps": 16.0,
+			"frames": 4,
+			"loop": false,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		16,
+		34
+	],
+	"origin": [
+		8,
+		33
+	]
+}

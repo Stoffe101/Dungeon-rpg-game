@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://t8bkjht1xhgj"
+path="res://.godot/imported/kindled.fnt-f488fc18394790fafb6ebc23c134d7af.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/kindled.fnt"
+dest_files=["res://.godot/imported/kindled.fnt-f488fc18394790fafb6ebc23c134d7af.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

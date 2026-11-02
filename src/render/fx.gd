@@ -1,0 +1,347 @@
+## Visual effects for a stage: pixel particles, floor shapes (telegraphs, slash
+## arcs, rings), flash lights, afterimages, damage numbers and screen shake.
+class_name Fx
+extends Node3D
+
+const GROUND_SHADER := preload("res://assets/shaders/ground_fx.gdshader")
+const PARTICLE_SHADER := preload("res://assets/shaders/particle.gdshader")
+const MAX_PARTICLES := 2400
+const FONT_OUTLINE := preload("res://assets/fonts/kindled_outline.fnt")
+
+enum Shape { DISC, RING, CONE, RECT, SWIPE, SIGIL }
+
+var view: PixelView
+var trauma := 0.0
+var _pm: MultiMesh
+var _p_pos := PackedVector3Array()
+var _p_vel := PackedVector3Array()
+var _p_life := PackedFloat32Array()
+var _p_max := PackedFloat32Array()
+var _p_col := PackedColorArray()
+var _p_size := PackedFloat32Array()
+var _p_grav := PackedFloat32Array()
+var _p_drag := PackedFloat32Array()
+var _p_count := 0
+var _cam_basis := Basis(Vector3.RIGHT, deg_to_rad(Iso.CAMERA_PITCH_DEG))
+var _cam_inv := Basis(Vector3.RIGHT, deg_to_rad(Iso.CAMERA_PITCH_DEG)).inverse()
+var _ground_mat: ShaderMaterial
+var _plane: PlaneMesh
+var _shapes: Array = []      # {node, t, life, update:Callable}
+var _lights: Array = []      # {light, t, life, energy}
+var _numbers: Array = []     # {label, world:Vector3, t, life, vel}
+var _ghosts: Array = []      # {sprite, t, life}
+var intensity := 1.0
+
+
+func _ready() -> void:
+	_pm = MultiMesh.new()
+	_pm.transform_format = MultiMesh.TRANSFORM_3D
+	_pm.use_colors = true
+	var q := QuadMesh.new()
+	q.size = Vector2(Iso.TEXEL, Iso.TEXEL)
+	var m := ShaderMaterial.new()
+	m.shader = PARTICLE_SHADER
+	q.material = m
+	_pm.mesh = q
+	_pm.instance_count = MAX_PARTICLES
+	_pm.visible_instance_count = 0
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = _pm
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mmi.custom_aabb = AABB(Vector3(-1000, -50, -1000), Vector3(2000, 100, 2000))
+	add_child(mmi)
+	for arr in [_p_pos, _p_vel]:
+		arr.resize(MAX_PARTICLES)
+	for arr in [_p_life, _p_max, _p_size, _p_grav, _p_drag]:
+		arr.resize(MAX_PARTICLES)
+	_p_col.resize(MAX_PARTICLES)
+	_ground_mat = ShaderMaterial.new()
+	_ground_mat.shader = GROUND_SHADER
+	_plane = PlaneMesh.new()
+	_plane.size = Vector2(1, 1)
+	_plane.material = _ground_mat
+	intensity = float(Settings.get_value("effects_intensity", 1.0))
+
+
+# --- particles ---------------------------------------------------------------
+
+## Emits pixel particles at plane position `p` (height in tiles).
+func burst(p: Vector2, height: float, col: Color, count: int, speed: float, life := 0.5, gravity := 6.0, dir := Vector2.ZERO, spread := PI, up := 2.0, size := 1.0, drag := 2.0) -> void:
+	count = int(ceil(count * intensity))
+	var base_ang := dir.angle() if dir != Vector2.ZERO else 0.0
+	for i in count:
+		if _p_count >= MAX_PARTICLES:
+			return
+		var a := base_ang + randf_range(-spread, spread)
+		var s := speed * randf_range(0.35, 1.0)
+		var v2 := Vector2(cos(a), sin(a)) * s
+		var k := _p_count
+		_p_pos[k] = Iso.to_world(p + Vector2(randf_range(-0.1, 0.1), randf_range(-0.1, 0.1)), height)
+		_p_vel[k] = Vector3(v2.x, randf_range(0.3, 1.0) * up * Iso.SQ2, v2.y * Iso.SQ2)
+		_p_life[k] = life * randf_range(0.6, 1.2)
+		_p_max[k] = _p_life[k]
+		_p_col[k] = col
+		_p_size[k] = size if randf() > 0.3 else maxf(1.0, size - 1.0)
+		_p_grav[k] = gravity
+		_p_drag[k] = drag
+		_p_count += 1
+
+
+## Slow rising motes (embers, souls).
+func motes(p: Vector2, height: float, col: Color, count: int, rise := 1.0, life := 1.2, jitter := 0.4) -> void:
+	for i in count:
+		if _p_count >= MAX_PARTICLES:
+			return
+		var k := _p_count
+		var off := Vector2(randf_range(-jitter, jitter), randf_range(-jitter, jitter))
+		_p_pos[k] = Iso.to_world(p + off, height + randf_range(0.0, 0.3))
+		_p_vel[k] = Vector3(randf_range(-0.3, 0.3), rise * randf_range(0.6, 1.2) * Iso.SQ2, randf_range(-0.2, 0.2))
+		_p_life[k] = life * randf_range(0.6, 1.2)
+		_p_max[k] = _p_life[k]
+		_p_col[k] = col
+		_p_size[k] = 1.0
+		_p_grav[k] = 0.0
+		_p_drag[k] = 0.5
+		_p_count += 1
+
+
+func _update_particles(dt: float) -> void:
+	var i := 0
+	while i < _p_count:
+		_p_life[i] -= dt
+		if _p_life[i] <= 0.0:
+			_p_count -= 1
+			_p_pos[i] = _p_pos[_p_count]
+			_p_vel[i] = _p_vel[_p_count]
+			_p_life[i] = _p_life[_p_count]
+			_p_max[i] = _p_max[_p_count]
+			_p_col[i] = _p_col[_p_count]
+			_p_size[i] = _p_size[_p_count]
+			_p_grav[i] = _p_grav[_p_count]
+			_p_drag[i] = _p_drag[_p_count]
+			continue
+		var v := _p_vel[i]
+		v.y -= _p_grav[i] * Iso.SQ2 * dt
+		v *= maxf(0.0, 1.0 - _p_drag[i] * dt)
+		var pp := _p_pos[i] + v * dt
+		if pp.y < 0.02 and _p_grav[i] > 0.0:
+			pp.y = 0.02
+			v = Vector3(v.x * 0.5, -v.y * 0.25, v.z * 0.5)
+		_p_vel[i] = v
+		_p_pos[i] = pp
+		i += 1
+	_pm.visible_instance_count = _p_count
+	for k in _p_count:
+		var local := _cam_inv * _p_pos[k]
+		local.x = roundf(local.x * Iso.PPU) / Iso.PPU
+		local.y = roundf(local.y * Iso.PPU) / Iso.PPU
+		var s := _p_size[k]
+		var t := Transform3D(_cam_basis.scaled(Vector3(s, s, s)), _cam_basis * local)
+		_pm.set_instance_transform(k, t)
+		var c := _p_col[k]
+		var lf := _p_life[k] / _p_max[k]
+		if lf < 0.3:
+			# blink out in the last moments rather than alpha-fading
+			if int(_p_life[k] * 30.0) % 2 == 0:
+				c = c * 0.55
+		_pm.set_instance_color(k, c)
+
+
+# --- floor shapes ------------------------------------------------------------
+
+## Creates a floor shape. `size` is in tiles (x = length/forward, y = width).
+## For RECT the shape starts at `p` and extends along `dir`; others centre on `p`.
+func shape(kind: int, p: Vector2, dir: Vector2, size: Vector2, col: Color, edge: Color, life: float, params := {}) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.mesh = _plane
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	var d := dir.normalized() if dir != Vector2.ZERO else Vector2.RIGHT
+	var side := Vector2(-d.y, d.x)
+	var bx := Vector3(d.x, 0, d.y * Iso.SQ2) * size.x
+	var bz := Vector3(side.x, 0, side.y * Iso.SQ2) * size.y
+	var center := p + (d * size.x * 0.5 if kind == Shape.RECT else Vector2.ZERO)
+	mi.transform = Transform3D(Basis(bx, Vector3.UP, bz), Iso.to_world(center, 0.0) + Vector3(0, 0.015 + randf() * 0.01, 0))
+	mi.set_instance_shader_parameter("shape", float(kind))
+	mi.set_instance_shader_parameter("color", col)
+	mi.set_instance_shader_parameter("edge_color", edge)
+	mi.set_instance_shader_parameter("px_size", maxf(size.x, size.y) * Iso.PPU)
+	for k in params:
+		mi.set_instance_shader_parameter(k, params[k])
+	_shapes.append({"node": mi, "t": 0.0, "life": life, "update": Callable()})
+	return mi
+
+
+## A sweeping slash arc on the floor around `p`.
+func swipe(p: Vector2, dir: Vector2, radius: float, half_angle: float, col: Color, duration := 0.16, inner := 0.45, reverse := false) -> void:
+	var mi := shape(Shape.SWIPE, p, dir, Vector2(radius * 2.0, radius * 2.0), col, Color(1, 1, 0.9, 1), duration + 0.12, {"half_angle": half_angle, "inner": inner, "glow": 1.6})
+	if reverse:
+		# mirror the sweep direction by flipping the side axis
+		var b := mi.transform.basis
+		mi.transform.basis = Basis(b.x, b.y, -b.z)
+	var data: Dictionary = _shapes[_shapes.size() - 1]
+	data.update = func(t: float, node: MeshInstance3D) -> void:
+		node.set_instance_shader_parameter("progress", clampf(t / duration, 0.0, 1.0) * 1.08)
+		node.set_instance_shader_parameter("fade", clampf(1.0 - (t - duration) / 0.12, 0.0, 1.0))
+
+
+## Expanding ring (shockwaves, nova outlines).
+func ring(p: Vector2, radius: float, col: Color, duration := 0.3, thickness := 0.25) -> void:
+	var mi := shape(Shape.RING, p, Vector2.RIGHT, Vector2(radius * 2, radius * 2), col, col.lightened(0.4), duration, {"inner": 1.0 - thickness, "glow": 1.5})
+	var data: Dictionary = _shapes[_shapes.size() - 1]
+	var base_t := mi.transform
+	data.update = func(t: float, node: MeshInstance3D) -> void:
+		var k := clampf(t / duration, 0.0, 1.0)
+		var s := lerpf(0.25, 1.0, 1.0 - pow(1.0 - k, 3.0))
+		node.transform = Transform3D(base_t.basis.scaled(Vector3(s, 1, s)), base_t.origin)
+		node.set_instance_shader_parameter("fade", 1.0 - k)
+
+
+func _update_shapes(dt: float) -> void:
+	for i in range(_shapes.size() - 1, -1, -1):
+		var s: Dictionary = _shapes[i]
+		var node: MeshInstance3D = s.node
+		if not is_instance_valid(node):
+			_shapes.remove_at(i)
+			continue
+		s.t += dt
+		if s.update is Callable and s.update.is_valid():
+			s.update.call(s.t, node)
+		if s.life >= 0.0 and s.t >= s.life:
+			node.queue_free()
+			_shapes.remove_at(i)
+
+
+func release(node: MeshInstance3D) -> void:
+	for s in _shapes:
+		if s.node == node:
+			s.life = 0.0
+
+
+# --- lights ------------------------------------------------------------------
+
+func flash_light(p: Vector2, height: float, col: Color, energy: float, rng: float, life: float) -> void:
+	if Settings.get_value("reduce_flashes", false):
+		energy *= 0.45
+	var l := OmniLight3D.new()
+	l.light_color = col
+	l.light_energy = energy
+	l.omni_range = rng
+	l.omni_attenuation = 1.2
+	l.position = Iso.to_world(p, height)
+	add_child(l)
+	_lights.append({"light": l, "t": 0.0, "life": life, "energy": energy})
+
+
+func _update_lights(dt: float) -> void:
+	for i in range(_lights.size() - 1, -1, -1):
+		var L: Dictionary = _lights[i]
+		L.t += dt
+		var k: float = L.t / L.life
+		if k >= 1.0:
+			L.light.queue_free()
+			_lights.remove_at(i)
+		else:
+			L.light.light_energy = L.energy * (1.0 - k) * (1.0 - k)
+
+
+# --- afterimages -------------------------------------------------------------
+
+func ghost(src: PixelSprite, world_pos: Vector3, col: Color, life := 0.3) -> void:
+	var g := PixelSprite.new()
+	add_child(g)
+	g.setup(src.sheet.name, src.anim)
+	g.set_frame(src.frame_i)
+	g.playing = false
+	g.flip_h = src.flip_h
+	g.position = world_pos + Vector3(0, 0, -0.02)
+	g.set_instance_shader_parameter("flash", Color(col.r, col.g, col.b, 0.85))
+	_ghosts.append({"sprite": g, "t": 0.0, "life": life})
+
+
+func _update_ghosts(dt: float) -> void:
+	for i in range(_ghosts.size() - 1, -1, -1):
+		var G: Dictionary = _ghosts[i]
+		G.t += dt
+		var k: float = G.t / G.life
+		if k >= 1.0:
+			G.sprite.queue_free()
+			_ghosts.remove_at(i)
+		else:
+			G.sprite.set_tint(Color(1, 1, 1, 1.0 - k))
+
+
+# --- numbers -----------------------------------------------------------------
+
+func number(p: Vector2, height: float, text: String, col: Color, big := false) -> void:
+	if not Settings.get_value("damage_numbers", true) or view == null:
+		return
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", FONT_OUTLINE)
+	l.add_theme_font_size_override("font_size", 16 if big else 8)
+	l.add_theme_color_override("font_color", col)
+	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	view.overlay.add_child(l)
+	var w := Iso.to_world(p + Vector2(randf_range(-0.25, 0.25), 0), height)
+	_numbers.append({"label": l, "world": w, "t": 0.0, "life": 0.75 if not big else 1.0, "rise": 0.0, "big": big})
+	_place_number(_numbers[_numbers.size() - 1])
+
+
+func _place_number(n: Dictionary) -> void:
+	var l: Label = n.label
+	var sp := view.world_to_internal(n.world)
+	var sz := l.get_minimum_size()
+	l.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y - n.rise))
+
+
+func _update_numbers(dt: float) -> void:
+	for i in range(_numbers.size() - 1, -1, -1):
+		var n: Dictionary = _numbers[i]
+		n.t += dt
+		var k: float = n.t / n.life
+		n.rise = 14.0 * (1.0 - pow(1.0 - minf(k * 1.8, 1.0), 3.0)) + (6.0 if n.big else 0.0)
+		if k >= 1.0:
+			n.label.queue_free()
+			_numbers.remove_at(i)
+			continue
+		_place_number(n)
+		if k > 0.7:
+			n.label.visible = int(n.t * 24.0) % 2 == 0
+
+
+# --- screen shake ------------------------------------------------------------
+
+func shake(amount: float) -> void:
+	trauma = minf(1.0, trauma + amount * float(Settings.get_value("screen_shake", 1.0)))
+
+
+func _update_shake(dt: float) -> void:
+	if view == null:
+		return
+	trauma = maxf(0.0, trauma - dt * 2.2)
+	var t := trauma * trauma
+	var tm := Time.get_ticks_msec() / 1000.0
+	view.shake_px = Vector2(sin(tm * 61.0) + sin(tm * 27.3), cos(tm * 53.0) + sin(tm * 33.1)) * 0.5 * t * 7.0
+
+
+## Called with real (unscaled) time so effects keep animating through hitstop.
+func step(dt: float) -> void:
+	_update_particles(dt)
+	_update_shapes(dt)
+	_update_lights(dt)
+	_update_ghosts(dt)
+	_update_numbers(dt)
+	_update_shake(dt)
+
+
+func clear_all() -> void:
+	_p_count = 0
+	_pm.visible_instance_count = 0
+	for s in _shapes:
+		if is_instance_valid(s.node):
+			s.node.queue_free()
+	_shapes.clear()
+	for n in _numbers:
+		n.label.queue_free()
+	_numbers.clear()

@@ -1,0 +1,694 @@
+## Procedural dungeon floor generator (pure, deterministic for a given seed).
+##
+## Rooms live on a coarse cell grid. A main path runs from the start to the exit
+## (stairs or the boss); side branches end in special rooms; some combat rooms
+## merge into larger halls; extra doors create loops; a hidden chamber may sit
+## behind a cracked wall. Room interiors are composed from authored "stamps"
+## (pillars, pits, alcoves, cut corners, ...) and validated with a flood fill so
+## every door is always reachable.
+class_name DungeonGen
+extends RefCounted
+
+const CELL_W := 24
+const CELL_H := 16
+const FX0 := 1
+const FW := 22
+const FY0 := 2
+const FH := 12
+const MARGIN := 3
+const DOOR_COLS := [9, 12]
+const DOOR_ROWS := [4, 7]
+const GW := 7
+const GH := 6
+const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+
+
+class Layout:
+	var seed := 0
+	var depth := 1
+	var region := "ossuary"
+	var boss_depth := false
+	var grid: TileGrid
+	var rooms: Array[Room] = []
+	var start_id := 0
+	var exit_id := 0
+	var cell_owner := {}
+
+	func room(i: int) -> Room:
+		return rooms[i] if i >= 0 and i < rooms.size() else null
+
+	func room_at_tile(t: Vector2i) -> Room:
+		var rid := grid.room_at(t.x, t.y)
+		return room(rid)
+
+	func room_at_point(p: Vector2) -> Room:
+		return room_at_tile(Vector2i(floori(p.x), floori(p.y)))
+
+
+static func generate(seed_v: int, depth: int, region: String, boss_depth: bool) -> Layout:
+	for attempt in 60:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash([seed_v, depth, attempt])
+		var lay := _try_generate(rng, depth, region, boss_depth)
+		if lay != null:
+			lay.seed = seed_v
+			return lay
+	push_error("DungeonGen: failed to generate a layout")
+	return null
+
+
+static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String, boss_depth: bool) -> Layout:
+	var lay := Layout.new()
+	lay.depth = depth
+	lay.region = region
+	lay.boss_depth = boss_depth
+	var owner := {}            # Vector2i cell -> room index
+	var room_cells: Array = [] # room index -> Array[Vector2i]
+	var types: Array = []
+	var links := {}            # "a:b" -> [cell_a, cell_b, secret]
+
+	# 1. main path
+	var start := Vector2i(rng.randi_range(2, 4), GH - 1)
+	var path_len := 6 + mini(depth, 3)
+	var path := _walk(rng, start, path_len, owner)
+	if path.size() < path_len:
+		return null
+	for i in path.size():
+		owner[path[i]] = i
+		room_cells.append([path[i]])
+		types.append(Room.Type.COMBAT)
+		if i > 0:
+			_link(links, i - 1, i, path[i - 1], path[i])
+	types[0] = Room.Type.START
+	var last := path.size() - 1
+
+	# 2. boss arena (2x2) or stairs
+	if boss_depth:
+		types[last] = Room.Type.REST
+		var placed := false
+		var corners := []
+		for d in DIRS:
+			var c := path[last] + d
+			# candidate 2x2 blocks that contain c
+			for ox in [0, -1]:
+				for oy in [0, -1]:
+					corners.append([c + Vector2i(ox, oy), c])
+		_shuffle(corners, rng)
+		for pair in corners:
+			var tl: Vector2i = pair[0]
+			var blk: Array[Vector2i] = [tl, tl + Vector2i(1, 0), tl + Vector2i(0, 1), tl + Vector2i(1, 1)]
+			var ok := true
+			for b in blk:
+				if b.x < 0 or b.y < 0 or b.x >= GW or b.y >= GH or owner.has(b):
+					ok = false
+					break
+			if not ok:
+				continue
+			var bi := room_cells.size()
+			for b in blk:
+				owner[b] = bi
+			room_cells.append(blk)
+			types.append(Room.Type.BOSS)
+			_link(links, last, bi, path[last], pair[1])
+			lay.exit_id = bi
+			placed = true
+			break
+		if not placed:
+			return null
+	else:
+		types[last] = Room.Type.STAIRS
+		lay.exit_id = last
+
+	# 3. branches ending in special rooms
+	var specials: Array = [Room.Type.TREASURE, Room.Type.ELITE, Room.Type.SHRINE, Room.Type.MERCHANT]
+	if not boss_depth:
+		specials.append(Room.Type.REST)
+	_shuffle(specials, rng)
+	var branch_count := 3 + (1 if rng.randf() < 0.5 else 0)
+	var origins := range(1, last)
+	_shuffle(origins, rng)
+	var made := 0
+	for o in origins:
+		if made >= branch_count or specials.is_empty():
+			break
+		var blen := 1 if rng.randf() < 0.6 else 2
+		var br := _walk(rng, path[o], blen + 1, owner)
+		if br.size() < 2:
+			continue
+		var prev_i: int = o
+		var prev_c: Vector2i = path[o]
+		for k in range(1, br.size()):
+			var ni := room_cells.size()
+			owner[br[k]] = ni
+			room_cells.append([br[k]])
+			types.append(Room.Type.COMBAT if k < br.size() - 1 else specials.pop_back())
+			_link(links, prev_i, ni, prev_c, br[k])
+			prev_i = ni
+			prev_c = br[k]
+		made += 1
+	if made < 2:
+		return null
+	if not types.has(Room.Type.ELITE):
+		types[rng.randi_range(2, maxi(2, last - 1))] = Room.Type.ELITE
+
+	# 4. merge some combat rooms into bigger halls
+	for i in room_cells.size():
+		if types[i] != Room.Type.COMBAT or room_cells[i].size() != 1 or rng.randf() > 0.38:
+			continue
+		var c: Vector2i = room_cells[i][0]
+		var opts: Array = []
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n: Vector2i = c + d
+			if n.x >= 0 and n.y >= 0 and n.x < GW and n.y < GH and not owner.has(n):
+				opts.append(n)
+		if opts.is_empty():
+			continue
+		var n: Vector2i = opts[rng.randi_range(0, opts.size() - 1)]
+		owner[n] = i
+		room_cells[i].append(n)
+
+	# 5. loops between adjacent rooms
+	for c: Vector2i in owner.keys():
+		for d in [Vector2i(1, 0), Vector2i(0, 1)]:
+			var n: Vector2i = c + d
+			if not owner.has(n):
+				continue
+			var a: int = owner[c]
+			var b: int = owner[n]
+			if a == b or links.has(_key(a, b)):
+				continue
+			if types[a] == Room.Type.BOSS or types[b] == Room.Type.BOSS:
+				continue
+			if types[a] == Room.Type.START or types[b] == Room.Type.START:
+				continue
+			if rng.randf() < 0.22:
+				_link(links, a, b, c, n)
+
+	# 6. secret chamber behind a cracked wall
+	if rng.randf() < 0.75:
+		var cands: Array = []
+		for y in GH:
+			for x in GW:
+				var c := Vector2i(x, y)
+				if owner.has(c):
+					continue
+				var nb: Array = []
+				for d in DIRS:
+					if owner.has(c + d) and types[owner[c + d]] != Room.Type.BOSS:
+						nb.append(c + d)
+				if nb.size() >= 1:
+					cands.append([c, nb])
+		if not cands.is_empty():
+			var pick: Array = cands[rng.randi_range(0, cands.size() - 1)]
+			var si := room_cells.size()
+			owner[pick[0]] = si
+			room_cells.append([pick[0]])
+			types.append(Room.Type.SECRET)
+			var nbc: Vector2i = pick[1][rng.randi_range(0, pick[1].size() - 1)]
+			_link(links, owner[nbc], si, nbc, pick[0], true)
+
+	# 7. carve
+	var gw_t := GW * CELL_W + MARGIN * 2
+	var gh_t := GH * CELL_H + MARGIN * 2
+	var grid := TileGrid.new(gw_t, gh_t)
+	lay.grid = grid
+	lay.cell_owner = owner
+	for i in room_cells.size():
+		var r := Room.new()
+		r.id = i
+		r.type = types[i]
+		for c in room_cells[i]:
+			r.cells.append(c)
+		var mn := Vector2i(999, 999)
+		var mx := Vector2i(-1, -1)
+		for c: Vector2i in r.cells:
+			mn = Vector2i(mini(mn.x, c.x), mini(mn.y, c.y))
+			mx = Vector2i(maxi(mx.x, c.x), maxi(mx.y, c.y))
+		var x0 := mn.x * CELL_W + FX0 + MARGIN
+		var y0 := mn.y * CELL_H + FY0 + MARGIN
+		var x1 := mx.x * CELL_W + FX0 + FW - 1 + MARGIN
+		var y1 := mx.y * CELL_H + FY0 + FH - 1 + MARGIN
+		r.rect = Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+		lay.rooms.append(r)
+	# doors (corridor gaps) first, so stamps know which tiles must stay open
+	for k in links:
+		var L: Array = links[k]
+		_carve_door(lay, L[0], L[1], L[2], L[3], L[4])
+	for r in lay.rooms:
+		_shape_room(lay, r, rng)
+	grid.finalize_walls()
+	# secret doors start sealed (cracked wall)
+	for r in lay.rooms:
+		for d in r.doors:
+			if d.secret:
+				for t: Vector2i in d.gap:
+					grid.put(t.x, t.y, TileGrid.WALL)
+	lay.start_id = 0
+
+	# 8. contents: rewards, encounters, props
+	_populate(lay, rng)
+	return lay
+
+
+## Seeded Fisher-Yates shuffle (Array.shuffle() uses the global RNG and would
+## break seed reproducibility).
+static func _shuffle(arr: Array, rng: RandomNumberGenerator) -> void:
+	for i in range(arr.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var tmp = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
+
+
+static func _key(a: int, b: int) -> String:
+	return "%d:%d" % [mini(a, b), maxi(a, b)]
+
+
+static func _link(links: Dictionary, a: int, b: int, ca: Vector2i, cb: Vector2i, secret := false) -> void:
+	links[_key(a, b)] = [a, b, ca, cb, secret]
+
+
+## Random self-avoiding walk of `n` cells starting at `from` (inclusive),
+## preferring to head north and sideways.
+static func _walk(rng: RandomNumberGenerator, from: Vector2i, n: int, owner: Dictionary) -> Array[Vector2i]:
+	var best: Array[Vector2i] = []
+	for attempt in 30:
+		var p: Array[Vector2i] = [from]
+		var used := {from: true}
+		while p.size() < n:
+			var cur: Vector2i = p[p.size() - 1]
+			var opts: Array = []
+			for d in DIRS:
+				var c: Vector2i = cur + d
+				if c.x < 0 or c.y < 0 or c.x >= GW or c.y >= GH:
+					continue
+				if used.has(c) or owner.has(c):
+					continue
+				var w := 1.0
+				if d == Vector2i(0, -1):
+					w = 2.2
+				elif d == Vector2i(0, 1):
+					w = 0.5
+				opts.append([c, w])
+			if opts.is_empty():
+				break
+			var tot := 0.0
+			for o in opts:
+				tot += o[1]
+			var x := rng.randf() * tot
+			var pick: Vector2i = opts[0][0]
+			for o in opts:
+				x -= o[1]
+				if x <= 0.0:
+					pick = o[0]
+					break
+			p.append(pick)
+			used[pick] = true
+		if p.size() > best.size():
+			best = p
+		if best.size() >= n:
+			break
+	return best
+
+
+static func _carve_door(lay: Layout, a: int, b: int, ca: Vector2i, cb: Vector2i, secret: bool) -> void:
+	var g := lay.grid
+	var tiles_a: Array[Vector2i] = []
+	var tiles_b: Array[Vector2i] = []
+	var gap: Array[Vector2i] = []
+	var d := cb - ca
+	var lo := ca if (d.x > 0 or d.y > 0) else cb
+	var hi := cb if lo == ca else ca
+	if d.y == 0:
+		var gx0 := lo.x * CELL_W + FX0 + FW + MARGIN
+		for r in range(DOOR_ROWS[0], DOOR_ROWS[1] + 1):
+			var y := lo.y * CELL_H + FY0 + r + MARGIN
+			for gx in [gx0, gx0 + 1]:
+				g.put(gx, y, TileGrid.FLOOR)
+				gap.append(Vector2i(gx, y))
+			if lo == ca:
+				tiles_a.append(Vector2i(gx0, y))
+				tiles_b.append(Vector2i(gx0 + 1, y))
+			else:
+				tiles_b.append(Vector2i(gx0, y))
+				tiles_a.append(Vector2i(gx0 + 1, y))
+	else:
+		var gy0 := lo.y * CELL_H + FY0 + FH + MARGIN
+		for c in range(DOOR_COLS[0], DOOR_COLS[1] + 1):
+			var x := lo.x * CELL_W + FX0 + c + MARGIN
+			for k in 4:
+				g.put(x, gy0 + k, TileGrid.FLOOR)
+				gap.append(Vector2i(x, gy0 + k))
+			if lo == ca:
+				tiles_a.append(Vector2i(x, gy0))
+				tiles_b.append(Vector2i(x, gy0 + 3))
+			else:
+				tiles_b.append(Vector2i(x, gy0))
+				tiles_a.append(Vector2i(x, gy0 + 3))
+	var ra := lay.rooms[a]
+	var rb := lay.rooms[b]
+	ra.doors.append({"to": b, "dir": d, "tiles": tiles_a, "gap": gap, "secret": secret})
+	rb.doors.append({"to": a, "dir": -d, "tiles": tiles_b, "gap": gap, "secret": secret})
+
+
+# ---------------------------------------------------------------------------
+# Room interiors
+
+static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
+	var g := lay.grid
+	var w := r.rect.size.x
+	var h := r.rect.size.y
+	# door keep-out zones in local coordinates (must stay floor)
+	var keep: Array[Rect2i] = []
+	for d in r.doors:
+		for t: Vector2i in d.tiles:
+			var lt := t - r.rect.position
+			var dir: Vector2i = d.dir
+			# step from the threshold into the room and reserve a 3-deep lane
+			for k in range(1, 4):
+				var p := lt - dir * k
+				keep.append(Rect2i(p.x - 1, p.y - 1, 3, 3))
+	var layout := PackedByteArray()
+	var best := PackedByteArray()
+	var stamps_for := _stamp_pool(r)
+	for attempt in 12:
+		layout.resize(w * h)
+		layout.fill(TileGrid.FLOOR)
+		var n := 1 if rng.randf() < 0.55 else 2
+		if r.type != Room.Type.COMBAT and r.type != Room.Type.ELITE:
+			n = 1
+		var pool := stamps_for.duplicate()
+		_shuffle(pool, rng)
+		for i in mini(n, pool.size()):
+			_stamp(pool[i], layout, w, h, rng)
+		for kr in keep:
+			for yy in range(kr.position.y, kr.end.y):
+				for xx in range(kr.position.x, kr.end.x):
+					if xx >= 0 and yy >= 0 and xx < w and yy < h:
+						layout[yy * w + xx] = TileGrid.FLOOR
+		if _valid(layout, w, h, r):
+			best = layout.duplicate()
+			break
+	if best.is_empty():
+		best.resize(w * h)
+		best.fill(TileGrid.FLOOR)
+	for y in h:
+		for x in w:
+			var t := best[y * w + x]
+			var gx := r.rect.position.x + x
+			var gy := r.rect.position.y + y
+			g.put(gx, gy, t)
+			if t != TileGrid.VOID:
+				g.room_of[gy * g.width + gx] = r.id
+
+
+static func _stamp_pool(r: Room) -> Array:
+	match r.type:
+		Room.Type.COMBAT, Room.Type.ELITE:
+			var big := r.cells.size() > 1
+			var pool := ["pillars4", "pillar_rows", "center_pit", "corners", "center_block", "alcoves", "cross", "twin_pits", "diag_pillars"]
+			if big:
+				pool.append_array(["pit_ring", "pillar_rows", "center_pit"])
+			return pool
+		Room.Type.BOSS:
+			return ["octagon"]
+		Room.Type.START, Room.Type.REST, Room.Type.SHRINE:
+			return ["pillars4", "corners", "alcoves"]
+		Room.Type.TREASURE, Room.Type.SECRET:
+			return ["corners", "pillars4"]
+		Room.Type.MERCHANT, Room.Type.STAIRS:
+			return ["alcoves", "corners"]
+	return ["pillars4"]
+
+
+static func _put(layout: PackedByteArray, w: int, h: int, x: int, y: int, t: int) -> void:
+	if x >= 0 and y >= 0 and x < w and y < h:
+		layout[y * w + x] = t
+
+
+static func _stamp(kind: String, L: PackedByteArray, w: int, h: int, rng: RandomNumberGenerator) -> void:
+	match kind:
+		"pillars4":
+			var px := maxi(3, int(w * rng.randf_range(0.2, 0.3)))
+			var py := maxi(2, int(h * rng.randf_range(0.25, 0.32)))
+			for p in [Vector2i(px, py), Vector2i(w - 1 - px, py), Vector2i(px, h - 1 - py), Vector2i(w - 1 - px, h - 1 - py)]:
+				_put(L, w, h, p.x, p.y, TileGrid.PILLAR)
+		"diag_pillars":
+			var step := rng.randi_range(4, 6)
+			for i in range(3, w - 3, step):
+				var y := 2 + int(float(i) / w * (h - 5))
+				_put(L, w, h, i, y, TileGrid.PILLAR)
+				_put(L, w, h, w - 1 - i, y, TileGrid.PILLAR)
+		"pillar_rows":
+			var step := rng.randi_range(4, 6)
+			var r1 := rng.randi_range(2, 3)
+			for x in range(3, w - 3, step):
+				_put(L, w, h, x, r1, TileGrid.PILLAR)
+				_put(L, w, h, x, h - 1 - r1, TileGrid.PILLAR)
+		"center_pit":
+			var pw := rng.randi_range(4, mini(12, w - 10))
+			var ph := rng.randi_range(2, mini(5, h - 7))
+			var x0 := (w - pw) / 2
+			var y0 := (h - ph) / 2
+			for y in range(y0, y0 + ph):
+				for x in range(x0, x0 + pw):
+					_put(L, w, h, x, y, TileGrid.PIT)
+		"twin_pits":
+			var pw := rng.randi_range(3, 5)
+			var ph := rng.randi_range(2, 4)
+			var y0 := (h - ph) / 2
+			for x0 in [4, w - 4 - pw]:
+				for y in range(y0, y0 + ph):
+					for x in range(x0, x0 + pw):
+						_put(L, w, h, x, y, TileGrid.PIT)
+		"pit_ring":
+			var mx := 4
+			var my := 3
+			for y in range(my, h - my):
+				for x in range(mx, w - mx):
+					var edge := x == mx or x == w - mx - 1 or y == my or y == h - my - 1
+					var edge2 := x == mx + 1 or x == w - mx - 2 or y == my + 1 or y == h - my - 2
+					if edge or edge2:
+						_put(L, w, h, x, y, TileGrid.PIT)
+			# bridges along both axes
+			for y in range(0, h):
+				for x in range(w / 2 - 1, w / 2 + 1):
+					if L[y * w + x] == TileGrid.PIT:
+						L[y * w + x] = TileGrid.FLOOR
+			for x in range(0, w):
+				for y in range(h / 2 - 1, h / 2 + 1):
+					if L[y * w + x] == TileGrid.PIT:
+						L[y * w + x] = TileGrid.FLOOR
+		"corners":
+			var cw := rng.randi_range(2, 5)
+			var ch := rng.randi_range(2, 3)
+			var both := rng.randf() < 0.6
+			for corner in [Vector2i(0, 0), Vector2i(1, 1), Vector2i(1, 0), Vector2i(0, 1)]:
+				if not both and (corner == Vector2i(1, 0) or corner == Vector2i(0, 1)):
+					continue
+				var x0 := 0 if corner.x == 0 else w - cw
+				var y0 := 0 if corner.y == 0 else h - ch
+				for y in range(y0, y0 + ch):
+					for x in range(x0, x0 + cw):
+						_put(L, w, h, x, y, TileGrid.VOID)
+		"cross":
+			var cw := w / 2 - 5
+			var ch := h / 2 - 3
+			for corner in [Vector2i(0, 0), Vector2i(1, 1), Vector2i(1, 0), Vector2i(0, 1)]:
+				var x0 := 0 if corner.x == 0 else w - cw
+				var y0 := 0 if corner.y == 0 else h - ch
+				for y in range(y0, y0 + ch):
+					for x in range(x0, x0 + cw):
+						_put(L, w, h, x, y, TileGrid.VOID)
+		"center_block":
+			var bw := rng.randi_range(2, 4)
+			var bh := 2
+			var x0 := (w - bw) / 2
+			var y0 := (h - bh) / 2
+			for y in range(y0, y0 + bh):
+				for x in range(x0, x0 + bw):
+					_put(L, w, h, x, y, TileGrid.WALL)
+		"alcoves":
+			for x in range(2, w - 2, 5):
+				_put(L, w, h, x, 0, TileGrid.VOID)
+				_put(L, w, h, x + 1, 0, TileGrid.VOID)
+		"octagon":
+			var c := mini(9, w / 4)
+			for y in h:
+				for x in w:
+					var dx := mini(x, w - 1 - x)
+					var dy := mini(y, h - 1 - y)
+					if dx + dy < c:
+						_put(L, w, h, x, y, TileGrid.VOID)
+
+
+static func _valid(L: PackedByteArray, w: int, h: int, r: Room) -> bool:
+	var floor_n := 0
+	var first := Vector2i(-1, -1)
+	for y in h:
+		for x in w:
+			if L[y * w + x] == TileGrid.FLOOR:
+				floor_n += 1
+				if first.x < 0:
+					first = Vector2i(x, y)
+	if floor_n < int(w * h * 0.5):
+		return false
+	# every door threshold neighbour must be reachable from every other
+	var seen := {}
+	var start := Vector2i(w / 2, h / 2)
+	if L[start.y * w + start.x] != TileGrid.FLOOR:
+		start = first
+	var stack: Array[Vector2i] = [start]
+	while not stack.is_empty():
+		var c: Vector2i = stack.pop_back()
+		if seen.has(c):
+			continue
+		seen[c] = true
+		for d in DIRS:
+			var n: Vector2i = c + d
+			if n.x < 0 or n.y < 0 or n.x >= w or n.y >= h:
+				continue
+			if L[n.y * w + n.x] == TileGrid.FLOOR and not seen.has(n):
+				stack.append(n)
+	for d in r.doors:
+		for t: Vector2i in d.tiles:
+			var inner: Vector2i = t - r.rect.position - Vector2i(d.dir)
+			if not seen.has(inner):
+				return false
+	# most of the floor should be connected (no big sealed pockets)
+	return seen.size() >= int(floor_n * 0.9)
+
+
+# ---------------------------------------------------------------------------
+# Contents
+
+static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
+	var g := lay.grid
+	var reward_pool := ["relic", "relic", "relic", "embers", "embers", "vigor", "memory"]
+	for r in lay.rooms:
+		# spawn tiles: floor, away from doors and walls
+		for y in range(r.rect.position.y, r.rect.end.y):
+			for x in range(r.rect.position.x, r.rect.end.x):
+				if g.at(x, y) != TileGrid.FLOOR:
+					continue
+				var near_door := false
+				for d in r.doors:
+					for t: Vector2i in d.tiles:
+						if absi(t.x - x) + absi(t.y - y) < 5:
+							near_door = true
+				if near_door:
+					continue
+				var open := true
+				for dy in [-1, 0, 1]:
+					for dx in [-1, 0, 1]:
+						if g.at(x + dx, y + dy) != TileGrid.FLOOR:
+							open = false
+				if open:
+					r.spawns.append(Vector2i(x, y))
+		match r.type:
+			Room.Type.COMBAT:
+				r.reward = reward_pool[rng.randi_range(0, reward_pool.size() - 1)]
+			Room.Type.ELITE:
+				r.reward = "sunshard"
+			Room.Type.SECRET:
+				r.reward = "secret"
+		if r.is_combat() and r.type != Room.Type.BOSS:
+			var area := r.rect.size.x * r.rect.size.y
+			var budget := 6 + lay.depth * 3 + int(area / 140)
+			if r.type == Room.Type.ELITE:
+				budget += 2
+			r.waves = 2 if (area > 400 or (lay.depth >= 2 and rng.randf() < 0.45)) else 1
+			r.encounter = []
+			for wv in r.waves:
+				var b := budget if wv == 0 else int(budget * 0.75)
+				r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, b))
+			if r.type == Room.Type.ELITE:
+				r.elite_affix = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
+		_decorate(lay, r, rng)
+
+
+static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
+	var g := lay.grid
+	var door_cols := {}
+	for d in r.doors:
+		for t: Vector2i in d.tiles:
+			door_cols[t.x] = true
+	# soul-flame sconces on the back wall
+	var back_y := r.rect.position.y - 1
+	var xs: Array = []
+	for x in range(r.rect.position.x + 1, r.rect.end.x - 1):
+		if g.at(x, back_y) == TileGrid.WALL and g.at(x, back_y + 1) == TileGrid.FLOOR and g.wall_height(x, back_y) > 1.0 and not door_cols.has(x) and not door_cols.has(x - 1) and not door_cols.has(x + 1):
+			xs.append(x)
+	var spacing := 5
+	var last_x := -99
+	for x in xs:
+		if x - last_x >= spacing:
+			r.props.append({"kind": "torch", "tile": Vector2i(x, back_y)})
+			last_x = x
+	# banners / cracks / alcoves on the back wall between torches
+	for x in xs:
+		if rng.randf() < 0.12 and not _prop_at(r, Vector2i(x, back_y)):
+			r.props.append({"kind": "banner", "tile": Vector2i(x, back_y)})
+	# floor clutter: bones, rubble, cobwebs, urns
+	var floor_tiles: Array[Vector2i] = []
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if g.at(x, y) == TileGrid.FLOOR:
+				floor_tiles.append(Vector2i(x, y))
+	var n_decal := int(floor_tiles.size() / 28)
+	for i in n_decal:
+		var t: Vector2i = floor_tiles[rng.randi_range(0, floor_tiles.size() - 1)]
+		r.props.append({"kind": "decal", "tile": t, "variant": rng.randi_range(0, 7)})
+	# urns hug the walls
+	var wall_adj: Array[Vector2i] = []
+	for t in floor_tiles:
+		if g.at(t.x, t.y - 1) == TileGrid.WALL or g.at(t.x - 1, t.y) == TileGrid.WALL or g.at(t.x + 1, t.y) == TileGrid.WALL:
+			var bad := false
+			for d in r.doors:
+				for dt: Vector2i in d.tiles:
+					if absi(dt.x - t.x) + absi(dt.y - t.y) < 4:
+						bad = true
+			if not bad:
+				wall_adj.append(t)
+	var n_urn := rng.randi_range(1, 4) if r.type != Room.Type.BOSS else 0
+	for i in n_urn:
+		if wall_adj.is_empty():
+			break
+		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
+		r.props.append({"kind": "urn", "tile": t})
+	var c := Vector2i(r.center())
+	match r.type:
+		Room.Type.START:
+			r.props.append({"kind": "lore", "tile": c + Vector2i(0, -3)})
+		Room.Type.TREASURE:
+			r.props.append({"kind": "chest", "tile": c, "tier": 1})
+			for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
+				r.props.append({"kind": "candles", "tile": c + o})
+		Room.Type.SECRET:
+			r.props.append({"kind": "chest", "tile": c, "tier": 2})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(3, 1)})
+		Room.Type.SHRINE:
+			r.props.append({"kind": "shrine", "tile": c + Vector2i(0, -2)})
+			r.props.append({"kind": "brazier", "tile": c + Vector2i(-4, -2)})
+			r.props.append({"kind": "brazier", "tile": c + Vector2i(4, -2)})
+		Room.Type.MERCHANT:
+			r.props.append({"kind": "merchant", "tile": c + Vector2i(0, -2)})
+			r.props.append({"kind": "brazier", "tile": c + Vector2i(-3, -1)})
+		Room.Type.REST:
+			r.props.append({"kind": "fountain", "tile": c})
+		Room.Type.STAIRS:
+			r.props.append({"kind": "stairs", "tile": c + Vector2i(0, -2)})
+			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})
+		Room.Type.BOSS:
+			var bc := Vector2(r.center())
+			for o in [Vector2(-0.3, -0.3), Vector2(0.3, -0.3), Vector2(-0.3, 0.3), Vector2(0.3, 0.3)]:
+				var bt := Vector2i(bc + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y))
+				r.props.append({"kind": "boss_brazier", "tile": bt})
+
+
+static func _prop_at(r: Room, t: Vector2i) -> bool:
+	for p in r.props:
+		if p.tile == t:
+			return true
+	return false

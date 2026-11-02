@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"aim": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"shoot": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		24
+	],
+	"origin": [
+		12,
+		22
+	]
+}
