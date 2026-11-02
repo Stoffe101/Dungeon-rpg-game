@@ -69,6 +69,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				start = rm
 	view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
+	if "hitlab" in OS.get_cmdline_user_args():
+		# dev: enemies right beside the player, to look at hit feedback up close
+		for k in 3:
+			var e := _make_enemy(["husk", "husk", "guard"][k])
+			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
+			add_actor(e)
 	if "dumpmap" in OS.get_cmdline_user_args():
 		_dump_map()
 	if OS.is_debug_build():

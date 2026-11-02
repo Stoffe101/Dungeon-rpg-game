@@ -549,12 +549,31 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	if not dot and not h.silent:
 		var col: Color = t.hit_color() if t.has_method("hit_color") else Color(0.9, 0.9, 0.85)
 		stage.fx.burst(t.pos, 0.6, col, 5 if not res.crit else 10, 4.0, 0.3, 8.0, h.from_dir, 0.7)
+		# a starburst where it landed, tinted by what landed, and a nudge of the camera
+		var flash_col := Color(1.0, 0.92, 0.75)
+		if res.crit:
+			flash_col = Color(1.0, 0.82, 0.35)
+		elif h.has_tag("fire"):
+			flash_col = Color(1.0, 0.6, 0.3)
+		elif h.has_tag("frost"):
+			flash_col = Color(0.65, 0.88, 1.0)
+		stage.fx.impact(t.pos, 0.75, flash_col, res.crit or finisher, h.from_dir)
+		if h.has_tag("melee"):
+			stage.fx.kick(h.from_dir, 2.5 if res.crit or finisher else 1.2)
+			if weapon:
+				weapon.hit_flash()
 		if res.crit:
 			stage.fx.burst(t.pos, 0.8, Color(1.0, 0.9, 0.5), 6, 5.0, 0.2, 0.0, h.from_dir, 0.5)
-			stage.hitstop(0.05)
+			stage.hitstop(0.06)
+			Settings.rumble(0.35, 0.25, 0.08)
 			Audio.play("crit", -3.0, randf_range(0.95, 1.05))
 		else:
+			Settings.rumble(0.18, 0.0, 0.05)
 			Audio.play("hit", -4.0, randf_range(0.9, 1.1))
+		if not t.alive and h.has_tag("melee"):
+			# killing blows land a beat harder
+			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
+			stage.fx.kick(h.from_dir, 2.0)
 	return res
 
 
@@ -637,6 +656,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		invuln_t = maxf(invuln_t, 0.5)
 		stage.hitstop(0.07)
 		stage.fx.shake(0.4)
+		stage.fx.kick(h.from_dir, 3.0)
 		stage.fx.burst(pos, 0.7, Color(0.85, 0.2, 0.25), 8, 4.0, 0.35, 8.0, h.from_dir, 0.8)
 		Audio.play("hurt", 0.0)
 		Events.player_damaged.emit(res.amount)
@@ -661,6 +681,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 func _perfect_dodge() -> void:
 	perfect_done = true
 	stage.slow_motion(0.3, 0.35)
+	Settings.rumble(0.6, 0.0, 0.12)
 	stage.fx.ring(pos, 1.8, Color(1.0, 0.9, 0.6), 0.3, 0.15)
 	stage.fx.number(pos, 2.4, "PERFECT", Color(1.0, 0.9, 0.55))
 	Audio.play("perfect", -2.0)

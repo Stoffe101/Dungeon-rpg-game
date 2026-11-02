@@ -359,8 +359,14 @@ func die(killer: Node) -> void:
 		nameplate.queue_free()
 	died_enemy.emit(self)
 	Audio.play("enemy_die", -3.0, randf_range(0.9, 1.1))
-	stage.fx.burst(pos, 0.6, hit_color(), 12, 4.0, 0.6, 9.0)
+	stage.fx.burst(pos, 0.6, hit_color(), 12, 4.0, 0.6, 9.0, last_hit_from, 1.4)
 	stage.fx.motes(pos, 0.3, Color(0.35, 0.95, 0.85), 6, 1.5, 0.9, 0.3)
+	if elite:
+		# champions go out with a crack of soul-light
+		stage.fx.ring(pos, 1.8, Color(0.55, 1.0, 0.9), 0.35, 0.3)
+		stage.fx.flash_light(pos, 1.0, Color(0.5, 1.0, 0.9), 3.0, 5.0, 0.35)
+		stage.fx.burst(pos, 0.8, Color(0.6, 1.0, 0.92), 18, 6.0, 0.7, 4.0)
+		stage.fx.shake(0.3)
 	if pl and by_player:
 		var st := pl.stats
 		if st.v("life_on_kill") > 0.0:

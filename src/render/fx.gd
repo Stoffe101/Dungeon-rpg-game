@@ -32,6 +32,9 @@ var _numbers: Array = []     # {label, world:Vector3, t, life, vel}
 var _ghosts: Array = []      # {sprite, t, life}
 var _says: Array = []        # {label, who:WeakRef, height, t, life}
 var _marks: Dictionary = {}  # instance id -> {label, who:WeakRef, height}
+var _impacts: Array = []     # {sprite, t, life}
+var _impact_mat: ShaderMaterial
+var _kick := Vector2.ZERO    # directional camera nudge (screen pixels), springs back
 var intensity := 1.0
 
 
@@ -412,8 +415,19 @@ func _update_numbers(dt: float) -> void:
 
 # --- screen shake ------------------------------------------------------------
 
+## Random shake that decays; every shake is also felt through the controller.
 func shake(amount: float) -> void:
 	trauma = minf(1.0, trauma + amount * float(Settings.get_value("screen_shake", 1.0)))
+	Settings.rumble(clampf(amount * 0.9, 0.0, 1.0), clampf(amount * 1.1 - 0.15, 0.0, 1.0), 0.06 + amount * 0.2)
+
+
+## A directional nudge of the camera: hits push the view the way the blow went.
+func kick(dir: Vector2, pixels: float) -> void:
+	var k := float(Settings.get_value("screen_shake", 1.0))
+	if k <= 0.0 or dir == Vector2.ZERO:
+		return
+	_kick += dir.normalized() * pixels * k
+	_kick = _kick.limit_length(6.0)
 
 
 func _update_shake(dt: float) -> void:
@@ -422,7 +436,40 @@ func _update_shake(dt: float) -> void:
 	trauma = maxf(0.0, trauma - dt * 2.2)
 	var t := trauma * trauma
 	var tm := Time.get_ticks_msec() / 1000.0
-	view.shake_px = Vector2(sin(tm * 61.0) + sin(tm * 27.3), cos(tm * 53.0) + sin(tm * 33.1)) * 0.5 * t * 7.0
+	_kick = _kick.lerp(Vector2.ZERO, 1.0 - exp(-dt * 16.0))
+	view.shake_px = Vector2(sin(tm * 61.0) + sin(tm * 27.3), cos(tm * 53.0) + sin(tm * 33.1)) * 0.5 * t * 7.0 + _kick
+
+
+# --- impact flashes ----------------------------------------------------------
+
+## A starburst at the point of contact, tinted by what landed. Animates in real
+## time, so it plays out during the hitstop freeze.
+func impact(p: Vector2, height: float, col: Color, big := false, dir := Vector2.ZERO) -> void:
+	var s := PixelSprite.new()
+	add_child(s)
+	s.setup("impact", "pop")
+	if _impact_mat == null:
+		_impact_mat = (_ghost_material(s.sheet) as ShaderMaterial).duplicate() as ShaderMaterial
+		_impact_mat.set_shader_parameter("detail", 1.0)
+	s.material_override = _impact_mat
+	var strength := 0.75 if Settings.get_value("reduce_flashes", false) else 1.0
+	s.set_instance_shader_parameter("flash", Color(col.r * strength, col.g * strength, col.b * strength, 1.0))
+	s.set_instance_shader_parameter("tint", Color(1, 1, 1, 1))
+	s.flip_h = randf() < 0.5
+	s.position = Iso.to_world(p - dir * 0.15, height) + Vector3(0, 0, 0.12)
+	if big:
+		s.scale = Vector3(2, 2, 2)
+	_impacts.append({"sprite": s, "t": 0.0, "life": 4.0 / 26.0})
+
+
+func _update_impacts(dt: float) -> void:
+	for i in range(_impacts.size() - 1, -1, -1):
+		var m: Dictionary = _impacts[i]
+		m.t += dt
+		if m.t >= m.life or not is_instance_valid(m.sprite):
+			if is_instance_valid(m.sprite):
+				m.sprite.queue_free()
+			_impacts.remove_at(i)
 
 
 ## Called with real (unscaled) time so effects keep animating through hitstop.
@@ -433,6 +480,7 @@ func step(dt: float) -> void:
 	_update_ghosts(dt)
 	_update_numbers(dt)
 	_update_says(dt)
+	_update_impacts(dt)
 	_update_marks()
 	_update_shake(dt)
 

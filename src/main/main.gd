@@ -1,7 +1,7 @@
 ## Root of the running game: owns the pixel world view and the UI layer,
 ## then hands control to the Game autoload.
 ## Dev command line (after `--`): scene=menu|hub|dungeon|boss  seed=N  capture=name frames=N quit
-## pad (pretend a gamepad is in use)  open=skilltree|forge|descent|settings|controls|pause|relic|summary
+## pad (pretend a gamepad is in use)  hitlab (enemies beside the player)  burst=<count>:<step> (with capture=)  open=skilltree|forge|descent|settings|controls|pause|relic|summary
 extends Control
 
 var view: PixelView

@@ -1,5 +1,6 @@
 ## Development helper: saves screenshots of the real rendered window.
-## Command line (after `--`):  capture=<name>  frames=<n>  quit
+## Command line (after `--`):  capture=<name>  frames=<n>  quit  [burst=<count>:<step>]
+## (burst saves <name>_0.. every <step> frames from <n>, to catch fast moments)
 ## Also bound to F12 (action "screenshot") during play.
 class_name Capture
 extends Node
@@ -15,6 +16,7 @@ static func from_args() -> Capture:
 	var c := Capture.new()
 	var name := ""
 	var frames := 90
+	var burst := Vector2i(1, 1)
 	for a in args:
 		if a.begins_with("capture="):
 			name = a.substr(8)
@@ -22,8 +24,15 @@ static func from_args() -> Capture:
 			frames = int(a.substr(7))
 		elif a == "quit":
 			c.quit_after = true
+		elif a.begins_with("burst="):
+			var parts := a.substr(6).split(":")
+			burst = Vector2i(int(parts[0]), int(parts[1]) if parts.size() > 1 else 1)
 	if name != "":
-		c.shots.append({"frame": frames, "name": name})
+		if burst.x <= 1:
+			c.shots.append({"frame": frames, "name": name})
+		else:
+			for i in burst.x:
+				c.shots.append({"frame": frames + i * burst.y, "name": "%s_%d" % [name, i]})
 	c.quit_frame = frames if c.quit_after and name == "" else -1
 	return c
 

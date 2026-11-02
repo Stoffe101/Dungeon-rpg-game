@@ -42,6 +42,7 @@ static func build(dir: String) -> void:
 	_shrine(dir)
 	_fountain(dir)
 	_wisp(dir)
+	_impact(dir)
 	_dummy(dir)
 	_spikes(dir)
 	_ember_well(dir)
@@ -650,6 +651,53 @@ static func _wisp(dir: String) -> void:
 		fr.append(c)
 	s.add("idle", fr, 8.0)
 	s.save(dir, "wisp")
+
+
+## Impact flash for landed hits: a 4-frame starburst drawn in greys; the game
+## tints it per damage type and draws it additively so it blooms.
+static func _impact(dir: String) -> void:
+	var s := Sheet.new(24, 24, Vector2i(12, 12))
+	var fr: Array = []
+	var spec := [
+		# [core radius, cross spike length, diagonal spike length, ring radius]
+		[2.2, 7, 4, 0.0],
+		[3.0, 10, 6, 0.0],
+		[1.2, 11, 7, 7.0],
+		[0.0, 0, 0, 9.5],
+	]
+	for i in 4:
+		var c := Px.new(24, 24)
+		var core: float = spec[i][0]
+		var cl: int = spec[i][1]
+		var dl: int = spec[i][2]
+		var rr: float = spec[i][3]
+		for k in range(1, cl + 1):
+			var v := Pal.WHITE if k < cl * 0.4 else (Pal.BONE[4] if k < cl * 0.75 else Pal.BONE[2])
+			if i == 2 and k % 3 == 0:
+				continue
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				c.put(12 + d.x * k, 12 + d.y * k, v)
+			if k < cl * 0.4:
+				# a little thickness near the core
+				c.put(12 + k, 11, Pal.BONE[3])
+				c.put(12 - k, 13, Pal.BONE[3])
+				c.put(11, 12 - k, Pal.BONE[3])
+				c.put(13, 12 + k, Pal.BONE[3])
+		for k in range(1, dl + 1):
+			var v2 := Pal.BONE[4] if k < dl * 0.5 else Pal.BONE[2]
+			for d in [Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]:
+				c.put(12 + d.x * k, 12 + d.y * k, v2)
+		if core > 0.0:
+			c.ellipse(12.0, 12.0, core, core, Pal.WHITE)
+		if rr > 0.0:
+			for a in 32:
+				if i == 3 and a % 3 != 0:
+					continue
+				var ang := a * TAU / 32.0
+				c.put(int(round(12 + cos(ang) * rr)), int(round(12 + sin(ang) * rr)), Pal.BONE[3] if i == 2 else Pal.BONE[1])
+		fr.append(c)
+	s.add("pop", fr, 26.0, false)
+	s.save(dir, "impact")
 
 
 static func _dummy(dir: String) -> void:

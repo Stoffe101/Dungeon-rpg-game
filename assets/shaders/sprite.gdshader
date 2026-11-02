@@ -61,7 +61,7 @@ void fragment() {
 		}
 	}
 	col = mix(col, flash.rgb, flash.a);
-	emit += flash.rgb * flash.a * 1.2;
+	emit += flash.rgb * flash.a * 0.5;   // a hit glints; big sprites must not bloom into a white box
 	if (tint.a < 0.99) {
 		if (bayer4(FRAGCOORD.xy) > tint.a) {
 			discard;

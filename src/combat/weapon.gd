@@ -27,6 +27,7 @@ var swing := 0.0          # current swing offset (radians, screen space)
 var visual: MeshInstance3D
 var hit_ids := {}
 var _charge_fx_t := 0.0
+var _hit_flash := 0.0     # the blade glints when it connects
 
 
 func setup(p: Player, weapon_id: String, lvl: int) -> void:
@@ -197,6 +198,12 @@ func base_angle() -> float:
 	return Iso.screen_angle(player.aim if phase == Phase.IDLE or phase == Phase.CHARGE else aim_dir)
 
 
+func hit_flash() -> void:
+	_hit_flash = 0.9
+	if visual:
+		visual.set_instance_shader_parameter("flash", Color(1.0, 0.95, 0.8, _hit_flash))
+
+
 func update_visual(_dt: float) -> void:
 	if visual == null:
 		return
@@ -210,7 +217,8 @@ func update_visual(_dt: float) -> void:
 		var pulse := 0.5 + 0.5 * sin(phase_t * 30.0)
 		visual.set_instance_shader_parameter("flash", Color(1.0, 0.7, 0.3, (0.6 if charged else 0.25) * pulse))
 	if phase != Phase.CHARGE:
-		visual.set_instance_shader_parameter("flash", Color(1, 1, 1, 0.0))
+		_hit_flash = maxf(0.0, _hit_flash - _dt * 8.0)
+		visual.set_instance_shader_parameter("flash", Color(1.0, 0.95, 0.8, _hit_flash))
 	var a := ang + off
 	visual.basis = Iso.screen_basis(a, left)
 	var d := Vector2(cos(a), -sin(a))

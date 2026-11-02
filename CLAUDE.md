@@ -40,7 +40,9 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `search=<text>`), `warp=boss|event`, `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
-  `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`).
+  `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
+  `hitlab` (enemies spawned beside the player) with `capture=hit frames=380 burst=36:4` to grab fast
+  moments; tile them with `-s res://tools/dev/contact_sheet.gd -- out=captures/x.png crop=800x500 <files>`.
 - Input: the bot and smoke test call `prop.interact()` directly, so they cannot catch a missing
   input path; `tests/test_sim.gd` presses the real `interact` action. Bindings are created with
   `device = -1` (all pads). Godot's `ui_accept`/`ui_cancel` get pad A/B added in `Settings.apply_bindings`.

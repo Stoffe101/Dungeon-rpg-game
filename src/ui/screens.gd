@@ -471,6 +471,7 @@ static func settings(ui: UIRoot) -> Control:
 	gp.add_child(_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05))
 	gp.add_child(_slider("Effects", "effects_intensity", 0.25, 1.0, 0.05))
 	gp.add_child(_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05))
+	gp.add_child(_slider("Rumble (pad)", "rumble", 0.0, 1.0, 0.05))
 	gp.add_child(_toggle("Hit-stop", "hitstop"))
 	gp.add_child(_toggle("Reduce flashes", "reduce_flashes"))
 	gp.add_child(_toggle("Damage numbers", "damage_numbers"))

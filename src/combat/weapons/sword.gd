@@ -39,8 +39,8 @@ func on_active() -> void:
 	Audio.play("swing", -2.0, randf_range(0.95, 1.08))
 	var hits := arc_hit(p, aim_dir, strike.range, deg_to_rad(strike.arc), dmg, ["melee"], strike.kb, strike.poise, {"finisher": finisher})
 	if hits > 0:
-		player.stage.hitstop(0.045 if not finisher else 0.07)
-		player.stage.fx.shake(0.12 if not finisher else 0.22)
+		player.stage.hitstop(0.05 if not finisher else 0.08)
+		player.stage.fx.shake(0.12 if not finisher else 0.24)
 	if finisher and (tempered() or player.stats.has("combo_wave")):
 		_cutting_wave(dmg * 0.6)
 	player.on_weapon_strike(hits, finisher)

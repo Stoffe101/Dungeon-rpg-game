@@ -24,6 +24,7 @@ const DEFAULTS := {
 	"damage_numbers": true,
 	"show_fps": false,
 	"aim_assist": 0.5,
+	"rumble": 1.0,
 }
 
 ## action -> list of default events
@@ -78,6 +79,15 @@ func _input(e: InputEvent) -> void:
 	if pad != using_pad:
 		using_pad = pad
 		device_changed.emit(pad)
+
+
+## Controller vibration, scaled by the rumble setting; only while a pad is in use.
+func rumble(weak: float, strong: float, seconds: float) -> void:
+	var k := float(values.get("rumble", 1.0))
+	if k <= 0.0 or not using_pad or (weak <= 0.0 and strong <= 0.0):
+		return
+	for d in Input.get_connected_joypads():
+		Input.start_joy_vibration(d, clampf(weak * k, 0.0, 1.0), clampf(strong * k, 0.0, 1.0), seconds)
 
 
 func get_value(key: String, fallback: Variant = null) -> Variant:
