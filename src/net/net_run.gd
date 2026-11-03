@@ -707,6 +707,10 @@ func apply_events(evs: Array) -> void:
 			"not":
 				if int(ev[1]) != Net.my_id():
 					apply_events([ev[2]])
+			"by":
+				stage.fx.ally_k = 1.0 if int(ev[1]) == Net.my_id() else maxf(0.05, stage.fx.ally)
+				apply_events([ev[2]])
+				stage.fx.ally_k = 1.0
 			"own":
 				if int(ev[1]) == Net.my_id():
 					apply_events([ev[2]])

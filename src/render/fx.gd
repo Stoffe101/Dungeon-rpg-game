@@ -68,15 +68,32 @@ func _ready() -> void:
 	_plane.size = Vector2(1, 1)
 	_plane.material = _ground_mat
 	intensity = float(Settings.get_value("effects_intensity", 1.0))
+	ally = float(Settings.get_value("ally_effects", 0.6))
 	Settings.changed.connect(func(key: String) -> void:
 		if key == "effects_intensity":
-			intensity = float(Settings.get_value("effects_intensity", 1.0)))
+			intensity = float(Settings.get_value("effects_intensity", 1.0))
+		elif key == "ally_effects":
+			ally = float(Settings.get_value("ally_effects", 0.6)))
+
+
+## Co-op: another Kindled's particles are drawn at `ally` of your own (the
+## Allies' effects setting), so your own Kindled stays easy to read in a crowd.
+var ally := 0.6
+var ally_k := 1.0     # client: set while drawing an effect another Kindled made
+
+
+func _who_k() -> float:
+	if ally_k < 1.0:
+		return ally_k
+	if Net.recording and Net.actor_peer != 0 and Net.actor_peer != Net.my_id():
+		return ally
+	return 1.0
 
 
 ## Particle counts follow the Effects setting; a fractional share is rolled so
 ## single motes thin out too instead of always surviving.
 func _scaled(count: int) -> int:
-	var n := count * intensity
+	var n := count * intensity * _who_k()
 	return int(n) + (1 if randf() < n - floorf(n) else 0)
 
 

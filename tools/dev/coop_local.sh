@@ -6,8 +6,10 @@
 #   GODOT=/path/to/godot tools/dev/coop_local.sh <players> [frames] [netsim per client ...]
 #   e.g. tools/dev/coop_local.sh 4 3600 typical moderate stress
 #
-# Add WINDOWED=1 to watch real windows (otherwise headless). Logs and client
-# netlogs go to captures/net/coop<N>_*. Localhost only: see docs/NETWORK.md.
+# Add WINDOWED=1 to watch real windows (otherwise headless), or HOST_RES=WxH /
+# GUEST_RES=WxH to open only the host / the first guest in a real window at that
+# size (performance runs: the bots print fps). Logs and client netlogs go to
+# captures/net/coop<N>_*. Localhost only: see docs/NETWORK.md.
 set -u
 cd "$(dirname "$0")/../.."
 : "${GODOT:?set GODOT to the Godot 4.7 executable}"
@@ -20,7 +22,9 @@ mkdir -p "$OUT"
 HEAD="--headless"
 [ "${WINDOWED:-0}" = "1" ] && HEAD="--resolution 960x540"
 LIMIT=$((FRAMES / 60 + 150))
-timeout $LIMIT "$GODOT" $HEAD --max-fps 60 --path . -- scene=hub net=host coop="$N" seed=7 name=Host profile=coop_host.json \
+HHEAD=$HEAD
+[ -n "${HOST_RES:-}" ] && HHEAD="--resolution $HOST_RES"
+timeout $LIMIT "$GODOT" $HHEAD --path . -- scene=hub net=host coop="$N" seed=7 name=Host profile=coop_host.json \
 	autopilot netdiag frames=$((FRAMES + 600)) quit > "$OUT/coop${N}_host.log" 2>&1 &
 PIDS=($!)
 sleep 1
@@ -28,7 +32,9 @@ for ((k = 1; k < N; k++)); do
 	SIM=${SIMS[$((k - 1))]:-}
 	EXTRA=""
 	[ -n "$SIM" ] && EXTRA="netsim=$SIM netlog=$OUT/coop${N}_guest$k.json"
-	timeout $LIMIT "$GODOT" $HEAD --max-fps 60 --path . -- scene=hub net=join:127.0.0.1 name=Guest$k profile=coop_guest$k.json \
+	GHEAD=$HEAD
+	[ "$k" = "1" ] && [ -n "${GUEST_RES:-}" ] && GHEAD="--resolution $GUEST_RES"
+	timeout $LIMIT "$GODOT" $GHEAD --path . -- scene=hub net=join:127.0.0.1 name=Guest$k profile=coop_guest$k.json \
 		autopilot netdiag $EXTRA frames="$FRAMES" quit > "$OUT/coop${N}_guest$k.log" 2>&1 &
 	PIDS+=($!)
 	sleep 0.5

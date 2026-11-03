@@ -379,3 +379,19 @@ func test_without_godotsteam_the_game_offers_lan_play() -> void:
 	check(not s.online, "still offline, nothing broke")
 	s.queue_free()
 	check(not Net.identity().begins_with("steam:"), "identity falls back to the profile's")
+
+
+func test_allies_particles_follow_their_own_setting() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var fx := d.fx
+	fx.intensity = 1.0
+	fx.ally = 0.25
+	eq(fx._who_k(), 1.0, "your own and the world's effects at full strength")
+	fx.ally_k = 0.25
+	var n := 0
+	for k in 200:
+		n += fx._scaled(4)
+	check(n > 120 and n < 280, "another Kindled's burst of 4 draws about 1 (%d over 200)" % n)
+	fx.ally_k = 1.0
+	d.queue_free()

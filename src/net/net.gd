@@ -146,6 +146,8 @@ static func party_size() -> int:
 ## Records an event for the clients (host, during a shared expedition).
 static func rec(ev: Array) -> void:
 	if recording and mute == 0 and i and i.run_sync:
+		if actor_peer != 0 and String(ev[0]) == "fx" and String(ev[1]) in ["burst", "motes"]:
+			ev = ["by", actor_peer, ev]    # each machine draws others' particles at its Allies' setting
 		i.run_sync.events.append(ev if skip_peer == 0 else ["not", skip_peer, ev])
 
 
