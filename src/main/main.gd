@@ -113,6 +113,8 @@ func _ready() -> void:
 			_open_dev_screen.call_deferred(a.substr(5))
 		elif a == "uismoke":
 			add_child(preload("res://src/dev/ui_smoke.gd").new())
+		elif a.begins_with("scenario="):
+			add_child(Scenario.new())
 
 
 func _open_dev_screen(what: String) -> void:
@@ -171,7 +173,7 @@ func _open_dev_screen(what: String) -> void:
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)
 		"coop":
-			ui.open(Screens.coop(ui))
+			ui.party()
 		"runes":
 			ui.open(Screens.runes(ui))
 		"summary":

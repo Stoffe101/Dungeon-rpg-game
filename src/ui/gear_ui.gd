@@ -5,6 +5,39 @@ extends RefCounted
 
 
 ## A square button showing an item (or an empty slot's icon, dimmed).
+static var _body_tex: AtlasTexture
+
+
+## A Kindled's portrait from their character sheet (their look, armour and
+## wardrobe choices), `size` UI pixels square: the party screen's seats.
+static func portrait(sheet: Dictionary, size := 56) -> Control:
+	if _body_tex == null:
+		var info := SpriteLib.get_sheet("player")
+		var a: Dictionary = info.anims.get("idle_down", info.anims.values()[0])
+		_body_tex = AtlasTexture.new()
+		_body_tex.atlas = info.texture
+		_body_tex.region = Rect2(0, float(a.row) * info.frame_size.y, info.frame_size.x, info.frame_size.y)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(size, size)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var look := String(sheet.get("look", ""))
+	var layers: Array = [_body_tex]
+	layers.append_array(GearLooks.portrait_layers(sheet.get("equipped", {}), sheet.get("shown", {})))
+	for k in layers.size():
+		var t := TextureRect.new()
+		t.texture = layers[k]
+		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		t.stretch_mode = TextureRect.STRETCH_SCALE
+		t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		t.size = Vector2(size, size)
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if k == 0:
+			t.material = Looks.canvas_material(look if look != "" else "kindled")
+		box.add_child(t)
+	return box
+
+
 static func slot_button(item: Dictionary, size := 24, empty_icon := "") -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(size, size)

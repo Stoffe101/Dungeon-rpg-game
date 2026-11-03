@@ -23,6 +23,34 @@ var _t := 0.0
 var _base_energy := 1.0
 var _flame_col := Color(0.35, 0.95, 0.85)
 var _solid_tiles: Array[Vector2i] = []
+## Co-op guest in the host's sanctuary: the host moves this one (a resident,
+## the cat); it walks to where the host has it and does what it does there.
+var following := false
+var follow_goal := Vector2.ZERO
+var follow_anim := ""
+var follow_flip := false
+
+
+func follow_to(p: Vector2, anim: String, flip: bool, _spot := -1) -> void:
+	if not following or pos.distance_to(p) > 4.0:
+		pos = p
+		position = Iso.to_world(pos, 0.0)
+	following = true
+	follow_goal = p
+	follow_anim = anim
+	follow_flip = flip
+
+
+## One step toward where the host has it (see follow_to).
+func follow_step(dt: float, speed: float) -> void:
+	var d := follow_goal - pos
+	if d.length() > 0.001:
+		pos += d.limit_length(maxf(speed * dt, d.length() * minf(1.0, dt * 6.0)))
+		position = Iso.to_world(pos, 0.0)
+	if sprite:
+		if follow_anim != "" and sprite.anim != follow_anim and sprite.has_anim(follow_anim):
+			sprite.play(follow_anim)
+		sprite.flip_h = follow_flip
 
 
 static func make(st: Stage, k: String, t: Vector2i, extra := {}) -> Prop:

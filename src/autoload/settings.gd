@@ -31,6 +31,7 @@ const DEFAULTS := {
 	"show_fps": false,
 	"aim_assist": 0.5,
 	"rumble": 1.0,
+	"net_overlay": false,        # co-op: the network overlay (F3 toggles it too)
 }
 
 ## action -> list of default events
@@ -54,6 +55,9 @@ var DEFAULT_BINDINGS := {
 	"pause": [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_START)],
 	"inventory": [_key(KEY_I), _joy_button(JOY_BUTTON_RIGHT_STICK)],
 	"hearthcall": [_key(KEY_H), _joy_button(JOY_BUTTON_LEFT_STICK)],
+	# co-op: answer the party's question (an expedition, the stairs) from anywhere
+	"party_yes": [_key(KEY_Y), _joy_button(JOY_BUTTON_DPAD_UP)],
+	"party_no": [_key(KEY_N), _joy_button(JOY_BUTTON_DPAD_DOWN)],
 	"debug_menu": [_key(KEY_F1)],
 	"screenshot": [_key(KEY_F12)],
 }

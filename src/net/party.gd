@@ -250,19 +250,15 @@ static func on_offer(kind: String, args: Array) -> void:
 				ui.open(Screens.shrine_view(ui, int(args[0]), String(args[1]), bool(args[2])))
 		"echo":
 			var idx3 := int(args[0])
-			var ask := func() -> void:
-				if _bot():
-					Net.ask("echo", [idx3])
-				else:
-					ui.confirm("Offer 30 Embers to the Echo?", "You carry %d Embers." % (Game.run.embers if Game.run else 0),
-						func() -> void: Net.ask("echo", [idx3]))
+			var ask := func() -> void: Net.ask("echo", [idx3])
 			if bool(args[2]):
 				ui.dialogue("Echo of a Fallen Kindled", ["...the light was warm, once. Go on. Carry it further than I did."])
 			elif _bot():
 				ask.call()
 			else:
 				ui.dialogue("Echo of a Fallen Kindled", ["I came down with a lantern like yours. %s" % String(args[1]),
-					"Leave a little light for me - thirty Embers - and take what I no longer need."], ask)
+					"Leave a little light for me - thirty Embers - and take what I no longer need."], Callable(),
+					[["Offer 30 Embers (you carry %d)" % (Game.run.embers if Game.run else 0), ask], ["Leave", Callable()]])
 		"lore":
 			if not _bot():
 				ui.lore(args[0])
@@ -282,8 +278,6 @@ static func _bot() -> bool:
 
 # --- votes (shown on every machine; tallied by the host, NetRun) ----------------------------
 
-static var _vote_modal: Control
-
 
 static func vote_title(kind: String, by: String) -> Array:
 	match kind:
@@ -298,28 +292,25 @@ static func vote_title(kind: String, by: String) -> Array:
 	return ["Agree?", ""]
 
 
-## A vote began (or someone answered): ask this machine's player if they have not.
-static func show_vote(id: int, kind: String, by_peer: int, yes: Array, need: int) -> void:
+## A vote began (or someone answered): every machine shows the question on
+## its request card (no pause, no focus taken: a fight goes on around it),
+## with each Kindled's answer as it comes in.
+static func show_vote(id: int, kind: String, by_peer: int, yes: Array, _need: int) -> void:
 	var ui := Game.ui
 	if ui == null:
 		return
-	var t := vote_title(kind, Net.name_of(by_peer))
-	Events.toast.emit("%s  (%d of %d agree)" % [String(t[0]), yes.size(), need], Color(0.75, 0.95, 0.9))
-	if yes.has(Net.my_id()) or (is_instance_valid(_vote_modal) and _vote_modal.get_meta("vote", -1) == id):
-		return
-	if _bot():
+	if _bot() and not yes.has(Net.my_id()):
 		answer(id, true)
 		return
-	_vote_modal = ui.open(Screens.vote(ui, String(t[0]), String(t[1]), func(agree: bool) -> void: answer(id, agree)), false)
-	_vote_modal.set_meta("vote", id)
+	var t := vote_title(kind, Net.name_of(by_peer))
+	RequestCard.ensure(ui).show_vote(id, String(t[0]), String(t[1]), yes, Net.i.present(), VOTE_TIME)
 
 
 static func end_vote(id: int, passed: bool, why: String) -> void:
-	if is_instance_valid(_vote_modal) and _vote_modal.get_meta("vote", -1) == id and Game.ui:
-		Game.ui.close_modal(_vote_modal)
-	_vote_modal = null
-	if why != "":
-		Events.toast.emit(why, Color(0.75, 0.95, 0.9) if passed else Color(1.0, 0.7, 0.55))
+	if Game.ui:
+		RequestCard.ensure(Game.ui).end_vote(id)
+		if why != "":
+			Game.ui.toast(why, Color(0.75, 0.95, 0.9) if passed else Color(1.0, 0.7, 0.55))
 
 
 static func answer(id: int, agree: bool) -> void:

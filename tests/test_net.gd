@@ -78,6 +78,7 @@ func test_reconcile_moves_by_the_error_and_smooths_the_picture() -> void:
 	for k in 7:
 		nr._traj.append([1.0 + k * 0.05, start + Vector2(0.3 * k, 0)])
 	nr._seq_t[5] = 1.0
+	nr._seq = 6
 	p.pos = start + Vector2(1.8, 0)
 	# the host had it 0.2 tiles further down after input 5 drove it for 100 ms
 	var host_at := start + Vector2(0.6, 0.2)
@@ -89,6 +90,11 @@ func test_reconcile_moves_by_the_error_and_smooths_the_picture() -> void:
 	nr._seq_t[6] = 1.05
 	nr._reconcile([6, 0, start.x + 6.0, start.y + 0.2])
 	eq(p.draw_off, Vector2.ZERO, "a jump is not smoothed")
+	# the host acknowledging input this floor never sent changes nothing
+	var before := p.pos
+	nr._reconcile([5000, 0, start.x + 9.0, start.y])
+	eq(p.pos, before, "an acknowledgement from another floor's numbering is not reconciled")
+	eq(int(nr.diag.get("bad_ack", 0)), 1, "and it is counted for the overlay")
 	d.queue_free()
 	nr.free()
 
@@ -355,17 +361,46 @@ func test_a_returning_guest_takes_its_seat_back() -> void:
 	d.queue_free()
 
 
-func test_the_host_leads_once_everyone_is_ready() -> void:
+func test_an_expedition_is_proposed_answered_and_withdrawn() -> void:
+	var was := Net.i
 	var net := Net.new()
-	net.roster = {1: {"name": "Host", "slot": 0}, 2: {"name": "A", "slot": 1, "ready": true}, 3: {"name": "B", "slot": 2, "ready": false}}
-	check(not net.all_ready(), "B is not ready yet")
-	net.roster[3]["ready"] = true
-	check(net.all_ready(), "everyone is ready")
-	net.roster[2]["away"] = true
-	eq(net.present(), [1, 3], "an away seat is not counted as present")
-	net.unready_all()
-	check(not net.all_ready(), "a new descent asks again")
+	tree_root.add_child(net)
+	check(net.host(24611), "hosting (localhost) for the test")
+	net.roster[2] = {"name": "A", "slot": 1, "where": "hub"}
+	net.roster[3] = {"name": "B", "slot": 2, "where": "summary"}
+	Expedition.propose(2, "rootmire", 2, ["frail"])
+	var p: Dictionary = net.proposal
+	eq(int(p.get("by", 0)), 2, "a guest can propose")
+	eq(p.answers, {1: "", 2: "yes", 3: ""}, "the proposer is ready; everyone else (wherever they are) is asked")
+	Expedition.propose(1, "ossuary", 1, [])
+	eq(String(net.proposal.region), "rootmire", "a second proposal is turned away while one is open")
+	var id := int(p.id)
+	Expedition.answer(1, id, true)
+	Expedition.answer(3, id, false)
+	eq(float(net.proposal.launch_in), -1.0, "someone not ready: no countdown")
+	Expedition.answer(3, id, true)
+	eq(float(net.proposal.launch_in), Expedition.COUNTDOWN, "everyone ready: the countdown starts")
+	Expedition.answer(3, id + 1, false)
+	eq(float(net.proposal.launch_in), Expedition.COUNTDOWN, "an answer to another proposal changes nothing")
+	Expedition.answer(3, id, false)
+	eq(float(net.proposal.launch_in), -1.0, "and a change of heart stops it")
+	net.roster.erase(3)
+	Expedition.on_roster()
+	check(not (net.proposal.answers as Dictionary).has(3), "someone who left drops out")
+	eq(float(net.proposal.launch_in), Expedition.COUNTDOWN, "and the rest are ready")
+	net.roster[3] = {"name": "B", "slot": 2, "where": "hub"}
+	Expedition.on_roster()
+	eq(String(net.proposal.answers[3]), "", "a newcomer is asked too")
+	eq(float(net.proposal.launch_in), -1.0, "before anyone goes down")
+	net.roster[3]["away"] = true
+	eq(net.present(), [1, 2], "an away seat is not counted as present")
+	Expedition.cancel(3, id)
+	check(not net.proposal.is_empty(), "only the proposer or the host can withdraw it")
+	Expedition.cancel(2, id)
+	check(net.proposal.is_empty(), "the proposer withdrew it")
+	net.leave()
 	net.free()
+	Net.i = was
 
 
 func test_without_godotsteam_the_game_offers_lan_play() -> void:

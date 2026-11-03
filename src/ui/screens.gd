@@ -50,7 +50,7 @@ static func main_menu(ui: UIRoot) -> Control:
 				Profile.reset_profile()
 				ui.leave_main_menu()
 				ui.fade(Game.goto_hub)), 110))
-	buttons.add_child(UIKit.button("Co-op Party", func() -> void: ui.open(Screens.coop(ui)), 110))
+	buttons.add_child(UIKit.button("Play Together", func() -> void: ui.party(), 110))
 	buttons.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
 	buttons.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
 	var runs := int(Profile.data.stats.get("runs", 0))
@@ -179,76 +179,6 @@ static func _cost_text(cost: Dictionary) -> String:
 
 ## Host or join a party of up to four. The host leads the descent from the
 ## Undervault Gate; everyone keeps their own Kindled, gear and progress.
-static func coop(ui: UIRoot) -> Control:
-	var p := UIKit.panel()
-	var v := UIKit.vbox(5)
-	p.add_child(v)
-	v.add_child(_title("Co-op Party"))
-	v.add_child(UIKit.para("Up to four Kindled share one expedition. Each keeps their own gear, Hearthtree and rewards; Embers and materials found are shared, gear drops for each of you. The host leads the descent from the Undervault Gate.", 250, UIKit.C_DIM))
-	var row := UIKit.hbox(4)
-	row.add_child(UIKit.label("Name", 8, UIKit.C_TEXT))
-	var name_in := LineEdit.new()
-	name_in.text = String(Settings.get_value("player_name", "Kindled"))
-	name_in.max_length = 16
-	name_in.custom_minimum_size = Vector2(110, 14)
-	name_in.text_changed.connect(func(t: String) -> void: Settings.set_value("player_name", t.strip_edges() if t.strip_edges() != "" else "Kindled"))
-	row.add_child(name_in)
-	v.add_child(row)
-	var row2 := UIKit.hbox(4)
-	row2.add_child(UIKit.label("Address", 8, UIKit.C_TEXT))
-	var addr := LineEdit.new()
-	addr.text = String(Settings.get_value("coop_address", "127.0.0.1"))
-	addr.custom_minimum_size = Vector2(110, 14)
-	addr.text_changed.connect(func(t: String) -> void: Settings.set_value("coop_address", t.strip_edges()))
-	row2.add_child(addr)
-	v.add_child(row2)
-	var status := UIKit.para(Net.i.status if Net.i.status != "" else "Not in a party.", 250, UIKit.C_SOUL)
-	v.add_child(status)
-	var party := UIKit.vbox(2)
-	v.add_child(party)
-	var buttons := UIKit.hbox(5)
-	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
-	v.add_child(buttons)
-	var refresh := func() -> void:
-		status.text = Net.i.status if Net.i.status != "" else "Not in a party."
-		for c in party.get_children():
-			c.queue_free()
-		if Net.active():
-			var seats: Array = Net.i.roster.keys()
-			seats.sort_custom(func(a, b): return int(Net.i.roster[a].slot) < int(Net.i.roster[b].slot))
-			for pid in seats:
-				var r: Dictionary = Net.i.roster[pid]
-				var sh: Dictionary = r.get("sheet", {})
-				var w := GearDB.weapon(String(sh.get("weapon", "sword")))
-				var state := "  (host)" if int(pid) == 1 else ("  (away)" if r.get("away", false) else ("  - ready" if r.get("ready", false) else ""))
-				var line := "%s%s   Lv %d   %s" % [String(r.name), state, int(sh.get("level", 1)), String(w.get("name", "?"))]
-				party.add_child(UIKit.label(line, 8, Net.color_of(int(pid)), true))
-		for c in buttons.get_children():
-			c.queue_free()
-		if not Net.active():
-			if Net.i.steam.online:
-				buttons.add_child(UIKit.button("Host on Steam", func() -> void: Net.i.steam.host_lobby(true), 80))
-				buttons.add_child(UIKit.button("Join a friend", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
-			buttons.add_child(UIKit.button("Host (LAN / IP)", func() -> void: Net.i.host(), 80))
-			buttons.add_child(UIKit.button("Join IP", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
-		else:
-			if Net.is_host() and Net.i.steam.lobby_id != 0:
-				buttons.add_child(UIKit.button("Invite friends", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
-			buttons.add_child(UIKit.button("Leave party", func() -> void:
-				Net.i.leave()
-				Net.i._status("Left the party."), 80))
-		buttons.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
-	Net.i.roster_changed.connect(refresh)
-	Net.i.status_changed.connect(func(_t): refresh.call())
-	p.tree_exiting.connect(func() -> void:
-		if Net.i.roster_changed.is_connected(refresh):
-			Net.i.roster_changed.disconnect(refresh))
-	refresh.call()
-	v.add_child(UIKit.para(Net.i.steam.status if Net.i.steam.status != "" else "", 250, UIKit.C_DIM))
-	v.add_child(UIKit.para("Without Steam: LAN play needs nothing extra; over the internet the host forwards UDP port %d, or everyone joins the same LAN-style VPN." % Net.PORT, 250, UIKit.C_DIM))
-	return _center(p)
-
-
 # --- relic choice ------------------------------------------------------------------
 
 static func relic_choice(ui: UIRoot, ids: Array, on_pick: Callable) -> Control:
@@ -459,42 +389,6 @@ static func _shrine_panel(ui: UIRoot, spent: bool, curse_id: String, choose: Cal
 	return _center(p)
 
 
-## Steam friends who are online: Invite them to your lobby, or Join the party
-## they are in (works without the overlay, which often does not show when the
-## game was not started by Steam).
-static func steam_friends(ui: UIRoot) -> Control:
-	var p := UIKit.panel()
-	var v := UIKit.vbox(5)
-	p.add_child(v)
-	var sl: SteamLink = Net.i.steam
-	var hosting := Net.is_host() and sl.lobby_id != 0
-	v.add_child(_title("Invite Friends" if hosting else "Steam Friends"))
-	if hosting and sl.online and bool(sl.steam.call("isOverlayEnabled")):
-		v.add_child(UIKit.button("Open the Steam overlay", func() -> void: sl.invite(), 140))
-	var friends := sl.friends_online()
-	if friends.is_empty():
-		v.add_child(UIKit.para("No friends are online on Steam right now.", 220, UIKit.C_DIM))
-	var list := UIKit.vbox(2)
-	v.add_child(list)
-	for f in friends.slice(0, 12):
-		var row := UIKit.hbox(6)
-		row.add_child(UIKit.label(String(f.name) + ("  (playing)" if f.playing else ""), 8, UIKit.C_GOLD if f.playing else UIKit.C_TEXT))
-		var fill := Control.new()
-		fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(fill)
-		var fid := int(f.id)
-		var lob := int(f.get("lobby", 0))
-		if hosting:
-			row.add_child(UIKit.button("Invite", func() -> void: sl.invite_friend(fid), 50))
-		elif lob != 0 and not Net.active():
-			row.add_child(UIKit.button("Join", func() -> void:
-				ui.close_top()
-				sl.join_lobby(lob), 50))
-		list.add_child(row)
-	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
-	return _center(p)
-
-
 ## Shown while a guest reaches for a host it lost: the floor waits behind it.
 static func link_lost(ui: UIRoot) -> Control:
 	var p := UIKit.panel()
@@ -513,28 +407,6 @@ static func link_lost(ui: UIRoot) -> Control:
 	v.add_child(UIKit.button("Give up", func() -> void:
 		ui.close_top()
 		Net.i.give_up(), 80))
-	return _center(p)
-
-
-## A party vote: shown to everyone, answered by each on their own screen. The
-## world keeps going meanwhile (the screen does not pause it).
-static func vote(ui: UIRoot, title: String, body: String, answer: Callable) -> Control:
-	var p := UIKit.panel()
-	var v := UIKit.vbox(6)
-	p.add_child(v)
-	v.add_child(_title(title))
-	v.add_child(UIKit.para(body, 220))
-	var row := UIKit.hbox(8)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	var ok := UIKit.button("Agree", func() -> void:
-		ui.close_top()
-		answer.call(true), 70)
-	row.add_child(ok)
-	row.add_child(UIKit.button("Not yet", func() -> void:
-		ui.close_top()
-		answer.call(false), 70))
-	v.add_child(row)
-	ok.call_deferred("grab_focus")
 	return _center(p)
 
 
@@ -570,47 +442,159 @@ static func lore(ui: UIRoot, entry: Array) -> Control:
 	return _center(p)
 
 
-static func dialogue(ui: UIRoot, speaker: String, lines: Array, on_done: Callable = Callable()) -> Control:
+## A conversation, framed like a scene: thin letterbox bars and a soft shadow
+## under the text, the world still in view (no full-screen dimming). Lines
+## type out; a press finishes the line, the next press turns the page. With
+## `choices` the last page ends in a decision. However it closes - the last
+## page, Esc, a choice - `on_done` runs exactly once.
+static func dialogue(ui: UIRoot, speaker: String, lines: Array, on_done: Callable = Callable(), choices: Array = []) -> Control:
 	var root := Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	# letterbox bars slide in; a shadow rises behind the text
+	var bars: Array = []
+	for top in [true, false]:
+		var bar := ColorRect.new()
+		bar.color = Color(0.0, 0.0, 0.01, 0.82)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE if top else Control.PRESET_BOTTOM_WIDE)
+		bar.custom_minimum_size = Vector2(0, 0)
+		root.add_child(bar)
+		bars.append(bar)
+	var shade := TextureRect.new()
+	var grad := GradientTexture2D.new()
+	grad.fill_from = Vector2(0, 0)
+	grad.fill_to = Vector2(0, 1)
+	var g := Gradient.new()
+	g.set_color(0, Color(0.0, 0.0, 0.02, 0.0))
+	g.set_color(1, Color(0.0, 0.0, 0.02, 0.62))
+	grad.gradient = g
+	grad.width = 4
+	grad.height = 64
+	shade.texture = grad
+	shade.stretch_mode = TextureRect.STRETCH_SCALE
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shade.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	shade.offset_top = -124
+	root.add_child(shade)
+	# anchored to the bottom centre; extra lines or a choice grow it upward
 	var p := UIKit.panel()
-	p.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	p.custom_minimum_size = Vector2(320, 56)
-	p.position = Vector2(-160, -90)
+	p.anchor_left = 0.5
+	p.anchor_right = 0.5
+	p.anchor_top = 1.0
+	p.anchor_bottom = 1.0
+	p.offset_left = -165.0
+	p.offset_right = 165.0
+	p.offset_top = -108.0
+	p.offset_bottom = -46.0
+	p.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	p.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	p.custom_minimum_size = Vector2(330, 62)
 	root.add_child(p)
 	var v := UIKit.vbox(3)
 	p.add_child(v)
-	v.add_child(UIKit.label(speaker, 8, UIKit.C_GOLD, true))
-	var body := UIKit.para("", 300)
+	var head := UIKit.hbox(6)
+	var who := UIKit.label(speaker, 8, UIKit.C_GOLD, true)
+	head.add_child(who)
+	var fill := Control.new()
+	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(fill)
+	var page := UIKit.label("", 8, UIKit.C_DIM)
+	head.add_child(page)
+	v.add_child(head)
+	var body := UIKit.para("", 310)
+	body.custom_minimum_size.y = 26
 	v.add_child(body)
-	var hint := UIKit.label("[A] continue" if Settings.using_pad else "[click / %s] continue" % Settings.describe_action("interact", false), 8, UIKit.C_DIM)
+	var pick_row := UIKit.hbox(8)
+	pick_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	pick_row.visible = false
+	v.add_child(pick_row)
+	var hint := UIKit.label("", 8, UIKit.C_DIM)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	v.add_child(hint)
-	var state := {"i": 0, "chars": 0.0}
+	var state := {"i": 0, "chars": 0.0, "closed": false, "picking": false, "chose": false}
+	var pad := func() -> bool: return Settings.using_pad
+	var close := func() -> void:
+		if state.closed:
+			return
+		state.closed = true
+		ui.close_modal(root.get_parent())
+	# backing out of a decision is its last choice (e.g. "Not now")
+	var choose := func(k: int) -> void:
+		if state.closed or state.chose:
+			return
+		state.chose = true
+		var cb: Callable = choices[k][1]
+		close.call()
+		if cb.is_valid():
+			cb.call()
 	var show := func() -> void:
 		body.text = lines[state.i]
 		body.visible_characters = 0
 		state.chars = 0.0
+		page.text = "%d / %d" % [state.i + 1, lines.size()] if lines.size() > 1 else ""
+		var last: bool = state.i == lines.size() - 1
+		if pad.call():
+			hint.text = "[A] continue   [Start] close" if not (last and not choices.is_empty()) else ""
+		else:
+			hint.text = ("[%s / click] %s   [Esc] close" % [Settings.describe_action("interact", false), "continue" if not last else "done"]) if not (last and not choices.is_empty()) else ""
+	var offer := func() -> void:
+		state.picking = true
+		pick_row.visible = true
+		for k in choices.size():
+			var idx: int = k
+			var b := UIKit.button(String(choices[k][0]), func() -> void: choose.call(idx), 90)
+			pick_row.add_child(b)
+			if k == 0:
+				b.call_deferred("grab_focus")
+		hint.text = "[A] choose   [B] %s" % String(choices[-1][0]) if pad.call() else "[Esc] %s" % String(choices[-1][0])
 	show.call()
 	var typer := _Typer.new()
 	typer.body = body
 	typer.state = state
 	typer.advance = func() -> void:
+		if state.closed or state.picking:
+			return
 		if body.visible_characters >= 0 and body.visible_characters < body.text.length():
 			body.visible_characters = -1
 			return
+		if state.i >= lines.size() - 1:
+			if choices.is_empty():
+				close.call()
+			else:
+				offer.call()
+			return
 		state.i += 1
-		if state.i >= lines.size():
-			ui.close_top()
-			if on_done.is_valid():
-				on_done.call()
+		show.call()
+		Audio.ui("ui_click")
+	typer.cancel = func() -> void:
+		if state.closed:
+			return
+		if not choices.is_empty():
+			choose.call(choices.size() - 1)
 		else:
-			show.call()
-			Audio.ui("ui_click")
+			close.call()
 	root.add_child(typer)
 	root.gui_input.connect(func(e: InputEvent) -> void:
-		if e is InputEventMouseButton and e.pressed:
+		if e is InputEventMouseButton and e.pressed and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 			typer.advance.call())
-	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.tree_exiting.connect(func() -> void:
+		if not state.has("done_called"):
+			state["done_called"] = true
+			if on_done.is_valid():
+				on_done.call())
+	# the frame eases in: bars from the edges, the panel up from below (once
+	# it is on screen: a tween needs the tree, and offsets their parent's size)
+	shade.modulate.a = 0.0
+	p.modulate.a = 0.0
+	root.ready.connect(func() -> void:
+		var tw := root.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		for bar in bars:
+			tw.tween_property(bar, "custom_minimum_size:y", 18.0, 0.22)
+		tw.tween_property(shade, "modulate:a", 1.0, 0.25)
+		tw.tween_property(p, "modulate:a", 1.0, 0.18)
+		tw.tween_property(p, "offset_bottom", -46.0, 0.2).from(-34.0)
+		tw.tween_property(p, "offset_top", -108.0, 0.2).from(-96.0), CONNECT_ONE_SHOT)
 	return root
 
 
@@ -619,6 +603,7 @@ class _Typer:
 	var body: Label
 	var state: Dictionary
 	var advance: Callable
+	var cancel: Callable
 	func _ready() -> void:
 		process_mode = Node.PROCESS_MODE_ALWAYS
 	func _process(delta: float) -> void:
@@ -628,7 +613,16 @@ class _Typer:
 			if body.visible_characters >= body.text.length():
 				body.visible_characters = -1
 	func _unhandled_input(e: InputEvent) -> void:
-		if e.is_action_pressed("interact") or e.is_action_pressed("dodge") or e.is_action_pressed("ui_accept"):
+		if e is InputEventKey and (e as InputEventKey).echo:
+			get_viewport().set_input_as_handled()
+			return    # a held key turns no pages
+		var pad := e is InputEventJoypadButton
+		if e.is_action_pressed("pause") or (e.is_action_pressed("ui_cancel") and (not pad or state.picking)):
+			get_viewport().set_input_as_handled()
+			cancel.call()
+		elif state.picking:
+			return    # the buttons take A / Enter themselves
+		elif e.is_action_pressed("interact") or e.is_action_pressed("dodge") or e.is_action_pressed("ui_accept"):
 			get_viewport().set_input_as_handled()
 			advance.call()
 
@@ -674,116 +668,10 @@ static func pause(ui: UIRoot) -> Control:
 	return _center(p)
 
 
-static func _slider(label: String, key: String, lo: float, hi: float, step: float) -> HBoxContainer:
-	var row := UIKit.hbox(6)
-	var l := UIKit.label(label, 8)
-	l.custom_minimum_size = Vector2(90, 0)
-	row.add_child(l)
-	var s := HSlider.new()
-	s.min_value = lo
-	s.max_value = hi
-	s.step = step
-	s.value = float(Settings.get_value(key, lo))
-	s.custom_minimum_size = Vector2(110, 10)
-	var val := UIKit.label("%d%%" % int(s.value * 100.0), 8, UIKit.C_DIM)
-	s.value_changed.connect(func(x: float) -> void:
-		val.text = "%d%%" % int(x * 100.0)
-		Settings.set_value(key, x))
-	row.add_child(s)
-	row.add_child(val)
-	return row
-
-
-static func _toggle(label: String, key: String) -> CheckBox:
-	var c := CheckBox.new()
-	c.text = label
-	c.button_pressed = bool(Settings.get_value(key, false))
-	c.toggled.connect(func(on: bool) -> void: Settings.set_value(key, on))
-	return c
-
-
-static func _choice(label: String, key: String, options: Array, names: Array) -> HBoxContainer:
-	var row := UIKit.hbox(6)
-	var l := UIKit.label(label, 8)
-	l.custom_minimum_size = Vector2(90, 0)
-	row.add_child(l)
-	var ob := OptionButton.new()
-	for i in options.size():
-		ob.add_item(names[i], i)
-		if options[i] == Settings.get_value(key):
-			ob.select(i)
-	ob.item_selected.connect(func(i: int) -> void: Settings.set_value(key, options[i]))
-	row.add_child(ob)
-	return row
-
-
-static func settings(ui: UIRoot) -> Control:
-	var p := UIKit.panel()
-	p.custom_minimum_size = Vector2(300, 0)
-	var v := UIKit.vbox(4)
-	p.add_child(v)
-	v.add_child(_title("Settings"))
-	var tabs := TabContainer.new()
-	tabs.custom_minimum_size = Vector2(290, 190)
-	v.add_child(tabs)
-	var audio := UIKit.vbox(4)
-	audio.name = "Audio"
-	audio.add_child(_slider("Master", "master_volume", 0.0, 1.0, 0.05))
-	audio.add_child(_slider("Music", "music_volume", 0.0, 1.0, 0.05))
-	audio.add_child(_slider("Effects", "sfx_volume", 0.0, 1.0, 0.05))
-	audio.add_child(_slider("Ambience", "ambience_volume", 0.0, 1.0, 0.05))
-	tabs.add_child(audio)
-	var disp := UIKit.vbox(4)
-	disp.name = "Display"
-	disp.add_child(_choice("Window", "window_mode", ["windowed", "borderless", "fullscreen"], ["Windowed", "Borderless", "Fullscreen"]))
-	disp.add_child(_choice("UI scale", "ui_scale", [0, 1, 2, 3, 4, 5, 6], ["Auto", "1x", "2x", "3x", "4x", "5x", "6x"]))
-	disp.add_child(_choice("Pixel size", "pixel_scale", [0, 2, 3, 4, 5, 6, 8], ["Auto", "2x", "3x", "4x", "5x", "6x", "8x"]))
-	disp.add_child(_choice("Frame cap", "max_fps", [0, 60, 120, 144, 240], ["Unlimited", "60", "120", "144", "240"]))
-	disp.add_child(_toggle("V-Sync", "vsync"))
-	disp.add_child(_toggle("Show FPS", "show_fps"))
-	tabs.add_child(disp)
-	var gp := UIKit.vbox(4)
-	gp.name = "Gameplay"
-	gp.add_child(_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05))
-	gp.add_child(_slider("Effects", "effects_intensity", 0.25, 1.0, 0.05))
-	gp.add_child(_slider("Allies' effects (co-op)", "ally_effects", 0.2, 1.0, 0.05))
-	gp.add_child(_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05))
-	gp.add_child(_slider("Rumble (pad)", "rumble", 0.0, 1.0, 0.05))
-	gp.add_child(_toggle("Hit-stop", "hitstop"))
-	gp.add_child(_toggle("Reduce flashes", "reduce_flashes"))
-	gp.add_child(_toggle("Damage numbers", "damage_numbers"))
-	tabs.add_child(gp)
-	var ctl := ScrollContainer.new()
-	ctl.name = "Controls"
-	ctl.custom_minimum_size = Vector2(280, 170)
-	var cv := UIKit.vbox(2)
-	ctl.add_child(cv)
-	var head := UIKit.hbox(6)
-	for h in [["Action", 74], ["Keyboard", 84], ["Gamepad", 84]]:
-		var hl := UIKit.label(h[0], 8, UIKit.C_GOLD)
-		hl.custom_minimum_size = Vector2(h[1], 0)
-		head.add_child(hl)
-	cv.add_child(head)
-	var actions := [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"],
-		["attack", "Attack"], ["ward", "Ward"], ["dodge", "Dodge"], ["ability_1", "Ability 1"], ["ability_2", "Ability 2"],
-		["flask", "Flask"], ["interact", "Interact"], ["map", "Map"], ["inventory", "Satchel"], ["hearthcall", "Hearthcall (go home)"]]
-	for a in actions:
-		var row := UIKit.hbox(6)
-		var l := UIKit.label(a[1], 8)
-		l.custom_minimum_size = Vector2(74, 0)
-		row.add_child(l)
-		row.add_child(_bind_button(a[0], false))
-		var pb := _bind_button(a[0], true)
-		pb.disabled = String(a[0]).begins_with("move_")   # movement stays on the left stick
-		row.add_child(pb)
-		cv.add_child(row)
-	cv.add_child(UIKit.button("Reset controls", func() -> void:
-		Settings.reset_bindings()
-		ui.close_top()
-		ui.settings(), 100))
-	tabs.add_child(ctl)
-	v.add_child(UIKit.button("Done", func() -> void: ui.close_top(), 70))
-	return _center(p)
+## Settings live in SettingsUI (a category rail, pad-friendly rows, a line
+## explaining each). Kept here so every caller opens them the same way.
+static func settings(_ui: UIRoot) -> Control:
+	return SettingsUI.new()
 
 
 static func _bind_button(act: String, pad: bool) -> Button:
@@ -1094,29 +982,28 @@ static func descent(ui: UIRoot) -> Control:
 		row.add_child(ob)
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
-	var go := UIKit.button("Descend" if not Net.active() else "Descend together", func() -> void:
-		if Net.is_host() and not Net.i.all_ready():
-			Audio.ui("deny")
-			return
+	var party := Net.active() and Net.party_size() > 1
+	var go := UIKit.button("Descend", func() -> void:
 		ui.close_all()
 		Game.begin_descent(ctx.region), 80)
-	if Net.is_client():
-		# a guest says it is ready; the host leads the way once everyone is
-		var mine: bool = Net.i.roster.get(Net.my_id(), {}).get("ready", false)
-		go.text = "Ready" if not mine else "Not ready"
+	if party:
+		# in a party the expedition is proposed: everyone gets the request
+		# wherever they are and answers it (Expedition); the host leads the
+		# way once everyone is ready
+		var open: Dictionary = Net.i.proposal
+		var theirs := not open.is_empty() and int(open.by) != Net.my_id()
+		go.text = "Propose expedition" if open.is_empty() else ("Update proposal" if not theirs else "%s's proposal is open" % Net.name_of(int(open.by)))
+		go.disabled = theirs
 		go.pressed.disconnect(go.pressed.get_connections()[0].callable)
 		go.pressed.connect(func() -> void:
-			Net.i.set_ready(not mine)
-			ui.close_top())
-	elif Net.is_host() and not Net.i.all_ready():
-		var waiting: Array = []
-		for pid in Net.i.roster:
-			if int(pid) != 1 and not bool(Net.i.roster[pid].get("ready", false)):
-				waiting.append(Net.name_of(int(pid)))
-		go.text = "Waiting: %s" % ", ".join(waiting)
+			Audio.ui("ui_click")
+			Expedition.request(ctx.region, Difficulty.selected(),
+				(Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o))))
+			ui.close_all())
+		go.custom_minimum_size.x = 110
 	row2.add_child(go)
 	row2.add_child(UIKit.button("Runes", func() -> void: ui.open(Screens.runes(ui)), 50))
-	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))
+	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.party(), 60))
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)
 	go.call_deferred("grab_focus")

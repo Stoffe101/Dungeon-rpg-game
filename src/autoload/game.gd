@@ -67,23 +67,41 @@ func goto_menu() -> void:
 	stage = hub
 	ui.show_main_menu()
 	Audio.play_music("hearth")
+	if Net.i:
+		Net.i.set_where("menu")
 
 
-func goto_hub() -> void:
+func goto_hub(at := Vector2(-1, -1)) -> void:
 	_clear_stage()
 	run = null
 	get_tree().paused = false
 	var hub := Hub.new()
 	view.world.add_child(hub)
-	hub.build(view)
+	hub.build(view, at)
 	stage = hub
+	if Net.i:
+		Net.i.set_where("hub")
 	_check_feats()
 	ui.show_hud(false)
 	stage_changed.emit(stage)
+	if "showcol" in Dev.args():
+		ColView.attach(hub)
 	Audio.play_music("hearth")
 	Audio.play_ambience("amb_hearth")
 	if Profile.dirty:
 		Profile.save_profile()
+
+
+## The sanctuary again, as it now should look (a guest who joined or left a
+## party walks the host's camp, or their own), the Kindled where it stood.
+func reload_hub() -> void:
+	if not (stage is Hub) or (stage as Hub).menu_mode or transitioning:
+		return
+	var at: Vector2 = stage.player.pos if stage.player else Vector2(-1, -1)
+	transitioning = true
+	ui.fade(func() -> void:
+		transitioning = false
+		goto_hub(at), 0.3)
 
 
 ## A new expedition's settlement id (co-op guests bank it once).
@@ -91,13 +109,16 @@ static func new_run_id() -> String:
 	return "%d-%d-%d" % [Time.get_unix_time_from_system(), Time.get_ticks_usec() % 1000000, randi() % 100000]
 
 
-func start_run(region := "ossuary", seed_v := -1, run_id := "") -> void:
+func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omens: Variant = null) -> void:
 	if seed_v < 0:
 		seed_v = debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	run = RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 	run.run_id = run_id if run_id != "" else new_run_id()
-	run.tier = Difficulty.selected()
-	run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	run.tier = Difficulty.selected() if tier < 1 else tier
+	if omens is Array:
+		run.omens = (omens as Array).duplicate()     # the party's agreed expedition
+	else:
+		run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	coop_runs.clear()
 	if Net.is_host():
 		# every other Kindled gets a run of their own (settled on their machine)
@@ -144,7 +165,11 @@ func _enter_depth(depth: int) -> void:
 	stage = d
 	ui.show_hud(true)
 	stage_changed.emit(stage)
+	if "showcol" in Dev.args():
+		ColView.attach(d)
 	Profile.data.world.deepest = maxi(int(Profile.data.world.get("deepest", 0)), depth)
+	if Net.i:
+		Net.i.set_where("below")
 	print("[game] entered depth %d (seed %d): %d rooms" % [depth, run.seed, lay.rooms.size()])
 
 
@@ -178,9 +203,11 @@ func descend() -> void:
 			_enter_depth(run.depth + 1))
 
 
-## From the Descent screen: the gate flares, the Kindled steps into the light,
-## and a title card covers the walk down.
-func begin_descent(region: String) -> void:
+## From the Descent screen (or, in a party, once everyone agreed to the
+## expedition - see Expedition): the gate flares, the Kindled steps into the
+## light, and a title card covers the walk down. `tier` and `omens` are the
+## party's agreed ones (otherwise this profile's choice).
+func begin_descent(region: String, tier := -1, omens: Variant = null) -> void:
 	if transitioning:
 		return
 	transitioning = true
@@ -188,17 +215,35 @@ func begin_descent(region: String) -> void:
 	if stage is Hub:
 		wait = (stage as Hub).flare_gate()
 	var reg: Dictionary = {"name": Delve.NAME} if region == "delve" else EnemyDB.REGIONS[region]
-	var omens := (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	var oms: Array = (omens as Array).duplicate() if omens is Array else (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	var t := tier if tier >= 1 else Difficulty.selected()
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	var rid := new_run_id()
+	var sub := "Depth 1"
 	if Net.is_host():
-		Net.i.unready_all()
+		Net.i.proposal = {}
+		Net.i.expedition += 1
 		# the party goes down together: same seed, region, tier and Omens
-		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": Difficulty.selected(), "omens": omens, "run_id": rid})
+		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": t, "omens": oms, "run_id": rid, "exp": Net.i.expedition})
+		if Net.party_size() > 1:
+			sub = "Depth 1  -  with %s" % party_names()
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
-		ui.title_card(String(reg.name), "Depth 1", func() -> void:
+		ui.title_card(String(reg.name), sub, func() -> void:
 			transitioning = false
-			start_run(region, seed_v, rid), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
+			start_run(region, seed_v, rid, t, oms), ("Omens: " + Omens.names(oms)) if not oms.is_empty() else ""))
+
+
+## Everyone else in the party, by name ("Ash and Wren").
+func party_names() -> String:
+	var names: Array = []
+	var seats: Array = Net.i.roster.keys()
+	seats.sort_custom(func(a, b): return int(Net.i.roster[a].slot) < int(Net.i.roster[b].slot))
+	for pid in seats:
+		if int(pid) != Net.my_id():
+			names.append(Net.name_of(int(pid)))
+	if names.size() <= 1:
+		return "".join(PackedStringArray(names))
+	return ", ".join(PackedStringArray(names.slice(0, names.size() - 1))) + " and " + String(names.back())
 
 
 # --- co-op ----------------------------------------------------------------------------
@@ -221,13 +266,14 @@ func run_of(peer_id: int) -> RunState:
 func begin_coop_client(params: Dictionary) -> void:
 	ui.close_all()
 	Net.i._early.clear()     # a new expedition: nothing from an old one carries over
+	Net.i.expedition = int(params.get("exp", Net.i.expedition + 1))
 	var reg: Dictionary = {"name": Delve.NAME} if String(params.region) == "delve" else EnemyDB.REGIONS[String(params.region)]
 	var wait := 0.0
 	if stage is Hub:
 		wait = (stage as Hub).flare_gate()
 	var omens: Array = params.get("omens", [])
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
-		ui.title_card(String(reg.name), "Depth 1  -  with %s" % Net.name_of(1), func() -> void:
+		ui.title_card(String(reg.name), "Depth 1  -  with %s" % party_names(), func() -> void:
 			run = RunState.create(int(params.seed), String(params.region), Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 			run.run_id = String(params.get("run_id", ""))
 			run.tier = int(params.tier)
@@ -287,6 +333,7 @@ func rejoin_coop_client(params: Dictionary, data: Dictionary) -> void:
 	var r := RunState.from_dict(data)
 	r.result = ""
 	run = r
+	Net.i.expedition = int(params.get("exp", Net.i.expedition))
 	Events.toast.emit("Back with the party.", Color(0.75, 0.95, 0.9))
 	print("[game] rejoined the party at depth %d (run %s, %d Embers carried)" % [int(params.depth), r.run_id, r.embers])
 	_enter_depth(int(params.depth))
@@ -448,3 +495,5 @@ func end_run(outcome: String, killer_id := "") -> void:
 	print("[game] run ended: ", JSON.stringify(summary))
 	if ui:
 		ui.show_summary(summary)
+	if Net.i:
+		Net.i.set_where("summary")

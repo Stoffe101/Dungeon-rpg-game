@@ -25,7 +25,10 @@ func _ready() -> void:
 	_label.add_theme_color_override("font_color", Color(0.75, 0.95, 0.9))
 	add_child(_label)
 	var args := Dev.args()
-	visible = "netdiag" in args
+	visible = "netdiag" in args or bool(Settings.get_value("net_overlay", false))
+	Settings.changed.connect(func(k: String) -> void:
+		if k == "net_overlay":
+			visible = bool(Settings.get_value("net_overlay", false)))
 	for a in args:
 		if a.begins_with("netlog="):
 			_log_path = a.substr(7)
@@ -33,7 +36,7 @@ func _ready() -> void:
 
 func _input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo and (e as InputEventKey).keycode == KEY_F3:
-		visible = not visible
+		Settings.set_value("net_overlay", not visible)
 
 
 func _process(delta: float) -> void:

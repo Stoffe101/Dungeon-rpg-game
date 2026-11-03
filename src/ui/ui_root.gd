@@ -16,11 +16,13 @@ var modals: Array[Control] = []
 var _banner_tw: Tween
 var _menu_open := false
 var closed_frame := -10    # process frame of the last modal close (input debounce)
+var _closed_ms := -100000  # when the last modal closed (ms)
 var _hurt_k := 0.0         # damage flash on the vignette
 var _beat_t := 0.0
 var _focus_index := -1     # position of the focused control among the top modal's focusables
 var _last_focus: Control
 var card_pending := false   # a title card is covering a scene change
+var _card: RequestCard     # the party's open question (co-op)
 
 
 func _ready() -> void:
@@ -89,6 +91,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _card == null and Net.i:
+		_card = RequestCard.ensure(self)
 	_layout_banner()
 	_keep_focus()
 	_low_health(delta)
@@ -324,10 +328,12 @@ func hide_hud() -> void:
 	hud.visible = false
 
 
-## Opens a modal screen. Pauses the game while it is open (unless told not to).
-func open(screen: Control, pause := true, sound := "ui_open") -> Control:
+## Opens a modal screen. Pauses the game while it is open (unless told not to,
+## or in co-op, where the shared world never stops). `dim` is how much of the
+## world it darkens behind it (a conversation keeps the scene in view).
+func open(screen: Control, pause := true, sound := "ui_open", dim_alpha := 0.55) -> Control:
 	var dim := ColorRect.new()
-	dim.color = Color(0.01, 0.01, 0.03, 0.55)
+	dim.color = Color(0.01, 0.01, 0.03, dim_alpha)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dim.mouse_filter = Control.MOUSE_FILTER_STOP
 	modal_layer.add_child(dim)
@@ -361,6 +367,7 @@ func _close_now() -> void:
 	if modals.is_empty():
 		return
 	closed_frame = Engine.get_process_frames()
+	_closed_ms = Time.get_ticks_msec()
 	_focus_index = -1
 	_last_focus = null
 	var m: Control = modals.pop_back()
@@ -383,6 +390,7 @@ func close_modal(dim: Control) -> void:
 
 func close_all() -> void:
 	closed_frame = Engine.get_process_frames()
+	_closed_ms = Time.get_ticks_msec()
 	for m in modals:
 		m.queue_free()
 	modals.clear()
@@ -392,6 +400,36 @@ func close_all() -> void:
 
 func has_modal() -> bool:
 	return not modals.is_empty()
+
+
+## A screen has the player's attention: their Kindled takes no world input
+## (move, attack, interact) until it closes, whether or not the world is paused.
+func blocks_world() -> bool:
+	return not modals.is_empty() or card_pending
+
+
+## A screen closed a moment ago (the key that closed it, held or pressed
+## twice, must not open the same thing again).
+func just_closed() -> bool:
+	return Time.get_ticks_msec() - _closed_ms < 220
+
+
+## The open screen of a kind ("dialogue", "coop"...), or null.
+func modal_of(kind: String) -> Control:
+	for m in modals:
+		if is_instance_valid(m) and m.get_meta("kind", "") == kind:
+			return m
+	return null
+
+
+## Every full-screen layer UIRoot holds right now (the network overlay and the
+## uismoke checks read it: a dimmed layer left behind is a bug).
+func layer_count() -> int:
+	var n := 0
+	for c in modal_layer.get_children():
+		if not c.is_queued_for_deletion():
+			n += 1
+	return n
 
 
 func _input(event: InputEvent) -> void:
@@ -478,8 +516,26 @@ func lore(entry: Array) -> void:
 	open(Screens.lore(self, entry))
 
 
-func dialogue(speaker: String, lines: Array, on_done: Callable = Callable()) -> void:
-	open(Screens.dialogue(self, speaker, lines, on_done))
+## A conversation (one at a time: a second request while one is open is
+## ignored). `on_done` runs exactly once when it closes, however it closes;
+## `choices` ([[label, Callable], ...]) end it with a decision, the last one
+## being what backing out (Esc / B) means.
+func dialogue(speaker: String, lines: Array, on_done: Callable = Callable(), choices: Array = []) -> void:
+	if modal_of("dialogue") != null or lines.is_empty():
+		return
+	var dim := open(Screens.dialogue(self, speaker, lines, on_done, choices), true, "ui_open", 0.0)
+	dim.set_meta("kind", "dialogue")
+	dim.set_meta("speaker", speaker)
+	dim.set_meta("no_cancel", true)    # the conversation handles Esc / B itself
+
+
+## The co-op party screen (hosting, joining, the party). One at a time.
+func party() -> void:
+	if modal_of("party") != null:
+		return
+	var dim := open(PartyUI.new())
+	dim.set_meta("kind", "party")
+	dim.set_meta("no_cancel", true)    # it steps back through its own views
 
 
 func pause_menu() -> void:
@@ -487,7 +543,11 @@ func pause_menu() -> void:
 
 
 func settings() -> void:
-	open(Screens.settings(self))
+	if modal_of("settings") != null:
+		return
+	var dim := open(Screens.settings(self))
+	dim.set_meta("kind", "settings")
+	dim.set_meta("no_cancel", true)    # it handles Esc / B (a rebind in progress keeps it)
 
 
 func wardrobe() -> void:

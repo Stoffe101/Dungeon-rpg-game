@@ -218,7 +218,7 @@ func update_lobby() -> void:
 		"kd": "1", "proto": str(Net.PROTOCOL), "ver": Net.game_version(), "host": persona(),
 		"region": String(Profile.data.descent.get("region", "ossuary")), "tier": str(Difficulty.selected()),
 		"omens": ",".join(Profile.data.descent.get("omens", [])), "players": "%d/%d" % [Net.party_size(), Net.MAX_PLAYERS],
-		"ready": str(Net.i.all_ready()) if Net.is_host() else "false",
+		"ready": str(Net.i.proposal.get("answers", {}).values().count("yes")) if Net.is_host() else "0",
 		"below": "1" if Game.run != null and Game.stage is Dungeon else "0",
 	}
 	for k in d:

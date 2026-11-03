@@ -358,7 +358,7 @@ func _stage_tick(dt: float) -> void:
 			_enter_room(pr, false)
 		if pr and not pr.cleared and pr.is_combat() and active_room == null and pr.rect.grow(-1).has_point(pt):
 			if pl != player:
-				_start_encounter(pr)
+				_start_encounter(pr, pl)
 				break
 	if current_room and not current_room.cleared and current_room.is_combat() and active_room == null:
 		# start once the player is properly inside (not on the threshold)
@@ -491,12 +491,12 @@ func _enter_room(r: Room, mine := true) -> void:
 
 # --- encounters ------------------------------------------------------------------------
 
-func _start_encounter(r: Room) -> void:
+func _start_encounter(r: Room, by: Player = null) -> void:
 	if OS.is_debug_build():
 		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
-	_pull_party_in(r)
+	_pull_party_in(r, by if by else player)
 	_set_gates(r, true)
 	if r.type == Room.Type.BOSS:
 		_start_boss(r)
@@ -793,23 +793,122 @@ func coop_relic_pick(pl: Player, idx: int, id: String) -> void:
 			return
 
 
-## Co-op: a room sealing never shuts a friend outside - the light draws them in.
-func _pull_party_in(r: Room) -> void:
-	var anchor := Vector2.ZERO
-	var n := 0
+## Co-op: a room sealing never shuts a friend outside - the light draws them
+## in. They arrive just inside the door the fight was started through (beside
+## whoever started it), not in the middle of the room, which may hold a
+## pillar, a pit or the fight itself: on open floor they can move from, clear
+## of walls, props, hazards, foes and each other (see regroup_spots).
+func _pull_party_in(r: Room, by: Player = null) -> void:
+	var inside: Array = []
+	var outside: Array = []
 	for pl in players:
-		if pl.alive and r.contains_tile(Vector2i(floori(pl.pos.x), floori(pl.pos.y))):
-			anchor += pl.pos
-			n += 1
-	if n == 0:
-		return
-	anchor /= n
-	for pl in players:
-		if not pl.alive or r.contains_tile(Vector2i(floori(pl.pos.x), floori(pl.pos.y))):
+		if not is_instance_valid(pl) or not pl.alive:
 			continue
-		fx.motes(pl.pos, 0.4, Color(0.45, 1.0, 0.9), 12, 2.0, 0.8, 0.4)
-		pl.pos = _floor_inside(r, anchor + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)))
-		fx.ring(pl.pos, 1.2, Color(0.45, 1.0, 0.9), 0.35, 0.25)
+		if r.contains_tile(Vector2i(floori(pl.pos.x), floori(pl.pos.y))):
+			inside.append(pl)
+		else:
+			outside.append(pl)
+	if inside.is_empty() or outside.is_empty():
+		return
+	var lead: Player = by if by != null and inside.has(by) else inside[0]
+	var door := door_near(r, lead.pos)
+	var taken: Array = inside.map(func(p): return p.pos)
+	var spots := regroup_spots(r, door, outside.size(), taken)
+	for k in outside.size():
+		var pl: Player = outside[k]
+		var to: Vector2 = spots[k] if k < spots.size() else _floor_inside(r, lead.pos)
+		var from := pl.pos
+		fx.motes(from, 0.4, Color(0.45, 1.0, 0.9), 14, 2.0, 0.8, 0.4)
+		fx.flash_light(from, 0.8, Color(0.45, 1.0, 0.9), 2.0, 4.0, 0.35)
+		pl.pos = to
+		pl.vel = Vector2.ZERO
+		pl.push = Vector2.ZERO
+		pl.invuln_t = maxf(pl.invuln_t, 0.75)
+		fx.ring(to, 1.2, Color(0.45, 1.0, 0.9), 0.35, 0.25)
+		fx.motes(to, 0.2, Color(0.45, 1.0, 0.9), 10, 1.4, 0.7, 0.5)
+		fx.flash_light(to, 0.8, Color(0.45, 1.0, 0.9), 2.4, 4.5, 0.4)
+		Party.tell(pl, "The light draws you to %s." % Net.name_of(lead.peer_id), Color(0.6, 1.0, 0.92))
+		print("[dungeon] regroup: %s drawn from (%.1f, %.1f) to (%.1f, %.1f) by room %d's door toward room %d" % [
+			Net.name_of(pl.peer_id), from.x, from.y, to.x, to.y, r.id, int(door.get("to", -1))])
+
+
+## The door of `r` closest to `p` (the one a Kindled at `p` just came through).
+func door_near(r: Room, p: Vector2) -> Dictionary:
+	var best := {}
+	var bd := INF
+	for d in r.doors:
+		if d.secret:
+			continue
+		for t: Vector2i in d.tiles:
+			var dd := (Vector2(t) + Vector2(0.5, 0.5)).distance_squared_to(p)
+			if dd < bd:
+				bd = dd
+				best = d
+	return best
+
+
+## Where `n` Kindled can safely arrive in room `r` through `door`: floor
+## reached from just inside that door (nearest first, so they appear at the
+## threshold the fight began from), at least a tile in from the room's edge
+## (no closing seal can catch them), with open ground around, no wall, prop,
+## pit or hazard under them, no foe at arm's length and apart from each other
+## and from `taken`. Fewer than `n` when the room cannot give that many.
+func regroup_spots(r: Room, door: Dictionary, n: int, taken: Array = []) -> Array:
+	var out: Array = []
+	var queue: Array = []
+	var seen := {}
+	var inward: Vector2i = -(door.get("dir", Vector2i.ZERO) as Vector2i)
+	for t: Vector2i in door.get("tiles", []):
+		var s: Vector2i = t + inward
+		if not seen.has(s):
+			seen[s] = true
+			queue.append(s)
+	if queue.is_empty():
+		var c := Vector2i(floori(r.center().x), floori(r.center().y))
+		seen[c] = true
+		queue.append(c)
+	var inner := r.rect.grow(-1)
+	var used: Array = taken.duplicate()
+	var head := 0
+	while head < queue.size() and out.size() < n:
+		var t: Vector2i = queue[head]
+		head += 1
+		if safe_spot(t, inner, used):
+			var c := Vector2(t) + Vector2(0.5, 0.5)
+			out.append(c)
+			used.append(c)
+		for d in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(0, -1), Vector2i(-1, 0)]:
+			var q: Vector2i = t + d
+			if not seen.has(q) and r.rect.has_point(q) and grid.at(q.x, q.y) == TileGrid.FLOOR:
+				seen[q] = true
+				queue.append(q)
+	return out
+
+
+## Can a Kindled be put down on tile `t` (see regroup_spots)?
+func safe_spot(t: Vector2i, inner: Rect2i, used: Array) -> bool:
+	if not inner.has_point(t) or grid.at(t.x, t.y) != TileGrid.FLOOR:
+		return false
+	var c := Vector2(t) + Vector2(0.5, 0.5)
+	if grid.box_blocked(c, 0.45):
+		return false
+	var open := 0
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if (dx != 0 or dy != 0) and grid.at(t.x + dx, t.y + dy) == TileGrid.FLOOR:
+				open += 1
+	if open < 6:
+		return false     # wedged between props: no room to move or dodge
+	for h in hazards:
+		if is_instance_valid(h) and h.pos.distance_to(c) < h.radius + 0.6:
+			return false
+	for a in actors:
+		if is_instance_valid(a) and a.alive and a.team == Actor.Team.ENEMY and a.pos.distance_to(c) < a.radius + 1.4:
+			return false
+	for u in used:
+		if (u as Vector2).distance_to(c) < 0.9:
+			return false
+	return true
 
 
 ## Co-op upkeep each tick: everyone down means the party has fallen.
@@ -1211,12 +1310,13 @@ func request(what: String, prop: Prop) -> void:
 			if Party.spent(prop, who):
 				Game.ui.dialogue("Echo of a Fallen Kindled", ["...the light was warm, once. Go on. Carry it further than I did."])
 				return
-			var offer_fn := func() -> void:
-				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, func() -> void: Party.echo_gift(self, who, prop))
+			var offer_fn := func() -> void: Party.echo_gift(self, who, prop)
 			if player.autopilot:
 				offer_fn.call()
 			else:
-				Game.ui.dialogue("Echo of a Fallen Kindled", ["I came down with a lantern like yours. %s" % line[1], "Leave a little light for me - thirty Embers - and take what I no longer need."], offer_fn)
+				# the offering is the conversation's choice (backing out offers nothing)
+				Game.ui.dialogue("Echo of a Fallen Kindled", ["I came down with a lantern like yours. %s" % line[1], "Leave a little light for me - thirty Embers - and take what I no longer need."],
+					Callable(), [["Offer 30 Embers (you carry %d)" % run.embers, offer_fn], ["Leave", Callable()]])
 
 
 
