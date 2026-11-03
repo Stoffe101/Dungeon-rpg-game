@@ -79,7 +79,7 @@ var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0
 const BLEED_TIME := 25.0
 const REVIVE_TIME := 2.5
 var last_attacker_id := ""
-var godmode := "godmode" in OS.get_cmdline_user_args()
+var godmode := "godmode" in Dev.args()
 var lantern: OmniLight3D
 var dir_name := "down"
 var hit_once := {}

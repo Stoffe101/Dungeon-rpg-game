@@ -27,7 +27,7 @@ func _ready() -> void:
 	_label.add_theme_font_size_override("font_size", 8)
 	_label.add_theme_color_override("font_color", Color(0.75, 0.95, 0.9))
 	add_child(_label)
-	var args := OS.get_cmdline_user_args()
+	var args := Dev.args()
 	visible = "netdiag" in args
 	for a in args:
 		if a.begins_with("netlog="):

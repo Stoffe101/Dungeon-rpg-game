@@ -41,7 +41,8 @@ static var actor_pos := Vector2.ZERO
 ## While set, recorded events skip this peer: its owner already showed them (prediction).
 static var skip_peer := 0
 
-var peer: MultiplayerPeer
+var peer: MultiplayerPeer       # ENet (LAN / direct IP) or SteamMultiplayerPeer: the same code above either
+var steam: SteamLink           # Steam lobbies and invites (does nothing without GodotSteam)
 var roster := {}               # peer id -> {"name", "sheet", "slot"}
 var run_sync: NetRun           # the expedition being shared (host or client)
 var status := ""
@@ -78,9 +79,14 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.connection_failed.connect(_on_failed)
 	multiplayer.server_disconnected.connect(_on_server_gone)
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("netsim="):
 			set_netsim(a.substr(7))
+	steam = SteamLink.new()
+	add_child(steam)
+	roster_changed.connect(func() -> void:
+		if is_host():
+			steam.update_lobby())
 
 
 func _process(delta: float) -> void:
@@ -238,12 +244,23 @@ func host(port := PORT) -> bool:
 	if err != OK:
 		_status("Could not host on port %d (error %d). Is another game already hosting?" % [port, err])
 		return false
-	peer = enet
-	multiplayer.multiplayer_peer = peer
-	roster = {1: {"name": _my_name(), "sheet": Profile.character_sheet(), "slot": 0}}
+	use_peer(enet, true)
 	_status("Hosting on port %d. On your network, friends join with %s." % [port, lan_address()])
-	roster_changed.emit()
 	return true
+
+
+## Starts a session on a ready transport (ENet or Steam). Hosting seats this
+## machine first; a client remembers how to reach the host again.
+func use_peer(p: MultiplayerPeer, hosting: bool, reach := []) -> void:
+	if peer and peer != p:
+		peer.close()
+	peer = p
+	multiplayer.multiplayer_peer = p
+	if not reach.is_empty():
+		_last_join = reach
+	if hosting:
+		roster = {1: {"name": _my_name(), "sheet": Profile.character_sheet(), "slot": 0, "id": identity(), "ready": true}}
+		roster_changed.emit()
 
 
 func join(address: String, port := PORT) -> bool:
@@ -258,13 +275,14 @@ func _reach(address: String, port: int) -> bool:
 		peer.close()
 	peer = null
 	multiplayer.multiplayer_peer = null
+	if address == "steam":
+		return steam.connect_to(port)     # the host's Steam ID
 	var enet := ENetMultiplayerPeer.new()
 	var err := enet.create_client(address, port)
 	if err != OK:
 		_status("Could not reach %s:%d (error %d)." % [address, port, err])
 		return false
-	peer = enet
-	multiplayer.multiplayer_peer = peer
+	use_peer(enet, false)
 	_status("Connecting to %s:%d..." % [address, port])
 	return true
 
@@ -283,7 +301,9 @@ static func lan_address() -> String:
 	return "your address"
 
 
-func leave() -> void:
+func leave(keep_lobby := false) -> void:
+	if not keep_lobby and steam:
+		steam.leave()
 	if peer:
 		peer.close()
 	peer = null
@@ -301,7 +321,10 @@ func leave() -> void:
 
 
 func _my_name() -> String:
-	return String(Settings.get_value("player_name", "Kindled")).substr(0, 16)
+	var n := String(Settings.get_value("player_name", "Kindled"))
+	if n == "Kindled" and steam and steam.online:
+		n = steam.persona()
+	return n.substr(0, 16)
 
 
 func _status(t: String) -> void:
@@ -334,6 +357,8 @@ func _on_connected() -> void:
 
 ## Who this player is to the host: the profile's identity (Steam: the Steam ID).
 static func identity() -> String:
+	if i and i.steam and i.steam.online:
+		return "steam:%d" % i.steam.my_id
 	return Profile.identity()
 
 
@@ -345,9 +370,9 @@ func _on_failed() -> void:
 
 
 func _on_server_gone() -> void:
-	var in_run := Game.run != null and Game.stage is Dungeon
+	var in_run := Game.run != null and Game.run.result == "" and Game.stage is Dungeon
 	var addr: Array = _last_join.duplicate()
-	leave()
+	leave(true)
 	if in_run and String(addr[0]) != "":
 		# the link may only have dropped: keep the floor and reach for the host
 		_last_join = addr

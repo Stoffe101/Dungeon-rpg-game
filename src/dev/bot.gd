@@ -189,7 +189,7 @@ func _explore(_delta: float) -> void:
 		return
 	_goal = best_p
 	pl.move_in = (st.path_step(pl.pos, best_p) - pl.pos).normalized()
-	if "botdebug" in OS.get_cmdline_user_args() and Engine.get_process_frames() % 30 == 0:
+	if "botdebug" in Dev.args() and Engine.get_process_frames() % 30 == 0:
 		print("[botdbg] pos=%s goal=%s step=%s pickups=%d" % [pl.pos.snapped(Vector2(0.1, 0.1)), best_p.snapped(Vector2(0.1, 0.1)), st.path_step(pl.pos, best_p).snapped(Vector2(0.1, 0.1)), st.pickups.size()])
 	pl.aim_point = best_p
 	pl.aim = pl.move_in if pl.move_in != Vector2.ZERO else pl.aim

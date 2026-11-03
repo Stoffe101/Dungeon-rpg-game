@@ -54,12 +54,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	# the player (co-op: the whole party)
 	var start := layout.room(layout.start_id)
 	_spawn_party(start)
-	if "autopilot" in OS.get_cmdline_user_args():
+	if "autopilot" in Dev.args():
 		player.add_child(Bot.new())
-	if "hearthcall" in OS.get_cmdline_user_args():
+	if "hearthcall" in Dev.args():
 		# dev: start a Hearthcall once the floor is up
 		after(1.0, player.start_hearthcall)
-	if "warp=boss" in OS.get_cmdline_user_args() and layout.boss_depth:
+	if "warp=boss" in Dev.args() and layout.boss_depth:
 		# dev: start in the antechamber next to the boss arena
 		var boss_room := layout.room(layout.exit_id)
 		var ante := layout.room(boss_room.doors[0].to)
@@ -69,7 +69,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				rm.visited = true
 				rm.cleared = true
 		start = ante
-	if "warp=event" in OS.get_cmdline_user_args():
+	if "warp=event" in Dev.args():
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
@@ -77,11 +77,11 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if view:
 		view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
-	if "hitlab" in OS.get_cmdline_user_args() and not replica:
+	if "hitlab" in Dev.args() and not replica:
 		# dev: enemies right beside the player, to look at hit feedback up close
 		# (lab=<id,id:affix,...> picks who, and which are elites)
 		var ids: Array = ["husk", "husk", "guard"]
-		for a in OS.get_cmdline_user_args():
+		for a in Dev.args():
 			if a.begins_with("lab="):
 				ids = a.substr(4).split(",")
 		for k in ids.size():
@@ -92,7 +92,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
-	if "coopdive" in OS.get_cmdline_user_args() and not replica:
+	if "coopdive" in Dev.args() and not replica:
 		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
 			after(4.0, func() -> void:
@@ -105,7 +105,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				if player and player.alive:
 					player.invuln_t = 8.0     # dev: so the ritual is not broken mid-test
 					player.start_hearthcall())
-	if "lootlab" in OS.get_cmdline_user_args() and not replica:
+	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
 		lr.seed = 4
@@ -117,7 +117,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			pk.vel = Vector2.ZERO
 		var bp := Pickup.spawn(self, "blueprint", player.pos + Vector2(5.0, -2.5), 1, {"id": "gamblers_coin"})
 		bp.vel = Vector2.ZERO
-	if "dumpmap" in OS.get_cmdline_user_args():
+	if "dumpmap" in Dev.args():
 		_dump_map()
 	if OS.is_debug_build():
 		for rm in layout.rooms:

@@ -21,10 +21,10 @@ func _ready() -> void:
 	ui.root.add_child(fps_label)
 	var scene := "menu"
 	var region := "ossuary"
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("region="):
 			region = a.substr(7)
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("scene="):
 			scene = a.substr(6)
 		elif a.begins_with("weapon="):
@@ -97,7 +97,7 @@ func _ready() -> void:
 			Game.stage.player.input_enabled = false
 		"dungeon":
 			Game.start_run(region)
-			for a in OS.get_cmdline_user_args():
+			for a in Dev.args():
 				if a.begins_with("depth="):
 					# dev: start deeper (the Hollow Below's Echo depths, mostly)
 					Game._enter_depth(int(a.substr(6)))
@@ -108,7 +108,7 @@ func _ready() -> void:
 			Game._enter_depth(last)
 		_:
 			Game.goto_menu()
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("open="):
 			_open_dev_screen.call_deferred(a.substr(5))
 		elif a == "uismoke":
@@ -119,7 +119,7 @@ func _open_dev_screen(what: String) -> void:
 	match what:
 		"skilltree":
 			ui.skill_tree()
-			for a in OS.get_cmdline_user_args():
+			for a in Dev.args():
 				if a.begins_with("hover="):
 					# dev: show the tooltip / path preview for a node
 					var tree := ui.modal_layer.find_children("*", "SkillTreeUI", true, false)

@@ -15,7 +15,7 @@ var _next := 0
 var _last_play: Dictionary = {}
 var _variants: Dictionary = {}
 ## Dev `audiolog`: print every sound as it plays (and any name with no file).
-var log_sounds := "audiolog" in OS.get_cmdline_user_args()
+var log_sounds := "audiolog" in Dev.args()
 var in_sim := false   # the host's world is simulating (its sounds go to the clients too)
 var _music_a: AudioStreamPlayer
 var _music_b: AudioStreamPlayer

@@ -76,7 +76,7 @@ func build(v: PixelView) -> void:
 	if not menu_mode:
 		player = Player.new()
 		player.pos = Vector2(21.0, 15.0)
-		for a in OS.get_cmdline_user_args():
+		for a in Dev.args():
 			if a.begins_with("spawn="):
 				# dev: start somewhere else in the camp (captures)
 				var q := a.substr(6).split(",")
@@ -88,7 +88,7 @@ func build(v: PixelView) -> void:
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
 		_spawn_residents()
-		if "descend" in OS.get_cmdline_user_args():
+		if "descend" in Dev.args():
 			# dev: step through the gate a second after the camp loads (captures)
 			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 		_dev_net()
@@ -360,12 +360,12 @@ func _dev_net() -> void:
 		return
 	_dev_net_done = true
 	var want := 0
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("name="):
 			Settings.set_value("player_name", a.substr(5), false)
 		elif a.begins_with("coop="):
 			want = int(a.substr(5))
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a == "net=host" and not Net.active():
 			after(0.3, func() -> void: Net.i.host())
 		elif a.begins_with("net=join:") and not Net.active():

@@ -366,3 +366,16 @@ func test_the_host_leads_once_everyone_is_ready() -> void:
 	net.unready_all()
 	check(not net.all_ready(), "a new descent asks again")
 	net.free()
+
+
+func test_without_godotsteam_the_game_offers_lan_play() -> void:
+	if SteamLink.installed():
+		return     # this build has GodotSteam: covered by docs/STEAM.md's manual checks
+	var s := SteamLink.new()
+	tree_root.add_child(s)
+	check(not s.online, "no Steam without the extension")
+	check(s.status.contains("LAN"), "and the player is told LAN and direct IP still work")
+	s.join_lobby(123)     # asking anyway is harmless
+	check(not s.online, "still offline, nothing broke")
+	s.queue_free()
+	check(not Net.identity().begins_with("steam:"), "identity falls back to the profile's")

@@ -18,6 +18,10 @@ const DEFAULT_PATH := "user://profile.json"
 ## embers and a few pieces of gear (once: on upgrading to v5 or on a new save).
 const TEST_STOCKPILE := true
 
+## The testing stockpile is granted in debug builds only (never in a release export).
+static func stockpile() -> bool:
+	return TEST_STOCKPILE and Dev.enabled()
+
 var path := DEFAULT_PATH
 var data: Dictionary = {}
 var dirty := false
@@ -25,7 +29,7 @@ var last_load_status := ""
 
 
 func _ready() -> void:
-	var p := OS.get_cmdline_user_args()
+	var p := Dev.args()
 	for a in p:
 		if a.begins_with("profile="):
 			path = "user://" + a.substr(8)
@@ -89,7 +93,7 @@ func load_profile() -> void:
 	else:
 		last_load_status = "ok"
 	data = migrate(loaded) if not loaded.is_empty() else fresh()
-	if loaded.is_empty() and TEST_STOCKPILE:
+	if loaded.is_empty() and stockpile():
 		_grant_stockpile(data)
 		_grant_test_v6(data)
 		for it in bag():
@@ -173,7 +177,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			out["inventory"] = {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1}
 		if not out.has("shop"):
 			out["shop"] = {"stock": [], "for_run": -1}
-		if TEST_STOCKPILE:
+		if stockpile():
 			_grant_stockpile(out)
 		v = 5
 	if v < 6:
@@ -188,7 +192,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			inv6["look"] = ""
 		if not out.has("difficulty"):
 			out["difficulty"] = {"unlocked": 2, "selected": 1, "cleared": 0}
-		if TEST_STOCKPILE:
+		if stockpile():
 			_grant_test_v6(out)
 		# looks already earned by gear the Kindled owns
 		var owned: Array = (inv6.bag as Array).duplicate()
@@ -225,7 +229,7 @@ static func migrate(d: Dictionary) -> Dictionary:
 			out["runes"] = {"owned": {}, "socketed": {}}
 		if out.has("inventory") and not (out.inventory as Dictionary).has("shown"):
 			out.inventory["shown"] = {}
-		if TEST_STOCKPILE:
+		if stockpile():
 			for r in Runes.RUNES:
 				out.runes.owned[r] = int(out.runes.owned.get(r, 0)) + 1
 		v = 9

@@ -21,7 +21,7 @@ func _ready() -> void:
 	var n := Net.new()
 	n.name = "Net"
 	get_tree().root.add_child.call_deferred(n)
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("seed="):
 			debug_seed = int(a.substr(5))
 	Profile.changed.connect(_check_feats, CONNECT_DEFERRED)

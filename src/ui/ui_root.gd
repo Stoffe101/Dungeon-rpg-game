@@ -206,7 +206,7 @@ func _make_cursor() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		if hud.visible and Game.stage is Dungeon and not has_modal() and not "autopilot" in OS.get_cmdline_user_args():
+		if hud.visible and Game.stage is Dungeon and not has_modal() and not "autopilot" in Dev.args():
 			pause_menu()
 
 

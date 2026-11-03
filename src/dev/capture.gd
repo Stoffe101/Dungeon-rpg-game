@@ -12,7 +12,7 @@ var _frame := 0
 
 
 static func from_args() -> Capture:
-	var args := OS.get_cmdline_user_args()
+	var args := Dev.args()
 	var c := Capture.new()
 	var name := ""
 	var frames := 90

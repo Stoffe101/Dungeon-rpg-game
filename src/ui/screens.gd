@@ -226,9 +226,13 @@ static func coop(ui: UIRoot) -> Control:
 		for c in buttons.get_children():
 			c.queue_free()
 		if not Net.active():
-			buttons.add_child(UIKit.button("Host", func() -> void: Net.i.host(), 60))
-			buttons.add_child(UIKit.button("Join", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
+			if Net.i.steam.online:
+				buttons.add_child(UIKit.button("Host on Steam", func() -> void: Net.i.steam.host_lobby(true), 80))
+			buttons.add_child(UIKit.button("Host (LAN / IP)", func() -> void: Net.i.host(), 80))
+			buttons.add_child(UIKit.button("Join IP", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
 		else:
+			if Net.is_host() and Net.i.steam.lobby_id != 0:
+				buttons.add_child(UIKit.button("Invite friends", func() -> void: Net.i.steam.invite(), 80))
 			buttons.add_child(UIKit.button("Leave party", func() -> void:
 				Net.i.leave()
 				Net.i._status("Left the party."), 80))
@@ -239,7 +243,8 @@ static func coop(ui: UIRoot) -> Control:
 		if Net.i.roster_changed.is_connected(refresh):
 			Net.i.roster_changed.disconnect(refresh))
 	refresh.call()
-	v.add_child(UIKit.para("Internet play: the host forwards UDP port %d on their router, or everyone joins the same LAN-style VPN (e.g. ZeroTier, Tailscale). LAN play needs nothing extra." % Net.PORT, 250, UIKit.C_DIM))
+	v.add_child(UIKit.para(Net.i.steam.status if Net.i.steam.status != "" else "", 250, UIKit.C_DIM))
+	v.add_child(UIKit.para("Without Steam: LAN play needs nothing extra; over the internet the host forwards UDP port %d, or everyone joins the same LAN-style VPN." % Net.PORT, 250, UIKit.C_DIM))
 	return _center(p)
 
 

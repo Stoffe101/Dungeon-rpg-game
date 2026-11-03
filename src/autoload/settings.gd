@@ -64,7 +64,7 @@ var using_pad := false   # last meaningful input came from a gamepad
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("profile="):
 			path = DEV_PATH
 	values = DEFAULTS.duplicate(true)
