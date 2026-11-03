@@ -192,6 +192,7 @@ func begin_descent(region: String) -> void:
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	var rid := new_run_id()
 	if Net.is_host():
+		Net.i.unready_all()
 		# the party goes down together: same seed, region, tier and Omens
 		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": Difficulty.selected(), "omens": omens, "run_id": rid})
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
@@ -270,6 +271,27 @@ func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
 var coop_checkpoint := {}
 
 
+## Client: the link to the host dropped mid-expedition. The floor stays (frozen)
+## while Net reaches for the host again; giving up banks the checkpoint.
+func coop_link_lost() -> void:
+	if stage and stage.player:
+		stage.player.input_enabled = false
+	ui.close_all()
+	ui.open(Screens.link_lost(ui), false)
+
+
+## Client: back in the party after losing the link: rebuild the depth the party
+## is on, as this Kindled's run stands on the host.
+func rejoin_coop_client(params: Dictionary, data: Dictionary) -> void:
+	ui.close_all()
+	var r := RunState.from_dict(data)
+	r.result = ""
+	run = r
+	Events.toast.emit("Back with the party.", Color(0.75, 0.95, 0.9))
+	print("[game] rejoined the party at depth %d (run %s, %d Embers carried)" % [int(params.depth), r.run_id, r.embers])
+	_enter_depth(int(params.depth))
+
+
 ## Client: the host vanished mid-expedition. What this Kindled carried at the
 ## start of the depth comes home with it (as from a Hearthcall); the rest of
 ## the depth is lost.
@@ -338,7 +360,8 @@ func send_checkpoints() -> void:
 		if pl != stage.player and pl.run:
 			pl.store_to(pl.run)
 	for pid in coop_runs:
-		Net.i.rpc_id(int(pid), "_checkpoint", _shared_into(coop_runs[pid]).to_dict())
+		if Net.i.present().has(pid):
+			Net.i.rpc_id(int(pid), "_checkpoint", _shared_into(coop_runs[pid]).to_dict())
 
 
 ## Ends the expedition and settles what the profile keeps.
@@ -358,7 +381,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 				for pl in stage.players:
 					if pl.peer_id == int(pid):
 						own_killer = pl.last_attacker_id
-			Net.i.rpc_id(int(pid), "_run_end", outcome, own_killer, cr.to_dict())
+			if Net.i.present().has(pid):
+				Net.i.rpc_id(int(pid), "_run_end", outcome, own_killer, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
 	var delve_best := Delve.best()

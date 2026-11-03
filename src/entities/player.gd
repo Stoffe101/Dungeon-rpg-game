@@ -72,6 +72,7 @@ var lag_saves := 0            # host: blows that a late dodge or Ward still caug
 var _deferred: Array = []     # host: [due, hit, attacker] waiting out lag_grace
 var _settling := false
 var _held_until := {}         # co-op client: what the prediction changed itself, kept until the host has heard
+var away := false             # co-op host: its owner lost the link; it waits, untouchable, for them
 ## Press counters for every button: they only go up, so a network packet lost
 ## in between can never lose a press (the host compares counts).
 var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0}
@@ -452,6 +453,17 @@ func _move_mult() -> float:
 
 
 # --- co-op prediction (a client's own Kindled) -------------------------------------
+
+## Co-op host: its owner lost the link (or is back).
+func set_away(on: bool) -> void:
+	away = on
+	targetable = not on and not downed and alive
+	move_in = Vector2.ZERO
+	_attack_down = false
+	_deferred.clear()
+	if sprite:
+		sprite.set_tint(Color(1, 1, 1, 0.35 if on else 1.0))
+
 
 func can_predict() -> bool:
 	return predicting and alive and not downed and stats != null
@@ -1193,7 +1205,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 
 func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	var empty := Combat.Result.new()
-	if not alive or godmode:
+	if not alive or godmode or away:
 		return empty
 	if dodge_t > 0.0 or (invuln_t > 0.0 and dodge_age < stats.v("dodge_iframes") + 0.02):
 		if dodge_age <= PERFECT_WINDOW and not perfect_done and not h.has_tag("dot"):

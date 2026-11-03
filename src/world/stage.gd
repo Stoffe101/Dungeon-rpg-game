@@ -226,7 +226,7 @@ func remove_actor(a: Actor) -> void:
 func active_players() -> Array[Player]:
 	var out: Array[Player] = []
 	for p in players:
-		if is_instance_valid(p) and p.alive and not p.downed:
+		if is_instance_valid(p) and p.alive and not p.downed and not p.away:
 			out.append(p)
 	return out
 

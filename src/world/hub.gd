@@ -371,9 +371,16 @@ func _dev_net() -> void:
 		elif a.begins_with("net=join:") and not Net.active():
 			var addr := a.substr(9)
 			after(0.6, func() -> void: Net.i.join(addr))
+			# dev: a joining guest says it is ready once it is in the party
+			var ready_up := func(again: Callable) -> void:
+				if Net.is_client() and Net.i.roster.has(Net.my_id()):
+					Net.i.set_ready(true)
+				else:
+					after(0.5, again.bind(again))
+			after(1.0, ready_up.bind(ready_up))
 	if want > 1:
 		var check := func(again: Callable) -> void:
-			if Net.is_host() and Net.i.roster.size() >= want:
+			if Net.is_host() and Net.i.roster.size() >= want and Net.i.all_ready():
 				after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 			else:
 				after(0.5, again.bind(again))

@@ -14,7 +14,11 @@ signal status_changed(text: String)
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 3
+const PROTOCOL := 4
+## How long a seat waits for a Kindled that lost the link, and how long that
+## Kindled keeps trying to reach the host again (seconds).
+const SEAT_WAIT := 60.0
+const RECONNECT_TRY := 30.0
 ## Each seat's colour: nameplates, map markers and the ring under each Kindled.
 const COLORS := [Color(1.0, 0.72, 0.35), Color(0.45, 0.82, 1.0), Color(0.62, 1.0, 0.5), Color(1.0, 0.52, 0.78)]
 ## The order of the press counters in an input packet.
@@ -42,6 +46,10 @@ var roster := {}               # peer id -> {"name", "sheet", "slot"}
 var run_sync: NetRun           # the expedition being shared (host or client)
 var status := ""
 var ready_floor := {}          # host: peer -> the floor that peer has built (NetRun waits for all)
+var away := {}                 # host: peer -> ms until its seat is given up (it lost the link mid-run)
+var reconnecting_until := 0    # client: ms until it stops trying to reach the host again
+var _last_join := ["", 0]      # client: the address it joined (to reach it again)
+var _retry_t := 0.0
 var _early: Array = []         # client: [floor, events] sent before this machine had built that floor
 
 # measured link (client: to the host)
@@ -93,6 +101,18 @@ func _process(delta: float) -> void:
 		if _ping_t >= 0.5:
 			_ping_t = 0.0
 			to_host("_ping", [Time.get_ticks_msec()], "ping", false)
+	if reconnecting_until > 0 and not active():
+		if Time.get_ticks_msec() > reconnecting_until:
+			give_up()
+		else:
+			_retry_t += delta
+			if _retry_t >= 3.0 and (peer == null or peer.get_connection_status() == MultiplayerPeer.CONNECTION_DISCONNECTED):
+				_retry_t = 0.0
+				_reach(_last_join[0], int(_last_join[1]))
+	if multiplayer.multiplayer_peer and multiplayer.is_server() and not away.is_empty():
+		for pid in away.keys():
+			if Time.get_ticks_msec() > int(away[pid]):
+				_drop_seat(int(pid))
 
 
 # --- static helpers ---------------------------------------------------------------
@@ -228,6 +248,16 @@ func host(port := PORT) -> bool:
 
 func join(address: String, port := PORT) -> bool:
 	leave()
+	reconnecting_until = 0
+	_last_join = [address, port]
+	return _reach(address, port)
+
+
+func _reach(address: String, port: int) -> bool:
+	if peer:
+		peer.close()
+	peer = null
+	multiplayer.multiplayer_peer = null
 	var enet := ENetMultiplayerPeer.new()
 	var err := enet.create_client(address, port)
 	if err != OK:
@@ -263,6 +293,7 @@ func leave() -> void:
 	rtt = 0.0
 	jitter = 0.0
 	ready_floor.clear()
+	away.clear()
 	_early.clear()
 	_simq.clear()
 	_sim_last.clear()
@@ -288,25 +319,55 @@ func _steady(id: int) -> void:
 		var p := (peer as ENetMultiplayerPeer).get_peer(id)
 		if p:
 			p.throttle_configure(5000, ENetPacketPeer.PACKET_THROTTLE_SCALE, 0)
+			# notice a dead link in seconds, not half a minute (a seat waits for it)
+			p.set_timeout(32, 3000, 8000)
 
 
 func _on_connected() -> void:
 	_steady(1)
-	_status("Connected. Waiting for the host's word...")
-	to_host("_hello", [_my_name(), Profile.character_sheet(), {"proto": PROTOCOL, "ver": game_version()}])
+	_status("Connected. Waiting for the host's word..." if reconnecting_until == 0 else "Found the host. Asking for our seat back...")
+	var info := {"proto": PROTOCOL, "ver": game_version(), "id": identity()}
+	if reconnecting_until > 0 and Game.run:
+		info["rejoin"] = Game.run.run_id
+	to_host("_hello", [_my_name(), Profile.character_sheet(), info])
+
+
+## Who this player is to the host: the profile's identity (Steam: the Steam ID).
+static func identity() -> String:
+	return Profile.identity()
 
 
 func _on_failed() -> void:
+	if reconnecting_until > 0:
+		return     # still trying (_process reaches out again)
 	_status("Could not connect. Check the address, that the host is hosting, and their firewall.")
 	leave()
 
 
 func _on_server_gone() -> void:
 	var in_run := Game.run != null and Game.stage is Dungeon
+	var addr: Array = _last_join.duplicate()
 	leave()
+	if in_run and String(addr[0]) != "":
+		# the link may only have dropped: keep the floor and reach for the host
+		_last_join = addr
+		reconnecting_until = Time.get_ticks_msec() + int(RECONNECT_TRY * 1000.0)
+		_retry_t = 2.0
+		_status("Lost the host. Reaching for them again...")
+		Game.coop_link_lost()
+		return
 	_status("The host left the session.")
 	if in_run:
-		Events.toast.emit("The host's fire went out - you are back at your own Hearth.", Color(1.0, 0.6, 0.5))
+		Game.abandon_coop_run()
+
+
+## Client: stop reaching for the host; what was carried into this depth comes home.
+func give_up() -> void:
+	var was := reconnecting_until > 0
+	reconnecting_until = 0
+	leave()
+	_status("The host left the session.")
+	if was and Game.run:
 		Game.abandon_coop_run()
 
 
@@ -316,14 +377,36 @@ func _on_peer_connected(id: int) -> void:
 
 
 func _on_peer_disconnected(id: int) -> void:
-	if not multiplayer.is_server():
+	if not multiplayer.is_server() or not roster.has(id) or away.has(id):
 		return
+	var who := name_of(id)
+	if run_sync and roster.has(id):
+		# mid-expedition: the seat waits a while for the same Kindled to return
+		roster[id]["away"] = true
+		away[id] = Time.get_ticks_msec() + int(SEAT_WAIT * 1000.0)
+		_broadcast_roster()
+		_status("%s lost the link. Their seat waits." % who)
+		run_sync.on_peer_away(id)
+		return
+	roster.erase(id)
+	_broadcast_roster()
+	_status("%s left." % who)
+
+
+## Host: a seat that waited long enough is given up.
+func _drop_seat(id: int) -> void:
+	away.erase(id)
 	var who := name_of(id)
 	roster.erase(id)
 	_broadcast_roster()
 	_status("%s left." % who)
 	if run_sync:
 		run_sync.on_peer_left(id)
+
+
+## Peers that are here (away seats are in the roster but not connected).
+func present() -> Array:
+	return roster.keys().filter(func(pid): return not bool(roster[pid].get("away", false)))
 
 
 func _broadcast_roster() -> void:
@@ -365,19 +448,108 @@ func _hello(pname: String, sheet: Dictionary, info := {}) -> void:
 		rpc_id(id, "_rejected", "Different versions: the host runs %s (protocol %d), you run %s (protocol %d). Update both to the same build." % [
 			game_version(), PROTOCOL, String(info.get("ver", "?")), int(info.get("proto", 0))])
 		return
+	if run_sync != null:
+		# the same Kindled (by identity) takes its seat back, even after a restart
+		var seat := _seat_of(String(info.get("id", "")))
+		if seat != 0 and Game.run:
+			if not away.has(seat):
+				# the old link is not known to be dead yet: it is now
+				_on_peer_disconnected(seat)
+				if peer is ENetMultiplayerPeer:
+					(peer as ENetMultiplayerPeer).get_peer(seat).peer_disconnect_now()
+			_rejoin(seat, id)
+			return
+		rpc_id(id, "_rejected", "The party is already below. Join when they are back at the Hearth.")
+		return
 	if roster.size() >= MAX_PLAYERS:
 		rpc_id(id, "_rejected", "The party is full (four Kindled).")
 		return
-	if run_sync != null:
-		rpc_id(id, "_rejected", "The party is already below. Join when they are back at the Hearth.")
-		return
+	for pid in roster:
+		if String(roster[pid].get("id", "")) == String(info.get("id", "x")) and String(info.get("id", "")) != "":
+			rpc_id(id, "_rejected", "That Kindled is already in the party.")
+			return
 	var used: Array = roster.values().map(func(r): return int(r.slot))
 	var slot := 0
 	while used.has(slot):
 		slot += 1
-	roster[id] = {"name": pname.substr(0, 16), "sheet": sheet, "slot": slot}
+	roster[id] = {"name": pname.substr(0, 16), "sheet": sheet, "slot": slot, "id": String(info.get("id", "")), "ready": false}
 	_broadcast_roster()
 	_status("%s joined the party." % pname)
+
+
+## Host: the guest seat held by this identity (its peer id), or 0.
+func _seat_of(ident: String) -> int:
+	if ident == "":
+		return 0
+	for pid in roster:
+		if int(pid) != 1 and String(roster[pid].get("id", "")) == ident:
+			return int(pid)
+	return 0
+
+
+## Host: a Kindled that lost the link is back. Its seat (slot, run, Kindled on
+## the floor) moves to its new peer id, and it gets the floor as it is now.
+func _rejoin(old: int, new: int) -> void:
+	var entry: Dictionary = roster[old]
+	roster.erase(old)
+	away.erase(old)
+	entry.erase("away")
+	roster[new] = entry
+	if run_sync:
+		run_sync.on_rejoin(old, new)
+	_steady(new)
+	_broadcast_roster()
+	var r := Game.run_of(new)
+	var params := {"seed": Game.run.seed, "region": "delve" if Game.run.delve else Game.run.region, "tier": Game.run.tier,
+		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth}
+	rpc_id(new, "_rejoined", params, r.to_dict())
+	if run_sync:
+		rpc_id(new, "_events", run_sync.floor_id, run_sync.world_dump())
+	_status("%s found the party again." % String(entry.name))
+	Events.toast.emit("%s found the party again." % String(entry.name), Color(0.75, 0.95, 0.9))
+
+
+## Host -> a returning client: its run, and the depth to build again.
+@rpc("authority", "reliable")
+func _rejoined(params: Dictionary, run_data: Dictionary) -> void:
+	_through("rel", true, func() -> void:
+		reconnecting_until = 0
+		if (Profile.data.get("settled_runs", []) as Array).has(String(params.get("run_id", ""))):
+			# this Kindled already brought its share of that expedition home
+			leave()
+			_status("You already brought your share of that expedition home.")
+			return
+		Game.rejoin_coop_client(params, run_data))
+
+
+## Client -> host: ready (or not) to go down.
+@rpc("any_peer", "reliable")
+func _ready_up(on: bool) -> void:
+	var id := multiplayer.get_remote_sender_id()
+	if multiplayer.is_server() and roster.has(id):
+		roster[id]["ready"] = on
+		_broadcast_roster()
+
+
+func set_ready(on: bool) -> void:
+	if is_client():
+		to_host("_ready_up", [on])
+
+
+## Host: every guest is ready (the host's own press is its readiness).
+func all_ready() -> bool:
+	for pid in roster:
+		if int(pid) != 1 and not bool(roster[pid].get("ready", false)):
+			return false
+	return true
+
+
+## Host: a new expedition, or back at the Hearth: everyone answers again.
+func unready_all() -> void:
+	for pid in roster:
+		roster[pid]["ready"] = false
+	if is_host():
+		_broadcast_roster()
 
 
 @rpc("authority", "reliable")

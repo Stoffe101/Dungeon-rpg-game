@@ -326,3 +326,43 @@ func test_guests_grudges_hunt_the_party_and_settle_for_their_owner() -> void:
 	check(p2.run.grudges_won.has("gg"), "settled in its owner's run")
 	check(d.run.grudges_settled.size() == 1, "and the party saw it settled")
 	d.queue_free()
+
+
+func test_a_returning_guest_takes_its_seat_back() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p2 := _two(d)
+	var nr := NetRun.new()
+	nr.stage = d
+	var shop := Prop.make(d, "merchant", Vector2i(d.player.pos) + Vector2i(2, 0))
+	Party.shop_stock(d, p2, shop)
+	Party.spend(d, shop, p2)
+	var gift := Pickup.spawn(d, "gear", p2.pos, 1, {"item": ItemDB.make_item("grave_iron_helm", "rare", 1, RandomNumberGenerator.new(), 1)})
+	gift.owner_peer = 2
+	nr.on_peer_away(2)
+	check(p2.away and not p2.targetable, "a Kindled whose owner lost the link waits, untouchable")
+	check(not d.active_players().has(p2), "foes look elsewhere")
+	var h := Hit.make(null, 50.0, ["melee"])
+	var hp0 := p2.hp
+	p2.take_enemy_hit(h, null)
+	eq(p2.hp, hp0, "nothing hurts it while it waits")
+	nr.on_rejoin(2, 7)
+	eq(p2.peer_id, 7, "the seat moves to the new link")
+	check(not p2.away and p2.targetable, "and the Kindled is back in the fight")
+	check(shop.data.has("stock_7") and shop.data.has("used_7") and not shop.data.has("stock_2"), "its stock and bargains follow it")
+	eq(gift.owner_peer, 7, "so does its gear on the ground")
+	nr.free()
+	d.queue_free()
+
+
+func test_the_host_leads_once_everyone_is_ready() -> void:
+	var net := Net.new()
+	net.roster = {1: {"name": "Host", "slot": 0}, 2: {"name": "A", "slot": 1, "ready": true}, 3: {"name": "B", "slot": 2, "ready": false}}
+	check(not net.all_ready(), "B is not ready yet")
+	net.roster[3]["ready"] = true
+	check(net.all_ready(), "everyone is ready")
+	net.roster[2]["away"] = true
+	eq(net.present(), [1, 3], "an away seat is not counted as present")
+	net.unready_all()
+	check(not net.all_ready(), "a new descent asks again")
+	net.free()

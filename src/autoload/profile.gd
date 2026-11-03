@@ -64,7 +64,15 @@ static func fresh() -> Dictionary:
 		"descent": {"region": "ossuary", "omens": []},
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
+		"identity": "",
 	}
+
+
+## Who this profile is to a co-op host (so a dropped seat waits for the same
+## Kindled, not just the same address). Steam play uses the Steam ID instead.
+static func _new_identity() -> String:
+	var c := Crypto.new()
+	return c.generate_random_bytes(12).hex_encode()
 
 
 # --- persistence -----------------------------------------------------------
@@ -456,6 +464,15 @@ const SANCTUARY := {
 	"shrine": {"name": "Shrine of Memory", "max": 1, "costs": [{"embers": 150, "sunshards": 1}],
 		"desc": "Remember your Grudges. Settling a Grudge returns double its Embers."},
 }
+
+
+## Who this profile is to a co-op host: made (and saved) the first time it is
+## needed, so a restarted game is still the same Kindled.
+func identity() -> String:
+	if String(data.get("identity", "")) == "":
+		data["identity"] = _new_identity()
+		save_profile()
+	return String(data.identity)
 
 
 ## A co-op settlement banks once: true the first time this run id is seen.

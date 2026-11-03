@@ -220,7 +220,8 @@ static func coop(ui: UIRoot) -> Control:
 				var r: Dictionary = Net.i.roster[pid]
 				var sh: Dictionary = r.get("sheet", {})
 				var w := GearDB.weapon(String(sh.get("weapon", "sword")))
-				var line := "%s%s   Lv %d   %s" % [String(r.name), "  (host)" if int(pid) == 1 else "", int(sh.get("level", 1)), String(w.get("name", "?"))]
+				var state := "  (host)" if int(pid) == 1 else ("  (away)" if r.get("away", false) else ("  - ready" if r.get("ready", false) else ""))
+				var line := "%s%s   Lv %d   %s" % [String(r.name), state, int(sh.get("level", 1)), String(w.get("name", "?"))]
 				party.add_child(UIKit.label(line, 8, Net.color_of(int(pid)), true))
 		for c in buttons.get_children():
 			c.queue_free()
@@ -449,6 +450,27 @@ static func _shrine_panel(ui: UIRoot, spent: bool, curse_id: String, choose: Cal
 		curse.custom_minimum_size = Vector2(250, 26)
 		v.add_child(curse)
 	v.add_child(UIKit.button("Refuse", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+## Shown while a guest reaches for a host it lost: the floor waits behind it.
+static func link_lost(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(6)
+	p.add_child(v)
+	v.add_child(_title("The Host's Light Is Lost", Color(1.0, 0.75, 0.5)))
+	var body := UIKit.para("", 230)
+	v.add_child(body)
+	var tick := Timer.new()
+	tick.wait_time = 0.25
+	tick.autostart = true
+	tick.timeout.connect(func() -> void:
+		var left := maxi(0, int((Net.i.reconnecting_until - Time.get_ticks_msec()) / 1000))
+		body.text = "Reaching for them again... (%d s)\nGiving up brings home what you carried into this depth." % left)
+	p.add_child(tick)
+	v.add_child(UIKit.button("Give up", func() -> void:
+		ui.close_top()
+		Net.i.give_up(), 80))
 	return _center(p)
 
 
@@ -1030,11 +1052,25 @@ static func descent(ui: UIRoot) -> Control:
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var go := UIKit.button("Descend" if not Net.active() else "Descend together", func() -> void:
+		if Net.is_host() and not Net.i.all_ready():
+			Audio.ui("deny")
+			return
 		ui.close_all()
 		Game.begin_descent(ctx.region), 80)
 	if Net.is_client():
-		go.disabled = true
-		go.text = "%s leads the way" % Net.name_of(1)
+		# a guest says it is ready; the host leads the way once everyone is
+		var mine: bool = Net.i.roster.get(Net.my_id(), {}).get("ready", false)
+		go.text = "Ready" if not mine else "Not ready"
+		go.pressed.disconnect(go.pressed.get_connections()[0].callable)
+		go.pressed.connect(func() -> void:
+			Net.i.set_ready(not mine)
+			ui.close_top())
+	elif Net.is_host() and not Net.i.all_ready():
+		var waiting: Array = []
+		for pid in Net.i.roster:
+			if int(pid) != 1 and not bool(Net.i.roster[pid].get("ready", false)):
+				waiting.append(Net.name_of(int(pid)))
+		go.text = "Waiting: %s" % ", ".join(waiting)
 	row2.add_child(go)
 	row2.add_child(UIKit.button("Runes", func() -> void: ui.open(Screens.runes(ui)), 50))
 	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))

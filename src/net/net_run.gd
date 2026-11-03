@@ -25,6 +25,7 @@ var host := false
 var floor_id := 0             # the depth: every message names the floor it belongs to
 var events: Array = []
 var _waiting := false         # host: holding the floor until every guest has built it
+var _prop_made: Array = []    # host: props made since the floor was built (for a returning guest)
 var _wait_t := 0.0
 var _snap_t := 0.0
 # host
@@ -142,6 +143,10 @@ func register_actor(a: Actor) -> void:
 		a.net_id = _next_id
 	if a is Player:
 		return    # every peer builds the party itself, ids by seat
+	Net.rec(["actor+", a.net_id, _describe(a)])
+
+
+func _describe(a: Actor) -> Dictionary:
 	var d := {"pos": a.pos}
 	if a is Enemy:
 		var e := a as Enemy
@@ -149,7 +154,7 @@ func register_actor(a: Actor) -> void:
 			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": e.spawn_t, "boss": e == stage.boss})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
-	Net.rec(["actor+", a.net_id, d])
+	return d
 
 
 func _process(delta: float) -> void:
@@ -159,7 +164,7 @@ func _process(delta: float) -> void:
 		if _waiting:
 			_wait_t += delta
 			var all := true
-			for pid in Net.i.roster.keys():
+			for pid in Net.i.present():
 				if int(pid) != 1 and int(Net.i.ready_floor.get(pid, -1)) != floor_id:
 					all = false
 			if all or _wait_t > 10.0:
@@ -171,6 +176,9 @@ func _process(delta: float) -> void:
 		if not events.is_empty():
 			var evs := events
 			events = []
+			for ev in evs:
+				if String(ev[0]) == "prop+":
+					_prop_made.append(ev)     # a returning guest gets these again
 			Net.i.rpc("_events", floor_id, evs)
 		_snap_t += delta
 		if _snap_t >= 1.0 / SNAP_HZ:
@@ -218,7 +226,7 @@ func _send_snapshots() -> void:
 		if is_instance_valid(pr) and pr.net_id != 0:
 			prs.append([pr.net_id, q(pr.pos.x), q(pr.pos.y), q(pr.height)])
 	_key_phase = (_key_phase + 1) % KEY_EVERY
-	for pid in Net.i.roster.keys():
+	for pid in Net.i.present():
 		if int(pid) != 1:
 			_send_to(int(pid), t, acts, pls, prs)
 
@@ -307,7 +315,7 @@ func _capture_props() -> void:
 ## A client's input packet (see pack_input): newest only, presses counted.
 func on_input(peer: int, d: Array) -> void:
 	var pl := _player_of(peer)
-	if pl == null or not pl.alive or d.size() < 11:
+	if pl == null or not pl.alive or pl.away or d.size() < 11:
 		return
 	var seq := int(d[0])
 	if seq <= pl.in_seq:
@@ -397,6 +405,72 @@ func on_peer_left(peer: int) -> void:
 		_check_vote(v)
 
 
+## A guest lost the link: its Kindled waits where it stands, untouchable,
+## while its seat waits (Net.SEAT_WAIT); the party's votes go on without it.
+func on_peer_away(peer: int) -> void:
+	var pl := _player_of(peer)
+	if pl:
+		pl.set_away(true)
+		Events.toast.emit("%s's light flickers - they lost the link." % Net.name_of(peer), Color(1.0, 0.75, 0.5))
+	for v in _votes.values():
+		_check_vote(v)
+
+
+## The same Kindled is back under a new peer id: everything of theirs follows.
+func on_rejoin(old: int, new: int) -> void:
+	var pl := _player_of(old)
+	if pl:
+		pl.peer_id = new
+		pl.in_seq = 0
+		pl.set_away(false)
+	if Game.coop_runs.has(old):
+		Game.coop_runs[new] = Game.coop_runs[old]
+		Game.coop_runs.erase(old)
+	for pk in stage.pickups:
+		if is_instance_valid(pk) and pk.owner_peer == old:
+			pk.owner_peer = new
+	# their stock, bargains and pending offers keep their name
+	for p in stage.props:
+		if not is_instance_valid(p):
+			continue
+		for key in p.data.keys():
+			if String(key).ends_with("_%d" % old):
+				p.data[String(key).trim_suffix("_%d" % old) + "_%d" % new] = p.data[key]
+				p.data.erase(key)
+		var taken: Array = p.data.get("taken", [])
+		if taken.has(old):
+			taken[taken.find(old)] = new
+	for m in [_sent, _pick_sent, _chunk_n, _last_presses, _last_held]:
+		(m as Dictionary).erase(old)
+
+
+## Everything a client needs to draw this floor as it is now (a guest who
+## rebuilt it after losing the link): what was made, what changed, who is here.
+func world_dump() -> Array:
+	var out: Array = []
+	out.append_array(_prop_made)
+	for idx in _prop_state:
+		out.append(["prop", idx, _prop_state[idx]])
+	for r in stage.layout.rooms:
+		if r.visited:
+			out.append(["room", r.id])
+	for rid in stage.gate_nodes:
+		var nodes: Array = stage.gate_nodes[rid]
+		if not nodes.is_empty():
+			var t: Vector2i = nodes[0].get_meta("tile")
+			if stage.grid.at(t.x, t.y) == TileGrid.GATE:
+				out.append(["gate", rid, true])
+	for a in stage.actors:
+		if is_instance_valid(a) and a.alive and a.net_id != 0 and not (a is Player):
+			out.append(["actor+", a.net_id, _describe(a)])
+	if stage.boss and is_instance_valid(stage.boss) and stage.boss.alive:
+		out.append(["boss", stage.boss.net_id])
+	for pk in stage.pickups:
+		if is_instance_valid(pk) and pk.net_id != 0:
+			out.append(["pick+", [pk.net_id, pk.kind, pk.pos, pk.height, Vector2.ZERO, pk.amount, pk.data, pk.owner_peer]])
+	return out
+
+
 # --- host: party votes ---------------------------------------------------------------
 
 ## Someone asks the party (the stairs, the Hearthstone, the Trial, a Hearthcall):
@@ -417,7 +491,7 @@ func start_vote(kind: String, idx: int, by: Player) -> void:
 
 func cast_vote(peer: int, id: int, agree: bool) -> void:
 	var v: Dictionary = _votes.get(id, {})
-	if v.is_empty() or not Net.i.roster.has(peer):
+	if v.is_empty() or not Net.i.present().has(peer):
 		return
 	if not agree:
 		_finish_vote(v, false, "%s is not ready yet." % Net.name_of(peer))
@@ -431,14 +505,15 @@ func cast_vote(peer: int, id: int, agree: bool) -> void:
 
 func _announce_vote(v: Dictionary) -> void:
 	var yes: Array = v.yes.keys()
-	Net.rec(["vote", v.id, v.kind, v.by, yes, Net.i.roster.size()])
-	Party.show_vote(int(v.id), String(v.kind), int(v.by), yes, Net.i.roster.size())
+	var need := Net.i.present().size()
+	Net.rec(["vote", v.id, v.kind, v.by, yes, need])
+	Party.show_vote(int(v.id), String(v.kind), int(v.by), yes, need)
 
 
 func _check_vote(v: Dictionary) -> void:
 	if not _votes.has(v.id):
 		return
-	for pid in Net.i.roster.keys():
+	for pid in Net.i.present():
 		if not v.yes.has(pid):
 			return
 	_finish_vote(v, true, "")
