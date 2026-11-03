@@ -452,6 +452,80 @@ the blade, and controller rumble (every screen shake rumbles in proportion;
 hits and crits add light pulses; setting "Rumble (pad)"). Kills slide the body
 along the killing blow as it dissolves; elites go out with a soul-light flash.
 
+## Buildcrafting: runes, weapons, keystones
+
+**Ember Runes** (src/data/runes.gd) are the spell-customisation layer. A rune
+is set into an ability's socket (one; a second at level 20) and changes how that
+spell behaves - and the same rune reads differently in each spell, so ten runes
+across six spells give sixty behaviours without sixty items:
+
+| Rune | What it does (examples) |
+|---|---|
+| Many | Flare erupts at three more points; Lance fans into three; a second Sigil; three shades on a Gloamstep; a shared Aegis; two Wisps |
+| Arcing | every spell hit arcs to two more foes for half |
+| Echoes | Flare/Lance happen again where cast; Sigil pulses twice more; Gloamstep recalls you; the Aegis re-forms once; a second Wisp |
+| Rime / Gloam | the spell turns to frost (chills, +50% on frozen) or shadow (Exposed) - and recolours |
+| Ruin | spell kills burst |
+| Kindling | spell hits refund Kindle and heal |
+| the Well | pulls instead of pushing; a breaking Aegis drags foes in |
+| Haste / Might | cooldown vs damage vs cost |
+
+Runes drop from elites (sometimes), every boss, the Trial and the Vault (one
+per player in co-op) and can always be carved for a fixed price - a sure path
+beside the lucky one.
+
+**Weapons** now span seven playstyles. New this pass:
+- *Hearthbow* - precision: pressing starts the draw; release early for a quick
+  shot, on the peak for a Steady Shot (pierces three, always crits), late and the
+  arm tires. Slow while drawing; positioning and timing are the skill.
+- *Emberwright's Tome* - the caster's weapon: hold to read a stream of seeking
+  motes; every hit shortens both spell cooldowns, and each spell cast inscribes
+  its element (after runes) into the next pages. Its damage lives in the spells.
+
+**Outer keystones** (ring 7, through each Mastery) change how a build plays:
+Counterweight (a Ward unleashes the charged attack), Ashbringer (burning ground
+and a damage mark), Stillness (stand still to hit harder - the turret
+keystone), Shadowdancer (dodges leave shades), Bastion (your Ward protects
+nearby allies and answers with a shockwave), Runebound (spells grow with every
+rune set). Each has a real price.
+
+## Visible armour
+
+Every armour base has its own look on the Kindled (src/data/gear_looks.gd):
+~20 drawn styles in their materials (hoods, helms with visors/horns/plumes,
+crowns, masks; robes, mail, plate, coats, capes; gauntlets, gloves, wraps,
+bracers; boots, greaves, sandals...). tools/art/gen_gear.gd draws one overlay
+sheet per base on exactly the body's poses (GenPlayer.anim_table), clipped
+against the body so capes show behind it and the lantern arm stays in front.
+At run time up to four layers follow the body's frame, flip, squash, flash and
+dissolve. The wardrobe can show any owned piece's look per slot, or hide it.
+
+## Co-op (up to four)
+
+Host-authoritative ENet play (see docs/NETWORK.md). Each player keeps their own
+profile, gear, tree and rewards; the expedition is shared. Embers, memories,
+materials and Sunshards are credited to everyone; gear, blueprints and runes
+drop once per player; relic altars give each player their own pick. Foes target
+the nearest Kindled (with aggro on heavy hitters); each extra Kindled adds about
+30% more foes and a third more health (bosses half) - never four times anything.
+Sealing a room draws everyone in. Downed players can be revived; the fallen
+return when the room is won. Seat colours ring each Kindled and name allies.
+
+## Room seals
+
+Combat rooms seal with woven soul-light: a diamond lattice with a rune column,
+on a plate of the region's material (bone, root, gold). They form in stages,
+shimmer, and come undone into rising motes. Anyone caught in a closing door is
+stepped into the room; the grid, nav and picture always change together.
+
+## The Hollow Below (endgame)
+
+The endless descent after the Ashen King: the three regions in turn, an Echo of
+the guardian every third depth (sturdier per meeting, with an affix; beating it
+opens the way down), and one more Omen read in at every depth. The deepest depth
+is remembered. It is the place builds are tested against rising pressure, and
+where Omens, Grudges, runes and co-op meet.
+
 ## Decisions log
 
 - **3D + sprites over pure 2D**: real lighting/shadows are central to the light
@@ -507,3 +581,18 @@ along the killing blow as it dissolves; elites go out with a soul-light flash.
   Hound = Skitter, Acolyte = Bonecaller, Wraith = Archer) with new art, stats
   and projectiles from data; only the Spider, Toad and the Ashen King needed
   new code. Variety for the player, little new risk.
+
+- **Runes before more skills.** Ten runes that read differently in each of six
+  spells give the build space of sixty variants for ten items, and they work in
+  any build. The Tome and Runebound make a caster's identity out of them.
+- **Visible armour as overlays on shared poses**, not a sheet per combination:
+  57 small sheets drawn from the body's own pose table can never drift from the
+  body, and adding a piece is one table row.
+- **Co-op is host-authoritative with replicated presentation.** The simulation
+  uses global randomness in many places; lockstep would desync. One simulation
+  and clients that draw it keeps every rule in one place, and single-player runs
+  through exactly the same code.
+- **No autoload for networking**: Game adds /root/Net at start-up, so
+  project.godot (which the editor rewrites) does not have to change.
+- **One endgame, connected**: the Hollow Below reuses regions, bosses, Omens and
+  Grudges rather than adding a parallel activity.

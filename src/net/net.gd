@@ -117,9 +117,15 @@ func join(address: String, port := PORT) -> bool:
 
 ## This machine's address on the local network (what LAN friends type).
 static func lan_address() -> String:
-	for a in IP.get_local_addresses():
-		if a.begins_with("192.168.") or a.begins_with("10.") or (a.begins_with("172.") and a.split(".").size() == 4 and int(a.split(".")[1]) >= 16 and int(a.split(".")[1]) <= 31):
-			return a
+	# home networks first; 172.16-31 last (often a virtual adapter: WSL, Hyper-V, Docker)
+	var addrs := IP.get_local_addresses()
+	for prefix in ["192.168.", "10."]:
+		for a in addrs:
+			if a.begins_with(prefix):
+				return a
+	for a in addrs:
+		if a.begins_with("172.") and a.split(".").size() == 4 and int(a.split(".")[1]) >= 16 and int(a.split(".")[1]) <= 31:
+			return a + " (check: this may be a virtual adapter)"
 	return "your address"
 
 

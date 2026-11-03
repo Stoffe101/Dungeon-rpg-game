@@ -55,12 +55,28 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `capture=hit frames=380 burst=36:4` to grab fast moments; tile them with
   `-s res://tools/dev/contact_sheet.gd -- out=captures/x.png crop=800x500 [at=x,y] [scale=k] [cols=n] <files>`.
   `lootlab` (one drop of each grade beside the player), `omens=<id,id>` (read these Omens next run),
-  `descend` (hub: walk through the gate a second after loading). `warp=event` + the seed list printed
+  `descend` (hub: walk through the gate a second after loading), `net=host|join:<ip>`, `name=`, `coop=<n>`,
+  `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`. `warp=event` + the seed list printed
   as `[dungeon] event room N: <kind>` finds a seed for a given event.
 - Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
   Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled
   with `EnemyDB.roll_affix` so they only land where they work (`affix_ok`, `"no_affix"`).
   Lobbed shots: `Projectile.lob(flight, peak)` (no collision in flight; `on_end_fn` acts on landing).
+- Co-op (docs/NETWORK.md): `Net` (src/net/net.gd, added by Game at /root/Net - not an autoload) and
+  `NetRun` (per floor, host capture / client apply). `Stage.players` holds every Kindled, `Stage.player`
+  is this machine's; use `nearest_player`/`players_near`/`active_players` instead of assuming one player.
+  `Player.controller` is LOCAL/REMOTE/REPLICA; stats come from `Player.sheet` (another player's
+  `Profile.character_sheet()`) when set. Host-side effects are recorded through `Net.rec` (Fx, Audio,
+  spawns); wrap your own recorded events with `Net.mute` when clients do the same thing themselves.
+  Test with real instances: host `-- scene=hub net=host coop=2 name=Host profile=a.json autopilot` and
+  client `-- scene=hub net=join:127.0.0.1 name=Guest profile=b.json autopilot`; `coopdive` walks the
+  party down a depth and home again.
+- Visible armour: `GearLooks.VIS` (base -> style, material, accent, variant); `tools/art/gen_gear.gd`
+  draws `gear_<base>` sheets on `GenPlayer.anim_table()` poses (job `gear`); preview outfits with
+  `-s res://tools/art/preview_gear.gd -- outfits=a+b,c+d`. Player layers them (`refresh_paperdoll`).
+- Ember Runes: `src/data/runes.gd`; generic runes act in `Player.deal_hit` via the hit's `"ab"` meta,
+  Many/Echoes/Well inside `Abilities`. Weapons: bow (draw/steady shot), tome (motes, inscribe).
+- The Hollow Below (endless): `src/data/delve.gd`; `region=delve depth=N` dev args.
 - Omens live in `src/data/omens.gd` (costs applied in `Omens.apply` / Dungeon hooks, rewards banked
   in `Game.end_run`). Transitions: `UIRoot.title_card(title, sub, mid, extra)`; `Game.begin_descent`.
 - Input: the bot and smoke test call `prop.interact()` directly, so they cannot catch a missing
@@ -100,7 +116,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v8 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v9 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.

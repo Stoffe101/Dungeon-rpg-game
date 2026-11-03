@@ -380,7 +380,8 @@ func _spawn_party(start: Room) -> void:
 			pl.controller = Player.Ctrl.REMOTE
 		if not mine:
 			pl.sheet = Net.i.roster[pid].sheet
-		pl.pos = start.center() + Vector2(-1.5 + slot, 2.0 + (slot % 2) * 0.6)
+		# side by side near the entrance, on open floor (rooms have pillars and pits)
+		pl.pos = _floor_inside(start, start.center() + Vector2(-1.5 + slot, 2.0 + (slot % 2) * 0.6))
 		add_actor(pl)
 		pl.setup_from(Game.run_of(int(pid)))
 		var col := Net.color_of(int(pid))

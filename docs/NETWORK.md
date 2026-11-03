@@ -60,8 +60,31 @@ sanctuary, gear and Hearthtree; the expedition is shared.
 
 ## Code map
 
-- `src/autoload/net.gd` - transport, roster, lobby, RPC endpoints.
-- `src/net/net_sync.gd` - host snapshot/event capture and client apply.
-- `Stage.players`, `Stage.local_player` (`Stage.player` stays the local one);
+- `src/net/net.gd` - transport, roster, lobby, RPC endpoints (Game adds it at /root/Net).
+- `src/net/net_run.gd` - per floor: host snapshot/event capture, client apply.
+- `Stage.players` (every Kindled), `Stage.player` (this machine's);
   `Actor.net_id`; `Player.controller` (LOCAL, REMOTE, REPLICA).
-- Dev: `net=host`, `net=join:<ip>`, `coop=<n>` (host starts when n players are in).
+- Dev: `net=host`, `net=join:<ip>`, `name=`, `coop=<n>` (host starts when n players are in), `coopdive`.
+
+## Verified so far (real separate instances on one machine, localhost)
+
+- 2 players: host and client enter the same seeded floor, fight the same scaled
+  encounters, shared Embers credited to both, no script errors; descending to
+  depth 2 together; a Hearthcall ends the run for both and the client banks its
+  own share into its own profile; a client leaving mid-fight leaves the host
+  running; the host leaving returns the client to its own sanctuary.
+- 4 players (host + 3 clients): all join, enter the same floor, 16 actors on
+  every machine, no script errors.
+
+## Not verified / limitations
+
+- LAN across two machines, the internet, slow or lossy networks, rejoining a
+  run in progress (late joiners wait in the sanctuary).
+- No client-side prediction: a client's own Kindled moves after a round trip
+  (fine on a LAN; noticeable at internet latencies).
+- Shapes whose size changes over time on the host (expanding boss rings) appear
+  at their starting size on clients; telegraphs are replicated properly.
+- Merchant, shrine of pacts, Ember Well, Trial, Echo and the Hearthstone are
+  host-only for now. Clients see the host's toasts.
+- Kills, Grudges and world records (boss kills, Memory) are recorded on the
+  host's profile; clients bank their own run (Embers, XP, loot, runes, relics).
