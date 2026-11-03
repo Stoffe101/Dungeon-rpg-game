@@ -35,7 +35,7 @@ func behave(dt: float) -> void:
 				facing = aim_dir
 				set_state("charge")
 				sprite.play("charge")
-				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(BEAM_LEN, 0.3), 1.0 / attack_rate)
+				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(_beam_length(aim_dir), 0.3), 1.0 / attack_rate)
 				Audio.play_at("chant", pos, -4.0, 1.8)
 		"charge":
 			vel = Vector2.ZERO
@@ -43,10 +43,12 @@ func behave(dt: float) -> void:
 				aim_dir = aim_dir.slerp(dir_to_player(), 0.12)
 				facing = aim_dir
 				if tele and is_instance_valid(tele):
+					# the tracking line follows the aim and, like the beam, stops at walls
+					var reach := _beam_length(aim_dir)
 					var side := Vector2(-aim_dir.y, aim_dir.x)
-					var bx := Vector3(aim_dir.x, 0, aim_dir.y * Iso.SQ2) * BEAM_LEN
+					var bx := Vector3(aim_dir.x, 0, aim_dir.y * Iso.SQ2) * reach
 					var bz := Vector3(side.x, 0, side.y * Iso.SQ2) * 0.3
-					tele.transform = Transform3D(Basis(bx, Vector3.UP, bz), Iso.to_world(pos + aim_dir * BEAM_LEN * 0.5, 0.0) + Vector3(0, 0.02, 0))
+					tele.transform = Transform3D(Basis(bx, Vector3.UP, bz), Iso.to_world(pos + aim_dir * reach * 0.5, 0.0) + Vector3(0, 0.02, 0))
 			if timer(1.0):
 				# sweep away from where the Kindled stood, so stepping with it is a trap
 				sweep_sign = -1.0 if randf() < 0.5 else 1.0

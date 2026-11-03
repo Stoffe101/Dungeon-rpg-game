@@ -160,6 +160,82 @@ defence outgrew offence and high tiers turned into sponges.)
   prize: a rare-or-better relic choice and a Sunshard.
 - **Echo of a Fallen Kindled** - a ghost of a previous bearer shares a memory
   and trades a relic for 30 Embers.
+- **Sconce Vault** - a sealed reliquary between cold sconces. A lit sconce burns
+  for 9 s; light them all before the first goes out and the reliquary opens
+  (tier-3 chest, a better gear roll, a Sunshard). A movement puzzle on the
+  light theme, no combat.
+- **A Kindled's Last Camp** - a dead Kindled's cold fire, bedroll and pack.
+  Rekindling it rests you (40% health, a flask charge, full Kindle) and the
+  pack is yours, with their last note.
+
+## Enemy roles, squads and behavioural elites
+
+Every creature has a **role** (brute, swarm, ranged, tank, summoner, exploder,
+controller, charger, harrier, ambush, support, artillery, terrain, duelist,
+beam). The Bestiary shows it with the answer to it ("Strengthens others. Break
+the link, or kill it first.").
+
+**Squads.** A fight is built around a role pairing before the rest of its
+budget is spent: a *shield line* (tank/brute/duelist + ranged/artillery/beam),
+a *pack* (swarms + a harrier or exploder), a *ward* (support + a frontliner), a
+*court* (summoner + guards), a *snare* (controller/terrain + shooters) or an
+*ambush*. Role caps keep puzzles from turning into walls (one support, one
+summoner, one terrain-shaper, two artillery, two beams, two ambushers). All of it
+is deterministic per seed.
+
+**The second wave of creatures** (each needs an answer the first roster did not ask for):
+
+| Creature | Region | Role | What it does | The answer |
+|---|---|---|---|---|
+| Gravemole | Ossuary | ambush | burrows (untargetable, a moving mound), erupts under you after a ground mark, lingers surfaced and swipes | keep moving; punish it while it is up |
+| Lampwight | Ossuary | support | tethers an ally with a refilling soul shield; carries a real light | kill it first, or break line of sight |
+| Spore Mortar | Rootmire | artillery | rooted; lobs arcing spore bombs onto marked ground that leave poison clouds | read the marks, close the distance |
+| Bramblewright | Rootmire | terrain | grows a withering bramble wall across your path, thorn-whips up close | burn or hack the wall, or wait it out |
+| Gilded Duelist | Throne | duelist | lunge strings, then a riposte stance (gold glint) that turns blades and cuts back | don't swing into the glint; spells still land |
+| Sunwatcher | Throne | beam | tracking line, then a beam that sweeps 70 degrees and stops at walls | dash through it or get behind the eye |
+
+**Behavioural elite affixes** (beside Hasted, Warded, Volatile, Vampiric, Phasing):
+*Molten* leaves burning ground where it walks; *Splitting* climbs back out as two
+lesser copies; *Gloom* wraps itself in a negative light - near it the lantern
+dims and Kindle comes at half the rate, its violet eyes still showing where it
+is. Affixes only roll where they work (no trail on a rooted Mortar, no phasing
+on a burrower), Grudges included.
+
+## Omens
+
+Optional signs read at the Descent, unlocked by the first guardian kills (one
+needs a death). Each makes the expedition harder in one specific way and pays a
+stated share on what comes home (death included); they stack.
+
+| Omen | Cost | Pays |
+|---|---|---|
+| Lightless | torches, candles, braziers and glowcaps are out | +30% Embers |
+| Restless Dead | a third of the fallen rise once, weaker (rooms wait for them) | +30% XP |
+| Glass Kindled | +35% damage dealt, +60% taken | +20% Embers, +20% XP |
+| Tempered | one elite in every fight | +25% Embers, +10% XP |
+| Dry Flask | one flask charge fewer | +25% Embers |
+| Hunted | every unsettled Grudge waits on every depth, and pays double | +15% XP |
+
+The Descent remembers the last region and Omens (save v8). The HUD lists the
+run's Omens; the summary shows what they paid.
+
+## The Undervault Gate and transitions
+
+The hub's descent is the Undervault Gate: a rune arch between soul-fire
+braziers, a turning veil over a stair. Its runes wake one after another; near
+it they all burn, its light swells and soul motes rise; it hums. Descending, the
+veil flares white and the Kindled comes apart into embers, then a title card on
+black (region, depth, Omens) covers the load. Stairs and the road home use the
+same card, so the world never pops.
+
+## Loot presentation
+
+Rare, epic, set and legendary drops (and blueprints) raise a pillar of their
+rarity colour once they land, with a landing chime and ring by grade; epic-and-up
+pickups burst in their colour, legendary and set finds get a banner. Worn
+legendaries and uniques give the Kindled a faint drift of light in their colour
+(sets keep their 4-piece aura). Everything follows the Effects slider live, and
+beams stop pulsing with Reduce flashes.
 
 ## Dungeon
 
@@ -345,6 +421,12 @@ after your first expedition, a cat that naps by the fire and can be petted.
   ("Morrow the Patient") with an elite affix and a level. It carries the Embers
   you lost and hunts you on later expeditions; dying to it again levels it up.
   Settling it returns the Embers (doubled with the Shrine of Memory) and a Sunshard.
+- **Grudges grow.** Traits come with levels (Lv2 a second affix, Lv3 kin at its
+  side, Lv4 fed on your Embers - harder hits per 50 carried; cap Lv5). Left
+  unsettled, every third expedition it gains a level and its hoard 15%; the
+  summary says so and the Shrine of Memory lists what it has become. Its room's
+  fires burn red, and you are warned on arrival. A Lv2+ Grudge also drops what it
+  hoarded. Pressure to settle it, and a better prize for doing so.
 - **Memory** escalates the region after victories.
 - Planned: rooms reshaped by past events, factions reacting to your build,
   bosses returning as "echoes" with new mechanics.
@@ -413,6 +495,14 @@ along the killing blow as it dissolves; elites go out with a soul-light flash.
 - **A level cap instead of an endless tree**: with the whole tree reachable,
   progression ended in sameness. The cap keeps the build a choice; Renown, feats,
   tiers, gear and the forge carry the long tail without breaking it.
+- **Roles before numbers.** The second wave of six creatures was chosen to fill
+  missing roles (ambush, support, artillery, terrain, duelist, beam) rather than
+  to add stat variants; encounters are composed from role pairings with caps,
+  because a fight's shape matters more than its size.
+- **Omens pay on what comes home**, not on pickups, so the reward is visible in
+  one place (the summary) and death still pays a share - risk is never a trap.
+- **Grudges grow over time** instead of waiting forever: an old nemesis should
+  feel like a decision you keep putting off.
 - **New enemies reuse proven behaviours** where they fit (Sentinel = Guard,
   Hound = Skitter, Acolyte = Bonecaller, Wraith = Archer) with new art, stats
   and projectiles from data; only the Spider, Toad and the Ashen King needed

@@ -51,8 +51,18 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
-  `hitlab` (enemies spawned beside the player) with `capture=hit frames=380 burst=36:4` to grab fast
-  moments; tile them with `-s res://tools/dev/contact_sheet.gd -- out=captures/x.png crop=800x500 <files>`.
+  `hitlab` (enemies spawned beside the player; `lab=<id,id:affix>` picks them and makes elites) with
+  `capture=hit frames=380 burst=36:4` to grab fast moments; tile them with
+  `-s res://tools/dev/contact_sheet.gd -- out=captures/x.png crop=800x500 [at=x,y] [scale=k] [cols=n] <files>`.
+  `lootlab` (one drop of each grade beside the player), `omens=<id,id>` (read these Omens next run),
+  `descend` (hub: walk through the gate a second after loading). `warp=event` + the seed list printed
+  as `[dungeon] event room N: <kind>` finds a seed for a given event.
+- Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
+  Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled
+  with `EnemyDB.roll_affix` so they only land where they work (`affix_ok`, `"no_affix"`).
+  Lobbed shots: `Projectile.lob(flight, peak)` (no collision in flight; `on_end_fn` acts on landing).
+- Omens live in `src/data/omens.gd` (costs applied in `Omens.apply` / Dungeon hooks, rewards banked
+  in `Game.end_run`). Transitions: `UIRoot.title_card(title, sub, mid, extra)`; `Game.begin_descent`.
 - Input: the bot and smoke test call `prop.interact()` directly, so they cannot catch a missing
   input path; `tests/test_sim.gd` presses the real `interact` action. Bindings are created with
   `device = -1` (all pads). Godot's `ui_accept`/`ui_cancel` get pad A/B added in `Settings.apply_bindings`.
@@ -90,10 +100,12 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v7 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v8 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
+- Grudges: `Profile.record_grudge` / `age_grudges` (traits by level in `GRUDGE_TRAITS`); spawned by
+  `Dungeon._spawn_grudge`, whose room is picked before props so its fires can burn red.
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
   bramble, elite); gifts apply in `Profile.apply_sanctuary` via `Residents.apply_rewards`.
 

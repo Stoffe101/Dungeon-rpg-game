@@ -117,8 +117,8 @@ func descend() -> void:
 		# the Kindled goes down into the dark
 		var pl := stage.player
 		var tw := pl.create_tween()
+		pl.hide_gear()
 		tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.45)
-		tw.tween_callback(pl.hide_gear)
 		stage.fx.motes(pl.pos, 0.2, Color(1.0, 0.75, 0.4), 10, 1.2, 0.8, 0.4)
 		Audio.play("gate_flare", -10.0, 1.3)
 	var reg: Dictionary = EnemyDB.REGIONS[run.region]

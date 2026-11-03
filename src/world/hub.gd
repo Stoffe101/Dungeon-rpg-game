@@ -421,8 +421,8 @@ func flare_gate() -> float:
 	var pl := player
 	var tw := create_tween()
 	tw.tween_interval(0.25)
-	tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.75)
 	tw.tween_callback(pl.hide_gear)
+	tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.75)
 	for k in 6:
 		after(0.25 + k * 0.12, func() -> void:
 			fx.motes(pl.pos, 0.4, Color(1.0, 0.7, 0.35), 3, 1.6, 0.8, 0.3))

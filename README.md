@@ -28,15 +28,24 @@ remembers who hurts it.
   abilities, status effects and elemental reactions.
 - Procedural floors with branching routes, reward previews on doors, secret
   rooms, merchants, shrines of pacts, traps and extraction points.
-- Sixteen enemy archetypes with readable telegraphs, elite affixes, and **Grudges**:
-  the enemy that kills you returns by name, carrying your lost Embers.
+- Twenty-two creatures with roles and readable telegraphs - burrowing
+  Gravemoles, shield-binding Lampwights, Spore Mortars, wall-growing
+  Bramblewrights, riposting Duelists, beam-sweeping Sunwatchers and more - built
+  into fights by role pairings; elites with behaviour-changing affixes (Molten,
+  Splitting, Gloom...).
+- **Grudges**: the enemy that kills you returns by name, carrying your lost
+  Embers - and left alone it grows, learning new traits.
+- **Omens**: optional signs read at the Undervault Gate (Lightless, Restless
+  Dead, Glass Kindled...) that make a descent harder and pay for it.
 - Three regions of three depths: the Hollow Ossuary (the Gloam Warden snuffs the
   arena's light), the Rootmire (burnable brambles; the Hollow Bloom, a rooted
   corpse-flower whose roots you burn to wilt it) and the capstone, the Sunken
   Throne (the Ashen King puts out the sun - stand in the braziers' light).
 - Difficulty tiers I-VIII (tougher foes, two-affix elites, richer loot);
   conquering the Sunken Throne opens the next tiers.
-- Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled.
+- Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled,
+  Sconce Vaults (light every sconce before one burns out) and lost camps.
+- Loot beams by rarity, and the light of what you wear.
 - The Hearthtree: a 74-node constellation skill tree with keystones, hybrids and
   ranked masteries, route preview (click any node to kindle the path to it),
   search, a bonuses panel and three saved pages. Levels cap at 60 - about half

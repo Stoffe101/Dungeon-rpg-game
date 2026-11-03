@@ -164,8 +164,9 @@ func set_weapon(id: String, level: int) -> void:
 ## Hides what the Kindled carries (the blade drawn beside the sprite), for
 ## when they dissolve into light.
 func hide_gear() -> void:
-	if weapon and weapon.visual:
+	if weapon and weapon.visual and weapon.visual.visible:
 		weapon.visual.visible = false
+		stage.fx.burst(pos + look * 0.5, 0.7, Color(1.0, 0.7, 0.35), 8, 1.5, 0.5, -1.0)
 	if shadow:
 		shadow.visible = false
 

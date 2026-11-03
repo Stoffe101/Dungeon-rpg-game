@@ -4,6 +4,16 @@ Last updated: 2026-11-03.
 
 ## Implemented
 
+- **Major evolution pass (this round):** six new enemies filling missing roles
+  (Gravemole, Lampwight, Spore Mortar, Bramblewright, Gilded Duelist,
+  Sunwatcher) with art, voices and sim tests; lobbed projectiles; every enemy
+  has a role (shown in the Bestiary); role-based encounter squads with caps;
+  behavioural elite affixes Molten, Splitting and Gloom; six Omens chosen at
+  the Descent (save v8, the Descent remembers region and Omens); the Undervault
+  Gate with wake/flare animations, hum and a title-card descent transition;
+  loot beams, landing chimes, rare-find flourishes and gear auras; live Effects
+  setting; Grudges that grow traits and level while unsettled, foreshadowed by
+  red fires, with a hoard when settled; Sconce Vault and Lost Camp events.
 - 2.5D pixel renderer (integer-scaled low-res viewport, sqrt(2) projection,
   quantised/dithered lighting, emissive masks, bloom, texel-snapped camera).
 - Player: movement, aim (mouse or right stick), 3 weapons with combos and charged
@@ -42,7 +52,7 @@ Last updated: 2026-11-03.
   the camp, Throne ambience; the Bestiary.
 - Five weapons (new: Twin Fangs, Sunpiercer); forge to +10 with Tempered,
   Masterwork and Ascended tiers and material costs; new forge screen.
-- Level cap 60, Renown, three Hearthtree pages, 22 Feats. Save v7.
+- Level cap 60, Renown, three Hearthtree pages, 22 Feats. (Save now v8.)
 - Living sanctuary: boss trophies, a weapon rack that fills, feat lanterns, a
   wardrobe stand, forge sparks, moths, a camp cat.
 - Audio: creature voices (attack, hurt, death, idle, jump/land, boss steps) from
@@ -90,6 +100,7 @@ Last updated: 2026-11-03.
 | Latest round (satchel exterior, uniques, dungeon/camp visuals, bestiary) | Captured and viewed: the satchel opening (shut satchel, flap up, unfolding), every region before/after the visual pass (grime, decals, room lights), decal rows per region (a bug passed the Ossuary row to every region - fixed and re-checked), the camp centre with trophies, rugs and camp clutter, the forge-ruin sign near and far, the title screen, the Bestiary empty and after a Warden kill, the new item icons. The smoke test caught the cat stealing a resident's conversation (moved). |
 | Earlier round (playtest fixes, satchel, forge, progression, camp, audio) | Captured and viewed: the satchel opening sequence and the open bag, the new forge, Hearthcall from start to departure, the Feats screen and pause menu, the sanctuary with feat lanterns, wardrobe stand and the cat. Audio checked with `audiolog` bot runs: every played name resolves, voices fire on telegraphs/hits/deaths, spike traps only within earshot (was 176 plays across the map per run). UI smoke 34/34, seed-7 autopilot run clean. Not checked: the sounds themselves by ear. |
 | Tiers, Throne, gear | Bots with tier-matched epic gear (`kit=N`), Ossuary seed 11: Tier I/kit I and Tier IV/kit IV reach depth 2 alive (98 and 84 kills); Tier IV with Tier I gear dies at depth 2; fresh, ungeared characters died early on Tiers IV and VI (measured before the final curve tune). Tier VI with Tier VI gear reaches depth 2 and dies there after 90 kills (the bot never uses the Hearthtree or sanctuary, so it is weaker than a real Kindled at that point); one earlier Tier VI bot got stuck beside a foe it could not reach (bot pathing; foe diagnostics added to the bot log). Sunken Throne on Tier IV with Tier IV gear: clears depths 1-2 and dies in the first room of depth 3 (115 kills). A second god-mode King kill (seed 3, Tier I) after the poise change: Eclipse at 49%, victory opens Tier III. God-mode bot kills the Ashen King: Eclipse at 49%, victory banks the Sunfall Mantle, a set piece and a blueprint, and Tier II opens Tiers III-IV. Throne floors and the Rootmire/Ossuary at depth 3 run without script errors. Balance numbers from `tools/dev/power_report.tscn` (see DESIGN). |
+| Evolution pass (enemies, squads, Omens, gate, loot, Grudges, events) | 76 tests (new: each of the six enemies in a headless sim, squad role caps and determinism, Molten/Splitting/Gloom, Omens unlock/bonus/apply/migration/end-of-run payout, Grudge traits/aging/cap, vault and camp generation on open floor). UI smoke 34/34. Captured and viewed: the six enemies in their regions (`hitlab lab=`), Lampwight before/after its light, Gloom before/after the toned-down darkness, Molten trail, the Bestiary, the Descent with Omens, Lightless vs lit, the HUD corner (run clock was being clipped - fixed), the new gate sprite sheet and the full flare-to-title-card sequence (found the sword floating after the Kindled dissolved - fixed), loot beams per grade, the vault opening and the camp. Autopilot: all three regions on fresh profiles (no script errors; the bot killed Mortars and Duelists, including through the riposte stance), the vault solved and the camp rekindled by the bot, plus the validation runs below. Not verified visually: a Grudge room's red fires; Restless Dead risers (logic covered by code review, not a capture). |
 | Visual inspection (screenshots actually viewed) | This round: wardrobe portraits and all eight looks in-game, Descent tier picker, Throne floor (redone once: the first gold-flecked slabs read as rust), Ashen King fight (sweep, corona, stagger), Throne foes (Eclipse Acolyte with orbs, hounds), sprite sheets for the King, Sentinel, Hound, Acolyte, Wraith, Spider and Toad. Earlier: dungeon at 1080p, 720p and 3440x1421 (ultrawide), combat with HUD/gates/traps/telegraphs, boss arena phase 1 and Gloamfall, Rootmire rooms and the Hollow Bloom arena, event rooms (Echo, Trial), main menu, sanctuary + dialogue (early and progressed: residents, barks, garden), gamepad menus (focus ring, pad prompts, rebinding columns, skill tree hints), redrawn sanctuary NPCs (sprite sheets and in the hub), the new Hearthtree (empty, partly allocated, route preview affordable/unaffordable, search, masteries, branch focus, 1080p and ultrawide), request markers and the pause-menu journal, occlusion silhouette, relic choice, forge, settings, run summary. Sprite sheets for all characters, boss, icons. See `docs/screenshots/`. |
 | UI smoke test | `-- uismoke`: opens every screen and presses its buttons (sanctuary building, forge craft/temper, weapon rack, skill allocate/refund/respec, memorial, settings tabs, merchant purchases, blood pact, chest, lore, Hearthstone confirm, extraction), kindles a distant Hearthtree node (checks exactly the previewed path is bought), moves the mouse around the player (aim, facing, swing direction), equips from the satchel, forges, masterworks, tempers, salvages, buys and sells, searches and focuses branches, ranks up a mastery and reads its tooltip, plays a resident's request conversation through to the gift, then drives menus with synthetic gamepad events (B interacts/backs out, A confirms, RB switches tabs, focus follows). Found and fixed the shop/forge refresh bug, a late-descend race, and (in the input audit) a missing Interact input path: until this fix a human could not open chests, trade or take the stairs - the bot and smoke test had been calling `interact()` directly. |
 | Build coverage | Bot runs with hammer, staff, and the entire skill tree allocated (`skills=all`): no script errors after fixes (Wildfire implemented; freed-source guards). |
@@ -117,6 +128,10 @@ Last updated: 2026-11-03.
   hit for 3 s; watch whether that removes too much tension.
 - The Warden's and the Ashen King's trophies have been seen on screen; the
   Bloom's has not.
+- The six new enemies have only been fought by the bot: telegraph lengths,
+  the Gravemole's eruption, the Sunwatcher's sweep speed and the Duelist's
+  stance odds need a human hand. Omen rewards are first-pass numbers.
+- Restless Dead risers and red Grudge-room fires have not been captured yet.
 - New enemies and the King have no drawn hurt/death frames (procedural reactions only).
 - Gear balance is a first pass; no drop-rate tuning against real play yet.
 - Gamepad support is verified with synthetic events only; no physical controller has been tested.
@@ -133,4 +148,6 @@ Last updated: 2026-11-03.
 2. Install Godot export templates and produce a Windows build (preset is ready).
 3. Test with a physical controller (navigation, rebinding, aim assist feel).
 4. Enemy hurt/attack frames polish; more resident stories (quests, gifts).
-5. More events and relic synergies; a third region; enemy variety per depth.
+5. Playtest the new creatures and Omens; tune telegraphs and Omen payouts.
+6. More events, relic synergies with the new roles (e.g. answers to supports
+   and beams), boss variants, and depth-specific encounter rules.
