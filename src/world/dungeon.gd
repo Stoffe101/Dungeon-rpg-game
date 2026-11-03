@@ -677,6 +677,7 @@ func _spawn_reward(r: Room) -> void:
 				Pickup.spawn(self, "ember", c, 3)
 		"trial":
 			Pickup.spawn(self, "sunshard", c, 1)
+			_rune_drop(c + Vector2(1.5, 0))
 			Prop.make(self, "relic_altar", Vector2i(c) + Vector2i(0, 2), {"tier": 3})
 			for i in 10:
 				Pickup.spawn(self, "ember", c, 4)
@@ -849,12 +850,15 @@ func _drop_loot(e: Enemy) -> void:
 			Pickup.spawn(self, "material", e.pos, rng.randi_range(int(d[2]), int(d[3])), {"id": d[0]})
 	if e.elite:
 		_maybe_blueprint(e.pos, 0.03 + 0.01 * run.tier)
+		if rng.randf() < 0.08 + 0.01 * run.tier:
+			_rune_drop(e.pos)
 		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier))
 	if e == boss:
 		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
+		_rune_drop(e.pos)
 		var cat: String = {"rootmire": "bloom_heart", "throne": "eclipse_shard"}.get(layout.region, "warden_sigil")
 		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
 		var leg: String = {"rootmire": "bloom_crown", "throne": "sunfall_mantle"}.get(layout.region, "gloamward_lantern")
@@ -875,6 +879,17 @@ func _gear_drop(p: Vector2, roll: Callable) -> void:
 		return
 	for pl in players:
 		var pk := Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
+		pk.owner_peer = pl.peer_id
+
+
+## An Ember Rune: one roll for each Kindled (theirs alone, like gear).
+func _rune_drop(p: Vector2) -> void:
+	var ids: Array = Runes.RUNES.keys()
+	if players.size() <= 1:
+		Pickup.spawn(self, "rune", p, 1, {"id": ids[rng.randi_range(0, ids.size() - 1)]})
+		return
+	for pl in players:
+		var pk := Pickup.spawn(self, "rune", p, 1, {"id": ids[rng.randi_range(0, ids.size() - 1)]})
 		pk.owner_peer = pl.peer_id
 
 
@@ -1188,7 +1203,8 @@ func _light_sconce(prop: Prop) -> void:
 					p.interact(player)
 					# the reliquary keeps something better than a chest
 					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier))
-					Pickup.spawn(self, "sunshard", p.pos, 1))
+					Pickup.spawn(self, "sunshard", p.pos, 1)
+					_rune_drop(p.pos))
 	if OS.is_debug_build():
 		print("[dungeon] vault opened in room %d" % prop.room_id)
 	Events.banner.emit("The Vault Opens", "The flames burn together")

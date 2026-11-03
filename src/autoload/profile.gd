@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 8
+const VERSION := 9
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -62,6 +62,7 @@ static func fresh() -> Dictionary:
 		"difficulty": {"unlocked": 2, "selected": 1, "cleared": 0},
 		"shop": {"stock": [], "for_run": -1},
 		"descent": {"region": "ossuary", "omens": []},
+		"runes": {"owned": {}, "socketed": {}},
 	}
 
 
@@ -209,6 +210,16 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("descent"):
 			out["descent"] = {"region": "ossuary", "omens": []}
 		v = 8
+	if v < 9:
+		# v9: Ember Runes (owned and socketed); what each armour slot shows
+		if not out.has("runes"):
+			out["runes"] = {"owned": {}, "socketed": {}}
+		if out.has("inventory") and not (out.inventory as Dictionary).has("shown"):
+			out.inventory["shown"] = {}
+		if TEST_STOCKPILE:
+			for r in Runes.RUNES:
+				out.runes.owned[r] = int(out.runes.owned.get(r, 0)) + 1
+		v = 9
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -486,6 +497,46 @@ static func apply_sanctuary_data(sanct: Dictionary, res_mods: Array, stats: Stat
 
 
 ## The stat gifts of the residents whose requests are done.
+# --- Ember Runes ---------------------------------------------------------------
+
+func runes() -> Dictionary:
+	if not data.has("runes"):
+		data["runes"] = {"owned": {}, "socketed": {}}
+	return data.runes
+
+
+## Runes owned and not set in any ability.
+func runes_free(id: String) -> int:
+	var used := 0
+	for ab in runes().socketed:
+		used += (runes().socketed[ab] as Array).count(id)
+	return int(runes().owned.get(id, 0)) - used
+
+
+func add_rune(id: String, n := 1) -> void:
+	runes().owned[id] = int(runes().owned.get(id, 0)) + n
+	note_seen("runes", id)
+	_changed()
+
+
+## Sets (or clears, with "") the rune in an ability's socket. False if it can't.
+func set_rune(ability: String, socket: int, id: String) -> bool:
+	if socket >= Runes.sockets(level()):
+		return false
+	var s: Array = (runes().socketed.get(ability, []) as Array).duplicate()
+	while s.size() <= socket:
+		s.append("")
+	var old := String(s[socket])
+	if id != "" and id != old and (runes_free(id) <= 0 or s.has(id)):
+		return false
+	s[socket] = id
+	while not s.is_empty() and String(s.back()) == "":
+		s.pop_back()
+	runes().socketed[ability] = s
+	_changed()
+	return true
+
+
 func resident_mods() -> Array:
 	var out: Array = []
 	for r in Residents.LIST:
@@ -506,6 +557,7 @@ func character_sheet() -> Dictionary:
 		"resident_mods": resident_mods(),
 		"look": Looks.current(),
 		"shown": (inv().get("shown", {}) as Dictionary).duplicate(),
+		"runes": (runes().get("socketed", {}) as Dictionary).duplicate(true),
 		"weapon": equipped_weapon(),
 		"weapon_level": weapon_level(equipped_weapon()),
 		"slots": slots(),

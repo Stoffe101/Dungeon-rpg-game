@@ -45,7 +45,22 @@ const GEAR := {
 }
 
 const OTHER := ["bone_dust", "grave_iron", "soul_glass", "rootwood", "spore_silk", "sun_gold", "ember_core", "warden_sigil",
-	"bloom_heart", "eclipse_shard", "bag", "anvil", "scroll"]
+	"bloom_heart", "eclipse_shard", "bag", "anvil", "scroll",
+	"rune_split", "rune_chain", "rune_echo", "rune_rime", "rune_gloam", "rune_volatile", "rune_siphon", "rune_gravity", "rune_haste", "rune_might"]
+
+## Ember Runes: a worn stone with a glyph burning in the rune's colour.
+const RUNE_GLYPHS := {
+	"rune_split": ["GOLD", [[8, 12], [8, 8], [8, 8], [5, 4], [8, 8], [11, 4], [8, 8], [8, 4]]],
+	"rune_chain": ["FROST", [[5, 4], [9, 7], [6, 9], [11, 12]]],
+	"rune_echo": ["SOUL", [[5, 5], [5, 11], [8, 4], [8, 12], [11, 5], [11, 11]]],
+	"rune_rime": ["FROST", [[8, 3], [8, 13], [4, 8], [12, 8], [5, 5], [11, 11], [11, 5], [5, 11]]],
+	"rune_gloam": ["GLOAM", [[4, 8], [8, 5], [8, 5], [12, 8], [12, 8], [8, 11], [8, 11], [4, 8]]],
+	"rune_volatile": ["EMBER", [[8, 3], [8, 13], [3, 8], [13, 8], [5, 5], [11, 11]]],
+	"rune_siphon": ["BLOOD", [[8, 3], [5, 9], [5, 9], [8, 12], [8, 12], [11, 9], [11, 9], [8, 3]]],
+	"rune_gravity": ["SOUL", [[8, 4], [12, 8], [12, 8], [8, 12], [8, 12], [5, 8], [5, 8], [8, 6]]],
+	"rune_haste": ["GOLD", [[4, 5], [8, 8], [8, 8], [4, 11], [8, 5], [12, 8], [12, 8], [8, 11]]],
+	"rune_might": ["BLOOD", [[8, 3], [12, 12], [12, 12], [4, 12], [4, 12], [8, 3]]],
+}
 
 
 static func V(pts: Array) -> PackedVector2Array:
@@ -302,6 +317,22 @@ static func gear(arch: String, r: Array, a: Array, gem: bool) -> Px:
 
 static func other(n: String) -> Px:
 	var c := Px.new(16, 16)
+	if RUNE_GLYPHS.has(n):
+		var g: Array = RUNE_GLYPHS[n]
+		var stone := c.mask().ellipse(8.0, 8.5, 6.5, 7.0)
+		c.paint(stone, Pal.STONE, 2, true)
+		var col: Array = ramp(String(g[0]))
+		var pts: Array = g[1]
+		var i := 0
+		while i + 1 < pts.size():
+			var a: Array = pts[i]
+			var b: Array = pts[i + 1]
+			var m := c.mask().line(a[0], a[1], b[0], b[1])
+			c.fill_lit(m, col[4])
+			i += 2
+		c.lit(8, 8, col[col.size() - 1])
+		c.outline(Pal.INK)
+		return c
 	match n:
 		"bone_dust":
 			c.paint(c.mask().ellipse(8.0, 11.5, 6.0, 3.5), Pal.BONE, 3, true)

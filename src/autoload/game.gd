@@ -333,6 +333,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 	for b in spoils.get("blueprints", []):
 		if not Profile.scrolls().has(b) and not Profile.known_blueprints().has(b):
 			Profile.scrolls().append(b)
+	for r in spoils.get("runes", []):
+		Profile.add_rune(String(r))
 	var feats := Feats.check()
 	Profile.save_profile()
 	var summary := {

@@ -34,7 +34,7 @@ var killer_id := ""
 var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
 ## Materials and gear picked up this expedition, banked at the end.
-var loot := {"materials": {}, "gear": [], "blueprints": []}
+var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
 ## Omens read at the Descent (see Omens).
 var omens: Array = []
 
@@ -101,7 +101,8 @@ func settle_loot(outcome: String) -> Dictionary:
 	for k in loot.materials:
 		var n := int(loot.materials[k])
 		mats[k] = int(floor(n * DEATH_KEEP)) if outcome == "died" else n
-	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate()}
+	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate(),
+		"runes": (loot.get("runes", []) as Array).duplicate()}
 
 
 ## Works out what the profile keeps from this run. Pure so it can be tested.

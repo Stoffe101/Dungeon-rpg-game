@@ -63,6 +63,118 @@ static func main_menu(ui: UIRoot) -> Control:
 	return root
 
 
+# --- Ember Runes ---------------------------------------------------------------------
+
+## Set runes in your spells' sockets, and carve new ones. Each rune shows what
+## it would do in the spell you are looking at.
+static func runes(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("Ember Runes"))
+	var n_sockets := Runes.sockets(Profile.level())
+	var intro := "Set a rune in a spell to change how it behaves."
+	if n_sockets < 2:
+		intro += " A second socket opens at level %d." % Runes.SECOND_SOCKET_LEVEL
+	v.add_child(UIKit.para(intro, 260, UIKit.C_DIM))
+	var body := UIKit.vbox(3)
+	v.add_child(body)
+	var picker := UIKit.vbox(2)
+	var state := {"ability": "", "socket": -1}
+	var rebuild := func(again: Callable) -> void:
+		for c in body.get_children():
+			c.queue_free()
+		for c in picker.get_children():
+			c.queue_free()
+		for ab in SkillDB.abilities(Profile.skills()):
+			var d := GearDB.ability(String(ab))
+			var row := UIKit.hbox(4)
+			row.add_child(UIKit.icon_rect(String(d.get("icon", "flare"))))
+			var nm := UIKit.label(String(d.name), 8, UIKit.C_TEXT)
+			nm.custom_minimum_size = Vector2(70, 0)
+			row.add_child(nm)
+			var set: Array = Profile.runes().socketed.get(ab, [])
+			for s in n_sockets:
+				var rid := String(set[s]) if s < set.size() else ""
+				var b := Button.new()
+				b.custom_minimum_size = Vector2(80, 18)
+				b.text = String(Runes.get_def(rid).get("name", "")) .trim_prefix("Rune of ") if rid != "" else "- empty -"
+				if rid != "":
+					b.icon = UIKit.item_icon(String(Runes.get_def(rid).icon))
+					b.add_theme_color_override("font_color", Runes.get_def(rid).color)
+				var abid: String = ab
+				var sock: int = s
+				b.pressed.connect(func() -> void:
+					state.ability = abid
+					state.socket = sock
+					Audio.ui("ui_click")
+					again.call(again))
+				if state.ability == ab and state.socket == s:
+					b.modulate = Color(1.2, 1.1, 0.8)
+				row.add_child(b)
+			body.add_child(row)
+		# the picker for the chosen socket
+		if state.ability != "":
+			var abn: String = state.ability
+			picker.add_child(UIKit.label("FOR %s, SOCKET %d" % [String(GearDB.ability(abn).name).to_upper(), int(state.socket) + 1], 8, UIKit.C_GOLD, true))
+			for rid in Runes.RUNES:
+				var have := Profile.runes_free(rid)
+				var cur: Array = Profile.runes().socketed.get(abn, [])
+				var here: bool = int(state.socket) < cur.size() and String(cur[state.socket]) == rid
+				if have <= 0 and not here:
+					continue
+				var r: Dictionary = Runes.RUNES[rid]
+				var line := UIKit.hbox(3)
+				var pick := UIKit.button(String(r.name).trim_prefix("Rune of ") + ("  (x%d)" % have if not here else "  (set)"), func() -> void:
+					if Profile.set_rune(abn, int(state.socket), rid):
+						Audio.play("clank", -6.0, 1.4)
+						if Game.stage and Game.stage.player:
+							Game.stage.player.rebuild_stats()
+					again.call(again), 96)
+				pick.icon = UIKit.item_icon(String(r.icon))
+				line.add_child(pick)
+				line.add_child(UIKit.para(Runes.describe(rid, abn), 170, r.color))
+				picker.add_child(line)
+			picker.add_child(UIKit.button("Clear socket", func() -> void:
+				Profile.set_rune(abn, int(state.socket), "")
+				again.call(again), 90))
+		# carving: a sure way to the rune you want
+		var owned := UIKit.hbox(3)
+		owned.add_child(UIKit.label("CARVE (%s)" % _cost_text(Runes.CARVE), 8, UIKit.C_GOLD, true))
+		picker.add_child(owned)
+		var grid := GridContainer.new()
+		grid.columns = 5
+		grid.add_theme_constant_override("h_separation", 3)
+		for rid in Runes.RUNES:
+			var r: Dictionary = Runes.RUNES[rid]
+			var cb := Button.new()
+			cb.custom_minimum_size = Vector2(50, 18)
+			cb.icon = UIKit.item_icon(String(r.icon))
+			cb.text = "%d" % int(Profile.runes().owned.get(rid, 0))
+			cb.tooltip_text = "%s - %s" % [r.name, r.desc]
+			cb.disabled = not Profile.can_pay(Runes.CARVE)
+			var id: String = rid
+			cb.pressed.connect(func() -> void:
+				if Profile.pay(Runes.CARVE):
+					Profile.add_rune(id)
+					Audio.play("forge", -4.0, 1.2)
+				again.call(again))
+			grid.add_child(cb)
+		picker.add_child(grid)
+	v.add_child(picker)
+	rebuild.call(rebuild)
+	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+static func _cost_text(cost: Dictionary) -> String:
+	var parts: Array = []
+	for k in cost:
+		var nm := "Embers" if k == "embers" else (String(ItemDB.MATERIALS[k].name) if ItemDB.MATERIALS.has(k) else String(k))
+		parts.append("%d %s" % [int(cost[k]), nm])
+	return ", ".join(PackedStringArray(parts))
+
+
 # --- co-op party -------------------------------------------------------------------
 
 ## Host or join a party of up to four. The host leads the descent from the
@@ -872,6 +984,7 @@ static func descent(ui: UIRoot) -> Control:
 		go.disabled = true
 		go.text = "%s leads the way" % Net.name_of(1)
 	row2.add_child(go)
+	row2.add_child(UIKit.button("Runes", func() -> void: ui.open(Screens.runes(ui)), 50))
 	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)

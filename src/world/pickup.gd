@@ -25,7 +25,7 @@ var _landed := false
 static var _beam_tex: GradientTexture2D
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
-	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll"}
+	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll", "rune": "pickup_scroll"}
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
@@ -48,7 +48,18 @@ func _ready() -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(SHEETS.get(kind, "pickup_ember"))
-	if kind == "blueprint":
+	if kind == "rune":
+		var rc: Color = Runes.get_def(String(data.get("id", ""))).get("color", Color.WHITE)
+		light = OmniLight3D.new()
+		light.light_color = rc
+		light.light_energy = 1.6
+		light.omni_range = 3.0
+		light.position = Vector3(0, 0.4, 0)
+		add_child(light)
+		sprite.set_tint(rc.lightened(0.3))
+		grade = 2
+		_loot_beam(rc)
+	elif kind == "blueprint":
 		light = OmniLight3D.new()
 		light.light_color = Color(1.0, 0.75, 0.35)
 		light.light_energy = 1.6
@@ -259,6 +270,17 @@ func _collect(pl: Player) -> void:
 				p.run.add_material(mid, amount)
 			stage.fx.number(pl.pos, 2.0, "+%d %s" % [amount, ItemDB.MATERIALS[mid].name], Color(0.85, 0.82, 0.7))
 			Audio.play("pickup_xp", -6.0, 0.8)
+		"rune":
+			var rid := String(data.get("id", ""))
+			(pl.run.loot.get("runes", []) as Array).append(rid)
+			if not pl.run.loot.has("runes"):
+				pl.run.loot["runes"] = [rid]
+			var rd := Runes.get_def(rid)
+			var rc2: Color = rd.get("color", Color.WHITE)
+			stage.fx.number(pl.pos, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2, true)
+			stage.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
+			_tell(pl, "Rune found: %s - set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
+			Audio.play("learn", -4.0, 1.2)
 		"blueprint":
 			var bid := String(data.get("id", ""))
 			(pl.run.loot.blueprints as Array).append(bid)

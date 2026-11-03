@@ -289,6 +289,46 @@
 			8,
 			8
 		],
+		"rune_chain": [
+			9,
+			9
+		],
+		"rune_echo": [
+			0,
+			10
+		],
+		"rune_gloam": [
+			2,
+			10
+		],
+		"rune_gravity": [
+			5,
+			10
+		],
+		"rune_haste": [
+			6,
+			10
+		],
+		"rune_might": [
+			7,
+			10
+		],
+		"rune_rime": [
+			1,
+			10
+		],
+		"rune_siphon": [
+			4,
+			10
+		],
+		"rune_split": [
+			8,
+			9
+		],
+		"rune_volatile": [
+			3,
+			10
+		],
 		"sandals": [
 			4,
 			2

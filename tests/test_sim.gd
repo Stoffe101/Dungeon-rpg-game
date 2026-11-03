@@ -581,3 +581,76 @@ func test_coop_shared_pickups() -> void:
 	eq((p2.run.loot.gear as Array).size(), 1, "the owner gets their gear")
 	eq((p1.run.loot.gear as Array).size(), 0, "and nobody else does")
 	d.queue_free()
+
+
+func test_ember_runes() -> void:
+	Profile.data = Profile.fresh()
+	for r in Runes.RUNES:
+		Profile.add_rune(r)
+	# sockets: one, a second at level 20; a rune sits in one place at a time
+	check(Profile.set_rune("cinder_lance", 0, "split"), "a rune goes into a socket")
+	check(not Profile.set_rune("cinder_lance", 1, "chain"), "no second socket before level %d" % Runes.SECOND_SOCKET_LEVEL)
+	check(not Profile.set_rune("flare", 0, "split"), "one Rune of Many cannot sit in two spells")
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	pl.ability_slots = ["cinder_lance", "flare"]
+	pl.kindle = 100.0
+	var before := st.projectiles.size()
+	pl._try_ability(0)
+	eq(st.projectiles.size() - before, 3, "a Lance with the Rune of Many fans into three")
+	_run(st, 1.0)    # let the lances finish their flight
+	# Arcing: a spell hit leaps to the next foe
+	Profile.set_rune("flare", 0, "chain")
+	var a := _enemy(st, "husk", Vector2(6.5, 7))
+	var b := _enemy(st, "husk", Vector2(9.0, 7))
+	_run(st, 0.8)
+	var hp_b := b.hp
+	pl.kindle = 100.0
+	pl._try_ability(1)
+	check(b.hp < hp_b, "the Rune of Arcing reaches a foe outside the flare (%d -> %d)" % [int(hp_b), int(b.hp)])
+	# Rime: the flare chills instead of burning
+	Profile.set_rune("flare", 0, "rime")
+	var g := _enemy(st, "guard", Vector2(4.0, 6.0))
+	_run(st, 0.8)
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl._try_ability(1)
+	check(g.status.chill > 0.0 and not g.status.burning(), "a Rime Flare chills, not burns")
+	g.alive = false
+	st.remove_actor(g)
+	# Ruin: a spell kill bursts onto its neighbours
+	Profile.set_rune("flare", 0, "volatile")
+	var c := _enemy(st, "husk", Vector2(5.6, 8.6))
+	var d := _enemy(st, "husk", Vector2(6.4, 9.6))
+	_run(st, 0.8)
+	c.hp = 1.0
+	var hp_d := d.hp
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl.pos = Vector2(5, 8.5)
+	pl._try_ability(1)
+	check(not c.alive and d.hp < hp_d, "the Rune of Ruin's burst hits the next foe")
+	# Haste and Might trade cooldown, damage and cost
+	Profile.set_rune("flare", 0, "haste")
+	check(Runes.cooldown_mult(pl, "flare") < 1.0 and Runes.damage_mult(pl, "flare") < 1.0, "Haste: shorter cooldown, less damage")
+	Profile.set_rune("flare", 0, "might")
+	check(Runes.cost_mult(pl, "flare") > 1.0 and Runes.damage_mult(pl, "flare") > 1.0, "Might: more damage, more Kindle")
+	# Echoes: the flare happens again
+	Profile.set_rune("flare", 0, "echo")
+	var e := _enemy(st, "guard", Vector2(6.0, 7.0))
+	_run(st, 0.8)
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl.pos = Vector2(5, 7)
+	var hp0 := e.hp
+	pl._try_ability(1)
+	var hp1 := e.hp
+	_run(st, 0.8)
+	check(e.hp < hp1 and hp1 < hp0, "the Rune of Echoes flares a second time")
+	st.queue_free()
+	# an old save gains its rune pouch
+	var old := Profile.fresh()
+	old.version = 8
+	old.erase("runes")
+	var m := Profile.migrate(old)
+	check(m.has("runes") and (m.runes as Dictionary).has("socketed"), "v8 saves gain runes")

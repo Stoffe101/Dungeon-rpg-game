@@ -58,6 +58,7 @@ var peer_id := 1
 var downed := false          # co-op: at 0 health, waiting for an ally
 var bleed_t := 0.0
 var revive_k := 0.0
+var aegis_echo := false       # Rune of Echoes: the ward forms once more when it breaks
 var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
 ## Press counters for every button: they only go up, so a network packet lost
 ## in between can never lose a press (the host compares counts).
@@ -561,7 +562,7 @@ func _try_ability(slot: int) -> void:
 	var d := GearDB.ability(id)
 	if d.is_empty():
 		return
-	var cost: float = d.cost * stats.v("ability_cost")
+	var cost: float = d.cost * stats.v("ability_cost") * Runes.cost_mult(self, id)
 	if id == "gloamstep" and stats.has("twin_shade"):
 		cost *= 0.6
 	var pay_hp := 0.0
@@ -576,8 +577,12 @@ func _try_ability(slot: int) -> void:
 			return
 	if weapon:
 		weapon.cancel()
+	var cast_at := pos
+	var cast_dir := aim
 	if not Abilities.cast(self, id):
 		return
+	if id != "gloamstep":
+		Abilities.echo(self, id, cast_at, cast_dir, aim_point)
 	if pay_hp > 0.0:
 		hp -= pay_hp
 		kindle = 0.0
@@ -586,7 +591,7 @@ func _try_ability(slot: int) -> void:
 		kindle -= cost
 	if stats.has("blood_price"):
 		hp = maxf(1.0, hp - max_hp * 0.04)
-	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown")
+	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown") * Runes.cooldown_mult(self, id)
 	cast_t = 0.2
 
 
@@ -732,11 +737,33 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 			counter_ready = false
 	if stats.has("living_pyre"):
 		h.chill = 0.0
+	var ab := String(h.get_meta("ab", ""))
+	var runes: Array = Runes.of(self, ab) if ab != "" else []
+	if runes.has("rime"):
+		# the spell turned to frost: it chills rather than burns
+		for k in ["fire", "shadow"]:
+			h.tags.erase(k)
+		if not h.tags.has("frost"):
+			h.tags.append("frost")
+		h.burn = 0
+		h.chill = maxf(h.chill, 0.35)
+		if t.status.is_frozen():
+			h.amount *= 1.5
+	elif runes.has("gloam"):
+		for k in ["fire", "frost"]:
+			h.tags.erase(k)
+		if not h.tags.has("shadow"):
+			h.tags.append("shadow")
+		h.burn = 0
+		h.chill = 0.0
+		h.expose = maxf(h.expose, 2.0)
 	var was_chilled := t.status.chill > 0.0 or t.status.is_frozen()
 	var was_burning := t.status.burning()
 	var res := t.take_hit(h)
 	if res.amount <= 0.0:
 		return res
+	if not runes.is_empty() and h.proc:
+		_rune_on_hit(t, h, res, runes)
 	Events.damage_dealt.emit(t, res.amount, res.crit)
 	if res.crit and stats.has("pyre_brand") and t.alive:
 		t.status.apply_burn(3, 3.0 * (1.0 + stats.v("burn_damage")), int(stats.v("burn_stacks")), self)
@@ -819,6 +846,53 @@ static func _echo_later(st: Stage, pref: WeakRef, tref: WeakRef, amount: float, 
 
 
 ## Stormcaller Signet: lightning on a nearby enemy (not the one just hit if others are near).
+## Runes that act on each spell hit: Arcing, Ruin and Kindling.
+func _rune_on_hit(t: Actor, h: Hit, res: Combat.Result, runes: Array) -> void:
+	if runes.has("siphon"):
+		gain_kindle(4.0 / maxf(stats.v("kindle_gain"), 0.01))
+		heal(max_hp * 0.01)
+	if runes.has("chain"):
+		var done := [t]
+		var from := t
+		for k in 2:
+			var best: Actor = null
+			var bd := 4.0
+			for a in stage.hostiles(team):
+				if done.has(a):
+					continue
+				var dd := a.pos.distance_to(from.pos)
+				if dd < bd:
+					bd = dd
+					best = a
+			if best == null:
+				break
+			done.append(best)
+			var col := Color(0.6, 0.9, 1.0)
+			var seg := best.pos - from.pos
+			stage.fx.shape(Fx.Shape.RECT, from.pos, seg.normalized(), Vector2(seg.length(), 0.18), Color(col.r, col.g, col.b, 0.6), col.lightened(0.4), 0.14, {"progress": 1.0, "glow": 2.0})
+			stage.fx.burst(best.pos, 0.6, col, 6, 3.0, 0.2, 0.0)
+			var ch := Combat.player_hit(self, stats, 1.0, h.tags.duplicate())
+			ch.amount = res.amount * 0.5
+			ch.proc = false
+			ch.can_crit = false
+			ch.from_dir = seg.normalized()
+			deal_hit(best, ch)
+			from = best
+		Audio.play_at("bolt", t.pos, -6.0, 1.4, 80)
+	if runes.has("volatile") and not t.alive:
+		var p := t.pos
+		var dmg := t.max_hp * 0.4
+		stage.fx.ring(p, 2.2, Color(1.0, 0.5, 0.25), 0.25, 0.3)
+		stage.fx.burst(p, 0.5, Color(1.0, 0.55, 0.25), 18, 5.0, 0.4, 2.0)
+		Audio.play_at("explode", p, -4.0, 1.2)
+		for a in stage.in_circle(team, p, 2.2):
+			var vh := Combat.player_hit(self, stats, 1.0, ["fire", "ability"])
+			vh.amount = dmg
+			vh.proc = false
+			vh.knockback = (a.pos - p).normalized() * 6.0
+			deal_hit(a, vh)
+
+
 func _call_lightning(from: Actor, amount: float) -> void:
 	var best: Actor = null
 	var bd := 5.0
@@ -908,6 +982,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		if aegis_hp <= 0.0:
 			aegis_t = 0.0
 			stage.fx.ring(pos, 1.5, Color(1.0, 0.8, 0.4), 0.25, 0.3)
+			_aegis_broken()
 	if barrier > 0.0 and h.amount > 0.0:
 		var ab2 := minf(barrier, h.amount)
 		barrier -= ab2
@@ -950,6 +1025,26 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 
 
 ## Thornmail: thorns burst out at everything within reach.
+## Runes on the Aegis: the Well pulls foes in as it breaks; Echoes re-form it once.
+func _aegis_broken() -> void:
+	if Runes.has(self, "aegis", "gravity"):
+		stage.fx.ring(pos, 3.5, Color(0.5, 0.95, 0.9), 0.35, 0.3)
+		for a in stage.in_circle(team, pos, 3.5):
+			var h := Combat.player_hit(self, stats, 8.0, ["ability"])
+			h.knockback = (pos - a.pos).normalized() * 9.0
+			h.poise = 40.0
+			deal_hit(a, h)
+	if aegis_echo:
+		aegis_echo = false
+		var me := self
+		stage.after(0.3, func() -> void:
+			if is_instance_valid(me) and me.alive:
+				me.aegis_hp = GearDB.ability("aegis").absorb * 0.5
+				me.aegis_t = 3.0
+				me.stage.fx.ring(me.pos, 1.4, Color(0.45, 1.0, 0.85), 0.3, 0.3)
+				Audio.play_at("aegis", me.pos, -4.0, 1.2))
+
+
 func _bramble_burst(taken: float) -> void:
 	stage.fx.burst(pos, 0.6, Color(0.5, 0.75, 0.3), 16, 5.0, 0.3, 3.0)
 	stage.fx.ring(pos, 2.6, Color(0.55, 0.8, 0.35), 0.2, 0.2)
