@@ -99,6 +99,11 @@ static func progress(id: String) -> int:
 
 
 static func goal(id: String) -> int:
+	match id:
+		"archivist":
+			return ItemDB.blueprints().size()
+		"arsenal":
+			return GearDB.WEAPONS.size()
 	return int(FEATS[id].goal)
 
 

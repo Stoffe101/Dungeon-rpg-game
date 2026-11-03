@@ -312,3 +312,39 @@ func test_forge_levels_and_costs() -> void:
 	check(c.has("embers") and c.size() > 1, "higher levels ask for materials too (%s)" % c)
 	for wid in GearDB.WEAPONS:
 		check(GearDB.FORGE_SIGNATURES.has(wid) and GearDB.FORGE_MASTERWORK.has(wid), "%s has both forge upgrades" % wid)
+
+
+func _wear(pl: Player, base: String) -> void:
+	var it := ItemDB.make_item(base, "legendary", 1, RandomNumberGenerator.new())
+	Profile.equipped()[ItemDB.base(base).slot] = it
+	pl.rebuild_stats()
+
+
+func test_new_uniques_work() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(8, 7))
+	var e := _enemy(st, "husk", Vector2(9.2, 7))
+	_run(st, 0.8)
+	# Thornmail: being hit bursts thorns into what stands close
+	_wear(pl, "thornmail")
+	var hp0 := e.hp
+	pl.invuln_t = 0.0
+	pl.take_enemy_hit(e.make_hit(10.0, e.pos), e)
+	check(e.hp < hp0, "Thornmail's thorns hurt the attacker (%d -> %d)" % [int(hp0), int(e.hp)])
+	# Mirrorguard: a Ward throws the blow back
+	_wear(pl, "mirrorguard_bracers")
+	var hp1 := e.hp
+	pl._on_ward(e, false)
+	check(e.hp < hp1, "Mirrorguard throws a warded blow back")
+	# Executioner: low foes always take crits
+	_wear(pl, "executioners_band")
+	var e3 := _enemy(st, "guard", Vector2(9.2, 8.5))
+	_run(st, 0.8)
+	e3.hp = e3.max_hp * 0.2
+	var h := Hit.make(pl, 1.0, ["melee"])
+	var res := pl.deal_hit(e3, h)
+	check(res.crit, "the Executioner's Band crits a foe under a quarter health")
+	for b in ItemDB.blueprints():
+		check(UIKit.item_icon(String(ItemDB.base(b).icon)) != null, "%s has an icon" % b)
+	st.queue_free()

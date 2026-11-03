@@ -38,6 +38,10 @@ const GEAR := {
 	"last_ember": ["ring", "EMBER", "EMBER", true], "avarice_lantern": ["lantern", "GOLD", "EMBER", true], "storm_signet": ["signet", "FROST", "SOUL", true],
 	"vamp_ring": ["ring", "BLOOD", "BLOOD", true], "feather_hood": ["feather_hood", "BONE", "FROST", false], "berserk_mantle": ["cloak", "BLOOD", "STEEL", true],
 	"battery": ["battery", "STEEL", "EMBER", true], "sunfall_mantle": ["cloak", "GOLD", "EMBER", true],
+	"ember_crown": ["crown", "GOLD", "EMBER", true], "moth_cloak": ["cloak", "GLOAM", "GOLD", true], "thornmail": ["plate", "WOOD", "MOSS", false],
+	"firebrand": ["gauntlets", "EMBER", "GOLD", true], "mirror_bracers": ["bracers", "STEEL", "FROST", true], "still_sandals": ["sandals", "SOUL", "GOLD", true],
+	"exec_ring": ["signet", "BLOOD", "STEEL", true], "clover4": ["ring", "MOSS", "GOLD", true], "grudge_locket": ["locket", "BLOOD", "BONE", true],
+	"flask_charm": ["battery", "BLOOD", "EMBER", true], "glass_lantern": ["lantern", "FROST", "EMBER", true],
 }
 
 const OTHER := ["bone_dust", "grave_iron", "soul_glass", "rootwood", "spore_silk", "sun_gold", "ember_core", "warden_sigil",

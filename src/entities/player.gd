@@ -281,7 +281,12 @@ func think(dt: float) -> void:
 	_update_aegis_fx()
 
 
+var _moth_t := 1.0
+
+
 func _timers(dt: float) -> void:
+	if stats.has("moth_swarm") and stage is Dungeon:
+		_moth(dt)
 	for i in 2:
 		ability_cd[i] = maxf(0.0, ability_cd[i] - dt)
 	ward_cd = maxf(0.0, ward_cd - dt)
@@ -549,6 +554,14 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		mult *= 1.0 + stats.v("elite_damage")
 	if stats.has("berserk"):
 		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
+	if stats.has("ember_crown") and run:
+		mult *= 1.0 + minf(0.4, 0.02 * floorf(run.embers / 50.0))
+	if stats.has("grudgebearer"):
+		mult *= 1.0 + minf(0.2, 0.04 * Profile.active_grudges().size())
+	if stats.has("glass_lantern") and t.pos.distance_to(pos) < 4.0:
+		mult *= 1.35
+	if direct and stats.has("headsman") and t.hp_ratio() < 0.25:
+		h.forced_crit = true
 	if stats.has("ember_set4") and t.status.burning():
 		mult *= 1.25
 	if direct and stats.has("gloam_set4") and gloam_t > 0.0:
@@ -796,7 +809,49 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 				at.heal(res.amount * 1.5)
 		if stats.has("hearthguard"):
 			gain_kindle(10.0 / maxf(stats.v("kindle_gain"), 0.01))
+		if stats.has("bramble_burst"):
+			_bramble_burst(res.amount)
 	return res
+
+
+## Thornmail: thorns burst out at everything within reach.
+func _bramble_burst(taken: float) -> void:
+	stage.fx.burst(pos, 0.6, Color(0.5, 0.75, 0.3), 16, 5.0, 0.3, 3.0)
+	stage.fx.ring(pos, 2.6, Color(0.55, 0.8, 0.35), 0.2, 0.2)
+	for a in stage.in_circle(team, pos, 2.6):
+		var th := Hit.make(self, taken * 2.0, ["melee"])
+		th.can_crit = false
+		th.proc = false
+		th.knockback = (a.pos - pos).normalized() * 4.0
+		deal_hit(a, th)
+
+
+## Mothwing Cloak: an ember moth flies from the lantern to the nearest foe.
+func _moth(dt: float) -> void:
+	_moth_t -= dt
+	if _moth_t > 0.0:
+		return
+	_moth_t = 2.0
+	var best: Actor = null
+	var bd := 8.0
+	for a in stage.hostiles(team):
+		var d := a.pos.distance_to(pos)
+		if d < bd and a.targetable:
+			bd = d
+			best = a
+	if best == null:
+		return
+	var d0 := (best.pos - pos).normalized()
+	var pr := Projectile.create(stage, "proj_ember", pos + d0 * 0.4, d0.rotated(randf_range(-0.8, 0.8)) * 7.0, team)
+	pr.source = self
+	pr.damage = 6.0 * (1.0 + stats.v("fire_damage")) * stats.v("damage_more")
+	pr.tags = ["ability", "fire"]
+	pr.homing_target = best
+	pr.homing_turn = 4.0
+	pr.life = 2.5
+	pr.burn = 1
+	pr.reflectable = false
+	Audio.play("wisp", -14.0, 1.6)
 
 
 func _perfect_dodge() -> void:
@@ -810,6 +865,10 @@ func _perfect_dodge() -> void:
 	if stats.has("perfect_refund"):
 		dodge_charges = minf(stats.v("dodge_charges"), dodge_charges + 1.0)
 		gain_kindle(25.0)
+	if stats.has("hourglass"):
+		stage.slow_motion(0.2, 0.9)
+		dodge_charges = minf(stats.v("dodge_charges"), dodge_charges + 1.0)
+		stage.fx.ring(pos, 3.2, Color(0.55, 0.9, 1.0), 0.6, 0.12)
 	if stats.has("gloam_set4"):
 		ability_cd = [0.0, 0.0]
 		stage.fx.number(pos, 2.0, "COOLDOWNS RESET", Color(0.8, 0.55, 1.0))
@@ -827,6 +886,13 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	stage.fx.burst(pos + aim * 0.5, 0.8, Color(1.0, 0.9, 0.6), 14, 6.0, 0.3, 4.0)
 	stage.fx.flash_light(pos, 1.0, Color(1.0, 0.8, 0.45), 3.0, 4.0, 0.2)
 	stage.fx.number(pos, 2.4, "WARD", Color(1.0, 0.9, 0.55))
+	if stats.has("mirror_ward") and not projectile and attacker is Enemy and is_instance_valid(attacker) and (attacker as Enemy).alive:
+		var en := attacker as Enemy
+		var mh := Hit.make(self, en.damage * 3.0, ["melee"])
+		mh.can_crit = false
+		mh.knockback = (en.pos - pos).normalized() * 6.0
+		deal_hit(en, mh)
+		stage.fx.number(en.pos, 2.2, "MIRRORED", Color(0.7, 0.9, 1.0))
 	stage.fx.shake(0.2)
 	Audio.play("parry", 0.0)
 	gain_kindle(15.0 / maxf(stats.v("kindle_gain"), 0.01))
@@ -921,6 +987,9 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("dim_lantern"):
 		rng *= 0.55
 		en *= 0.8
+	if stats.has("glass_lantern"):
+		rng *= 1.4
+		en *= 1.15
 	if hearthcall_t >= 0.0:
 		# the lantern swells as the Hearth answers
 		var hk := clampf(hearthcall_t / HEARTHCALL_TIME, 0.0, 1.0)

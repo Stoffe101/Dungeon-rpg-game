@@ -426,6 +426,10 @@ func _room_cleared() -> void:
 	_clear_t = 0.6
 	_clear_room = r
 	Events.room_cleared.emit(r.id)
+	if player and player.alive and player.stats.has("bottomless") and player.flask < int(player.stats.v("flask_charges")):
+		player.flask += 1
+		fx.number(player.pos, 2.4, "+1 FLASK", Color(1.0, 0.55, 0.45))
+		Audio.play("flask", -6.0, 1.3)
 	minimap_changed.emit()
 	slow_motion(0.4, 0.25)
 	Audio.play("room_clear", 0.0)
@@ -575,8 +579,15 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 		Pickup.spawn(self, "material", prop.pos, rng.randi_range(1, 2 + tier), {"id": pool[rng.randi_range(0, pool.size() - 1)]})
 	if rng.randf() < 0.3 + 0.2 * tier:
 		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
+	var lucky := player != null and player.stats.has("lucky")
 	if rng.randf() < 0.25 + 0.25 * tier:
-		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier, run.tier)})
+		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier)})
+	if lucky:
+		# the Four-Leaf Ring: one more treasure, every time
+		if rng.randf() < 0.5:
+			Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier)})
+		else:
+			Pickup.spawn(self, "material", prop.pos, 2, {"id": "ember_core"})
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
 
 
@@ -628,6 +639,8 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		if e.has_meta("grudge_id"):
 			var g := Profile.settle_grudge(e.get_meta("grudge_id"))
 			var back := int(e.get_meta("grudge_embers")) * (2 if Profile.building("shrine") > 0 else 1)
+			if player and player.stats.has("grudgebearer"):
+				back = int(back * 1.5)
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
 			Pickup.spawn(self, "sunshard", e.pos, 1)
