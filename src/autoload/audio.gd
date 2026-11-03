@@ -3,6 +3,9 @@
 extends Node
 
 const SFX_DIR := "res://assets/audio/sfx/"
+## Sounds from licensed packs (gitignored; tools/audio/import_licensed.py).
+## A name found here wins over the generated one in SFX_DIR.
+const LICENSED_DIR := "res://assets/audio/licensed/"
 const MUSIC_DIR := "res://assets/audio/music/"
 const POOL := 24
 
@@ -10,6 +13,9 @@ var _cache: Dictionary = {}
 var _players: Array[AudioStreamPlayer] = []
 var _next := 0
 var _last_play: Dictionary = {}
+var _variants: Dictionary = {}
+## Dev `audiolog`: print every sound as it plays (and any name with no file).
+var log_sounds := "audiolog" in OS.get_cmdline_user_args()
 var _music_a: AudioStreamPlayer
 var _music_b: AudioStreamPlayer
 var _music_cur: AudioStreamPlayer
@@ -73,22 +79,46 @@ func _stream(dir: String, sname: String) -> AudioStream:
 	var key := dir + sname
 	if _cache.has(key):
 		return _cache[key]
-	var path := dir + sname + ".wav"
 	var s: AudioStream = null
-	if ResourceLoader.exists(path):
-		s = load(path)
+	for d in ([LICENSED_DIR, dir] if dir == SFX_DIR else [dir]):
+		var path: String = d + sname + ".wav"
+		if ResourceLoader.exists(path):
+			s = load(path)
+			break
 	_cache[key] = s
 	return s
 
 
-## Plays a one-shot sound. Variants "<name>_2", "<name>_3"... are picked at random.
-func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX") -> void:
+func has_sound(sname: String) -> bool:
+	return _stream(SFX_DIR, sname) != null
+
+
+## How many takes a sound has: "<name>", "<name>_2", "<name>_3"...
+func _takes(sname: String) -> int:
+	if not _variants.has(sname):
+		var n := 1
+		while n < 8 and _stream(SFX_DIR, "%s_%d" % [sname, n + 1]) != null:
+			n += 1
+		_variants[sname] = n
+	return _variants[sname]
+
+
+## Plays a one-shot sound, picking one of its takes at random. `gap_ms` keeps a
+## crowd from stacking the same sound (voices use a longer gap).
+func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms := 30) -> void:
 	var now := Time.get_ticks_msec()
-	if now - int(_last_play.get(sname, -1000)) < 30:
+	if now - int(_last_play.get(sname, -100000)) < gap_ms:
 		return
 	_last_play[sname] = now
-	var s := _stream(SFX_DIR, sname)
+	var take := randi() % _takes(sname)
+	var s := _stream(SFX_DIR, sname if take == 0 else "%s_%d" % [sname, take + 1])
+	if log_sounds:
+		print("[audio] %.2f %s%s" % [now / 1000.0, sname, "" if s else " MISSING"])
 	if s == null:
+		# creature voices are optional (licensed pack); anything else is a bug
+		if not sname.begins_with("v_") and not _last_play.has("!" + sname):
+			_last_play["!" + sname] = now
+			push_warning("Audio: no sound named '%s'" % sname)
 		return
 	var p := _players[_next]
 	_next = (_next + 1) % POOL
@@ -97,6 +127,18 @@ func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX") -> void:
 	p.pitch_scale = pitch
 	p.bus = bus
 	p.play()
+
+
+## A sound from a place in the world: quieter with distance from the Kindled,
+## silent beyond earshot.
+func play_at(sname: String, at: Vector2, volume_db := 0.0, pitch := 1.0, gap_ms := 30) -> void:
+	var st = Game.stage
+	if st and st.player:
+		var d: float = (st.player.pos as Vector2).distance_to(at)
+		if d > 16.0:
+			return
+		volume_db -= clampf((d - 4.0) * 1.4, 0.0, 18.0)
+	play(sname, volume_db, pitch, "SFX", gap_ms)
 
 
 func ui(sname: String) -> void:

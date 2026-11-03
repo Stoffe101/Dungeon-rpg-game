@@ -302,7 +302,7 @@ func _spike_tick() -> void:
 		sprite.play(state)
 		if state == "up":
 			used = false
-			Audio.play("spikes", -10.0, randf_range(0.9, 1.1))
+			Audio.play_at("spikes", pos, -10.0, randf_range(0.9, 1.1), 120)
 	if state == "up" and not used:
 		used = true
 		# spikes don't care whose foot is on them

@@ -24,6 +24,7 @@ var snuff_t := 0.0
 var summon_t := 6.0
 var double_sweep := false
 var intro := true
+var _step_t := 0.0
 
 
 func _ready() -> void:
@@ -120,6 +121,7 @@ func behave(dt: float) -> void:
 				sprite.play("air")
 				quake_from = pos
 				Audio.play("leap", 0.0, 0.7)
+				voice("jump")
 		"quake_air":
 			var k := clampf(state_t / 0.75, 0.0, 1.0)
 			pos = stage.grid.move_box(pos, box(), quake_from.lerp(quake_target, k) - pos, true)
@@ -175,6 +177,10 @@ func _stalk(dt: float) -> void:
 	if d > 3.0:
 		chase(speed, dt)
 		sprite.play("walk")
+		_step_t -= dt
+		if _step_t <= 0.0:
+			_step_t = 0.42
+			voice("step", -10.0)
 	else:
 		vel = Vector2.ZERO
 		sprite.play("idle")
@@ -245,6 +251,7 @@ func _quake_land() -> void:
 	stage.fx.burst(pos, 0.1, Color(0.6, 0.58, 0.62), 30, 7.0, 0.7, 9.0, Vector2.ZERO, PI, 3.0)
 	stage.fx.burst(pos, 0.1, Color(0.35, 0.95, 0.85), 16, 5.0, 0.6, 2.0)
 	Audio.play("slam", 3.0, 0.7)
+	voice("land", -4.0)
 	strike_circle(pos, 2.9, damage * 1.2, 10.0)
 	# expanding shockwave: dodge through it
 	var center := pos

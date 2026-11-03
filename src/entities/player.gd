@@ -40,6 +40,11 @@ var counter_ready := false
 var second_wind_used := false
 var phoenix_used := false
 var aim := Vector2.RIGHT
+## Where the Kindled looks (sprite direction): the way they walk, or the aim
+## while fighting and whenever the mouse moves with them standing still.
+var look := Vector2.RIGHT
+var _fight_look_t := 0.0
+var _last_aim := Vector2.RIGHT
 var aim_point := Vector2.ZERO
 var move_in := Vector2.ZERO
 var input_enabled := true
@@ -253,7 +258,8 @@ func think(dt: float) -> void:
 		if flask_t > 0.0:
 			mult *= 0.45
 		vel = move_in * spd * mult
-	facing = aim
+	_update_look(dt)
+	facing = look
 	if stats.has("featherfall"):
 		bob = 0.12 + 0.03 * sin(stage.elapsed * 3.0)
 	_set_aura(dt)
@@ -944,10 +950,27 @@ func _footsteps() -> void:
 	_last_foot = f
 
 
+func _update_look(dt: float) -> void:
+	_fight_look_t = maxf(0.0, _fight_look_t - dt)
+	var busy: bool = weapon != null and weapon.has_method("is_busy") and weapon.is_busy()
+	if _attack_down or busy or cast_t > 0.0 or ward_t > 0.0 or _buf.attack > 0.0:
+		_fight_look_t = 0.45
+	if _fight_look_t > 0.0 or _pad_aim:
+		# the pad's aim already follows the left stick when the right one rests
+		look = aim
+	elif move_in.length() > 0.2:
+		look = move_in.normalized()
+	elif absf(aim.angle_to(_last_aim)) > 0.05:
+		look = aim
+	if dodge_t > 0.0 and dodge_dir.length() > 0.1:
+		look = dodge_dir
+	_last_aim = aim
+
+
 func _update_anim() -> void:
 	if not alive:
 		return
-	var ad := aim
+	var ad := look
 	if absf(ad.x) > absf(ad.y) * 0.85:
 		dir_name = "side"
 	elif ad.y < 0.0:

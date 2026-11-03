@@ -20,6 +20,7 @@ func behave(dt: float) -> void:
 				set_state("aim")
 				sprite.play("aim")
 				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(10.0, 0.35), 0.75 / attack_rate)
+				Audio.play("bow_draw", -12.0, randf_range(0.95, 1.05))
 		"aim":
 			vel = Vector2.ZERO
 			var t := target()
@@ -51,4 +52,4 @@ func _loose() -> void:
 	for d: Vector2 in dirs:
 		var pr := shoot(String(def.get("proj", "proj_arrow")), d, 12.0, damage, 0.18)
 		pr.knockback = 3.0
-	Audio.play("bow", -4.0, randf_range(0.95, 1.05))
+	Audio.play(String(def.get("shot_sfx", "bow")), -4.0, randf_range(0.95, 1.05))

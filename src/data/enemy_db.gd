@@ -5,42 +5,49 @@ extends RefCounted
 
 const ENEMIES := {
 	"husk": {
+		"voice": "zombie", "voice_pitch": 1.0,
 		"name": "Husk", "script": "res://src/entities/enemies/husk.gd", "sheet": "husk",
 		"hp": 42.0, "speed": 2.5, "radius": 0.36, "poise": 22.0, "damage": 12.0,
 		"xp": 6, "embers": 3, "cost": 2, "min_depth": 1,
 		"lore": "The Undervault's first dead. They still remember how to swing.",
 	},
 	"skitter": {
+		"voice": "skeleton", "voice_pitch": 1.35,
 		"name": "Skitter", "script": "res://src/entities/enemies/skitter.gd", "sheet": "skitter",
 		"hp": 16.0, "speed": 5.4, "radius": 0.28, "poise": 6.0, "damage": 8.0,
 		"xp": 3, "embers": 1, "cost": 1, "min_depth": 1, "pack": [2, 4],
 		"lore": "Skulls that learned to run on borrowed fingers.",
 	},
 	"archer": {
+		"voice": "skeleton", "voice_pitch": 1.0,
 		"name": "Hollow Archer", "script": "res://src/entities/enemies/archer.gd", "sheet": "archer",
 		"hp": 30.0, "speed": 2.4, "radius": 0.34, "poise": 14.0, "damage": 11.0,
 		"xp": 7, "embers": 4, "cost": 3, "min_depth": 1,
 		"lore": "Their bowstrings are sinew. Their arrows hum with cold soul-light.",
 	},
 	"guard": {
+		"voice": "skeleton", "voice_pitch": 0.75,
 		"name": "Ossuary Guard", "script": "res://src/entities/enemies/guard.gd", "sheet": "guard",
 		"hp": 90.0, "speed": 2.0, "radius": 0.45, "poise": 55.0, "damage": 16.0, "armor": 0.1,
 		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
 		"lore": "Sworn to a door that no longer exists. Strike them from behind, or break their guard.",
 	},
 	"bonecaller": {
+		"voice": "skeleton", "voice_pitch": 1.15,
 		"name": "Bonecaller", "script": "res://src/entities/enemies/bonecaller.gd", "sheet": "bonecaller",
 		"hp": 48.0, "speed": 2.2, "radius": 0.36, "poise": 18.0, "damage": 10.0,
 		"xp": 12, "embers": 7, "cost": 5, "min_depth": 2,
 		"lore": "A priest of the hollow choir. Where it sings, the dead stand back up.",
 	},
 	"bloat": {
+		"voice": "bigslime", "voice_pitch": 1.0,
 		"name": "Grave Bloat", "script": "res://src/entities/enemies/bloat.gd", "sheet": "bloat",
 		"hp": 34.0, "speed": 1.9, "radius": 0.42, "poise": 999.0, "damage": 26.0,
 		"xp": 6, "embers": 4, "cost": 3, "min_depth": 1,
 		"lore": "Swollen with grave-gas. Its end is everyone's problem - including its friends'.",
 	},
 	"spider": {
+		"voice": "bat", "voice_pitch": 0.7,
 		"name": "Grave Spider", "script": "res://src/entities/enemies/spider.gd", "sheet": "spider",
 		"hp": 36.0, "speed": 3.4, "radius": 0.34, "poise": 12.0, "damage": 12.0,
 		"xp": 8, "embers": 4, "cost": 3, "min_depth": 2,
@@ -48,24 +55,28 @@ const ENEMIES := {
 	},
 	# --- the Rootmire ---
 	"sporeling": {
+		"voice": "slime", "voice_pitch": 1.3,
 		"name": "Sporeling", "script": "res://src/entities/enemies/sporeling.gd", "sheet": "sporeling",
 		"hp": 24.0, "speed": 3.6, "radius": 0.3, "poise": 8.0, "damage": 9.0,
 		"xp": 4, "embers": 2, "cost": 1, "min_depth": 1, "pack": [2, 4],
 		"lore": "It wants to share. Mostly what it shares is spores.",
 	},
 	"thornback": {
+		"voice": "beast", "voice_pitch": 1.1,
 		"name": "Thornback", "script": "res://src/entities/enemies/thornback.gd", "sheet": "thornback",
 		"hp": 80.0, "speed": 2.2, "radius": 0.5, "poise": 60.0, "damage": 18.0, "armor": 0.35,
 		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
 		"lore": "Rolls first, thinks never. Leaves it dizzy and soft-bellied.",
 	},
 	"moth": {
+		"voice": "bat", "voice_pitch": 1.2,
 		"name": "Lantern Moth", "script": "res://src/entities/enemies/moth.gd", "sheet": "moth",
 		"hp": 18.0, "speed": 4.2, "radius": 0.3, "poise": 6.0, "damage": 7.0,
 		"xp": 5, "embers": 3, "cost": 2, "min_depth": 1,
 		"lore": "Drawn to your flame. It drinks the light out of your lantern.",
 	},
 	"rootweaver": {
+		"voice": "pumpkin", "voice_pitch": 1.0,
 		"name": "Rootweaver", "script": "res://src/entities/enemies/rootweaver.gd", "sheet": "rootweaver",
 		"hp": 55.0, "speed": 2.1, "radius": 0.36, "poise": 20.0, "damage": 14.0,
 		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
@@ -73,30 +84,35 @@ const ENEMIES := {
 	},
 	# --- the Sunken Throne ---
 	"sentinel": {
+		"voice": "orc", "voice_pitch": 0.85,
 		"name": "Gilded Sentinel", "script": "res://src/entities/enemies/guard.gd", "sheet": "sentinel",
 		"hp": 120.0, "speed": 2.1, "radius": 0.45, "poise": 70.0, "damage": 20.0, "armor": 0.2,
 		"xp": 16, "embers": 9, "cost": 5, "min_depth": 1,
 		"lore": "The sun-king's last guard. They still hold the door of a throne room that is under the sea of ash.",
 	},
 	"hound": {
+		"voice": "wolf", "voice_pitch": 1.0,
 		"name": "Ash Hound", "script": "res://src/entities/enemies/skitter.gd", "sheet": "hound",
 		"hp": 24.0, "speed": 6.0, "radius": 0.3, "poise": 8.0, "damage": 11.0,
 		"xp": 4, "embers": 2, "cost": 1, "min_depth": 1, "pack": [2, 3],
 		"lore": "The King's hunting dogs burned with him. The embers in their ribs never went out.",
 	},
 	"acolyte": {
+		"voice": "wildfire", "voice_pitch": 0.9,
 		"name": "Eclipse Acolyte", "script": "res://src/entities/enemies/bonecaller.gd", "sheet": "acolyte",
 		"hp": 60.0, "speed": 2.3, "radius": 0.36, "poise": 20.0, "damage": 13.0,
 		"xp": 14, "embers": 8, "cost": 5, "min_depth": 1, "summon": "hound", "proj": "proj_eclipse",
 		"lore": "They pray to the black sun. It answers with hounds.",
 	},
 	"wraith": {
+		"voice": "wildfire", "voice_pitch": 1.2,
 		"name": "Ash Wraith", "script": "res://src/entities/enemies/archer.gd", "sheet": "wraith",
 		"hp": 40.0, "speed": 2.8, "radius": 0.34, "poise": 14.0, "damage": 15.0,
-		"xp": 9, "embers": 5, "cost": 3, "min_depth": 1, "proj": "proj_sun",
+		"xp": 9, "embers": 5, "cost": 3, "min_depth": 1, "proj": "proj_sun", "shot_sfx": "sunlance",
 		"lore": "Courtiers who outlived the sun by an hour. They throw the last of its light at anything warm.",
 	},
 	"ashen_king": {
+		"voice": "minotaur", "voice_pitch": 0.85,
 		"name": "The Ashen King", "script": "res://src/entities/enemies/ashen_king.gd", "sheet": "ashen_king",
 		"hp": 3400.0, "speed": 3.2, "radius": 0.9, "poise": 420.0, "damage": 26.0, "armor": 0.1,
 		"xp": 320, "embers": 240, "cost": 99, "min_depth": 99, "boss": true,
@@ -104,12 +120,14 @@ const ENEMIES := {
 		"lore": "He ruled the day. When the sun died, he would not kneel to the dark, so he burned instead - and is burning still.",
 	},
 	"toad": {
+		"voice": "bigslime", "voice_pitch": 0.85,
 		"name": "Bog Toad", "script": "res://src/entities/enemies/toad.gd", "sheet": "toad",
 		"hp": 70.0, "speed": 0.0, "radius": 0.45, "poise": 30.0, "damage": 15.0, "armor": 0.1,
 		"xp": 10, "embers": 6, "cost": 4, "min_depth": 1,
 		"lore": "Its tongue is longer than it is. It has never once been in a hurry.",
 	},
 	"bloom": {
+		"voice": "pumpkin", "voice_pitch": 0.7,
 		"name": "The Hollow Bloom", "script": "res://src/entities/enemies/bloom.gd", "sheet": "bloom",
 		"hp": 2600.0, "speed": 0.0, "radius": 1.6, "poise": 340.0, "damage": 20.0, "armor": 0.25,
 		"xp": 240, "embers": 180, "cost": 99, "min_depth": 99, "boss": true,
@@ -117,6 +135,7 @@ const ENEMIES := {
 		"lore": "Where the sun's last seed fell, something grew that is not a flower.",
 	},
 	"warden": {
+		"voice": "brute", "voice_pitch": 0.8,
 		"name": "The Gloam Warden", "script": "res://src/entities/enemies/warden.gd", "sheet": "warden",
 		"hp": 1900.0, "speed": 3.0, "radius": 0.9, "poise": 260.0, "damage": 22.0, "armor": 0.0,
 		"xp": 160, "embers": 120, "cost": 99, "min_depth": 99, "boss": true,

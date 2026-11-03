@@ -226,3 +226,27 @@ func test_footsteps_follow_the_run_cycle() -> void:
 	pl._footsteps()
 	eq(pl._foot_i, before2, "no steps while standing")
 	st.queue_free()
+
+
+## Walking turns the Kindled; attacking turns them to the aim (playtest bug:
+## the sprite only ever faced the mouse, so walking away looked like moonwalking).
+func test_walking_turns_the_kindled() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(10, 7))
+	pl.aim = Vector2.RIGHT
+	pl.move_in = Vector2.LEFT
+	_run(st, 0.2)
+	check(pl.facing.x < -0.7, "walking left faces left with the mouse to the right (%s)" % pl.facing)
+	pl.move_in = Vector2.ZERO
+	_run(st, 0.2)
+	check(pl.facing.x < -0.7, "stopping keeps the last facing (%s)" % pl.facing)
+	pl.aim = Vector2.UP
+	_run(st, 0.1)
+	check(pl.facing.y < -0.7, "moving the mouse while standing turns to it (%s)" % pl.facing)
+	pl.aim = Vector2.RIGHT
+	pl.move_in = Vector2.LEFT
+	pl.weapon.press()
+	_run(st, 0.05)
+	check(pl.facing.x > 0.7, "attacking faces the aim even while walking away (%s)" % pl.facing)
+	st.queue_free()

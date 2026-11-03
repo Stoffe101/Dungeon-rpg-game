@@ -14,6 +14,9 @@ var elite := false
 var affix := ""
 var affix2 := ""   # from Tier IV, elites carry a second affix
 var summoned := false   # raised or called by another enemy
+var _voice_t := 0.0
+var _attack_voice_t := 0.0
+var _idle_voice_t := 4.0
 var grudge: Dictionary = {}
 var state := "spawn"
 var state_t := 0.0
@@ -71,6 +74,18 @@ func scale_for(depth: int, memory: int, tier := 1) -> void:
 	var rm := Difficulty.reward_mult(tier)
 	xp = int(round(xp * rm))
 	embers = int(round(embers * rm))
+
+
+## A creature's voice from its data ("voice": kind, "voice_pitch"): v_<kind>_<event>
+## for attack, hurt, die, idle, jump and land. Elites sound bigger.
+func voice(event: String, vol := -8.0) -> void:
+	var v := String(def.get("voice", ""))
+	if v == "" or stage == null:
+		return
+	var pitch := float(def.get("voice_pitch", 1.0)) * randf_range(0.94, 1.06) * (0.88 if elite else 1.0)
+	if def.get("boss", false):
+		vol += 4.0
+	Audio.play_at("v_%s_%s" % [v, event], pos, vol, pitch, 90)
 
 
 func has_affix(a: String) -> bool:
@@ -140,6 +155,13 @@ func set_state(s: String) -> void:
 
 
 func tick(dt: float) -> void:
+	_voice_t -= dt
+	_attack_voice_t -= dt
+	_idle_voice_t -= dt
+	if _idle_voice_t <= 0.0:
+		_idle_voice_t = randf_range(5.0, 11.0)
+		if state != "spawn" and alive and stage.player and pos.distance_to(stage.player.pos) < 11.0:
+			voice("idle", -15.0)
 	if state == "spawn":
 		state_t += dt
 		var k := clampf(state_t / spawn_t, 0.0, 1.0)
@@ -270,6 +292,9 @@ func dir_to_player() -> Vector2:
 # --- attacks --------------------------------------------------------------------
 
 func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration: float, params := {}) -> void:
+	if _attack_voice_t <= 0.0:
+		_attack_voice_t = 0.8
+		voice("attack", -7.0)
 	var p := params.duplicate()
 	p["progress"] = 0.0
 	tele = stage.fx.shape(kind, center, dir, size, TELE_COLOR, TELE_EDGE, duration + 0.05, p)
@@ -360,6 +385,9 @@ func block_mult(h: Hit) -> float:
 func on_damaged(hit: Hit, res: Combat.Result) -> void:
 	super.on_damaged(hit, res)
 	_hb_show_t = 3.0
+	if alive and _voice_t <= 0.0 and res.amount > 0.0:
+		_voice_t = 0.45
+		voice("hurt", -9.0)
 	if state == "idle" or state == "wander":
 		set_state("idle")
 
@@ -378,6 +406,7 @@ func die(killer: Node) -> void:
 		nameplate.queue_free()
 	died_enemy.emit(self)
 	Audio.play("enemy_die", -3.0, randf_range(0.9, 1.1))
+	voice("die", -6.0)
 	stage.fx.burst(pos, 0.6, hit_color(), 12, 4.0, 0.6, 9.0, last_hit_from, 1.4)
 	# what's left on the floor: a splat in the enemy's colour, or scorch if it burned
 	var mark := hit_color().darkened(0.45) if not status.burning() else Color(0.16, 0.12, 0.11)

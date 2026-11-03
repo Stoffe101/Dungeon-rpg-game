@@ -38,6 +38,7 @@ func behave(dt: float) -> void:
 				set_state("hop")
 				sprite.play("hop")
 				Audio.play("leap", -6.0, 1.4)
+				voice("jump")
 		"hop":
 			var k := clampf(state_t / 0.55, 0.0, 1.0)
 			pos = stage.grid.move_box(pos, box(), hop_from.lerp(hop_to, k) - pos, true)
@@ -68,6 +69,7 @@ func _land() -> void:
 	stage.fx.splat(pos, Color(0.2, 0.28, 0.14), 10.0, 0.9)
 	stage.fx.shake(0.1)
 	Audio.play("slam", -8.0, 1.5)
+	voice("land", -6.0)
 	set_state("recover")
 
 

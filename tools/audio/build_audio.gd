@@ -129,9 +129,21 @@ func _sfx() -> void:
 	fx("skitter", 0.3, func(s):
 		for k in 7:
 			s.noise(k * 0.04, 0.012, 0.6, 5000.0, 3000.0, 1500.0, 0.001, 5.0))
-	fx("bow", 0.4, func(s):
-		s.pluck(0.0, 0.35, 196.0, 0.6, 0.994, 0.6)
-		s.noise(0.0, 0.05, 0.3, 4000.0, 2000.0, 1000.0))
+	# a soul-arrow loosed: a dull knock (no ringing string), the arrow tearing
+	# the air, and a thin cold whistle riding it
+	fx("bow", 0.32, func(s):
+		s.tone(0.0, 0.07, 160.0, 90.0, "sine", 0.6, 0.001, 6.0)
+		s.noise(0.005, 0.24, 0.75, 5200.0, 1200.0, 600.0, 0.012, 2.6)
+		s.tone(0.01, 0.2, 1900.0, 1100.0, "sine", 0.12, 0.01, 3.5))
+	# drawing the bow: a low creak of sinew under strain
+	fx("bow_draw", 0.5, func(s):
+		s.noise(0.0, 0.48, 0.35, 500.0, 1300.0, 150.0, 0.2, 1.2, 28.0)
+		s.tone(0.0, 0.45, 70.0, 95.0, "tri", 0.12, 0.25, 1.0))
+	# a lance of dead sunlight: a bright rushing hiss with a crackling edge
+	fx("sunlance", 0.4, func(s):
+		s.noise(0.0, 0.32, 0.7, 6000.0, 1500.0, 800.0, 0.01, 2.2)
+		s.tone(0.0, 0.3, 880.0, 1320.0, "tri", 0.15, 0.01, 2.5, 0.01, 18.0)
+		s.noise(0.0, 0.3, 0.25, 9000.0, 7000.0, 4000.0, 0.005, 3.0, 40.0))
 	fx("clank", 0.35, func(s): s.bell(0.0, 0.3, 310.0, 0.5, [[1.0, 1.0, 7.0], [2.45, 0.6, 9.0], [3.84, 0.4, 11.0]]))
 	fx("guard_roar", 0.6, func(s):
 		s.tone(0.0, 0.55, 75.0, 55.0, "saw", 0.5, 0.05, 1.5, 0.04, 9.0, 700.0)

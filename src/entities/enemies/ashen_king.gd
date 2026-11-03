@@ -27,6 +27,7 @@ var seared_t := 0.0
 var sunrise_cd := 0.0
 var double_ring := false
 var intro := true
+var _step_t := 0.0
 var _eclipses := 0
 
 
@@ -107,6 +108,7 @@ func behave(dt: float) -> void:
 				sprite.play("air")
 				leap_from = pos
 				Audio.play("leap", 0.0, 0.65)
+				voice("jump")
 		"leap_air":
 			var k := clampf(state_t / 0.8, 0.0, 1.0)
 			pos = stage.grid.move_box(pos, box(), leap_from.lerp(leap_target, k) - pos, true)
@@ -142,6 +144,10 @@ func _stalk(dt: float) -> void:
 	if d > 3.2:
 		chase(speed, dt)
 		sprite.play("walk")
+		_step_t -= dt
+		if _step_t <= 0.0:
+			_step_t = 0.42
+			voice("step", -10.0)
 	else:
 		vel = Vector2.ZERO
 		sprite.play("idle")
@@ -196,7 +202,7 @@ func _do_sweep() -> void:
 		for k in 5:
 			var pr := shoot("proj_sun", aim_dir.rotated((k - 2) * 0.28), 9.0, damage * 0.5, 0.2)
 			pr.knockback = 3.0
-		Audio.play("bow", -2.0, 0.7)
+		Audio.play("sunlance", -2.0, 0.8)
 	set_state("sweep_recover")
 
 
@@ -245,6 +251,7 @@ func _slam() -> void:
 	stage.fx.burst(pos, 0.1, Color(0.55, 0.5, 0.5), 30, 7.0, 0.7, 9.0, Vector2.ZERO, PI, 3.0)
 	stage.fx.burst(pos, 0.1, Color(1.0, 0.75, 0.35), 18, 5.0, 0.6, 2.0)
 	Audio.play("slam", 3.0, 0.65)
+	voice("land", -4.0)
 	strike_circle(pos, 3.0, damage * 1.2, 10.0)
 	_shockwave(pos, damage * 0.8)
 	set_state("recover")
