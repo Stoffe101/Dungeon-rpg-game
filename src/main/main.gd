@@ -168,7 +168,8 @@ func _open_dev_screen(what: String) -> void:
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)
 		"summary":
 			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
-				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": ""})
+				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": "",
+				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"]})
 
 
 func _process(_d: float) -> void:
