@@ -74,7 +74,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
-	view.focus = Iso.to_world(player.pos)
+	if view:
+		view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
 	if "hitlab" in OS.get_cmdline_user_args():
 		# dev: enemies right beside the player, to look at hit feedback up close
@@ -169,7 +170,8 @@ func _environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
 	env.adjustment_saturation = 1.05
-	view.set_environment(env)
+	if view:
+		view.set_environment(env)
 
 
 func _place_props() -> void:
@@ -225,7 +227,7 @@ func _place_gates() -> void:
 			for t: Vector2i in d.tiles:
 				var g := PixelSprite.new()
 				add_child(g)
-				g.setup("gate", "closed")
+				g.setup(String(region.get("gate", "gate")), "closed")
 				g.position = Iso.to_world(Vector2(t) + Vector2(0.5, 0.5 if d.dir.y == 0 else (0.95 if d.dir.y < 0 else 0.15)), 0.0)
 				g.visible = false
 				g.set_meta("tile", t)
@@ -403,7 +405,6 @@ func _start_encounter(r: Room) -> void:
 	active_room = r
 	wave = 0
 	_set_gates(r, true)
-	Audio.play("gate_close", 0.0)
 	if r.type == Room.Type.BOSS:
 		_start_boss(r)
 		return
@@ -551,7 +552,6 @@ func _finish_clear() -> void:
 	if r == null:
 		return
 	_set_gates(r, false)
-	Audio.play("gate_open", 0.0)
 	for pk in pickups:
 		pk.magnet = true
 	var xpv := 6 + 3 * layout.depth
@@ -597,20 +597,51 @@ func _open_spot(p: Vector2) -> Vector2:
 	return p
 
 
+## Seals (closed) or releases a room's doors. The grid, the nav grid and the
+## seal sprites always change together, so what you see is what blocks.
 func _set_gates(r: Room, closed: bool) -> void:
+	var soul := Color(0.45, 1.0, 0.9)
 	for g in gate_nodes.get(r.id, []):
 		var t: Vector2i = g.get_meta("tile")
+		var c := Vector2(t) + Vector2(0.5, 0.5)
 		grid.put(t.x, t.y, TileGrid.GATE if closed else TileGrid.FLOOR)
 		set_tile_solid(t, closed)
-		g.visible = true
-		g.play("rise" if closed else "fall", true)
-		if not closed:
-			var gg: PixelSprite = g
-			gg.animation_finished.connect(func(_a): gg.visible = false, CONNECT_ONE_SHOT)
-		fx.burst(Vector2(t) + Vector2(0.5, 0.5), 0.2, Color(0.4, 0.95, 0.85), 3, 2.0, 0.4, -1.0)
-	# push the player out of a closing gate
-	if closed and player and grid.box_blocked(player.pos, player.box()):
-		player.pos = random_floor_near(r.center(), 2.0)
+		var gg: PixelSprite = g
+		gg.visible = true
+		gg.play("rise" if closed else "fall", true)
+		for cn in gg.animation_finished.get_connections():
+			gg.animation_finished.disconnect(cn.callable)
+		if closed:
+			# light gathers on the threshold, then the seal weaves itself shut
+			fx.motes(c, 0.0, soul, 5, 1.8, 0.45, 0.4)
+			fx.burst(c, 0.1, soul, 4, 1.5, 0.35, -2.0, Vector2.ZERO, PI, 0.5)
+			gg.animation_finished.connect(func(_a): if is_instance_valid(gg) and gg.anim == "rise": gg.play("closed"), CONNECT_ONE_SHOT)
+		else:
+			# released: it comes apart into motes that drift up and away
+			fx.motes(c, 0.4, soul, 10, 2.6, 1.0, 0.45)
+			fx.burst(c, 1.0, soul.lightened(0.3), 6, 2.5, 0.5, -3.0)
+			gg.animation_finished.connect(func(_a): if is_instance_valid(gg) and gg.anim == "fall": gg.visible = false, CONNECT_ONE_SHOT)
+	if closed:
+		# nobody is left standing inside a closing seal: step them into the room
+		for a in actors:
+			if a.alive and not a.flying and grid.box_blocked(a.pos, a.box()):
+				a.pos = _floor_inside(r, a.pos)
+	Audio.play("seal_close" if closed else "seal_open", -2.0)
+
+
+## The open floor of `r` nearest to `p` (for nudging anyone out of a seal).
+func _floor_inside(r: Room, p: Vector2) -> Vector2:
+	var best := r.center()
+	var bd := INF
+	for t in r.cells:
+		if grid.at(t.x, t.y) != TileGrid.FLOOR:
+			continue
+		var c := Vector2(t) + Vector2(0.5, 0.5)
+		var d := c.distance_squared_to(p)
+		if d < bd and not grid.box_blocked(c, 0.4):
+			bd = d
+			best = c
+	return best
 
 
 # --- boss ----------------------------------------------------------------------------
@@ -918,7 +949,6 @@ func request(what: String, prop: Prop) -> void:
 				active_room = r
 				wave = 0
 				_set_gates(r, true)
-				Audio.play("gate_close", 0.0)
 				Audio.play("boss_roar", -6.0, 1.4)
 				Events.banner.emit("The Trial Begins", "Survive three waves")
 				_spawn_wave(r))

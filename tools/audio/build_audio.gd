@@ -258,6 +258,17 @@ func _sfx() -> void:
 		s.pad(0.5, 1.25, [midi(62), midi(69), midi(74), midi(81)], 0.12, 2600.0, 0.05, 0.9)
 		for k in 4:
 			s.bell(0.55 + k * 0.07, 1.0, midi(86 + [0, 5, 7, 12][k]), 0.06))
+	# room seals: a rising weave of chimes over a thrum, and its release
+	fx("seal_close", 0.9, func(s):
+		s.tone(0.0, 0.5, 70.0, 95.0, "sine", 0.5, 0.01, 2.5)
+		s.noise(0.0, 0.35, 0.18, 2500.0, 6000.0, 900.0, 0.08, 3.0)
+		for k in 4:
+			s.bell(0.05 + k * 0.06, 0.6, midi(74 + [0, 3, 7, 10][k]), 0.07))
+	fx("seal_open", 1.1, func(s):
+		for k in 5:
+			s.bell(k * 0.05, 0.8, midi(86 - [0, 2, 5, 7, 12][k]), 0.06)
+		s.noise(0.0, 0.8, 0.22, 7000.0, 1500.0, 800.0, 0.01, 2.0)
+		s.tone(0.0, 0.6, 110.0, 55.0, "sine", 0.35, 0.005, 3.0))
 	fx("heartbeat", 0.5, func(s):
 		s.tone(0.0, 0.14, 70.0, 42.0, "sine", 0.8, 0.004, 5.0)
 		s.tone(0.17, 0.16, 62.0, 38.0, "sine", 0.6, 0.004, 5.0))

@@ -45,6 +45,8 @@ static func get_def(id: String) -> Dictionary:
 
 
 static func unlocked(id: String) -> bool:
+	if not OMENS.has(id):
+		return false
 	var req: Dictionary = OMENS.get(id, {}).get("unlock", {})
 	for k in req:
 		var have := int(Profile.data.world.get(k, 0)) if k != "deaths" else int(Profile.data.stats.get("deaths", 0))

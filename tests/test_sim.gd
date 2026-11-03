@@ -477,3 +477,46 @@ func test_behavioural_affixes() -> void:
 	check(gloomed > 0.0 and absf(gloomed * 2.0 - pl.kindle) < 0.01, "Gloom halves Kindle gain (%.1f vs %.1f)" % [gloomed, pl.kindle])
 	check(not EnemyDB.affix_ok("spore_mortar", "molten") and not EnemyDB.affix_ok("gravemole", "phasing"), "affixes only go where they work")
 	st.queue_free()
+
+
+## A real Dungeon floor, simulated without a view (for whole-floor tests).
+func _dungeon(seed_v: int, region := "ossuary") -> Dungeon:
+	var lay := DungeonGen.generate(seed_v, 1, region, false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(seed_v, region, "sword", 0, ["flare", ""]), null)
+	return d
+
+
+func test_room_seals_block_and_release() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var room: Room = null
+	for r in d.layout.rooms:
+		if r.is_combat() and r.type != Room.Type.BOSS and not d.gate_nodes.get(r.id, []).is_empty():
+			room = r
+			break
+	check(room != null, "a combat room with seals")
+	var g: Node = d.gate_nodes[room.id][0]
+	var t: Vector2i = g.get_meta("tile")
+	# someone standing in the doorway when it seals
+	var e := d._make_enemy("husk")
+	e.pos = Vector2(t) + Vector2(0.5, 0.5)
+	d.add_actor(e)
+	d.player.pos = Vector2(t) + Vector2(0.5, 0.5)
+	d._set_gates(room, true)
+	eq(d.grid.at(t.x, t.y), TileGrid.GATE, "the seal's tile is a gate")
+	check(d.grid.blocks_shot(t.x, t.y), "shots stop at the seal")
+	check(g.visible, "the seal shows")
+	check(not d.grid.box_blocked(d.player.pos, d.player.box()) and room.contains_tile(Vector2i(floori(d.player.pos.x), floori(d.player.pos.y))), "the Kindled is stepped into the room, not trapped")
+	check(not d.grid.box_blocked(e.pos, e.box()), "so is a foe in the doorway")
+	for i in 20:
+		g._process(0.05)   # sprites animate on the frame clock, not the stage's
+	eq(String(g.anim), "closed", "it settles into its shimmer")
+	d._set_gates(room, false)
+	eq(d.grid.at(t.x, t.y), TileGrid.FLOOR, "released, the doorway is floor again")
+	for i in 20:
+		g._process(0.05)
+	check(not g.visible, "and the seal is gone")
+	d.queue_free()

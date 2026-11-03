@@ -82,7 +82,7 @@ func _process(delta: float) -> void:
 	if dt > 0.0:
 		simulate(dt)
 	fx.step(real if not paused_sim else 0.0)
-	if player and is_instance_valid(player):
+	if view and player and is_instance_valid(player):
 		var target := Iso.to_world(player.pos + player.aim_offset(), 0.0)
 		view.focus = view.focus.lerp(target, 1.0 - exp(-real * 9.0)) if view.focus.distance_to(target) < 12.0 else target
 	_stage_process(real)
