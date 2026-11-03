@@ -52,7 +52,8 @@ static func main_menu(ui: UIRoot) -> Control:
 				ui.fade(Game.goto_hub)), 110))
 	buttons.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
 	buttons.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
-	var ver := UIKit.label("v%s  -  Level %d  -  %d runs" % [ProjectSettings.get_setting("application/config/version"), Profile.level(), int(Profile.data.stats.get("runs", 0))], 8, UIKit.C_DIM, true)
+	var runs := int(Profile.data.stats.get("runs", 0))
+	var ver := UIKit.label("v%s  -  Level %d  -  %d expedition%s" % [ProjectSettings.get_setting("application/config/version"), Profile.level(), runs, "" if runs == 1 else "s"], 8, UIKit.C_DIM, true)
 	ver.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	ver.position = Vector2(8, -14)
 	ver.offset_top = -14

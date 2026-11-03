@@ -168,7 +168,8 @@ func _place() -> void:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
 	_camp()
 	_keepsakes()
-	_signboards()
+	if not menu_mode:
+		_signboards()
 	# woven rugs where people gather: by the fire and at the tent
 	Prop.make(self, "rug", Vector2i(21, 14), {"anim": "rug0"})
 	Prop.make(self, "rug", Vector2i(30, 19), {"anim": "rug1"})
