@@ -654,6 +654,10 @@ func _rejoin(old: int, new: int) -> void:
 	var params := {"seed": Game.run.seed, "region": "delve" if Game.run.delve else Game.run.region, "tier": Game.run.tier,
 		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth, "exp": expedition}
 	rpc_id(new, "_rejoined", params, r.to_dict())
+	# what it carried into this depth, in case this host's fire goes out next
+	var cp: Dictionary = Game.checkpoints.get(String(entry.get("id", "")), {})
+	if not cp.is_empty():
+		rpc_id(new, "_checkpoint", cp)
 	if run_sync:
 		rpc_id(new, "_events", run_sync.floor_id, run_sync.world_dump())
 	_status("%s found the party again." % String(entry.name))

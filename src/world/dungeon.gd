@@ -383,9 +383,10 @@ var _rising := 0   # Restless Dead still getting up
 ## Every Kindled on the floor. Solo: just this machine's. Co-op: one per seat,
 ## the same on every machine (ids by seat); this machine's own drives the camera.
 func _spawn_party(start: Room) -> void:
+	var spots := party_spots(start, maxi(1, Net.i.roster.size() if Net.active() else 1))
 	if not Net.active():
 		player = Player.new()
-		player.pos = start.center() + Vector2(0, 2)
+		player.pos = spots[0] if not spots.is_empty() else start.center() + Vector2(0, 2)
 		add_actor(player)
 		player.setup_from(run)
 		return
@@ -405,8 +406,9 @@ func _spawn_party(start: Room) -> void:
 			pl.controller = Player.Ctrl.REMOTE
 		if not mine:
 			pl.sheet = Net.i.roster[pid].sheet
-		# side by side near the entrance, on open floor (rooms have pillars and pits)
-		pl.pos = _floor_inside(start, start.center() + Vector2(-1.5 + slot, 2.0 + (slot % 2) * 0.6))
+		# side by side on open floor, in plain view (see party_spots)
+		var k := seats.find(pid)
+		pl.pos = spots[k] if k < spots.size() else _floor_inside(start, start.center() + Vector2(-1.5 + slot, 2.0))
 		add_actor(pl)
 		pl.setup_from(Game.run_of(int(pid)))
 		var col := Net.color_of(int(pid))
@@ -832,6 +834,30 @@ func _pull_party_in(r: Room, by: Player = null) -> void:
 			Net.name_of(pl.peer_id), from.x, from.y, to.x, to.y, r.id, int(door.get("to", -1))])
 
 
+## Where the party appears on a new floor: open floor near the start room's
+## middle, room to move around each, apart from each other, and in plain view
+## (no pillar or wall just south of them: the camera looks over that side, and
+## a Kindled behind one is drawn only as its silhouette).
+func party_spots(r: Room, n: int) -> Array:
+	var c := r.center() + Vector2(0, 2)
+	var tiles: Array = []
+	for t in r.cells:
+		tiles.append(t)
+	tiles.sort_custom(func(a, b): return (Vector2(a) + Vector2(0.5, 0.5)).distance_squared_to(c) < (Vector2(b) + Vector2(0.5, 0.5)).distance_squared_to(c))
+	var inner := r.rect.grow(-1)
+	var out: Array = []
+	for strict in [true, false]:
+		for t: Vector2i in tiles:
+			if out.size() >= n:
+				return out
+			if not safe_spot(t, inner, out):
+				continue
+			if strict and (grid.blocks_move(t.x, t.y + 1) or grid.blocks_move(t.x, t.y + 2)):
+				continue
+			out.append(Vector2(t) + Vector2(0.5, 0.5))
+	return out
+
+
 ## The door of `r` closest to `p` (the one a Kindled at `p` just came through).
 func door_near(r: Room, p: Vector2) -> Dictionary:
 	var best := {}
@@ -906,7 +932,7 @@ func safe_spot(t: Vector2i, inner: Rect2i, used: Array) -> bool:
 		if is_instance_valid(a) and a.alive and a.team == Actor.Team.ENEMY and a.pos.distance_to(c) < a.radius + 1.4:
 			return false
 	for u in used:
-		if (u as Vector2).distance_to(c) < 0.9:
+		if (u as Vector2).distance_to(c) < 1.1:
 			return false
 	return true
 

@@ -88,8 +88,10 @@ def main(paths):
                     # the host and a moment later by its owner: not a frozen picture
                     jumped = any(((pts[k + 1][3][0] - pts[k][3][0]) ** 2 + (pts[k + 1][3][1] - pts[k][3][1]) ** 2) ** 0.5 > 3.0
                                  or ((pts[k + 1][2][0] - pts[k][2][0]) ** 2 + (pts[k + 1][2][1] - pts[k][2][1]) ** 2) ** 0.5 > 3.0
-                                 for k in range(i, j))
-                    if own_moved > 2.0 and seen_moved < 0.2 and not jumped:
+                                 for k in range(i, min(j + 3, len(pts) - 1)))   # (a slow link sees it later)
+                    # frozen: the owner walked on, the picture stayed, and they ended apart
+                    apart = ((pts[j][3][0] - pts[j][2][0]) ** 2 + (pts[j][3][1] - pts[j][2][1]) ** 2) ** 0.5 > 1.0
+                    if own_moved > 2.0 and seen_moved < 0.2 and apart and not jumped:
                         frozen.append(pts[i][0])
                 flag = ""
                 if frozen:

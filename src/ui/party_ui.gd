@@ -141,7 +141,7 @@ func _start() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_body.add_child(row)
 	var steam: SteamLink = Net.i.steam
-	row.add_child(_option("hearth", "Host a Party", "Open your sanctuary to friends." if steam.online else "Friends on your network (or by address) join you.",
+	row.add_child(_option("flame", "Host a Party", "Open your sanctuary to friends." if steam.online else "Friends on your network (or by address) join you.",
 		"Host", func() -> void:
 			if steam.online:
 				steam.host_lobby(true)

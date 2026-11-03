@@ -144,13 +144,16 @@ func _open_dev_screen(what: String) -> void:
 			ui.forge()
 		"descent":
 			ui.descent_prompt()
-		"settings":
+		"settings", "controls":
 			ui.settings()
-		"controls":
-			ui.settings()
-			var tabs := ui.modal_layer.find_children("*", "TabContainer", true, false)
-			if not tabs.is_empty():
-				(tabs[0] as TabContainer).current_tab = 3
+			# dev: page=<audio|display|gameplay|access|coop|controls>
+			var pg := "controls" if what == "controls" else ""
+			for a in Dev.args():
+				if a.begins_with("page="):
+					pg = a.substr(5)
+			var sets := ui.modal_layer.find_children("*", "SettingsUI", true, false)
+			if pg != "" and not sets.is_empty():
+				(sets[0] as SettingsUI)._open_page(pg)
 		"pause":
 			ui.pause_menu()
 		"feats":

@@ -25,12 +25,15 @@ cross-machine test plan are in [STEAM.md](STEAM.md).
 
 | Message | Direction | Rate / channel | Content |
 |---|---|---|---|
-| input (`_n_input`) | client -> host | every frame something changes, at least 60/s; unreliable, ordered | sequence id, move, aim, aim point, attack held, press counters (a lost packet never loses a press), measured round trip, attack hold time, where the client's prediction stood |
+| input (`_n_input`) | client -> host | every frame something changes, at least 60/s; unreliable, ordered | the floor it belongs to, sequence id, move, aim, aim point, attack held, press counters (a lost packet never loses a press), measured round trip, attack hold time, where the client's prediction stood |
 | snapshot (`_snapz`) | host -> each client | 30/s; unreliable, ordered; zstd chunks below one packet | floor id, host clock, chunk counter; actor rows that changed near that client (each refreshed every half second); every Kindled's HUD state; nearby shots and moving pickups; for the receiving client: the newest input the host has applied and for how long |
 | events (`_events`) | host -> clients | every frame something happened; reliable | spawns and removals, prop changes, seals, rooms, telegraphs, effects, positional sounds, banners and toasts, votes |
 | ask / offer / tell | both | reliable | a guest's requests (interact, buy, pact, vote...) and the host's answers |
 | ping / pong | client <-> host | twice a second | round trip and jitter for the overlay and lag compensation |
-| hello / roster / ready / rejoin / checkpoint / run end | both | reliable | joining (protocol and game version checked), the party, readiness, returning after a drop, settlement |
+| hello / roster / where / rejoin / checkpoint / run end | both | reliable | joining (protocol and game version checked), the party (and where each one is: menu, sanctuary, below, summary), returning after a drop, settlement |
+| sheet (`_sheet`, roster) | both | reliable, on change | a player's character sheet: gear, wardrobe choices, look, weapon, skills (live: everyone redraws that Kindled) |
+| proposal (`_propose` / `_answer` / `_withdraw` / `_proposal`) | both | reliable | the party's expedition proposal and each answer (see "Expeditions") |
+| camp / hub poses (`_camp`, `_hub_pose`, `_hub_world`) | both | camp reliable; poses 20/s unreliable | the shared sanctuary (see "The sanctuary") |
 
 Floats are rounded to 1/64 (exact in 32 bits). Each client gets its own
 snapshot: actors farther than 26 tiles from its Kindled are left out (bosses
@@ -160,15 +163,59 @@ already voted, distance), so a repeated request changes nothing.
   among the whole party's; a slain Grudge is settled for its owner.
 - **Checkpoint**: as each floor begins the host sends each guest its run so far.
 
-## Joining, readiness, transitions, drops
+## The sanctuary (shared)
+
+The party walks the **host's camp** together (`HubSync`, src/net/hub_sync.gd):
+
+- A guest's sanctuary is built from the host's camp description
+  (`Hub.camp_of_profile`: buildings, Hearth level, residents, garden, trophies,
+  feat lanterns, the cat), sent when they join and whenever it changes. Joining
+  or leaving a party rebuilds the guest's sanctuary in place (a short fade).
+- Each machine moves its own Kindled itself (nothing here to predict) and sends
+  where it stands, its animation, look and weapon pose 20 times a second; the
+  host passes every pose on, with its residents' and the cat's positions (10/s).
+  Everyone else is drawn 100 ms in the past between two poses.
+- Personal things stay personal: the Hearthtree, forge, smithy, peddler,
+  satchel, wardrobe and residents' requests open the local profile. A guest at
+  the host's ruined forge uses (or rebuilds) their own; a resident a guest has
+  not met at home greets them as the host's guest instead of offering a request.
+- Other players' Kindled never block yours: they ease you aside while you stand
+  in them, and you walk through them.
+
+## Expeditions (proposals)
+
+Anyone in the party proposes from the Undervault Gate (region, tier, Omens);
+the host keeps the one proposal (`Expedition`, src/net/expedition.gd):
+
+- Everyone else gets a request card at the side of the screen, wherever they
+  are (walking the camp, in the satchel, at the Hearthtree). It shows who
+  proposed what, and every Kindled's answer as it comes in (Ready / Not now /
+  Deciding, and where they are). Y / N (pad: D-pad up / down) or the buttons
+  answer it; it never pauses or takes focus.
+- The proposer counts as ready. When every member present is ready, a 3 s
+  countdown runs (anyone can still say Not now), then the host leads the party
+  down. The proposer (or the host) withdraws it with N or Cancel; proposing
+  again replaces it and asks everyone again. One proposal at a time; someone
+  leaving drops out of it, the proposer leaving ends it; it lapses after 4 min.
+- The same card carries the votes below (stairs, Hearthstone, Trial,
+  Hearthcall). Anyone standing at the stairs or Hearthstone when a vote starts
+  counts as agreeing.
+
+## Joining, transitions, drops
 
 - `_hello` carries the protocol and game version; different builds are refused
   with a message naming both versions.
-- Guests mark themselves ready in the Descent; the host leads the way once
-  everyone is.
 - **Floors start together**: every message names its floor; a guest keeps what
   arrives before it has built the floor and replays it; the host holds a new
   floor until every guest is ready (at most 10 s).
+- **Floor ids are per expedition** (`expedition * 1000 + depth`), and input
+  names its floor too. A client still on the floor the party just left keeps
+  sending input (and counting its sequence numbers) until it has built the next
+  one; before this, the host applied those numbers to the new floor's Kindled,
+  which then dropped every real input as "old" - frozen on everyone else's
+  screen for as long as the last floor had lasted, while it walked normally on
+  its own (the playtest's "frozen after the stairs"). A client also reports an
+  acknowledgement for input it never sent (`bad_ack` on the overlay).
 - **A guest drops**: its seat waits 60 s; its Kindled waits where it stands,
   untouchable; votes and floor barriers go on without it. The same identity
   (profile identity, or Steam ID) joining again takes the seat back, with its
@@ -192,7 +239,14 @@ already voted, distance), so a repeated request changes nothing.
   while, and turn on whoever hits them hard.
 - **Scaling** (per extra player): foe health +35%, about 30% more foes per
   wave, boss health +50%. Never four times anything.
-- **Sealing**: when a room seals, any player outside it is drawn in.
+- **Sealing**: when a room seals, any player outside it is drawn in by the
+  light - to just inside the door the fight began from (beside whoever started
+  it), on floor reached from that door, a tile in from the room's edge, with
+  open ground around, clear of props, pits, hazards, foes and each other
+  (`Dungeon.regroup_spots`), briefly untouchable. They are told who drew them.
+- **New floors** place the party on open floor in plain view (`party_spots`):
+  never just north of a pillar or wall, where the camera would show only a
+  silhouette.
 
 ## Code map
 
@@ -203,19 +257,52 @@ already voted, distance), so a repeated request changes nothing.
   reconciliation.
 - `src/net/party.gd` (`Party`): interaction ownership, the host side of every
   guest interaction, guests' screens, votes on screen.
+- `src/net/hub_sync.gd` (`HubSync`): the shared sanctuary.
+- `src/net/expedition.gd` (`Expedition`): expedition proposals.
+- `src/ui/request_card.gd` (`RequestCard`): the party's open question on screen.
+- `src/ui/party_ui.gd` (`PartyUI`): hosting, joining, the party.
 - `src/net/steam_link.gd` (`SteamLink`): Steam lobbies, invites, joining,
   link statistics; `tools/steam/fetch_godotsteam.py` installs GodotSteam.
 - `src/ui/net_diag.gd` (`NetDiag`): the overlay and `netlog`.
 - `Player.controller` is LOCAL, REMOTE (host side of a guest) or REPLICA
   (client side); `Player.predicting` marks a client's own Kindled.
-- Dev: `net=host`, `net=join:<ip>`, `name=`, `coop=<n>` (the host starts when n
-  are in and ready), `coopdive` (vote down a depth, then vote a Hearthcall),
+- Dev: `net=host`, `net=join:<ip>`, `name=`, `coop=<n>` (the host proposes the
+  expedition once n are in the sanctuary; bots and `autoaccept` answer it),
+  `coopdive` (vote down a depth, then vote a Hearthcall),
   `netsim=`, `netlog=`, `netdiag`, `steam_appid=`, `steamtest`,
   `net=steamhost`, `net=steamjoin:<steam id>`, `localid` (debug builds only).
 
 ## Verified so far
 
-All on one Windows machine, separate processes, localhost:
+**Playtest repair pass (2026-11-03): real windows, real input, every screen.**
+Separate game processes on one PC over localhost ENet, each in its own window
+with its own fresh dev profile and outfit, driven by `src/dev/scenario.gd` with
+real key presses and clicks (docs/TESTING.md):
+
+- **2 players, the whole journey**: 104 checks, 0 failures. Party screen host
+  and join, the shared sanctuary, live gear changes, dialogue (F, mashing,
+  Esc, click, a request accepted), proposal declined / withdrawn / accepted,
+  depth 1 (foes drawn, a teammate drawn into a sealing room), depths 2 and 3
+  with everyone walking on their own keys, a Hearthcall home, a second
+  expedition. Pictures of each other: p50 0.00-0.05 tiles, nothing frozen.
+- **4 players, the same journey**: 258 checks, 0 failures; every machine sees
+  every other Kindled at p50 0.00-0.3 tiles on every floor, nothing frozen.
+- **4 players with the guests on typical / moderate / stress links**: 256 of
+  258 checks (the two failures were the scenario's own key-press budget on a
+  longer Keeper conversation; fixed); nothing frozen.
+- **Every foe on a guest's screen**: all 25 kinds, elites with all 8 affixes,
+  a Grudge and the three guardians drawn whole (36 of 36), and gone when felled.
+- **"Frozen after the stairs" reproduced, then fixed**: with the old input
+  handling and a guest on a 100 ms link after 30 s on depth 1, the host saw the
+  guest frozen 4-7 tiles from where it was (23 frozen windows; the guest logged
+  "the host acknowledged input 1763, but only 4 were sent here"). With the fix,
+  the same run: p50 0.01 tiles, nothing frozen.
+- **Recovery**: a guest killed mid-floor and restarted took its seat back
+  (same depth, its run); then the host killed: the guest banked the checkpoint
+  it carried into the depth (this needed a fix: a guest who had rejoined had no
+  checkpoint).
+
+Earlier (bot-only), all on one Windows machine, separate processes, localhost:
 
 - 2 players under every simulated condition from local to stress (table
   above), and 4 players (3 clients on typical, moderate and stress links at
@@ -235,4 +322,4 @@ All on one Windows machine, separate processes, localhost:
 
 Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
-controls.
+controls. The human test plan is in docs/TESTING.md.

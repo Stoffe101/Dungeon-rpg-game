@@ -207,9 +207,13 @@ func _separate() -> void:
 			var l := sqrt(l2)
 			var push := (rr - l) * 0.5
 			var nrm := d / l
+			# another machine's Kindled (the shared sanctuary) is moved by its owner
+			# only: it eases a Kindled that stands in it aside, but never blocks
+			# one that is walking (a crowd at a door must not wall anyone in)
+			if (a.replica and b is Player and (b as Player).move_in.length() > 0.1) or (b.replica and a is Player and (a as Player).move_in.length() > 0.1):
+				continue
 			var wa := b.mass / (a.mass + b.mass)
 			var wb := 1.0 - wa
-			# another machine's Kindled is moved by its owner only: it nudges, never budges
 			var a_fixed := a.anchored or a.replica
 			var b_fixed := b.anchored or b.replica
 			if a_fixed:

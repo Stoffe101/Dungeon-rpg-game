@@ -644,7 +644,11 @@ static func pause(ui: UIRoot) -> Control:
 			var col: Color = {"active": UIKit.C_TEXT, "complete": UIKit.C_GOLD, "rewarded": UIKit.C_DIM}[line[1]]
 			jv.add_child(UIKit.para(String(line[0]), 170, col))
 		row.add_child(jv)
-	v.add_child(_title("Paused"))
+	if Net.active():
+		v.add_child(_title("Menu"))
+		v.add_child(UIKit.para("The party's world keeps going while you are here.", 140, UIKit.C_DIM))
+	else:
+		v.add_child(_title("Paused"))
 	var resume := UIKit.button("Resume", func() -> void: ui.close_top(), 140)
 	v.add_child(resume)
 	v.add_child(UIKit.button("Satchel", func() -> void: ui.inventory(), 140))

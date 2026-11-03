@@ -11,12 +11,12 @@ extends Control
 
 const W := 372
 const PAGES := [
-	["audio", "Audio", "bell"],
-	["display", "Display", "sun"],
-	["gameplay", "Gameplay", "sword"],
-	["access", "Accessibility", "eye"],
-	["coop", "Co-op", "lantern"],
-	["controls", "Controls", "key"],
+	["audio", "Audio", "bell", "How loud each part of the game is."],
+	["display", "Display", "sun", "The window, and how large the world and the interface are drawn."],
+	["gameplay", "Gameplay", "sword", "How fights feel in your hands."],
+	["access", "Accessibility", "eye", "Calmer camera, softer flashes, fewer particles."],
+	["coop", "Co-op", "lantern", "Playing with others: your name, and how much of their light you see."],
+	["controls", "Controls", "key", "Every action on keyboard and mouse, and on a gamepad."],
 ]
 
 var ui: UIRoot
@@ -63,6 +63,8 @@ func _ready() -> void:
 		_rail_buttons[id] = b
 	var right := UIKit.panel("DarkPanel")
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.custom_minimum_size = Vector2(W - 100, 0)
+	right.clip_contents = true
 	main.add_child(right)
 	var rv := UIKit.vbox(3)
 	right.add_child(rv)
@@ -70,6 +72,7 @@ func _ready() -> void:
 	rv.add_child(_head)
 	_scroll = ScrollContainer.new()
 	_scroll.custom_minimum_size = Vector2(W - 112, 150)
+	_scroll.clip_contents = true
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rv.add_child(_scroll)
 	_rows = UIKit.vbox(3)
@@ -114,12 +117,15 @@ func _open_page(id: String) -> void:
 	for k in _rail_buttons:
 		(_rail_buttons[k] as Button).set_pressed_no_signal(k == id)
 	for c in _rows.get_children():
+		_rows.remove_child(c)     # gone now: focus links must not find the old page's rows
 		c.queue_free()
 	_scroll.scroll_vertical = 0
+	var blurb := ""
 	for pg in PAGES:
 		if pg[0] == id:
 			_head.text = String(pg[1]).to_upper()
-	_desc.text = ""
+			blurb = String(pg[3])
+	_desc.text = blurb
 	Audio.ui("ui_click")
 	match id:
 		"audio":
@@ -150,7 +156,23 @@ func _open_page(id: String) -> void:
 			_switch("Network overlay", "net_overlay", "Round trip, loss and how far behind the floor is drawn (also F3).")
 		"controls":
 			_controls()
+	_link_focus.call_deferred()
 	_focus_page_first.call_deferred()
+
+
+## Pad / arrow keys: right from the rail goes into the page, left comes back.
+func _link_focus() -> void:
+	if not is_inside_tree():
+		return
+	var rows := UIRoot.focusables(_rows)
+	if rows.is_empty():
+		return
+	for k in _rail_buttons:
+		var rb: Button = _rail_buttons[k]
+		rb.focus_neighbor_right = rb.get_path_to(rows[0])
+	var back: Button = _rail_buttons[page]
+	for c in rows:
+		c.focus_neighbor_left = c.get_path_to(back)
 
 
 func _focus_page_first() -> void:
@@ -241,21 +263,22 @@ func _stepper(label: String, key: String, options: Array, names: Array, desc: St
 	row.add_child(b)
 
 
+## On / off: a press flips it (the word and its colour say which; the
+## button keeps its ordinary frame, so only focus is ever outlined).
 func _switch(label: String, key: String, desc: String) -> void:
 	var row := _row(label, key, desc)
 	var b := Button.new()
-	b.toggle_mode = true
 	b.custom_minimum_size = Vector2(52, 14)
 	b.focus_mode = Control.FOCUS_ALL
 	var paint := func(on: bool) -> void:
 		b.text = "On" if on else "Off"
-		b.add_theme_color_override("font_color", UIKit.C_GOOD if on else UIKit.C_DIM)
-		b.add_theme_color_override("font_pressed_color", UIKit.C_GOOD)
-	b.set_pressed_no_signal(bool(Settings.get_value(key, false)))
-	paint.call(b.button_pressed)
-	b.toggled.connect(func(on: bool) -> void:
-		paint.call(on)
+		for k in ["font_color", "font_hover_color", "font_focus_color", "font_pressed_color"]:
+			b.add_theme_color_override(k, UIKit.C_GOOD if on else UIKit.C_DIM)
+	paint.call(bool(Settings.get_value(key, false)))
+	b.pressed.connect(func() -> void:
+		var on := not bool(Settings.get_value(key, false))
 		Settings.set_value(key, on)
+		paint.call(on)
 		Audio.ui("ui_click"))
 	_hooked(b, desc)
 	row.add_child(b)
@@ -276,9 +299,11 @@ func _name_row() -> void:
 
 func _controls() -> void:
 	var head := UIKit.hbox(6)
-	for h in [["Action", 96], ["Keyboard / mouse", 76], ["Gamepad", 76]]:
+	for h in [["Action", 88], ["Keys / mouse", 72], ["Gamepad", 72]]:
 		var hl := UIKit.label(h[0], 8, UIKit.C_GOLD)
 		hl.custom_minimum_size = Vector2(h[1], 0)
+		if h[0] != "Action":
+			hl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		head.add_child(hl)
 	_rows.add_child(head)
 	var groups := [
@@ -293,13 +318,14 @@ func _controls() -> void:
 		for a in g[1]:
 			var row := UIKit.hbox(6)
 			var l := UIKit.label(a[1], 8)
-			l.custom_minimum_size = Vector2(96, 0)
+			l.custom_minimum_size = Vector2(88, 0)
+			l.clip_text = true
 			row.add_child(l)
 			var kb := Screens._bind_button(a[0], false)
-			kb.custom_minimum_size = Vector2(76, 14)
+			kb.custom_minimum_size = Vector2(72, 14)
 			row.add_child(kb)
 			var pb := Screens._bind_button(a[0], true)
-			pb.custom_minimum_size = Vector2(76, 14)
+			pb.custom_minimum_size = Vector2(72, 14)
 			pb.disabled = String(a[0]).begins_with("move_")   # movement stays on the left stick
 			row.add_child(pb)
 			_hooked(kb, "Click, then press the new key or mouse button (Esc cancels).")

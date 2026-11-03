@@ -501,6 +501,26 @@ func on_damaged(hit: Hit, res: Combat.Result) -> void:
 		set_state("idle")
 
 
+## Its health bar and nameplate live in the view's overlay, not under the foe:
+## they go with it however it goes (a co-op guest's foes never run die()).
+func _clear_overlay() -> void:
+	if bar and is_instance_valid(bar):
+		bar.queue_free()
+	bar = null
+	if nameplate and is_instance_valid(nameplate):
+		nameplate.queue_free()
+	nameplate = null
+
+
+func _exit_tree() -> void:
+	_clear_overlay()
+
+
+func replica_die() -> void:
+	_clear_overlay()
+	super.replica_die()
+
+
 func die(killer: Node) -> void:
 	if not alive:
 		return

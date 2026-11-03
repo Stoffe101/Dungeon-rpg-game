@@ -398,6 +398,10 @@ func _shared_into(cr: RunState) -> RunState:
 	return cr
 
 
+## Host: the checkpoints sent as the current floor began, by player identity.
+var checkpoints := {}
+
+
 ## Host: each guest's run as it stands, sent as a floor begins (their checkpoint
 ## if the host's fire goes out).
 func send_checkpoints() -> void:
@@ -406,9 +410,13 @@ func send_checkpoints() -> void:
 	for pl in stage.players:
 		if pl != stage.player and pl.run:
 			pl.store_to(pl.run)
+	checkpoints.clear()
 	for pid in coop_runs:
+		var cp := _shared_into(coop_runs[pid]).to_dict()
+		# kept by identity: a guest who drops and comes back gets it again
+		checkpoints[String(Net.i.roster.get(pid, {}).get("id", str(pid)))] = cp
 		if Net.i.present().has(pid):
-			Net.i.rpc_id(int(pid), "_checkpoint", _shared_into(coop_runs[pid]).to_dict())
+			Net.i.rpc_id(int(pid), "_checkpoint", cp)
 
 
 ## Ends the expedition and settles what the profile keeps.

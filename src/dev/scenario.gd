@@ -59,6 +59,8 @@ func _run() -> void:
 			await talk_checks("solo")
 		"stairs":
 			await stairs_only()
+		"bestiary":
+			await bestiary()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -241,7 +243,9 @@ func talk_checks(tag: String) -> void:
 	Capture.save_now("e2e/04_dialogue_open_%s" % _tag())
 	# mashing F: pages turn, no second conversation stacks up
 	var most := 0
-	for k in 14:
+	for k in 40:
+		if Game.ui.modal_of("dialogue") == null:
+			break
 		tap("interact", 0.03)
 		await wait(0.07)
 		most = maxi(most, Game.ui.layer_count())
@@ -447,6 +451,89 @@ func below() -> void:
 	if role == "host":
 		Net.i.dev_shot("e2e/18_second_expedition")
 	await wait(2.0)
+
+
+## Every foe there is, beside the party: the host raises them a few at a
+## time (with elites of every affix, a Grudge and the three guardians), the
+## guests check each one is drawn whole on their screen, then the host fells
+## them and the guests check they are gone. Matched captures per batch.
+const BESTIARY := [
+	["husk", "skitter", "archer", "guard", "bonecaller"],
+	["bloat", "spider", "gravemole", "lampwight", "sporeling"],
+	["thornback", "moth", "rootweaver", "spore_mortar", "bramblewright"],
+	["sentinel", "hound", "acolyte", "wraith", "duelist"],
+	["sunwatcher", "toad", "husk:hasted", "guard:warded", "archer:volatile"],
+	["hound:vampiric", "wraith:phasing", "bloat:molten", "skitter:splitting", "acolyte:gloom"],
+	["husk:grudge"],
+	["warden"],
+	["bloom"],
+	["ashen_king"],
+]
+
+
+func bestiary() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending, 60.0, "below together")
+	await wait(1.5)
+	if role == "host":
+		var d := dun()
+		for i in BESTIARY.size():
+			var made: Array = []
+			var row: Array = BESTIARY[i]
+			for k in row.size():
+				var parts := String(row[k]).split(":")
+				var e := d._make_enemy(parts[0])
+				if parts.size() > 1 and parts[1] == "grudge":
+					e.make_grudge({"name": "Ash-Eater, Who Took Your Light", "level": 2, "embers": 80, "traits": ["ember_fed"], "affix": "hasted"})
+				elif parts.size() > 1:
+					e.make_elite(parts[1])
+				var ring := Vector2.from_angle(TAU * k / maxf(1.0, row.size()) + 0.4) * (3.2 if row.size() > 1 else 3.8)
+				e.pos = d.random_floor_near(d.player.pos + ring, 0.8)
+				e.room_id = d.current_room.id if d.current_room else -1
+				d.add_actor(e)
+				d.register_enemy(e)
+				made.append(e)
+			print("[scenario] batch %d: %s" % [i, ", ".join(PackedStringArray(row))])
+			await wait(2.6)
+			Net.i.dev_shot("best/%02d_%s" % [i, String(row[0]).replace(":", "_")])
+			await wait(0.8)
+			for e in made:
+				if is_instance_valid(e) and e.alive:
+					e.hp = 0.0
+					e.die(d.player)
+			for a in d.actors.duplicate():
+				if a is Enemy and a.alive:
+					a.hp = 0.0
+					a.die(d.player)
+			await wait(1.6)
+		print("[scenario] bestiary done")
+		Net.i.dev_shot("best/99_cleared")
+		await wait(2.0)
+	else:
+		var first := {}       # net id -> when it reached this screen
+		var bad := {}
+		var seen_ids := {}
+		var t_end := now() + BESTIARY.size() * 5.2 + 12.0
+		while now() < t_end and Net.active():
+			for e in _enemies():
+				if not first.has(e.net_id):
+					first[e.net_id] = now()
+					seen_ids[e.id] = true
+				elif now() - float(first[e.net_id]) > 1.2:
+					var dis: Variant = e.sprite.get_instance_shader_parameter("dissolve")
+					var drawn: bool = e.sprite.visible and e.visual.visible and (dis == null or float(dis) < 0.3) and e.sprite.sheet.name == String(e.def.sheet)
+					if not drawn and not bad.has(e.net_id):
+						bad[e.net_id] = e.id
+						print("[scenario] not drawn: %s (%d) visible=%s dissolve=%s sheet=%s" % [e.id, e.net_id, e.sprite.visible, str(dis), e.sprite.sheet.name])
+			await wait(0.25)
+		var all_ids: Array = []
+		for row in BESTIARY:
+			for x in row:
+				all_ids.append(String(x).split(":")[0])
+		var missing := all_ids.filter(func(x): return not seen_ids.has(x))
+		expect(missing.is_empty(), "every kind of foe reached my screen (missing: %s)" % ", ".join(PackedStringArray(missing)))
+		expect(bad.is_empty(), "every foe on my screen was drawn whole (%d of %d not: %s)" % [bad.size(), first.size(), str(bad.values())])
+		await wait(2.0)
+		expect(_enemies().is_empty(), "felled foes are gone from my screen too (%d left)" % _enemies().size())
 
 
 ## Just the stairs: the dev party (net=host / net=join, coop=2) goes down,

@@ -188,6 +188,10 @@ func _run() -> void:
 	_expect(not hub.residents.is_empty(), "residents live in the sanctuary")
 	if not hub.residents.is_empty():
 		var w: Wanderer = hub.residents[0]
+		# (a title card still covering the last scene change holds the hands)
+		while ui.card_pending or ui.has_modal():
+			await _wait()
+		await _close_all()
 		hub.player.pos = w.pos + Vector2(0.5, 0.0)
 		hub.player.try_interact()
 		await _wait(4)
@@ -336,14 +340,13 @@ func _pad_checks(d: Dungeon, pl: Player) -> void:
 	_expect(f != null and ui.modals[ui.modals.size() - 1].is_ancestor_of(f), "pause menu takes pad focus")
 	ui.settings()
 	await _wait()
-	var tabs: Array = []
-	_find_tabs(ui.modals[ui.modals.size() - 1], tabs)
-	var before: int = tabs[0].current_tab
+	var sui: SettingsUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	var before: String = sui.page
 	await _pad(JOY_BUTTON_RIGHT_SHOULDER)
-	_expect(tabs[0].current_tab == (before + 1) % tabs[0].get_tab_count(), "RB switches the settings tab")
-	await _pad(JOY_BUTTON_DPAD_DOWN)
+	_expect(sui.page != before, "RB switches the settings page (%s -> %s)" % [before, sui.page])
+	await _pad(JOY_BUTTON_DPAD_RIGHT)
 	f = get_viewport().gui_get_focus_owner()
-	_expect(f != null and tabs[0].get_current_tab_control().is_ancestor_of(f), "focus moves inside the new tab")
+	_expect(f != null and sui._rows.is_ancestor_of(f), "right moves focus from the rail into the page")
 	await _pad(JOY_BUTTON_B)
 	_expect(ui.modals.size() == 1, "B closes settings")
 	await _pad(JOY_BUTTON_B)

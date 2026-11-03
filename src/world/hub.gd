@@ -111,6 +111,10 @@ func build(v: PixelView, at := Vector2(-1, -1)) -> void:
 	if not menu_mode:
 		player = Player.new()
 		player.pos = Vector2(21.0, 15.0) if at.x < 0.0 else at
+		if at.x < 0.0 and Net.active() and Net.i.roster.has(Net.my_id()):
+			# in a party each seat arrives at its own place by the fire
+			var slot := int(Net.i.roster[Net.my_id()].get("slot", 0))
+			player.pos = [Vector2(21.0, 15.0), Vector2(19.3, 15.4), Vector2(22.7, 15.4), Vector2(21.0, 16.4)][slot % 4]
 		for a in Dev.args():
 			if a.begins_with("spawn="):
 				# dev: start somewhere else in the camp (captures)

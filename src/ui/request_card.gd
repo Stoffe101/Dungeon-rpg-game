@@ -14,6 +14,7 @@ var mode := ""              # "proposal", "vote" or "" (hidden)
 var vote_id := -1
 var _title: Label
 var _sub: Label
+var _what: Label            # the expedition itself: region (and tier, Omens) on its own line
 var _rows: VBoxContainer
 var _buttons: HBoxContainer
 var _foot: Label
@@ -45,8 +46,10 @@ func _ready() -> void:
 	add_child(v)
 	_title = UIKit.label("", 8, UIKit.C_GOLD, true)
 	v.add_child(_title)
-	_sub = UIKit.para("", W - 16, UIKit.C_TEXT)
+	_sub = UIKit.para("", W - 16, UIKit.C_DIM)
 	v.add_child(_sub)
+	_what = UIKit.para("", W - 16, UIKit.C_TEXT)
+	v.add_child(_what)
 	var line := ColorRect.new()
 	line.color = Color(0.45, 1.0, 0.88, 0.35)
 	line.custom_minimum_size = Vector2(0, 1)
@@ -77,7 +80,8 @@ func _process(_d: float) -> void:
 	if not visible:
 		return
 	var vp := get_viewport_rect().size
-	var y := 34.0 if not (Game.stage is Dungeon) else 84.0
+	# under the currency (sanctuary) or the map (below), never over either
+	var y := 50.0 if not (Game.stage is Dungeon) else 84.0
 	position = Vector2(roundf(vp.x - size.x - 6.0), y)
 	var left := _until - HubSync.now_s()
 	if _until > 0.0:
@@ -178,7 +182,9 @@ func _on_proposal() -> void:
 	var by := int(p.by)
 	var mine := by == Net.my_id()
 	_title.text = "YOUR EXPEDITION" if mine else "EXPEDITION PROPOSED"
-	_sub.text = ("%s proposes: " % Net.name_of(by) if not mine else "") + Expedition.describe(p)
+	_sub.text = "You proposed:" if mine else "%s proposes:" % Net.name_of(by)
+	_what.visible = true
+	_what.text = Expedition.describe(p).replace("  -  ", ",  ")
 	var answers: Dictionary = p.answers
 	var seats: Array = answers.keys()
 	seats.sort_custom(func(a, b): return int(Net.i.roster.get(a, {}).get("slot", 9)) < int(Net.i.roster.get(b, {}).get("slot", 9)))
@@ -221,6 +227,7 @@ func show_vote(id: int, title: String, body: String, yes: Array, present: Array,
 	_clear()
 	_title.text = title.to_upper()
 	_sub.text = body
+	_what.visible = false
 	for pid in present:
 		_row(int(pid), "yes" if yes.has(pid) else "", Net.where_text(int(pid)) if bool(Net.i.roster.get(pid, {}).get("away", false)) else "")
 	_counting = false
