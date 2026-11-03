@@ -671,6 +671,16 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			break
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 		r.props.append({"kind": "urn", "tile": t})
+	# set dressing that gives each region its silhouette, against the walls
+	if r.type in [Room.Type.COMBAT, Room.Type.ELITE, Room.Type.TREASURE] and floor_tiles.size() > 60:
+		var pieces: Array = {"rootmire": ["stump"], "throne": ["statue", "statue", "column_fallen"]}.get(lay.region, ["sarcophagus", "bone_heap"])
+		for i in 1 + int(floor_tiles.size() > 140):
+			if wall_adj.is_empty():
+				break
+			var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
+			if g.at(t.x, t.y - 1) != TileGrid.WALL:
+				continue
+			r.props.append({"kind": "dressing", "tile": t, "sheet": pieces[rng.randi_range(0, pieces.size() - 1)]})
 	# pools of light along the walls of bigger rooms, so a fight can be read
 	# beyond the lantern: candles in the Ossuary, glowcaps in the Rootmire,
 	# braziers in the Throne

@@ -137,12 +137,17 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
+			if pd.kind == "dressing":
+				extra["sheet"] = pd.sheet
+				extra["solid"] = true
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
 			if pd.has("phase"):
 				extra["phase"] = pd.phase
 			if pd.kind == "torch":
 				extra["sheet"] = String(region.get("torch", "torch"))
+			if pd.kind in ["brazier", "boss_brazier"] and region.has("brazier"):
+				extra["sheet"] = String(region.brazier)
 			var p := Prop.make(self, pd.kind, pd.tile, extra)
 			p.room_id = r.id
 		# secret entrances: a cracked wall on the visible side

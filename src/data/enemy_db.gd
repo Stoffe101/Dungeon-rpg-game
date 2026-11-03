@@ -198,6 +198,7 @@ const REGIONS := {
 		"music": "throne",
 		"ambience": "amb_throne",
 		"torch": "torch_warm",
+		"brazier": "brazier_warm",
 		"unlock": {"warden_kills": 1, "bloom_kills": 1},
 		"blurb": "The capstone. Three depths of the sun-king's drowned court, then the Ashen King. Win here to open harder tiers.",
 		"sealed": "Sealed. Fell both the Gloam Warden and the Hollow Bloom.",

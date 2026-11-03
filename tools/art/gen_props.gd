@@ -371,23 +371,31 @@ static func _brazier(dir: String) -> void:
 	s.add("lit", fr, 8.0)
 	s.add("unlit", [_brazier_frame(0, false)], 1.0)
 	s.save(dir, "brazier")
+	# the same brazier burning with hearth-gold fire (the Sunken Throne)
+	var w := Sheet.new(16, 26, Vector2i(8, 24))
+	var wf: Array = []
+	for i in 4:
+		wf.append(_brazier_frame(i, true, Pal.EMBER, Pal.GOLD))
+	w.add("lit", wf, 8.0)
+	w.add("unlit", [_brazier_frame(0, false, Pal.EMBER, Pal.GOLD)], 1.0)
+	w.save(dir, "brazier_warm")
 
 
-static func _brazier_frame(i: int, lit: bool) -> Px:
+static func _brazier_frame(i: int, lit: bool, fire: Array = Pal.SOUL, metal: Array = Pal.STEEL) -> Px:
 	var c := Px.new(16, 26)
-	c.paint(c.mask().rect(6, 14, 4, 10), Pal.STEEL, 2)
-	c.paint(c.mask().rect(3, 22, 10, 2), Pal.STEEL, 1)
+	c.paint(c.mask().rect(6, 14, 4, 10), metal, 2)
+	c.paint(c.mask().rect(3, 22, 10, 2), metal, 1)
 	var bowl := c.mask().ellipse(8.0, 13.0, 6.0, 3.0)
 	bowl.subtract(c.mask().rect(0, 0, 16, 12))
 	bowl.rect(2, 11, 12, 2)
-	c.paint(bowl, Pal.STEEL, 3, true)
+	c.paint(bowl, metal, 3, true)
 	if lit:
 		var h := 8.0 + (i % 2) * 1.5
 		var f := c.mask().ellipse(8.0 + (1 if i == 1 else 0) * 0.5, 11.0 - h * 0.45, 4.0, h * 0.6)
-		c.fill_lit(f, Pal.SOUL[3])
-		c.fill_lit(c.mask().ellipse(8.0, 9.0, 2.2, 3.0), Pal.SOUL[4])
-		c.lit(8, 9, Pal.SOUL[5])
-		c.lit(7 + i % 3, 2 + (i % 2), Pal.SOUL[4])
+		c.fill_lit(f, fire[3])
+		c.fill_lit(c.mask().ellipse(8.0, 9.0, 2.2, 3.0), fire[4])
+		c.lit(8, 9, fire[5])
+		c.lit(7 + i % 3, 2 + (i % 2), fire[4])
 	else:
 		for x in range(4, 12, 2):
 			c.put(x, 11, Pal.INK)

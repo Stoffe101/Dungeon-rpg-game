@@ -17,6 +17,7 @@ const GenThrone = preload("res://tools/art/gen_throne.gd")
 const GenCreatures = preload("res://tools/art/gen_creatures.gd")
 const GenSatchel = preload("res://tools/art/gen_satchel.gd")
 const GenCampLife = preload("res://tools/art/gen_camp_life.gd")
+const GenDressing = preload("res://tools/art/gen_dressing.gd")
 
 
 func _init() -> void:
@@ -45,6 +46,7 @@ func _init() -> void:
 			GenThrone.build_tiles("res://assets/textures")
 			GenThrone.build("res://assets/sprites"),
 		"creatures": func(): GenCreatures.build("res://assets/sprites"),
+		"dressing": func(): GenDressing.build("res://assets/sprites"),
 	}
 	for k in jobs:
 		if only.is_empty() or k in only:

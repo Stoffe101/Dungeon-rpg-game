@@ -100,7 +100,7 @@ func _build() -> void:
 			_light(Color(0.4, 0.95, 0.85), 0.5, 3.0, Vector3(0, 1.0, 0.3))
 			_solid([tile])
 		"brazier", "boss_brazier":
-			_sprite("brazier", 0.0, 0.0, "lit")
+			_sprite(String(data.get("sheet", "brazier")), 0.0, 0.0, "lit")
 			if kind == "boss_brazier":
 				_light(flame, 2.4, 11.0, Vector3(0, 1.5 * Iso.SQ2, 0.2))
 			else:

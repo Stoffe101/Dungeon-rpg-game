@@ -326,7 +326,12 @@ after your first expedition, a cat that naps by the fire and can be petted.
   in the Ossuary; moss, roots, glowing caps and spore rings in the Rootmire;
   gold coins, ash, live cinders and gold-veined cracks in the Throne.
 - **Light**: bigger rooms get candles / glowcaps / braziers along the walls; the
-  air moves (soul motes rise, spores drift, ash and embers fall).
+  air moves (soul motes rise, spores drift, ash and embers fall). The Throne's
+  braziers burn hearth-gold (the Ashen King's Eclipse is about their light).
+- **Set dressing** against the walls gives each region a silhouette:
+  sarcophagi (one seeping soul-light) and bone heaps in the Ossuary, hollow
+  glowing stumps in the Rootmire, broken statues of the court holding up a gilt
+  sun and fallen columns in the Throne.
 - **The camp** has its own clutter (straw, wood chips, petals, paw prints),
   woven rugs by the Hearth and the tent, and a sign over each ruin saying what
   rebuilding it costs (it fades in as you approach); the prompt says what it
