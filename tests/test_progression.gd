@@ -507,3 +507,24 @@ func test_grudges_grow() -> void:
 	eq(int(g.level), Profile.GRUDGE_MAX_LEVEL, "it stops at the cap")
 	Profile.settle_grudge(g.id)
 	check(Profile.age_grudges(rng).is_empty(), "settled Grudges do not grow")
+
+
+func test_armour_is_drawn_on_the_kindled() -> void:
+	var body := SpriteLib.get_sheet("player")
+	for base in ItemDB.BASES:
+		var slot := String(ItemDB.base(base).get("slot", ""))
+		if not slot in ["head", "chest", "hands", "feet"]:
+			continue
+		check(GearLooks.VIS.has(base), "%s has a look on the body" % base)
+		var sh := SpriteLib.get_sheet(GearLooks.sheet_for(base))
+		check(sh != null, "%s has an overlay sheet" % base)
+		if sh:
+			for a in body.anims:
+				check(sh.anims.has(a) and int(sh.anims[a].frames) == int(body.anims[a].frames), "%s follows the body's %s" % [base, a])
+	# the wardrobe can hide a piece or show another
+	var eq := {"head": {"base": "grave_iron_helm"}, "chest": {"base": "gravecloth_robe"}}
+	var doll := GearLooks.paperdoll(eq, {})
+	eq(String(doll.head), "gear_grave_iron_helm", "the helm shows")
+	doll = GearLooks.paperdoll(eq, {"head": "none", "chest": "sunfall_mantle"})
+	check(not doll.has("head"), "a hidden slot shows nothing")
+	eq(String(doll.chest), "gear_sunfall_mantle", "a chosen look overrides the worn piece")

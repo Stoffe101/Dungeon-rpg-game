@@ -158,6 +158,7 @@ func rebuild_stats() -> void:
 		elif ItemDB.is_unique(String(it.get("base", ""))):
 			aura_cols.append(Color(1.0, 0.82, 0.45))
 	apply_look()
+	refresh_paperdoll()
 	if run:
 		RelicDB.apply(run.relics, stats)
 		Omens.apply(run.omens, stats)
@@ -185,6 +186,52 @@ func apply_look() -> void:
 	if not (sprite.material_override is ShaderMaterial):
 		sprite.material_override = (sprite.sheet.material as ShaderMaterial).duplicate()
 	Looks.apply_to(sprite.material_override, String(sheet.get("look", "")), true)
+
+
+var gear_layers := {}    # slot -> PixelSprite drawn over the body
+
+
+## The armour this Kindled wears, drawn over the body (see GearLooks): one layer
+## per slot, kept on the body's exact animation frame.
+func refresh_paperdoll() -> void:
+	if sprite == null or visual == null:
+		return
+	var eq: Dictionary = Profile.equipped() if sheet.is_empty() else sheet.get("equipped", {})
+	var shown: Dictionary = Profile.inv().get("shown", {}) if sheet.is_empty() else sheet.get("shown", {})
+	var want := GearLooks.paperdoll(eq, shown)
+	for slot in gear_layers.keys():
+		var l: PixelSprite = gear_layers[slot]
+		if not want.has(slot) or l.sheet.name != String(want[slot]):
+			l.queue_free()
+			gear_layers.erase(slot)
+	for i in GearLooks.LAYERS.size():
+		var slot: String = GearLooks.LAYERS[i]
+		if not want.has(slot) or gear_layers.has(slot):
+			continue
+		var l := PixelSprite.new()
+		visual.add_child(l)
+		l.setup(String(want[slot]), sprite.anim)
+		l.playing = false
+		l.set_meta("z", 0.004 * (i + 1))
+		gear_layers[slot] = l
+	_sync_paperdoll()
+
+
+func _sync_paperdoll() -> void:
+	for l: PixelSprite in gear_layers.values():
+		if l.anim != sprite.anim and l.has_anim(sprite.anim):
+			l.play(sprite.anim, true)
+		l.playing = false
+		if l.frame_i != sprite.frame_i:
+			l.set_frame(sprite.frame_i)
+		l.flip_h = sprite.flip_h
+		l.visible = sprite.visible
+		l.scale = sprite.scale
+		l.position = sprite.position + Vector3(0, 0, float(l.get_meta("z", 0.004)))
+		for k in ["dissolve", "flash", "tint"]:
+			var v: Variant = sprite.get_instance_shader_parameter(k)
+			if v != null:
+				l.set_instance_shader_parameter(k, v)
 
 
 func set_weapon(id: String, level: int) -> void:
@@ -1415,6 +1462,8 @@ func sync_visual() -> void:
 	super.sync_visual()
 	if sprite and alive:
 		sprite.flip_h = dir_name == "side" and aim.x < 0.0
+	if not gear_layers.is_empty():
+		_sync_paperdoll()
 
 
 func _update_aegis_fx() -> void:

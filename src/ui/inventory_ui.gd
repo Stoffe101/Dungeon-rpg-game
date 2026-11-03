@@ -278,6 +278,16 @@ func _doll_panel() -> PanelContainer:
 	fig.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fig.material = Looks.canvas_material(Looks.current())
 	doll.add_child(fig)
+	for t in GearLooks.portrait_layers(Profile.equipped(), Profile.inv().get("shown", {})):
+		var layer := TextureRect.new()
+		layer.texture = t
+		layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		layer.stretch_mode = TextureRect.STRETCH_SCALE
+		layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		layer.size = fig.size
+		layer.position = fig.position
+		layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		doll.add_child(layer)
 	var eq := Profile.equipped()
 	for slot in DOLL:
 		var b: Button
@@ -378,7 +388,55 @@ func _wardrobe_panel() -> PanelContainer:
 			tv.add_child(UIKit.label(String(Looks.LOOKS[look_id].desc), 8, UIKit.C_DIM))
 			return tv)
 		grid.add_child(b)
+	# what each piece looks like, separately from what it is
+	v.add_child(UIKit.label("APPEARANCE", 8, UIKit.C_GOLD, true))
+	for slot in ["head", "chest", "hands", "feet"]:
+		var row := UIKit.hbox(3)
+		row.add_child(UIKit.label(String(slot).capitalize(), 8, UIKit.C_DIM))
+		var opts := _appearance_options(slot)
+		var shown: Dictionary = Profile.inv().get("shown", {})
+		var cur := String(shown.get(slot, ""))
+		var idx := maxi(0, opts.find(cur))
+		var sl: String = slot
+		var lbl := UIKit.label(_appearance_name(cur), 8, UIKit.C_TEXT)
+		lbl.custom_minimum_size = Vector2(120, 0)
+		var step := func(d: int) -> void:
+			idx = posmod(idx + d, opts.size())
+			var sh: Dictionary = Profile.inv().get("shown", {})
+			sh[sl] = opts[idx]
+			Profile.inv()["shown"] = sh
+			Profile.mark_changed()
+			lbl.text = _appearance_name(String(opts[idx]))
+			Audio.ui("ui_click")
+			if Game.stage and Game.stage.player:
+				Game.stage.player.refresh_paperdoll()
+		row.add_child(UIKit.button("<", func() -> void: step.call(-1), 14))
+		row.add_child(lbl)
+		row.add_child(UIKit.button(">", func() -> void: step.call(1), 14))
+		v.add_child(row)
 	return p
+
+
+## Equipped (""), hidden ("none"), or the look of any piece the Kindled owns for that slot.
+func _appearance_options(slot: String) -> Array:
+	var out: Array = ["", "none"]
+	var items: Array = (Profile.inv().get("bag", []) as Array).duplicate()
+	for s in Profile.equipped():
+		if Profile.equipped()[s] is Dictionary:
+			items.append(Profile.equipped()[s])
+	for it in items:
+		var b := String((it as Dictionary).get("base", ""))
+		if ItemDB.base(b).get("slot", "") == slot and GearLooks.VIS.has(b) and not out.has(b):
+			out.append(b)
+	return out
+
+
+func _appearance_name(id: String) -> String:
+	if id == "":
+		return "As equipped"
+	if id == "none":
+		return "Hidden"
+	return String(ItemDB.base(id).get("name", id))
 
 
 func _wear(id: String) -> void:

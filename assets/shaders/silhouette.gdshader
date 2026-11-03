@@ -28,7 +28,8 @@ void fragment() {
 	}
 	float scene = texture(depth_tex, SCREEN_UV).r;
 	// reversed-Z: a larger stored depth means something sits in front of us
-	if (scene <= FRAGCOORD.z + 0.00002) {
+	// (by more than the armour layered a hair in front of the body itself)
+	if (scene <= FRAGCOORD.z + 0.0004) {
 		discard;
 	}
 	int x = int(mod(FRAGCOORD.x, 4.0));

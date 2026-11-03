@@ -1,0 +1,109 @@
+{
+	"anims": {
+		"cast_down": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 12
+		},
+		"cast_side": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 14
+		},
+		"cast_up": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 13
+		},
+		"dash_down": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 6
+		},
+		"dash_side": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 8
+		},
+		"dash_up": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 7
+		},
+		"death": {
+			"fps": 8.0,
+			"frames": 5,
+			"loop": false,
+			"row": 15
+		},
+		"hurt_down": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 9
+		},
+		"hurt_side": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 11
+		},
+		"hurt_up": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 10
+		},
+		"idle_down": {
+			"fps": 5.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"idle_side": {
+			"fps": 5.0,
+			"frames": 4,
+			"loop": true,
+			"row": 2
+		},
+		"idle_up": {
+			"fps": 5.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"run_down": {
+			"fps": 12.0,
+			"frames": 6,
+			"loop": true,
+			"row": 3
+		},
+		"run_side": {
+			"fps": 12.0,
+			"frames": 6,
+			"loop": true,
+			"row": 5
+		},
+		"run_up": {
+			"fps": 12.0,
+			"frames": 6,
+			"loop": true,
+			"row": 4
+		}
+	},
+	"emit": true,
+	"frame": [
+		32,
+		32
+	],
+	"origin": [
+		16,
+		30
+	]
+}
