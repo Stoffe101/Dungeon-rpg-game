@@ -22,6 +22,7 @@ var gate_nodes: Dictionary = {}     # room id -> Array[Node3D]
 var door_icons: Array = []          # [{node, to}]
 var boss: Enemy
 var grudge_room := -1
+var _grudge := {}           # the Grudge waiting on this floor (with its owner's peer)
 var grudge_spawned := false
 var env: Environment
 var _clear_t := -1.0
@@ -295,13 +296,31 @@ func _icon_key(r: Room) -> String:
 	return ""
 
 
+## Every Kindled's Grudges, each with its owner's peer (co-op: the guests' come
+## from their character sheets; their own profile settles them).
+func party_grudges() -> Array:
+	var out: Array = []
+	for g in Profile.active_grudges():
+		var c: Dictionary = g.duplicate()
+		c["owner"] = Net.my_id()
+		out.append(c)
+	for pl in players:
+		if is_instance_valid(pl) and not pl.sheet.is_empty():
+			for g in pl.sheet.get("grudges", []):
+				var c2: Dictionary = (g as Dictionary).duplicate()
+				c2["owner"] = pl.peer_id
+				out.append(c2)
+	return out
+
+
 func _pick_grudge_room() -> void:
 	# a Grudge waits on the depth where it won, or on the last one if that was deeper
-	var gs := Profile.active_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
+	var gs := party_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
 	if run.has_omen("hunted"):
-		gs = Profile.active_grudges()
+		gs = party_grudges()
 	if gs.is_empty():
 		return
+	_grudge = gs[rng.randi_range(0, gs.size() - 1)]
 	var cands: Array = []
 	for r in layout.rooms:
 		if r.type == Room.Type.COMBAT and r.id != layout.start_id:
@@ -573,10 +592,12 @@ func register_enemy(e: Enemy) -> void:
 
 
 func _spawn_grudge(r: Room) -> void:
-	var gs := Profile.active_grudges()
-	if gs.is_empty():
-		return
-	var g: Dictionary = gs[0]
+	var g: Dictionary = _grudge
+	if g.is_empty():
+		var gs := party_grudges()
+		if gs.is_empty():
+			return
+		g = gs[0]
 	grudge_spawned = true
 	var e := _make_enemy(g.enemy)
 	var t: Vector2i = r.spawns[rng.randi_range(0, r.spawns.size() - 1)] if not r.spawns.is_empty() else Vector2i(r.center())
@@ -586,6 +607,7 @@ func _spawn_grudge(r: Room) -> void:
 	e.room_id = r.id
 	e.spawn_t = 1.2
 	e.set_meta("grudge_id", g.id)
+	e.set_meta("grudge_owner", int(g.get("owner", Net.my_id())))
 	e.set_meta("grudge_embers", int(g.embers))
 	e.set_meta("grudge_level", int(g.level))
 	add_actor(e)
@@ -974,6 +996,9 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 	if a is Enemy:
 		var e := a as Enemy
 		run.kills += 1
+		# the party's kills count for everyone (guests bank them when they settle)
+		for pr in _party_runs():
+			pr.kill_counts[e.id] = int(pr.kill_counts.get(e.id, 0)) + 1
 		Profile.stat_add("kills")
 		Profile.stat_add("k_" + e.id)
 		if e.elite:
@@ -999,11 +1024,24 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		if run.has_omen("restless") and not e.summoned and not e.def.get("boss", false) and not e.has_meta("grudge_id") and e.room_id >= 0 and rng.randf() < 0.33:
 			_rise_again(e.id, e.pos, e.room_id)
 		if e.has_meta("grudge_id"):
-			var g := Profile.settle_grudge(e.get_meta("grudge_id"))
-			var back := int(e.get_meta("grudge_embers")) * (2 if Profile.building("shrine") > 0 else 1)
+			# settled for its owner (a guest's on their machine, when they bank)
+			var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+			var bearer: Player = player
+			var g := {}
+			if owner == Net.my_id():
+				g = Profile.settle_grudge(e.get_meta("grudge_id"))
+			for pl in players:
+				if is_instance_valid(pl) and pl.peer_id == owner and owner != Net.my_id():
+					bearer = pl
+					pl.run.grudges_won.append(String(e.get_meta("grudge_id")))
+					for pg in pl.sheet.get("grudges", []):
+						if String(pg.id) == String(e.get_meta("grudge_id")):
+							g = pg
+			var shrine_lv := Profile.building("shrine") if bearer == player else int(bearer.sheet.get("sanctuary", {}).get("shrine", 0))
+			var back := int(e.get_meta("grudge_embers")) * (2 if shrine_lv > 0 else 1)
 			if run.has_omen("hunted"):
 				back *= 2
-			if player and player.stats.has("grudgebearer"):
+			if bearer and bearer.stats.has("grudgebearer"):
 				back = int(back * 1.5)
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
@@ -1069,6 +1107,19 @@ func _boss_defeated(e: Enemy) -> void:
 	Audio.play_music("victory", 2.0)
 	var key := "%s_kills" % e.id
 	Profile.data.world[key] = int(Profile.data.world.get(key, 0)) + 1
+	# every Kindled in the party felled it (guests bank it when they settle)
+	for pr in _party_runs():
+		if pr != run:
+			pr.bosses.append(e.id)
+
+
+## The guests' runs on this floor (the host's own is `run`).
+func _party_runs() -> Array:
+	var out: Array = [run]
+	for pl in players:
+		if is_instance_valid(pl) and pl.run and pl.run != run:
+			out.append(pl.run)
+	return out
 
 
 func _on_player_died() -> void:

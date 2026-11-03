@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 9
+const VERSION := 10
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -63,6 +63,7 @@ static func fresh() -> Dictionary:
 		"shop": {"stock": [], "for_run": -1},
 		"descent": {"region": "ossuary", "omens": []},
 		"runes": {"owned": {}, "socketed": {}},
+		"settled_runs": [],
 	}
 
 
@@ -220,6 +221,11 @@ static func migrate(d: Dictionary) -> Dictionary:
 			for r in Runes.RUNES:
 				out.runes.owned[r] = int(out.runes.owned.get(r, 0)) + 1
 		v = 9
+	if v < 10:
+		# v10: co-op expeditions already banked here (a settlement arrives once)
+		if not out.has("settled_runs"):
+			out["settled_runs"] = []
+		v = 10
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -452,6 +458,36 @@ const SANCTUARY := {
 }
 
 
+## A co-op settlement banks once: true the first time this run id is seen.
+func first_settlement(run_id: String) -> bool:
+	if run_id == "":
+		return true
+	var done: Array = data.get("settled_runs", [])
+	if done.has(run_id):
+		return false
+	done.append(run_id)
+	while done.size() > 40:
+		done.pop_front()
+	data["settled_runs"] = done
+	return true
+
+
+## What a co-op guest's run brought back that the host saw happen: kills for the
+## bestiary and stats, guardians felled, its own Grudges settled.
+func bank_shared(r: RunState) -> void:
+	for id in r.kill_counts:
+		stat_add("kills", float(r.kill_counts[id]))
+		stat_add("k_" + String(id), float(r.kill_counts[id]))
+		note_seen("enemies", String(id))
+	if r.elites_slain > 0:
+		stat_add("elites", float(r.elites_slain))
+	for b in r.bosses:
+		var key := "%s_kills" % String(b)
+		data.world[key] = int(data.world.get(key, 0)) + 1
+	for gid in r.grudges_won:
+		settle_grudge(String(gid))
+
+
 func building(id: String) -> int:
 	return int(data.sanctuary.get(id, 0))
 
@@ -561,6 +597,10 @@ func character_sheet() -> Dictionary:
 		"weapon": equipped_weapon(),
 		"weapon_level": weapon_level(equipped_weapon()),
 		"slots": slots(),
+		# a co-op host lets this Kindled's own Grudges hunt the party
+		"grudges": active_grudges().map(func(g): return {"id": g.id, "enemy": g.enemy, "name": g.get("name", ""),
+			"level": int(g.get("level", 1)), "embers": int(g.get("embers", 0)), "depth": int(g.get("depth", 1)),
+			"traits": (g.get("traits", []) as Array).duplicate(), "title": g.get("title", "")}),
 	}
 
 

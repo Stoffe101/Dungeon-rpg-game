@@ -39,6 +39,11 @@ var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
 var omens: Array = []
 ## The Hollow Below (see Delve): the region changes as the party goes deeper.
 var delve := false
+## Co-op settlement (each Kindled banks its own run on its own machine):
+var run_id := ""              # one id per expedition: a guest settles it once
+var kill_counts := {}         # enemy id -> kills by the party (everyone's bestiary and stats)
+var bosses: Array = []        # guardians felled with this Kindled in the party
+var grudges_won: Array = []   # this Kindled's own Grudges settled on this run (ids)
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
@@ -61,7 +66,8 @@ func to_dict() -> Dictionary:
 		"embers": embers, "sunshards": sunshards, "xp_gained": xp_gained, "kills": kills,
 		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
-		"loot": loot.duplicate(true), "omens": omens.duplicate(), "delve": delve}
+		"loot": loot.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
+		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -80,6 +86,10 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.loot = (d.get("loot", r.loot) as Dictionary).duplicate(true)
 	r.omens = (d.get("omens", []) as Array).duplicate()
 	r.delve = bool(d.get("delve", false))
+	r.run_id = String(d.get("run_id", ""))
+	r.kill_counts = (d.get("kill_counts", {}) as Dictionary).duplicate()
+	r.bosses = (d.get("bosses", []) as Array).duplicate()
+	r.grudges_won = (d.get("grudges_won", []) as Array).duplicate()
 	return r
 
 

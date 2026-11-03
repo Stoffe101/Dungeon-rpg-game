@@ -165,6 +165,7 @@ func _process(delta: float) -> void:
 			if all or _wait_t > 10.0:
 				_waiting = false
 				stage.paused_sim = false
+				Game.send_checkpoints()
 				print("[net] floor %d starts (%s, %.1f s)" % [floor_id, "everyone is here" if all else "waited long enough", _wait_t])
 		# events go out the frame they happen (a batch per frame, reliable)
 		if not events.is_empty():

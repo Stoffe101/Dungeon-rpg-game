@@ -277,3 +277,52 @@ func test_the_old_floor_does_not_stop_the_new_floors_recording() -> void:
 	check(not Net.recording, "the last floor going stops it")
 	Net.i = had
 	net.free()
+
+
+func test_a_settlement_banks_once_with_the_partys_deeds() -> void:
+	Profile.data = Profile.fresh()
+	var r := RunState.create(7, "ossuary", "sword", 0, ["flare", ""])
+	r.run_id = "run-a"
+	r.kill_counts = {"husk": 3, "archer": 1}
+	r.elites_slain = 1
+	r.bosses = ["warden"]
+	Profile.data.grudges = [{"id": "g1", "enemy": "husk", "level": 1, "embers": 10, "depth": 1}]
+	r.grudges_won = ["g1"]
+	var back := RunState.from_dict(r.to_dict())
+	eq(back.run_id, "run-a", "the run id crosses the wire")
+	eq(back.kill_counts, r.kill_counts, "and the party's kills")
+	check(Profile.first_settlement(back.run_id), "the first settlement banks")
+	check(not Profile.first_settlement(back.run_id), "the same run id never banks twice")
+	Profile.bank_shared(back)
+	eq(int(Profile.data.stats.kills), 4, "kills counted")
+	eq(int(Profile.data.stats.get("k_husk", 0)), 3, "per kind, for the bestiary")
+	check((Profile.data.seen.enemies as Array).has("archer"), "the bestiary saw what the party fought")
+	eq(int(Profile.data.world.get("warden_kills", 0)), 1, "a guardian felled with the party counts")
+	check(Profile.active_grudges().is_empty(), "the guest's own Grudge is settled on their profile")
+
+
+func test_guests_grudges_hunt_the_party_and_settle_for_their_owner() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p2 := _two(d)
+	p2.sheet = {"skills": ["hearth"], "grudges": [{"id": "gg", "enemy": "husk", "name": "Old Bones", "level": 1, "embers": 40, "depth": 1, "traits": []}]}
+	var gs := d.party_grudges()
+	eq(gs.size(), 1, "the guest's Grudge is among the party's")
+	eq(int(gs[0].owner), 2, "with its owner")
+	d._grudge = gs[0]
+	var room: Room = null
+	for r in d.layout.rooms:
+		if r.is_combat() and r.id != d.layout.start_id:
+			room = r
+			break
+	d._spawn_grudge(room)
+	var foe: Enemy = null
+	for a in d.actors:
+		if a is Enemy and a.has_meta("grudge_id"):
+			foe = a
+	check(foe != null and foe.id == "husk", "it comes for the party")
+	foe.hp = 0.0
+	foe.die(d.player)
+	check(p2.run.grudges_won.has("gg"), "settled in its owner's run")
+	check(d.run.grudges_settled.size() == 1, "and the party saw it settled")
+	d.queue_free()

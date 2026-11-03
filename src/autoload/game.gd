@@ -86,10 +86,16 @@ func goto_hub() -> void:
 		Profile.save_profile()
 
 
-func start_run(region := "ossuary", seed_v := -1) -> void:
+## A new expedition's settlement id (co-op guests bank it once).
+static func new_run_id() -> String:
+	return "%d-%d-%d" % [Time.get_unix_time_from_system(), Time.get_ticks_usec() % 1000000, randi() % 100000]
+
+
+func start_run(region := "ossuary", seed_v := -1, run_id := "") -> void:
 	if seed_v < 0:
 		seed_v = debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	run = RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
+	run.run_id = run_id if run_id != "" else new_run_id()
 	run.tier = Difficulty.selected()
 	run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	coop_runs.clear()
@@ -101,6 +107,7 @@ func start_run(region := "ossuary", seed_v := -1) -> void:
 				var r := RunState.create(seed_v, region, String(sh.get("weapon", "sword")), int(sh.get("weapon_level", 0)), sh.get("slots", ["flare", ""]))
 				r.tier = run.tier
 				r.omens = run.omens.duplicate()
+				r.run_id = run.run_id
 				coop_runs[int(pid)] = r
 	Profile.data.descent.region = region
 	Profile.stat_add("runs")
@@ -183,13 +190,14 @@ func begin_descent(region: String) -> void:
 	var reg: Dictionary = {"name": Delve.NAME} if region == "delve" else EnemyDB.REGIONS[region]
 	var omens := (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
+	var rid := new_run_id()
 	if Net.is_host():
 		# the party goes down together: same seed, region, tier and Omens
-		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": Difficulty.selected(), "omens": omens})
+		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": Difficulty.selected(), "omens": omens, "run_id": rid})
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
 		ui.title_card(String(reg.name), "Depth 1", func() -> void:
 			transitioning = false
-			start_run(region, seed_v), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
+			start_run(region, seed_v, rid), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 
 
 # --- co-op ----------------------------------------------------------------------------
@@ -203,6 +211,7 @@ func run_of(peer_id: int) -> RunState:
 		var r := RunState.create(run.seed, run.region, String(sh.get("weapon", "sword")), int(sh.get("weapon_level", 0)), sh.get("slots", ["flare", ""]))
 		r.tier = run.tier
 		r.omens = run.omens.duplicate()
+		r.run_id = run.run_id
 		coop_runs[peer_id] = r
 	return coop_runs[peer_id]
 
@@ -219,6 +228,7 @@ func begin_coop_client(params: Dictionary) -> void:
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
 		ui.title_card(String(reg.name), "Depth 1  -  with %s" % Net.name_of(1), func() -> void:
 			run = RunState.create(int(params.seed), String(params.region), Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
+			run.run_id = String(params.get("run_id", ""))
 			run.tier = int(params.tier)
 			run.omens = omens.duplicate()
 			Profile.stat_add("runs")
@@ -237,22 +247,47 @@ func descend_client(depth: int) -> void:
 			_enter_depth(depth))
 
 
-## Client: the host settled the expedition; bank this Kindled's share here.
+## Client: the host settled the expedition; bank this Kindled's share here
+## (once: a run id already banked is ignored).
 func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
 	if run == null:
 		return
 	var r := RunState.from_dict(data)
+	if not Profile.first_settlement(r.run_id):
+		print("[game] settlement %s already banked" % r.run_id)
+		return
 	r.result = ""
 	run = r
-	# memories were never banked live on this machine
+	coop_checkpoint = {}
+	# memories, kills, guardians and Grudges were never banked live on this machine
 	Profile.add_xp(r.xp_gained)
+	Profile.bank_shared(r)
 	end_run(outcome, killer)
 
 
-## Client: the host vanished mid-expedition. Nothing comes home.
+## Client: what this Kindled carried at the start of the current depth (the
+## host sends it as each floor begins), in case the host's fire goes out.
+var coop_checkpoint := {}
+
+
+## Client: the host vanished mid-expedition. What this Kindled carried at the
+## start of the depth comes home with it (as from a Hearthcall); the rest of
+## the depth is lost.
 func abandon_coop_run() -> void:
-	run = null
 	ui.close_all()
+	if run != null and not coop_checkpoint.is_empty():
+		var r := RunState.from_dict(coop_checkpoint)
+		coop_checkpoint = {}
+		if Profile.first_settlement(r.run_id):
+			r.result = ""
+			run = r
+			Profile.add_xp(r.xp_gained)
+			Profile.bank_shared(r)
+			print("[game] the host is gone: banking the checkpoint from depth %d" % r.depth)
+			end_run("extracted")
+			Events.toast.emit("The host's fire went out. What you carried into this depth came home with you.", Color(1.0, 0.75, 0.5))
+			return
+	run = null
 	ui.title_card("The Sanctuary", "The party's fire went out", goto_hub)
 
 
@@ -283,6 +318,29 @@ func grant_relic(id: String) -> void:
 	Events.relic_gained.emit(id)
 
 
+## What the party did together counts for everyone.
+func _shared_into(cr: RunState) -> RunState:
+	cr.depth = run.depth
+	cr.elapsed = run.elapsed
+	cr.kills = run.kills
+	cr.rooms_cleared = run.rooms_cleared
+	cr.elites_slain = run.elites_slain
+	cr.grudges_settled = run.grudges_settled.duplicate()
+	return cr
+
+
+## Host: each guest's run as it stands, sent as a floor begins (their checkpoint
+## if the host's fire goes out).
+func send_checkpoints() -> void:
+	if not Net.is_host() or run == null or not (stage is Dungeon):
+		return
+	for pl in stage.players:
+		if pl != stage.player and pl.run:
+			pl.store_to(pl.run)
+	for pid in coop_runs:
+		Net.i.rpc_id(int(pid), "_checkpoint", _shared_into(coop_runs[pid]).to_dict())
+
+
 ## Ends the expedition and settles what the profile keeps.
 func end_run(outcome: String, killer_id := "") -> void:
 	if run == null or run.result != "":
@@ -293,15 +351,14 @@ func end_run(outcome: String, killer_id := "") -> void:
 			if pl != stage.player and pl.run:
 				pl.store_to(pl.run)
 		for pid in coop_runs:
-			var cr: RunState = coop_runs[pid]
-			# what the party did together counts for everyone
-			cr.depth = run.depth
-			cr.elapsed = run.elapsed
-			cr.kills = run.kills
-			cr.rooms_cleared = run.rooms_cleared
-			cr.elites_slain = run.elites_slain
-			cr.grudges_settled = run.grudges_settled.duplicate()
-			Net.i.rpc_id(int(pid), "_run_end", outcome, killer_id, cr.to_dict())
+			var cr: RunState = _shared_into(coop_runs[pid])
+			# each Kindled's own end: the foe that felled *them* takes their Embers
+			var own_killer := ""
+			if outcome == "died":
+				for pl in stage.players:
+					if pl.peer_id == int(pid):
+						own_killer = pl.last_attacker_id
+			Net.i.rpc_id(int(pid), "_run_end", outcome, own_killer, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
 	var delve_best := Delve.best()

@@ -420,6 +420,12 @@ func _run_end(outcome: String, killer: String, run_data: Dictionary) -> void:
 	_through("rel", true, func() -> void: Game.end_coop_client(outcome, killer, run_data))
 
 
+## Host -> one client as each floor begins: its run so far (kept in case the host is lost).
+@rpc("authority", "reliable")
+func _checkpoint(run_data: Dictionary) -> void:
+	_through("rel", true, func() -> void: Game.coop_checkpoint = run_data)
+
+
 ## Client -> host, every frame (up to 60 a second): see NetRun.pack_input.
 @rpc("any_peer", "unreliable_ordered")
 func _n_input(d: Array) -> void:
