@@ -56,6 +56,11 @@ func _ready() -> void:
 		elif a.begins_with("look="):
 			Looks.unlock(a.substr(5))
 			Looks.choose(a.substr(5))
+		elif a.begins_with("tier="):
+			# dev: open and select a difficulty tier
+			var t := clampi(int(a.substr(5)), 1, Difficulty.MAX_TIER)
+			Difficulty._d()["unlocked"] = maxi(Difficulty.unlocked(), t)
+			Difficulty.select(t)
 		elif a == "rich":
 			Profile._grant_stockpile(Profile.data)
 		elif a == "pad":
@@ -78,8 +83,9 @@ func _ready() -> void:
 			Game.start_run(region)
 		"boss":
 			Game.start_run(region)
-			Game.run.depth = 1
-			Game._enter_depth(2)
+			var last := int(EnemyDB.REGIONS[region].depths)
+			Game.run.depth = last - 1
+			Game._enter_depth(last)
 		_:
 			Game.goto_menu()
 	for a in OS.get_cmdline_user_args():

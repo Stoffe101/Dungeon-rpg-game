@@ -5,6 +5,7 @@
 ## Frozen - cannot act; takes bonus damage; may Shatter.
 ## Stagger- poise broken: interrupted and takes bonus damage.
 ## Exposed- takes bonus damage from all sources.
+## Snared - caught in a web: moves at half speed for a moment.
 class_name StatusSet
 extends RefCounted
 
@@ -26,6 +27,7 @@ var frozen_t := 0.0
 var stagger_t := 0.0
 var exposed_t := 0.0
 var freeze_immune_t := 0.0
+var snare_t := 0.0
 
 
 func apply_burn(stacks: int, dps_per_stack: float, max_stacks: int, src: Node = null) -> void:
@@ -49,6 +51,10 @@ func apply_chill(amount: float, freeze_mult := 1.0) -> bool:
 	return false
 
 
+func apply_snare(seconds: float) -> void:
+	snare_t = maxf(snare_t, seconds)
+
+
 func is_frozen() -> bool:
 	return frozen_t > 0.0
 
@@ -65,7 +71,7 @@ func burning() -> bool:
 func speed_mult() -> float:
 	if frozen_t > 0.0:
 		return 0.0
-	return 1.0 - chill * 0.5
+	return (1.0 - chill * 0.5) * (0.5 if snare_t > 0.0 else 1.0)
 
 
 func can_act() -> bool:
@@ -105,6 +111,7 @@ func tick(dt: float) -> float:
 	freeze_immune_t = maxf(0.0, freeze_immune_t - dt)
 	stagger_t = maxf(0.0, stagger_t - dt)
 	exposed_t = maxf(0.0, exposed_t - dt)
+	snare_t = maxf(0.0, snare_t - dt)
 	return dmg
 
 
@@ -115,3 +122,4 @@ func clear() -> void:
 	frozen_t = 0.0
 	stagger_t = 0.0
 	exposed_t = 0.0
+	snare_t = 0.0

@@ -12,6 +12,8 @@ var id := ""
 var def: Dictionary = {}
 var elite := false
 var affix := ""
+var affix2 := ""   # from Tier IV, elites carry a second affix
+var summoned := false   # raised or called by another enemy
 var grudge: Dictionary = {}
 var state := "spawn"
 var state_t := 0.0
@@ -58,14 +60,24 @@ func configure(enemy_id: String) -> Enemy:
 
 
 ## Scales the enemy for depth and memory (the Undervault adapts).
-func scale_for(depth: int, memory: int) -> void:
+func scale_for(depth: int, memory: int, tier := 1) -> void:
 	var m := 1.0 + 0.22 * float(depth - 1) + 0.12 * float(memory)
-	max_hp *= m
+	max_hp *= m * Difficulty.hp_mult(tier)
 	hp = max_hp
-	damage *= 1.0 + 0.12 * float(depth - 1) + 0.08 * float(memory)
+	damage *= (1.0 + 0.12 * float(depth - 1) + 0.08 * float(memory)) * Difficulty.damage_mult(tier)
+	# higher tiers also stagger less and pay more
+	max_poise *= 1.0 + 0.08 * float(tier - 1)
+	poise = max_poise
+	var rm := Difficulty.reward_mult(tier)
+	xp = int(round(xp * rm))
+	embers = int(round(embers * rm))
 
 
-func make_elite(a: String) -> void:
+func has_affix(a: String) -> bool:
+	return affix == a or affix2 == a
+
+
+func make_elite(a: String, second := "") -> void:
 	elite = true
 	affix = a
 	max_hp *= 2.3
@@ -74,6 +86,13 @@ func make_elite(a: String) -> void:
 	poise = max_poise
 	xp *= 3
 	embers *= 3
+	_apply_affix(a)
+	if second != "" and second != a:
+		affix2 = second
+		_apply_affix(second)
+
+
+func _apply_affix(a: String) -> void:
 	match a:
 		"hasted":
 			speed *= 1.4
@@ -131,7 +150,7 @@ func tick(dt: float) -> void:
 			set_state("idle")
 		sync_visual()
 		return
-	if affix == "phasing":
+	if has_affix("phasing"):
 		_phase_t += dt
 		var cyc := fmod(_phase_t, 4.5)
 		var phased := cyc > 3.4
@@ -384,7 +403,7 @@ func die(killer: Node) -> void:
 			_spore_burst(pl)
 		if st.has("shatter") and status.is_frozen():
 			_shatter(pl)
-	if affix == "volatile":
+	if has_affix("volatile"):
 		_volatile_burst()
 
 
@@ -460,6 +479,8 @@ func _make_nameplate() -> void:
 		nameplate.text = "%s  Lv%d" % [display_name, int(grudge.get("level", 1))]
 	else:
 		nameplate.text = "%s %s" % [EnemyDB.AFFIXES[affix].name, display_name]
+		if affix2 != "":
+			nameplate.text = "%s %s %s" % [EnemyDB.AFFIXES[affix].name, EnemyDB.AFFIXES[affix2].name, display_name]
 	nameplate.add_theme_color_override("font_color", col)
 	stage.view.overlay.add_child(nameplate)
 

@@ -73,6 +73,7 @@ func goto_hub() -> void:
 func start_run(region := "ossuary") -> void:
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	run = RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
+	run.tier = Difficulty.selected()
 	Profile.stat_add("runs")
 	Profile.save_profile()
 	_enter_depth(1)
@@ -146,6 +147,9 @@ func end_run(outcome: String, killer_id := "") -> void:
 			if not Profile.weapon_unlocked("staff"):
 				Profile.unlock_weapon("staff")
 				s["unlocked"] = "Ashwood Staff"
+			var opened := Difficulty.on_victory(run.region, run.tier)
+			if not opened.is_empty():
+				s["tiers"] = opened
 			var best := float(Profile.data.stats.get("best_time", 0.0))
 			if best <= 0.0 or run.elapsed < best:
 				Profile.data.stats.best_time = run.elapsed
@@ -166,7 +170,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"time": run.elapsed, "xp": run.xp_gained, "relics": run.relics.duplicate(),
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
-		"unlocked": s.get("unlocked", ""),
+		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

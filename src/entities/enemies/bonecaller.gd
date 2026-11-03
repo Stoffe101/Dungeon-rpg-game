@@ -41,9 +41,10 @@ func behave(dt: float) -> void:
 		"raise":
 			vel = Vector2.ZERO
 			if timer(0.9):
+				var kind := String(def.get("summon", "husk"))
 				for p in _pending:
-					var h := preload("res://src/entities/enemies/husk.gd").new()
-					h.configure("husk")
+					var h: Enemy = load(EnemyDB.get_def(kind).script).new()
+					h.configure(kind)
 					h.summoned = true
 					h.max_hp *= 0.6
 					h.hp = h.max_hp
@@ -63,7 +64,7 @@ func behave(dt: float) -> void:
 			if timer(0.55):
 				for k in 3:
 					var d := dir_to_player().rotated((k - 1) * 0.5)
-					var pr := shoot("proj_orb", d, 4.2, damage, 0.28)
+					var pr := shoot(String(def.get("proj", "proj_orb")), d, 4.2, damage, 0.28)
 					pr.homing_target = target()
 					pr.homing_turn = 1.4
 					pr.life = 4.0

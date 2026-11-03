@@ -30,6 +30,10 @@ const GOLD := [Color8(70, 44, 18), Color8(122, 82, 26), Color8(186, 134, 40), Co
 const STEEL := [Color8(30, 32, 44), Color8(54, 58, 74), Color8(88, 96, 116), Color8(132, 142, 160), Color8(184, 194, 206), Color8(232, 238, 244)]
 # Player cloak (deep hearth-blue)
 const CLOAK := [Color8(18, 22, 40), Color8(28, 38, 66), Color8(42, 60, 96), Color8(62, 88, 128), Color8(94, 124, 162)]
+# Obsidian marble (the Sunken Throne)
+const OBSIDIAN := [Color8(14, 11, 20), Color8(26, 21, 34), Color8(42, 35, 52), Color8(62, 54, 74), Color8(90, 80, 100), Color8(128, 118, 136)]
+# Ash
+const ASH := [Color8(34, 30, 34), Color8(58, 53, 56), Color8(90, 84, 84), Color8(130, 122, 118), Color8(176, 168, 158), Color8(222, 214, 200)]
 # Wood
 const WOOD := [Color8(40, 24, 22), Color8(70, 42, 32), Color8(104, 66, 44), Color8(140, 96, 60), Color8(178, 132, 86)]
 # Skin / pale face under hood

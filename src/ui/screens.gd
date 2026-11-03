@@ -702,7 +702,7 @@ static func descent(ui: UIRoot) -> Control:
 		card.custom_minimum_size = Vector2(250, 30)
 		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		card.text = "%s
-%s" % [reg.name, reg.blurb if open else "Sealed. Defeat the Gloam Warden to open the way."]
+%s" % [reg.name, reg.blurb if open else String(reg.get("sealed", "Sealed. Defeat the Gloam Warden to open the way."))]
 		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var region_id: String = rid
 		card.pressed.connect(func() -> void:
@@ -714,11 +714,13 @@ static func descent(ui: UIRoot) -> Control:
 		v.add_child(card)
 	if mem > 0:
 		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
+	v.add_child(_tier_picker())
 	v.add_child(UIKit.label("LOADOUT", 8, UIKit.C_GOLD, true))
 	v.add_child(UIKit.label("Weapon: %s +%d" % [GearDB.weapon(Profile.equipped_weapon()).name, Profile.weapon_level(Profile.equipped_weapon())], 8))
 	var avail := SkillDB.abilities(Profile.skills())
+	var row := UIKit.hbox(4)
+	v.add_child(row)
 	for i in 2:
-		var row := UIKit.hbox(4)
 		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_1" if i == 0 else "ability_2"), 8, UIKit.C_DIM))
 		var ob := OptionButton.new()
 		var cur: String = Profile.slots()[i]
@@ -733,7 +735,6 @@ static func descent(ui: UIRoot) -> Control:
 			if Game.stage and Game.stage.player:
 				Game.stage.player.ability_slots = Profile.slots())
 		row.add_child(ob)
-		v.add_child(row)
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var go := UIKit.button("Descend", func() -> void:
@@ -746,6 +747,43 @@ static func descent(ui: UIRoot) -> Control:
 	return _center(p)
 
 
+## Difficulty: step through the unlocked tiers and see what each one does.
+static func _tier_picker() -> VBoxContainer:
+	var v := UIKit.vbox(1)
+	var head := UIKit.hbox(4)
+	head.add_child(UIKit.label("DIFFICULTY", 8, UIKit.C_GOLD, true))
+	var rec := Difficulty.recommended()
+	head.add_child(UIKit.label("Power %d   Suggested: Tier %s" % [Difficulty.power(), Difficulty.roman(rec)], 8, UIKit.C_DIM))
+	v.add_child(head)
+	var row := UIKit.hbox(4)
+	var name_l := UIKit.label("", 8, UIKit.C_TEXT, true)
+	name_l.custom_minimum_size = Vector2(150, 0)
+	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var info := UIKit.vbox(0)
+	var refresh := func() -> void:
+		var t := Difficulty.selected()
+		name_l.text = "Tier %s  %s" % [Difficulty.roman(t), Difficulty.tier_name(t)]
+		name_l.add_theme_color_override("font_color", Difficulty.tier_color(t))
+		for c in info.get_children():
+			c.queue_free()
+		for line in Difficulty.describe(t):
+			info.add_child(UIKit.label("  " + String(line), 8, UIKit.C_DIM))
+		if t == Difficulty.unlocked() and t < Difficulty.MAX_TIER:
+			info.add_child(UIKit.label("  Conquer the Sunken Throne at Tier %s or higher to go deeper." % Difficulty.roman(maxi(1, Difficulty.unlocked() - 1)), 8, Color(1.0, 0.7, 0.4)))
+	var step := func(d: int) -> void:
+		Difficulty.select(Difficulty.selected() + d)
+		Profile.mark_changed()
+		Audio.ui("ui_click")
+		refresh.call()
+	row.add_child(UIKit.button("<", func() -> void: step.call(-1), 18))
+	row.add_child(name_l)
+	row.add_child(UIKit.button(">", func() -> void: step.call(1), 18))
+	v.add_child(row)
+	v.add_child(info)
+	refresh.call()
+	return v
+
+
 # --- run summary ------------------------------------------------------------------------------
 
 static func summary(ui: UIRoot, s: Dictionary) -> Control:
@@ -755,8 +793,12 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 	p.add_child(v)
 	var titles := {"died": ["Your Light Fails", UIKit.C_BAD], "extracted": ["Returned to the Hearth", UIKit.C_GOLD], "victory": ["The Warden Is Fallen", UIKit.C_SOUL]}
 	var t: Array = titles.get(s.outcome, ["Expedition Over", UIKit.C_TEXT])
+	if s.outcome == "victory":
+		t = [String(EnemyDB.REGIONS.get(s.get("region", "ossuary"), {}).get("victory", t[0])), t[1]]
 	v.add_child(_title(t[0], t[1]))
-	v.add_child(UIKit.label("Depth %d   Rooms %d   Foes %d   Time %s" % [s.depth, s.rooms, s.kills, UIKit.fmt_time(s.time)], 8, UIKit.C_DIM))
+	v.add_child(UIKit.label("Depth %d   Rooms %d   Foes %d   Time %s   Tier %s" % [s.depth, s.rooms, s.kills, UIKit.fmt_time(s.time), Difficulty.roman(int(s.get("tier", 1)))], 8, UIKit.C_DIM))
+	for nt in s.get("tiers", []):
+		v.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
 	v.add_child(HSeparator.new())
 	var er := UIKit.hbox(4)
 	er.add_child(UIKit.icon_rect("ember"))

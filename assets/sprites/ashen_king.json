@@ -1,0 +1,79 @@
+{
+	"anims": {
+		"air": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 6
+		},
+		"cast": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 8
+		},
+		"crouch": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 5
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"roar": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 9
+		},
+		"slam": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 7
+		},
+		"stagger": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 10
+		},
+		"sweep": {
+			"fps": 12.0,
+			"frames": 3,
+			"loop": false,
+			"row": 3
+		},
+		"thrust": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"walk": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 5.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		64,
+		64
+	],
+	"origin": [
+		32,
+		60
+	]
+}

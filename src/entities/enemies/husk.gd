@@ -4,7 +4,6 @@ extends Enemy
 
 const REACH := 1.65
 const HALF := deg_to_rad(50.0)
-var summoned := false
 
 
 func behave(dt: float) -> void:

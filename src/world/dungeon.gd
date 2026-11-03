@@ -220,7 +220,8 @@ func _icon_key(r: Room) -> String:
 
 
 func _pick_grudge_room() -> void:
-	var gs := Profile.active_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.depth == 2 and int(g.get("depth", 1)) > 2))
+	# a Grudge waits on the depth where it won, or on the last one if that was deeper
+	var gs := Profile.active_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
 	if gs.is_empty():
 		return
 	var cands: Array = []
@@ -333,12 +334,14 @@ func _spawn_wave(r: Room) -> void:
 		var t: Vector2i = spots[i % spots.size()] if not spots.is_empty() else Vector2i(r.center())
 		var e := _make_enemy(id)
 		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
-		e.scale_for(layout.depth, memory)
-		if r.type == Room.Type.ELITE and not elite_done and id != "skitter":
-			e.make_elite(r.elite_affix)
+		_scale(e, layout.depth, memory)
+		var swarm := EnemyDB.get_def(id).has("pack")
+		if r.type == Room.Type.ELITE and not elite_done and not swarm:
+			e.make_elite(r.elite_affix, _second_affix(r.elite_affix))
 			elite_done = true
-		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth and id != "skitter":
-			e.make_elite(EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)])
+		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) and not swarm:
+			var a: String = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
+			e.make_elite(a, _second_affix(a))
 		e.room_id = r.id
 		e.spawn_t = 0.6 + i * 0.08
 		add_actor(e)
@@ -347,6 +350,23 @@ func _spawn_wave(r: Room) -> void:
 		Profile.note_seen("enemies", id)
 	if not ids.is_empty():
 		Audio.play("spawn", -2.0)
+
+
+## Depth, Undervault Memory and the difficulty tier; the Lantern of Avarice
+## makes everything tougher in exchange for its riches.
+func _scale(e: Enemy, depth: int, memory: int) -> void:
+	e.scale_for(depth, memory, run.tier)
+	if player and player.stats.has("avarice"):
+		e.max_hp *= 1.2
+		e.hp = e.max_hp
+
+
+## From Tier IV elites carry a second, different affix.
+func _second_affix(first: String) -> String:
+	if not Difficulty.double_affix(run.tier):
+		return ""
+	var pool: Array = EnemyDB.AFFIXES.keys().filter(func(k): return k != first)
+	return String(pool[rng.randi_range(0, pool.size() - 1)])
 
 
 func _make_enemy(id: String) -> Enemy:
@@ -370,7 +390,7 @@ func _spawn_grudge(r: Room) -> void:
 	var e := _make_enemy(g.enemy)
 	var t: Vector2i = r.spawns[rng.randi_range(0, r.spawns.size() - 1)] if not r.spawns.is_empty() else Vector2i(r.center())
 	e.pos = Vector2(t) + Vector2(0.5, 0.5)
-	e.scale_for(layout.depth, int(Profile.data.world.get("memory", 0)))
+	_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
 	e.make_grudge(g)
 	e.room_id = r.id
 	e.spawn_t = 1.2
@@ -487,7 +507,7 @@ func _start_boss(r: Room) -> void:
 		var e := _make_enemy(String(region.boss))
 		e.pos = c + Vector2(0, -3)
 		e.room_id = r.id
-		e.scale_for(1, int(Profile.data.world.get("memory", 0)))
+		_scale(e, 1, int(Profile.data.world.get("memory", 0)))
 		add_actor(e)
 		register_enemy(e)
 		boss = e
@@ -500,14 +520,14 @@ func _start_boss(r: Room) -> void:
 				bz.append(p)
 		w.set("braziers", bz)
 		Events.boss_started.emit(e)
-		Events.banner.emit(e.display_name, "Keeper of the Lightless Heart")
+		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
 		Audio.play_music("boss", 0.5))
 
 
 ## Materials (and now and then gear) from a fallen enemy; elites and bosses
 ## drop more, and a boss's first defeat always yields its legendary.
 func _drop_loot(e: Enemy) -> void:
-	var mult := 2.0 if e.elite else 1.0
+	var mult := (2.0 if e.elite else 1.0) * Difficulty.material_mult(run.tier)
 	if player and player.stats.has("avarice"):
 		mult *= 1.6
 	for d in ItemDB.enemy_drops(e.id, layout.region):
@@ -515,7 +535,7 @@ func _drop_loot(e: Enemy) -> void:
 			Pickup.spawn(self, "material", e.pos, rng.randi_range(int(d[2]), int(d[3])), {"id": d[0]})
 	if e.elite:
 		_maybe_blueprint(e.pos, 0.03 + 0.01 * run.tier)
-		var rare := "spore_silk" if layout.region == "rootmire" else "soul_glass"
+		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
 			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier)})
@@ -547,7 +567,7 @@ func _maybe_blueprint(p: Vector2, chance: float) -> void:
 
 ## A chest's materials and its chance of gear.
 func _chest_loot(prop: Prop, tier: int) -> void:
-	var pool: Array = ["rootwood", "spore_silk"] if layout.region == "rootmire" else ["bone_dust", "grave_iron", "soul_glass"]
+	var pool: Array = {"rootmire": ["rootwood", "spore_silk"], "throne": ["sun_gold", "grave_iron", "soul_glass", "spore_silk"]}.get(layout.region, ["bone_dust", "grave_iron", "soul_glass"])
 	for i in 1 + tier:
 		Pickup.spawn(self, "material", prop.pos, rng.randi_range(1, 2 + tier), {"id": pool[rng.randi_range(0, pool.size() - 1)]})
 	if rng.randf() < 0.3 + 0.2 * tier:
@@ -624,9 +644,10 @@ func _boss_defeated(e: Enemy) -> void:
 		Pickup.spawn(self, "ember", e.pos, 8)
 	for i in 8:
 		Pickup.spawn(self, "xp", e.pos, 20)
+	var fall := String(e.def.get("fall", "Victory"))
 	after(2.5, func() -> void:
 		Prop.make(self, "hearthstone", Vector2i(r.center()) + Vector2i(0, 2), {"victory": true})
-		Events.banner.emit("The Warden Falls", "Touch the Hearthstone to return in triumph"))
+		Events.banner.emit(fall, "Touch the Hearthstone to return in triumph"))
 	Audio.play_music("victory", 2.0)
 	var key := "%s_kills" % e.id
 	Profile.data.world[key] = int(Profile.data.world.get(key, 0)) + 1

@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"crouch": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 2
+		},
+		"idle": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"leap": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"run": {
+			"fps": 12.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		22,
+		16
+	],
+	"origin": [
+		11,
+		14
+	]
+}

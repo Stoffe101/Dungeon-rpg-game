@@ -49,6 +49,6 @@ func _loose() -> void:
 	if elite:
 		dirs = [aim_dir.rotated(-0.2), aim_dir, aim_dir.rotated(0.2)]
 	for d: Vector2 in dirs:
-		var pr := shoot("proj_arrow", d, 12.0, damage, 0.18)
+		var pr := shoot(String(def.get("proj", "proj_arrow")), d, 12.0, damage, 0.18)
 		pr.knockback = 3.0
 	Audio.play("bow", -4.0, randf_range(0.95, 1.05))

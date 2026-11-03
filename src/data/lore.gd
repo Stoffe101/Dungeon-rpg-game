@@ -24,10 +24,19 @@ const ROOTMIRE := [
 ]
 
 
+const THRONE := [
+	["A Herald's Last Proclamation", "THE KING WILL NOT KNEEL. THE KING WILL NOT KNEEL. THE KING WILL NOT -"],
+	["Gilt on the Cracks", "When the floors split, the court poured gold into them. It was easier than admitting the sun was gone."],
+	["The Black Sun", "The acolytes say the eclipse never ended. They say it is only waiting for someone to look at it."],
+	["Kennel Ledger", "Hounds fed: none. Hounds burning: all of them. Hounds still loyal: all of them."],
+	["Scorched Into the Throne", "I ruled the day. I will not be a subject of the night. Let me burn first."],
+]
+
+
 static func random_ossuary(rng: RandomNumberGenerator) -> Array:
 	return OSSUARY[rng.randi_range(0, OSSUARY.size() - 1)]
 
 
 static func random_for(region: String, rng: RandomNumberGenerator) -> Array:
-	var pool: Array = ROOTMIRE if region == "rootmire" else OSSUARY
+	var pool: Array = {"rootmire": ROOTMIRE, "throne": THRONE}.get(region, OSSUARY)
 	return pool[rng.randi_range(0, pool.size() - 1)]

@@ -40,6 +40,12 @@ const ENEMIES := {
 		"xp": 6, "embers": 4, "cost": 3, "min_depth": 1,
 		"lore": "Swollen with grave-gas. Its end is everyone's problem - including its friends'.",
 	},
+	"spider": {
+		"name": "Grave Spider", "script": "res://src/entities/enemies/spider.gd", "sheet": "spider",
+		"hp": 36.0, "speed": 3.4, "radius": 0.34, "poise": 12.0, "damage": 12.0,
+		"xp": 8, "embers": 4, "cost": 3, "min_depth": 2,
+		"lore": "It wove the Ossuary's shrouds once, when there were still mourners to wear them.",
+	},
 	# --- the Rootmire ---
 	"sporeling": {
 		"name": "Sporeling", "script": "res://src/entities/enemies/sporeling.gd", "sheet": "sporeling",
@@ -65,16 +71,56 @@ const ENEMIES := {
 		"xp": 12, "embers": 7, "cost": 5, "min_depth": 1,
 		"lore": "It sings to the roots, and the roots answer with thorns.",
 	},
+	# --- the Sunken Throne ---
+	"sentinel": {
+		"name": "Gilded Sentinel", "script": "res://src/entities/enemies/guard.gd", "sheet": "sentinel",
+		"hp": 120.0, "speed": 2.1, "radius": 0.45, "poise": 70.0, "damage": 20.0, "armor": 0.2,
+		"xp": 16, "embers": 9, "cost": 5, "min_depth": 1,
+		"lore": "The sun-king's last guard. They still hold the door of a throne room that is under the sea of ash.",
+	},
+	"hound": {
+		"name": "Ash Hound", "script": "res://src/entities/enemies/skitter.gd", "sheet": "hound",
+		"hp": 24.0, "speed": 6.0, "radius": 0.3, "poise": 8.0, "damage": 11.0,
+		"xp": 4, "embers": 2, "cost": 1, "min_depth": 1, "pack": [2, 3],
+		"lore": "The King's hunting dogs burned with him. The embers in their ribs never went out.",
+	},
+	"acolyte": {
+		"name": "Eclipse Acolyte", "script": "res://src/entities/enemies/bonecaller.gd", "sheet": "acolyte",
+		"hp": 60.0, "speed": 2.3, "radius": 0.36, "poise": 20.0, "damage": 13.0,
+		"xp": 14, "embers": 8, "cost": 5, "min_depth": 1, "summon": "hound", "proj": "proj_eclipse",
+		"lore": "They pray to the black sun. It answers with hounds.",
+	},
+	"wraith": {
+		"name": "Ash Wraith", "script": "res://src/entities/enemies/archer.gd", "sheet": "wraith",
+		"hp": 40.0, "speed": 2.8, "radius": 0.34, "poise": 14.0, "damage": 15.0,
+		"xp": 9, "embers": 5, "cost": 3, "min_depth": 1, "proj": "proj_sun",
+		"lore": "Courtiers who outlived the sun by an hour. They throw the last of its light at anything warm.",
+	},
+	"ashen_king": {
+		"name": "The Ashen King", "script": "res://src/entities/enemies/ashen_king.gd", "sheet": "ashen_king",
+		"hp": 3400.0, "speed": 3.2, "radius": 0.9, "poise": 320.0, "damage": 26.0, "armor": 0.1,
+		"xp": 320, "embers": 240, "cost": 99, "min_depth": 99, "boss": true,
+		"epithet": "Last of the Sun-Kings", "fall": "The Ashen King Falls",
+		"lore": "He ruled the day. When the sun died, he would not kneel to the dark, so he burned instead - and is burning still.",
+	},
+	"toad": {
+		"name": "Bog Toad", "script": "res://src/entities/enemies/toad.gd", "sheet": "toad",
+		"hp": 70.0, "speed": 0.0, "radius": 0.45, "poise": 30.0, "damage": 15.0, "armor": 0.1,
+		"xp": 10, "embers": 6, "cost": 4, "min_depth": 1,
+		"lore": "Its tongue is longer than it is. It has never once been in a hurry.",
+	},
 	"bloom": {
 		"name": "The Hollow Bloom", "script": "res://src/entities/enemies/bloom.gd", "sheet": "bloom",
 		"hp": 2600.0, "speed": 0.0, "radius": 1.6, "poise": 340.0, "damage": 20.0, "armor": 0.25,
 		"xp": 240, "embers": 180, "cost": 99, "min_depth": 99, "boss": true,
+		"epithet": "Heart of the Rootmire", "fall": "The Bloom Withers",
 		"lore": "Where the sun's last seed fell, something grew that is not a flower.",
 	},
 	"warden": {
 		"name": "The Gloam Warden", "script": "res://src/entities/enemies/warden.gd", "sheet": "warden",
 		"hp": 1900.0, "speed": 3.0, "radius": 0.9, "poise": 260.0, "damage": 22.0, "armor": 0.0,
 		"xp": 160, "embers": 120, "cost": 99, "min_depth": 99, "boss": true,
+		"epithet": "Keeper of the Lightless Heart", "fall": "The Warden Falls",
 		"lore": "Keeper of the Ossuary's lightless heart. It swallows every flame it finds.",
 	},
 }
@@ -94,8 +140,8 @@ const REGIONS := {
 	"ossuary": {
 		"name": "The Hollow Ossuary",
 		"theme": "crypt",
-		"depths": 2,
-		"pool": ["husk", "skitter", "archer", "guard", "bonecaller", "bloat"],
+		"depths": 3,
+		"pool": ["husk", "skitter", "archer", "guard", "bonecaller", "bloat", "spider"],
 		"boss": "warden",
 		"ambient": Color(0.3, 0.33, 0.55),
 		"flame": Color(0.35, 0.95, 0.85),
@@ -103,13 +149,13 @@ const REGIONS := {
 		"ambience": "amb_crypt",
 		"torch": "torch",
 		"unlock": {},
-		"blurb": "Two depths of bone and soul-light, then the Gloam Warden.",
+		"blurb": "Three depths of bone and soul-light, then the Gloam Warden.",
 	},
 	"rootmire": {
 		"name": "The Rootmire",
 		"theme": "root",
-		"depths": 2,
-		"pool": ["sporeling", "thornback", "moth", "rootweaver", "husk", "archer"],
+		"depths": 3,
+		"pool": ["sporeling", "thornback", "moth", "rootweaver", "toad", "husk", "archer"],
 		"boss": "bloom",
 		"ambient": Color(0.3, 0.46, 0.38),
 		"flame": Color(0.55, 1.0, 0.45),
@@ -118,7 +164,26 @@ const REGIONS := {
 		"torch": "torch_bio",
 		"unlock": {"warden_kills": 1},
 		"blurb": "Fungal caverns among the roots of a dead world-tree. Brambles burn. The Hollow Bloom waits.",
+		"sealed": "Sealed. Defeat the Gloam Warden to open the way.",
+		"victory": "The Bloom Is Withered",
 		"memory_bonus": 1,
+	},
+	"throne": {
+		"name": "The Sunken Throne",
+		"theme": "throne",
+		"depths": 3,
+		"pool": ["sentinel", "hound", "acolyte", "wraith"],
+		"boss": "ashen_king",
+		"ambient": Color(0.5, 0.4, 0.38),
+		"flame": Color(1.0, 0.72, 0.35),
+		"music": "throne",
+		"ambience": "amb_crypt",
+		"torch": "torch_warm",
+		"unlock": {"warden_kills": 1, "bloom_kills": 1},
+		"blurb": "The capstone. Three depths of the sun-king's drowned court, then the Ashen King. Win here to open harder tiers.",
+		"sealed": "Sealed. Fell both the Gloam Warden and the Hollow Bloom.",
+		"victory": "The Last Sun-King Is Ash",
+		"memory_bonus": 2,
 	},
 }
 
@@ -129,6 +194,14 @@ static func region_unlocked(id: String) -> bool:
 		if int(Profile.data.world.get(k, 0)) < int(req[k]):
 			return false
 	return true
+
+
+## The region's one-point creature (packs come in this size), skitters by default.
+static func _filler(region: String) -> String:
+	for id in REGIONS[region].pool:
+		if int(ENEMIES[id].cost) == 1:
+			return id
+	return "skitter"
 
 
 static func get_def(id: String) -> Dictionary:
@@ -148,15 +221,15 @@ static func roll_encounter(rng: RandomNumberGenerator, region: String, depth: in
 	while left > 0 and guard < 40:
 		guard += 1
 		var id: String = pool[rng.randi_range(0, pool.size() - 1)]
-		var d: Dictionary = ENEMIES[id]
-		var c := int(d.cost)
+		var c := int(ENEMIES[id].cost)
 		if c > left:
 			if left <= 1:
-				id = "skitter"
+				id = _filler(region)
 				c = 1
 			else:
 				continue
-		if d.has("pack") and id == "skitter":
+		var d: Dictionary = ENEMIES[id]
+		if d.has("pack"):
 			var n := rng.randi_range(int(d.pack[0]), int(d.pack[1]))
 			n = mini(n, left)
 			for k in n:

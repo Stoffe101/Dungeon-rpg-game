@@ -759,7 +759,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 				deal_hit(at, th)
 			if stats.has("hoarfrost"):
 				at.status.apply_chill(0.5)
-			if attacker is Enemy and (attacker as Enemy).affix == "vampiric":
+			if attacker is Enemy and (attacker as Enemy).has_affix("vampiric"):
 				at.heal(res.amount * 1.5)
 		if stats.has("hearthguard"):
 			gain_kindle(10.0 / maxf(stats.v("kindle_gain"), 0.01))

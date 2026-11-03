@@ -299,6 +299,7 @@ func _ambience() -> void:
 func _music() -> void:
 	_crypt()
 	_rootmire()
+	_throne()
 	_boss()
 	_hearth()
 	_victory()
@@ -330,6 +331,35 @@ func _crypt() -> void:
 		s.bell(b * 4 * beat + 2 * beat, 3.0, midi(86 if b % 4 == 0 else 81), 0.05)
 	s.echo(beat * 0.75, 0.35, 1.0)
 	s.save(MUS + "crypt.wav", 0.8)
+
+
+## The Sunken Throne: a ruined court's processional. A harmonic minor, slow
+## timpani, low brass-like pads, a tolling bell and a proud, broken fanfare.
+func _throne() -> void:
+	var bpm := 62.0
+	var beat := 60.0 / bpm
+	var bars := 8
+	var L := bars * 4 * beat
+	var s := Synth.new(22050, L, true, 71)
+	var dr: float = roundf(midi(33) * L) / L
+	s.tone(0.0, L, dr, dr, "sine", 0.2, 0.0001, 0.0)
+	var chords := [[45, 48, 52], [41, 45, 48], [44, 47, 50], [45, 48, 52]]
+	for c in 4:
+		var fr: Array = []
+		for n in chords[c]:
+			fr.append(midi(n))
+		s.pad(c * 2 * 4 * beat, 2 * 4 * beat + 1.0, fr, 0.15, 900.0, 1.2, 1.4)
+	for b in bars:
+		s.kick(b * 4 * beat, 0.55)
+		s.kick(b * 4 * beat + 3.5 * beat, 0.3)
+		if b % 2 == 1:
+			s.bell(b * 4 * beat + 2 * beat, 4.0, midi(69), 0.05)
+	var fan := [69, 72, 76, 75, 76, 72, 71, 68]
+	for k in fan.size():
+		var t := 4 * 4 * beat + k * 2 * beat
+		s.tone(t, 1.8 * beat, midi(fan[k]), midi(fan[k]), "saw", 0.06, 0.06, 1.4, 0.004, 4.5, 1500.0)
+	s.echo(beat * 0.75, 0.4, 1.0)
+	s.save(MUS + "throne.wav", 0.8)
 
 
 ## Boss: driving phrygian riff, drums, choir stabs.

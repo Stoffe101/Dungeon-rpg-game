@@ -359,3 +359,29 @@ func test_blueprints_and_difficulty() -> void:
 	check(Profile.scrolls().is_empty(), "the scroll is used up")
 	check(Difficulty.power() >= 90, "a fresh Kindled has about 100 power (%d)" % Difficulty.power())
 	eq(Difficulty.recommended(), 1, "fresh: Tier I")
+
+
+func _husk() -> Enemy:
+	var scr: GDScript = load(EnemyDB.get_def("husk").script)
+	var e: Enemy = scr.new()
+	e.configure("husk")
+	return e
+
+
+func test_tier_scaling() -> void:
+	var a := _husk()
+	var b := _husk()
+	a.scale_for(1, 0, 1)
+	b.scale_for(1, 0, 4)
+	near(b.max_hp / a.max_hp, Difficulty.hp_mult(4), 0.01, "tier IV health")
+	near(b.damage / a.damage, Difficulty.damage_mult(4), 0.01, "tier IV damage")
+	check(b.embers > a.embers and b.xp > a.xp, "tier IV pays more")
+	var e := _husk()
+	e.make_elite("hasted", "vampiric")
+	check(e.has_affix("hasted") and e.has_affix("vampiric"), "two affixes")
+	check(not e.has_affix("volatile"), "only those two")
+	var f := _husk()
+	f.make_elite("warded", "warded")
+	eq(f.affix2, "", "a duplicate second affix is dropped")
+	for x in [a, b, e, f]:
+		x.free()
