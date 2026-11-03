@@ -47,9 +47,12 @@ remembers who hurts it.
 - Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled,
   Sconce Vaults (light every sconce before one burns out) and lost camps.
 - Loot beams by rarity, and the light of what you wear.
-- **Co-op for up to four** over LAN or direct IP: each Kindled keeps their own
-  gear, tree and rewards; currency is shared, gear drops for each of you; downed
-  friends can be revived.
+- **Co-op for up to four** over LAN or direct IP (Steam lobbies and invites when
+  built with GodotSteam): your own Kindled answers at once (client prediction),
+  everyone else is drawn smoothly; each Kindled keeps their own gear, tree,
+  Grudges and rewards; currency is shared, gear drops for each of you; the
+  party votes on the stairs and the Hearthstone; downed friends can be revived,
+  and a friend whose link drops can come back to their seat.
 - **Ember Runes**: set runes in your spells to make them split, arc, echo, turn
   to frost or shadow, burst, siphon or pull - each rune reads differently in each spell.
 - Seven weapons, including the Hearthbow (timed Steady Shots) and the

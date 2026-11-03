@@ -16,15 +16,12 @@ var _rows: Array = []
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	position = Vector2(-4, 4)
-	grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.02, 0.03, 0.05, 0.78)
 	sb.set_content_margin_all(4)
 	add_theme_stylebox_override("panel", sb)
 	_label = Label.new()
-	_label.add_theme_font_size_override("font_size", 8)
+	_label.add_theme_font_size_override("font_size", 6)
 	_label.add_theme_color_override("font_color", Color(0.75, 0.95, 0.9))
 	add_child(_label)
 	var args := Dev.args()
@@ -86,6 +83,9 @@ func _process(delta: float) -> void:
 				_write_log()
 	if visible:
 		_label.text = "\n".join(lines)
+		# bottom right: the one corner the HUD leaves empty
+		var area := get_parent_area_size()
+		position = Vector2(area.x - size.x - 4.0, area.y - size.y - 4.0)
 
 
 func _exit_tree() -> void:
