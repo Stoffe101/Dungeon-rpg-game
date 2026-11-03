@@ -50,6 +50,7 @@ static func main_menu(ui: UIRoot) -> Control:
 				Profile.reset_profile()
 				ui.leave_main_menu()
 				ui.fade(Game.goto_hub)), 110))
+	buttons.add_child(UIKit.button("Co-op Party", func() -> void: ui.open(Screens.coop(ui)), 110))
 	buttons.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
 	buttons.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
 	var runs := int(Profile.data.stats.get("runs", 0))
@@ -60,6 +61,73 @@ static func main_menu(ui: UIRoot) -> Control:
 	root.add_child(ver)
 	start.call_deferred("grab_focus")
 	return root
+
+
+# --- co-op party -------------------------------------------------------------------
+
+## Host or join a party of up to four. The host leads the descent from the
+## Undervault Gate; everyone keeps their own Kindled, gear and progress.
+static func coop(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(5)
+	p.add_child(v)
+	v.add_child(_title("Co-op Party"))
+	v.add_child(UIKit.para("Up to four Kindled share one expedition. Each keeps their own gear, Hearthtree and rewards; Embers and materials found are shared, gear drops for each of you. The host leads the descent from the Undervault Gate.", 250, UIKit.C_DIM))
+	var row := UIKit.hbox(4)
+	row.add_child(UIKit.label("Name", 8, UIKit.C_TEXT))
+	var name_in := LineEdit.new()
+	name_in.text = String(Settings.get_value("player_name", "Kindled"))
+	name_in.max_length = 16
+	name_in.custom_minimum_size = Vector2(110, 14)
+	name_in.text_changed.connect(func(t: String) -> void: Settings.set_value("player_name", t.strip_edges() if t.strip_edges() != "" else "Kindled"))
+	row.add_child(name_in)
+	v.add_child(row)
+	var row2 := UIKit.hbox(4)
+	row2.add_child(UIKit.label("Address", 8, UIKit.C_TEXT))
+	var addr := LineEdit.new()
+	addr.text = String(Settings.get_value("coop_address", "127.0.0.1"))
+	addr.custom_minimum_size = Vector2(110, 14)
+	addr.text_changed.connect(func(t: String) -> void: Settings.set_value("coop_address", t.strip_edges()))
+	row2.add_child(addr)
+	v.add_child(row2)
+	var status := UIKit.para(Net.i.status if Net.i.status != "" else "Not in a party.", 250, UIKit.C_SOUL)
+	v.add_child(status)
+	var party := UIKit.vbox(2)
+	v.add_child(party)
+	var buttons := UIKit.hbox(5)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_child(buttons)
+	var refresh := func() -> void:
+		status.text = Net.i.status if Net.i.status != "" else "Not in a party."
+		for c in party.get_children():
+			c.queue_free()
+		if Net.active():
+			var seats: Array = Net.i.roster.keys()
+			seats.sort_custom(func(a, b): return int(Net.i.roster[a].slot) < int(Net.i.roster[b].slot))
+			for pid in seats:
+				var r: Dictionary = Net.i.roster[pid]
+				var sh: Dictionary = r.get("sheet", {})
+				var w := GearDB.weapon(String(sh.get("weapon", "sword")))
+				var line := "%s%s   Lv %d   %s" % [String(r.name), "  (host)" if int(pid) == 1 else "", int(sh.get("level", 1)), String(w.get("name", "?"))]
+				party.add_child(UIKit.label(line, 8, Net.color_of(int(pid)), true))
+		for c in buttons.get_children():
+			c.queue_free()
+		if not Net.active():
+			buttons.add_child(UIKit.button("Host", func() -> void: Net.i.host(), 60))
+			buttons.add_child(UIKit.button("Join", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
+		else:
+			buttons.add_child(UIKit.button("Leave party", func() -> void:
+				Net.i.leave()
+				Net.i._status("Left the party."), 80))
+		buttons.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
+	Net.i.roster_changed.connect(refresh)
+	Net.i.status_changed.connect(func(_t): refresh.call())
+	p.tree_exiting.connect(func() -> void:
+		if Net.i.roster_changed.is_connected(refresh):
+			Net.i.roster_changed.disconnect(refresh))
+	refresh.call()
+	v.add_child(UIKit.para("Internet play: the host forwards UDP port %d on their router, or everyone joins the same LAN-style VPN (e.g. ZeroTier, Tailscale). LAN play needs nothing extra." % Net.PORT, 250, UIKit.C_DIM))
+	return _center(p)
 
 
 # --- relic choice ------------------------------------------------------------------
@@ -797,10 +865,14 @@ static func descent(ui: UIRoot) -> Control:
 		row.add_child(ob)
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
-	var go := UIKit.button("Descend", func() -> void:
+	var go := UIKit.button("Descend" if not Net.active() else "Descend together", func() -> void:
 		ui.close_all()
 		Game.begin_descent(ctx.region), 80)
+	if Net.is_client():
+		go.disabled = true
+		go.text = "%s leads the way" % Net.name_of(1)
 	row2.add_child(go)
+	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)
 	go.call_deferred("grab_focus")

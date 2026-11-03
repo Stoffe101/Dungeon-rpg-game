@@ -11,6 +11,8 @@ const DEV_PATH := "user://settings_dev.cfg"   # dev runs (profile=...) never tou
 var path := PATH
 
 const DEFAULTS := {
+	"player_name": "Kindled",
+	"coop_address": "127.0.0.1",
 	"master_volume": 0.8,
 	"music_volume": 0.6,
 	"sfx_volume": 0.8,

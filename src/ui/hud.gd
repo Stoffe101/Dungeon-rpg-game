@@ -401,6 +401,26 @@ func _draw() -> void:
 		var partial := clampf(pl.dodge_charges - i, 0.0, 1.0)
 		_diamond(Vector2(px + 2, ky + 3), filled, partial)
 	# (flasks have their own slot beside the abilities)
+	# --- the party (co-op): each ally's name, health, and how long they can wait ---
+	var py := ky + 12.0
+	for ally in st.players:
+		if ally == pl or not is_instance_valid(ally):
+			continue
+		var col := Net.color_of(ally.peer_id)
+		draw_rect(Rect2(x0, py + 1, 3, 3), col)
+		draw_string(UIKit.FONT_OUTLINE, Vector2(x0 + 6, py + 6), Net.name_of(ally.peer_id), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
+		var aw := 56.0
+		var ax := x0 + 60.0
+		draw_rect(Rect2(ax, py + 1, aw, 4), Color(0.18, 0.05, 0.08))
+		if ally.downed:
+			draw_rect(Rect2(ax, py + 1, roundf(aw * clampf(ally.bleed_t / Player.BLEED_TIME, 0.0, 1.0)), 4), Color(1.0, 0.55, 0.3))
+			draw_rect(Rect2(ax, py + 4, roundf(aw * clampf(ally.revive_k, 0.0, 1.0)), 1), Color(1.0, 0.95, 0.7))
+			draw_string(UIKit.FONT_OUTLINE, Vector2(ax + aw + 4, py + 6), "DOWN - revive!", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.55, 0.45))
+		elif not ally.alive:
+			draw_string(UIKit.FONT_OUTLINE, Vector2(ax + aw + 4, py + 6), "fallen", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_DIM)
+		else:
+			draw_rect(Rect2(ax, py + 1, roundf(aw * ally.hp_ratio()), 4), Color(0.8, 0.2, 0.25))
+		py += 9.0
 	# --- xp bar along the bottom ---
 	var vp := get_viewport_rect().size
 	var need := Combat.xp_to_next(Profile.level())

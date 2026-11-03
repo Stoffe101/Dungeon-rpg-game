@@ -166,6 +166,8 @@ func _open_dev_screen(what: String) -> void:
 		"relic":
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)
+		"coop":
+			ui.open(Screens.coop(ui))
 		"summary":
 			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
 				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": "",

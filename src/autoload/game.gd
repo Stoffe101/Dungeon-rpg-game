@@ -280,7 +280,15 @@ func end_run(outcome: String, killer_id := "") -> void:
 			if pl != stage.player and pl.run:
 				pl.store_to(pl.run)
 		for pid in coop_runs:
-			Net.i.rpc_id(int(pid), "_run_end", outcome, killer_id, (coop_runs[pid] as RunState).to_dict())
+			var cr: RunState = coop_runs[pid]
+			# what the party did together counts for everyone
+			cr.depth = run.depth
+			cr.elapsed = run.elapsed
+			cr.kills = run.kills
+			cr.rooms_cleared = run.rooms_cleared
+			cr.elites_slain = run.elites_slain
+			cr.grudges_settled = run.grudges_settled.duplicate()
+			Net.i.rpc_id(int(pid), "_run_end", outcome, killer_id, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
 	var s := run.settle(outcome)

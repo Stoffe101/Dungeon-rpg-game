@@ -97,7 +97,7 @@ func host(port := PORT) -> bool:
 		return false
 	multiplayer.multiplayer_peer = peer
 	roster = {1: {"name": _my_name(), "sheet": Profile.character_sheet(), "slot": 0}}
-	_status("Hosting on port %d. Friends join with your address." % port)
+	_status("Hosting on port %d. On your network, friends join with %s." % [port, lan_address()])
 	roster_changed.emit()
 	return true
 
@@ -113,6 +113,14 @@ func join(address: String, port := PORT) -> bool:
 	multiplayer.multiplayer_peer = peer
 	_status("Connecting to %s:%d..." % [address, port])
 	return true
+
+
+## This machine's address on the local network (what LAN friends type).
+static func lan_address() -> String:
+	for a in IP.get_local_addresses():
+		if a.begins_with("192.168.") or a.begins_with("10.") or (a.begins_with("172.") and a.split(".").size() == 4 and int(a.split(".")[1]) >= 16 and int(a.split(".")[1]) <= 31):
+			return a
+	return "your address"
 
 
 func leave() -> void:

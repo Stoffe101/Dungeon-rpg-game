@@ -91,6 +91,14 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
+	if "coopdive" in OS.get_cmdline_user_args() and not replica:
+		# dev: depth 1 -> descend after a moment; depth 2 -> Hearthcall home
+		if layout.depth == 1:
+			after(4.0, Game.descend)
+		else:
+			after(3.0, func() -> void:
+				if player and player.alive:
+					player.start_hearthcall())
 	if "lootlab" in OS.get_cmdline_user_args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()

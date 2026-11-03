@@ -520,3 +520,64 @@ func test_room_seals_block_and_release() -> void:
 		g._process(0.05)
 	check(not g.visible, "and the seal is gone")
 	d.queue_free()
+
+
+func test_coop_downed_revive_and_wipe() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := Player.new()
+	p2.peer_id = 2
+	p2.pos = p1.pos + Vector2(1.0, 0)
+	d.add_actor(p2)
+	p2.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", ""]))
+	eq(d.players.size(), 2, "two Kindled on the floor")
+	# a husk picks the nearest Kindled
+	var e := d._make_enemy("husk")
+	e.pos = p2.pos + Vector2(2.0, 0)
+	d.add_actor(e)
+	check(e.target() == p2, "foes go for the nearest Kindled")
+	# p2 falls: downed, not dead, and no longer a target
+	var h := Hit.make(e, 9999.0, ["melee"])
+	h.can_crit = false
+	p2.take_enemy_hit(h, e)
+	check(p2.downed and p2.alive, "at 0 health with a friend near, a Kindled is downed")
+	check(not d.active_players().has(p2), "the downed are not targets")
+	check(e.target() == p1 or e._tgt_t > 0.0, "the foe turns elsewhere")
+	# p1 stands beside them: revived after the revive time
+	p1.pos = p2.pos + Vector2(0.6, 0)
+	e.alive = false
+	_run(d, Player.REVIVE_TIME + 0.4)
+	check(not p2.downed and p2.alive and p2.hp > 0.0, "standing beside them brings them back (hp %d)" % int(p2.hp))
+	# both down: the party has fallen
+	p1.take_enemy_hit(h, null)
+	p1.invuln_t = 0.0
+	p2.invuln_t = 0.0
+	p2.take_enemy_hit(h, null)
+	_run(d, 0.2)
+	check(d._death_t > 0.0, "everyone down ends the run")
+	d.queue_free()
+
+
+func test_coop_shared_pickups() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := Player.new()
+	p2.peer_id = 2
+	p2.controller = Player.Ctrl.REMOTE
+	p2.pos = p1.pos + Vector2(3.0, 0)
+	d.add_actor(p2)
+	p2.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", ""]))
+	var e1 := p1.run.embers
+	var e2 := p2.run.embers
+	var pk := Pickup.spawn(d, "ember", p1.pos, 10)
+	pk._collect(p1)
+	check(p1.run.embers > e1 and p2.run.embers > e2, "Embers picked up by one Kindled are credited to both")
+	var g := Pickup.spawn(d, "gear", p1.pos, 1, {"item": ItemDB.make_item("grave_iron_helm", "rare", 1, RandomNumberGenerator.new(), 1)})
+	g.owner_peer = 2
+	check(g._owner() == p2, "an instanced find knows its owner")
+	g._collect(p2)
+	eq((p2.run.loot.gear as Array).size(), 1, "the owner gets their gear")
+	eq((p1.run.loot.gear as Array).size(), 0, "and nobody else does")
+	d.queue_free()
