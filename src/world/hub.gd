@@ -72,6 +72,11 @@ func build(v: PixelView) -> void:
 	if not menu_mode:
 		player = Player.new()
 		player.pos = Vector2(21.0, 15.0)
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("spawn="):
+				# dev: start somewhere else in the camp (captures)
+				var q := a.substr(6).split(",")
+				player.pos = Vector2(float(q[0]), float(q[1]))
 		add_actor(player)
 		var r := RunState.create(0, "ossuary", Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 		player.setup_from(r)
@@ -163,6 +168,7 @@ func _place() -> void:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
 	_camp()
 	_keepsakes()
+	_signboards()
 	for i in 10:
 		var t := Vector2i(rng.randi_range(5, 37), rng.randi_range(5, 19))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and Vector2(t).distance_to(Vector2(21, 11)) > 3.0:
@@ -204,6 +210,25 @@ func _camp() -> void:
 		_spot(Vector2(31.8, 15.3), "idle", "memorial")
 
 
+## Ruins say what they could be: a sign over each one that can be rebuilt.
+func _signboards() -> void:
+	var ruins := {
+		"forge_ruin": ["forge", "RUINED FORGE", "Brings back the smith"],
+		"apothecary": ["apothecary", "RUINED APOTHECARY", "More, stronger flasks"],
+		"memorial": ["shrine", "FALLEN SHRINE", "Settle Grudges for more"],
+	}
+	for p in props:
+		if not is_instance_valid(p) or not ruins.has(p.kind):
+			continue
+		var r: Array = ruins[p.kind]
+		if Profile.building(String(r[0])) > 0:
+			continue
+		var cost := Profile.building_cost(String(r[0]))
+		var price := ", ".join(PackedStringArray(cost.keys().map(func(k): return "%d %s" % [int(cost[k]), "Embers" if k == "embers" else ("Sunshard" if k == "sunshards" else String(k))])))
+		fx.signboard(p, 2.4, String(r[1]), "Rebuild: %s" % price, Color(1.0, 0.75, 0.35))
+		p.data["prompt"] = "%s  -  %s" % [String(p.data.get("prompt", "Rebuild")), r[2]]
+
+
 ## What the camp keeps of the Kindled's story: trophies of fallen bosses, a
 ## lantern lit for every two feats, a stand wearing the chosen look, and (once
 ## the Kindled has come home once) a cat who has decided this is its fire now.
@@ -241,9 +266,9 @@ func _keepsakes() -> void:
 		var cat := CampCat.new()
 		cat.stage = self
 		cat.kind = "cat"
-		cat.tile = Vector2i(23, 13)
-		cat.pos = Vector2(23.5, 13.6)
-		cat.data = {"sheet": "cat", "anim": "sleep", "prompt": "Pet the cat", "radius": 0.9}
+		cat.tile = Vector2i(20, 13)
+		cat.pos = Vector2(20.4, 13.7)
+		cat.data = {"sheet": "cat", "anim": "sleep", "prompt": "Pet the cat", "radius": 0.5}
 		add_child(cat)
 		props.append(cat)
 		cat._build()
@@ -388,7 +413,8 @@ func request(what: String, prop: Prop) -> void:
 class CampCat:
 	extends Prop
 
-	const SPOTS := [Vector2(23.5, 13.6), Vector2(19.0, 13.2), Vector2(17.6, 12.9), Vector2(25.6, 11.9), Vector2(18.2, 10.2), Vector2(30.2, 18.6)]
+	# its own warm places, clear of where the residents stand and sit
+	const SPOTS := [Vector2(20.4, 13.7), Vector2(16.3, 11.0), Vector2(27.2, 13.1), Vector2(13.2, 10.9), Vector2(28.4, 15.6)]
 	var mode := "sleep"
 	var mode_t := 6.0
 	var target := Vector2.ZERO

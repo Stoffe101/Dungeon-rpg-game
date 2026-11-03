@@ -355,6 +355,38 @@ func mark(who: Node, height: float, text: String, col: Color) -> void:
 	_marks[who.get_instance_id()] = {"label": l, "who": weakref(who), "height": height}
 
 
+## A small signboard that hangs over something in the world (ruins waiting to be
+## rebuilt): a title and a line saying what it takes and what it gives.
+func signboard(who: Node, height: float, title: String, sub: String, col: Color) -> void:
+	unmark(who)
+	if view == null:
+		return
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.03, 0.025, 0.05, 0.8)
+	sb.border_color = col.darkened(0.3)
+	sb.set_border_width_all(1)
+	sb.set_content_margin_all(3)
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 2
+	p.add_theme_stylebox_override("panel", sb)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 0)
+	p.add_child(v)
+	for line in [[title, col], [sub, Color(0.86, 0.8, 0.7)]]:
+		var l := Label.new()
+		l.text = String(line[0])
+		l.add_theme_font_override("font", FONT_OUTLINE)
+		l.add_theme_font_size_override("font_size", 8)
+		l.add_theme_color_override("font_color", line[1])
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		v.add_child(l)
+	p.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	view.overlay.add_child(p)
+	_marks[who.get_instance_id()] = {"label": p, "who": weakref(who), "height": height, "still": true}
+
+
 func unmark(who: Node) -> void:
 	var m: Dictionary = _marks.get(who.get_instance_id(), {})
 	if not m.is_empty():
@@ -370,11 +402,20 @@ func _update_marks() -> void:
 			(m.label as Label).queue_free()
 			_marks.erase(k)
 			continue
-		var l: Label = m.label
+		var l: Control = m.label
 		var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
 		var sz := l.get_minimum_size()
-		var bob := roundf(sin(Time.get_ticks_msec() / 260.0) * 1.5)
+		var bob := 0.0 if m.get("still", false) else roundf(sin(Time.get_ticks_msec() / 260.0) * 1.5)
 		l.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y + bob))
+		if m.get("still", false):
+			# signboards stay on screen and only show up close
+			var ov := Vector2(view.internal)
+			l.position.x = clampf(l.position.x, 2.0, maxf(2.0, ov.x - sz.x - 2.0))
+			l.position.y = clampf(l.position.y, 14.0, maxf(14.0, ov.y - sz.y - 2.0))
+			var st = Game.stage
+			if st and st.player:
+				var d: float = (st.player.pos as Vector2).distance_to(who.get("pos"))
+				l.modulate.a = clampf((8.0 - d) / 2.5, 0.0, 1.0)
 		l.visible = not _speaking(who)
 
 
