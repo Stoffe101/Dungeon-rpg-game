@@ -260,6 +260,52 @@ choice. Combat rooms seal with soul-light gates until cleared.
   look - a palette swap of the Kindled's cloak and scarf, applied in the sprite
   shader so every frame changes. Wear any unlocked look, or let it follow your gear.
 
+## Weapons and the forge
+
+Five weapons, each a different way to fight: the **Hearthblade** (balanced
+three-strike combo, whirling cut), **Cinderhammer** (slow, guard-breaking,
+leaping quake), **Ashwood Staff** (ember bolts, fireball), **Twin Fangs** (four
+quick cuts, +15% crit, Shadowstep dash through foes) and **Sunpiercer** (reach
+thrusts that skewer a line, a wide sweep, Comet Lunge). The Ashen Forge tempers
+them to +10 (+12% damage a level) for Embers and materials from every region:
+**+3 Tempered** adds a signature, **+7 Masterwork** a second one (ember ring,
+burning cracks, fireball shrapnel, a second Shadowstep, a sunfire lance), **+10
+Ascended** makes the blade blaze.
+
+## Long-term progression (the 100-hour plan)
+
+- **Level cap 60.** The Hearthtree costs 140 points; a Kindled has 59 from
+  levels plus up to 9 from feats, so about half the tree. Builds are choices.
+- **Three Hearthtree pages**: save builds and switch in the sanctuary.
+- **Renown**: experience past the cap. Each rank pays 60 Embers, every fifth a
+  Sunshard. It never adds power, so it can run forever.
+- **Feats** (22): boss kills, the Throne on Tiers IV and VIII, kill and elite
+  milestones, settled Grudges, Masterwork / Ascended / all weapons, blueprints,
+  set pieces, looks, a restored sanctuary, the cap and Renown. Rewards are
+  Embers, Sunshards, two wardrobe looks and, for the great ones, a skill point
+  past the cap. Granted the moment they are reached.
+- Alongside: difficulty tiers I-VIII, gear tiers and sets, 13 blueprints, eight
+  (now ten) looks, Grudges and Memory.
+
+## The sanctuary keeps your story
+
+Residents arrive as you progress, the garden blooms, lanterns light with the
+Hearth. Now also: a trophy for each fallen boss (with lore), a weapon rack that
+shows what you have forged, a lantern lit along the south wall for every two
+feats, a stand wearing your chosen look (it opens the wardrobe), a Hearth that
+burns brighter with your level, forge sparks, moths around the lanterns, and,
+after your first expedition, a cat that naps by the fire and can be petted.
+
+## Hearthcall and the satchel
+
+- **Hearthcall** (H / left-stick click): stand still for 3 s and the Hearth
+  pulls you home, keeping everything (an extraction). A sigil and a closing ring
+  of hearth-light, embers drawn in, the lantern swelling; any hit, step, swing,
+  ward, ability or flask breaks it, and it can't be heard over a living boss.
+- **The satchel** is a leather bag that pops up buckled, springs its two buckles
+  and throws its flap back before the pockets come into the light (character
+  and materials, the gear on the bag's lining, stats); closing reverses it.
+
 ## Signature: the dungeon remembers
 
 - **Grudges.** The enemy type that kills you becomes a named nemesis
@@ -323,6 +369,17 @@ along the killing blow as it dissolves; elites go out with a soul-light flash.
 - **Tier might on gear** instead of steeper item stats: one transparent line in
   the tooltip keeps damage in step with enemy health at every tier without
   inflating defence too.
+- **The Kindled faces the way they walk**, and turns to the aim while
+  fighting (or when the mouse moves while standing). Facing only the mouse made
+  walking away look like moonwalking (playtest report).
+- **Licensed sound packs stay out of git.** The Minifantasy creature pack may be
+  used in the game but not redistributed, and the repository is public, so
+  `tools/audio/import_licensed.py` converts it into the gitignored
+  `assets/audio/licensed/`; those sounds override generated ones of the same
+  name, and a fresh clone falls back to the generated set.
+- **A level cap instead of an endless tree**: with the whole tree reachable,
+  progression ended in sameness. The cap keeps the build a choice; Renown, feats,
+  tiers, gear and the forge carry the long tail without breaking it.
 - **New enemies reuse proven behaviours** where they fit (Sentinel = Guard,
   Hound = Skitter, Acolyte = Bonecaller, Wraith = Archer) with new art, stats
   and projectiles from data; only the Spider, Toad and the Ashen King needed

@@ -33,6 +33,10 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Run tests (exit code 0 = pass): `"$GODOT" --headless --path . res://tests/test_runner.tscn`
 - Balance report (gear power vs difficulty tiers): `"$GODOT" --headless --path . res://tools/dev/power_report.tscn`
 - After rebuilding art, run `--import` again or the game keeps showing the old textures.
+- Licensed sounds: `python tools/audio/import_licensed.py <Minifantasy_Creatures_SFX_v3.0.zip>`
+  writes the gitignored `assets/audio/licensed/` (never commit those: no redistribution, public repo).
+  A name there overrides `assets/audio/sfx/`; `<name>_2`... are random takes. Creature voices are
+  `v_<kind>_<event>` from `EnemyDB` `"voice"`.
 - Rebuild art: `"$GODOT" --headless --path . -s res://tools/art/build_art.gd [-- only=player,enemies,...]`
 - Rebuild audio: `"$GODOT" --headless --path . -s res://tools/audio/build_audio.gd [-- only=sfx|music|amb]`
 - Preview a sprite sheet upscaled: `"$GODOT" --headless --path . -s res://tools/art/preview.gd -- res://assets/sprites/husk.png scale=5`
@@ -40,7 +44,8 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Dev args (after `--`): `scene=menu|hub|dungeon|boss`, `region=ossuary|rootmire|throne`, `seed=N`,
   `tier=N` (open and select a difficulty tier), `kit=N` (wear random epic gear of item tier N),
   `unlock=all` (open every region and tier), `wear=<set or base ids>`, `look=<look id>`,
-  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe` (with `open=skilltree`: `hover=<node id>`,
+  `hearthcall` (start a Hearthcall a second after the floor loads), `audiolog` (print every sound played),
+  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
   `search=<text>`), `warp=boss|event`, `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
@@ -84,7 +89,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v5. `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v7 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
