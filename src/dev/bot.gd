@@ -52,6 +52,11 @@ func _process(delta: float) -> void:
 		_log_t = 0.0
 		var d := st as Dungeon
 		print("[bot] fps=%d actors=%d particles=%d t=%.0f hp=%d/%d kindle=%d room=%s kills=%d embers=%d pos=%s goal=%s active=%s enemies=%d" % [Engine.get_frames_per_second(), pl.stage.actors.size(), pl.stage.fx._p_count, _t, int(pl.hp), int(pl.max_hp), int(pl.kindle), str(d.current_room.id) if d and d.current_room else "-", d.run.kills if d else 0, d.run.embers if d else 0, str(pl.pos.snapped(Vector2(0.1, 0.1))), str(_goal.snapped(Vector2(0.1, 0.1))), str(d.active_room.id) if d and d.active_room else "-", d.room_enemies.size() if d else 0])
+		# the last foes of a room, to diagnose a bot that cannot finish one
+		if d and d.room_enemies.size() in [1, 2]:
+			for e in d.room_enemies:
+				if is_instance_valid(e):
+					print("[bot]   foe %s%s state=%s pos=%s hp=%d/%d" % [e.id, " (elite %s %s)" % [e.affix, e.affix2] if e.elite else "", e.state, str(e.pos.snapped(Vector2(0.1, 0.1))), int(e.hp), int(e.max_hp)])
 	var target := _pick_target()
 	# boss phase 2: relight the braziers to sear the Warden
 	for a in pl.stage.actors:

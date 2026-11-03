@@ -56,6 +56,19 @@ func _ready() -> void:
 		elif a.begins_with("look="):
 			Looks.unlock(a.substr(5))
 			Looks.choose(a.substr(5))
+		elif a == "unlock=all":
+			# dev: open every region and difficulty tier
+			for k in ["warden_kills", "bloom_kills"]:
+				Profile.data.world[k] = maxi(1, int(Profile.data.world.get(k, 0)))
+			Difficulty._d()["unlocked"] = Difficulty.MAX_TIER
+		elif a.begins_with("kit="):
+			# dev: wear a random epic level-5 loadout of the given item tier
+			var kt := clampi(int(a.substr(4)), 1, ItemDB.MAX_TIER)
+			var krng := RandomNumberGenerator.new()
+			krng.seed = kt
+			for slot in ItemDB.SLOTS:
+				var pool: Array = ItemDB.BASES.keys().filter(func(b): return ItemDB.base(b).slot == slot and not ItemDB.is_unique(b) and not ItemDB.base(b).has("set") and not ItemDB.base(b).get("legendary", false))
+				Profile.equipped()[slot] = ItemDB.make_item(String(pool[krng.randi_range(0, pool.size() - 1)]), "epic", 5, krng, kt)
 		elif a.begins_with("tier="):
 			# dev: open and select a difficulty tier
 			var t := clampi(int(a.substr(5)), 1, Difficulty.MAX_TIER)

@@ -691,27 +691,42 @@ static func descent(ui: UIRoot) -> Control:
 	v.add_child(_title("The Descent"))
 	var mem := int(Profile.data.world.get("memory", 0))
 	var ctx := {"region": "ossuary"}
+	# one row of region tabs, the chosen (or sealed) region described below
 	var cards: Array = []
+	var tabs := UIKit.hbox(3)
+	v.add_child(tabs)
+	var about := UIKit.para("", 250, UIKit.C_TEXT)
+	about.custom_minimum_size = Vector2(250, 26)
+	v.add_child(about)
+	var describe := func(rid: String) -> void:
+		var reg: Dictionary = EnemyDB.REGIONS[rid]
+		var open := EnemyDB.region_unlocked(rid)
+		about.text = String(reg.blurb) if open else String(reg.get("sealed", "Sealed."))
+		about.add_theme_color_override("font_color", UIKit.C_TEXT if open else UIKit.C_DIM)
 	for rid in EnemyDB.REGIONS:
 		var reg: Dictionary = EnemyDB.REGIONS[rid]
 		var open := EnemyDB.region_unlocked(rid)
 		var card := Button.new()
 		card.toggle_mode = true
 		card.button_pressed = rid == ctx.region
-		card.disabled = not open
-		card.custom_minimum_size = Vector2(250, 30)
-		card.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		card.text = "%s
-%s" % [reg.name, reg.blurb if open else String(reg.get("sealed", "Sealed. Defeat the Gloam Warden to open the way."))]
-		card.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.custom_minimum_size = Vector2(80, 16)
+		card.text = String(reg.name).trim_prefix("The ")
+		card.modulate = Color(1, 1, 1) if open else Color(0.55, 0.52, 0.6)
 		var region_id: String = rid
 		card.pressed.connect(func() -> void:
-			ctx.region = region_id
+			if EnemyDB.region_unlocked(region_id):
+				ctx.region = region_id
 			for c in cards:
-				c.button_pressed = c == card
+				c.button_pressed = c == card if EnemyDB.region_unlocked(region_id) else c.get_meta("rid") == ctx.region
+			describe.call(region_id)
 			Audio.ui("ui_click"))
+		card.focus_entered.connect(func() -> void: describe.call(region_id))
+		card.mouse_entered.connect(func() -> void: describe.call(region_id))
+		card.mouse_exited.connect(func() -> void: describe.call(ctx.region))
+		card.set_meta("rid", rid)
 		cards.append(card)
-		v.add_child(card)
+		tabs.add_child(card)
+	describe.call(ctx.region)
 	if mem > 0:
 		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
 	v.add_child(_tier_picker())
@@ -766,10 +781,9 @@ static func _tier_picker() -> VBoxContainer:
 		name_l.add_theme_color_override("font_color", Difficulty.tier_color(t))
 		for c in info.get_children():
 			c.queue_free()
-		for line in Difficulty.describe(t):
-			info.add_child(UIKit.label("  " + String(line), 8, UIKit.C_DIM))
+		info.add_child(UIKit.para(". ".join(PackedStringArray(Difficulty.describe(t))) + ".", 250, UIKit.C_DIM))
 		if t == Difficulty.unlocked() and t < Difficulty.MAX_TIER:
-			info.add_child(UIKit.label("  Conquer the Sunken Throne at Tier %s or higher to go deeper." % Difficulty.roman(maxi(1, Difficulty.unlocked() - 1)), 8, Color(1.0, 0.7, 0.4)))
+			info.add_child(UIKit.para("Conquer the Sunken Throne at Tier %s or higher to go deeper." % Difficulty.roman(maxi(1, Difficulty.unlocked() - 1)), 250, Color(1.0, 0.7, 0.4)))
 	var step := func(d: int) -> void:
 		Difficulty.select(Difficulty.selected() + d)
 		Profile.mark_changed()

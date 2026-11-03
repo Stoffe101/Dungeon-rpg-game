@@ -66,6 +66,7 @@ their allies; Guards stun themselves charging into walls.
 | Ossuary Guard | Tower shield blocks frontal damage; slow turn; shield charge | Flank, stagger, hammer; make it charge a wall |
 | Bonecaller | Floating summoner (raises Husks), homing soul orbs | Kill it first |
 | Grave Bloat | Walks up and bursts, hurting everything | Pop it among enemies |
+| Grave Spider | Keeps its distance, spits webs that snare (half speed); rears and lunges when close (depth 2+) | Step around the webs; punish the lunge |
 
 **Elite affixes** (Hasted, Warded, Volatile, Vampiric, Phasing) twist behaviour
 rather than only inflating health.
@@ -93,6 +94,7 @@ Fire builds feel at home here; frost builds have to work for their shortcuts.
 | Thornback | Armoured beetle; telegraphed spiked roll that ricochets off walls, then dizzy (armour 0, exposed) | Sidestep, then punish |
 | Lantern Moth | Flutters around your light, dives; a hit drains 15 Kindle (your lantern dims) | Ward or swat it early |
 | Rootweaver | Kites; fans of erupting thorn lines and snaring root circles (heavy slow) | Close the gap between casts |
+| Bog Toad | Sits, then hops in heavy telegraphed arcs that splash on landing; its tongue lashes a long line and drags you in | Leave the landing circle; sidestep the tongue line |
 
 **Boss - the Hollow Bloom.** A colossal rooted corpse-flower: it cannot move, so
 it controls space. Lash (long line), spore volley (marked circles that leave
@@ -100,6 +102,56 @@ clouds), **Inhale** (drags you toward its maw; while inhaling it takes double
 damage, then bites). At 55% - **Full Bloom**: radial root eruptions and
 sporeling broods. Its four **root nodes** can be burned (or hacked apart): each
 wilts it for a chunk of life, a stagger and an exposed window.
+
+## Region 3 - The Sunken Throne (the capstone)
+
+Opens once both the Warden and the Bloom have fallen. The drowned palace of the
+last sun-king: polished obsidian mended with gold, gilded friezes, warm torches
+and ash. Three depths, then the Ashen King. **Winning here at (or near) your
+highest unlocked difficulty opens the next two tiers** - it is the gate of the
+endgame climb.
+
+| Enemy | Role | Counterplay |
+|---|---|---|
+| Gilded Sentinel | The Guard's discipline in heavier plate: frontal sun-shield, shield charge | Flank, stagger, make it charge a wall |
+| Ash Hound | Packs of 2-3; circle, then leap in a straight line | Sidestep the line, cleave the pack |
+| Eclipse Acolyte | Floats, calls hounds, sends homing black suns | Kill it before the pack grows |
+| Ash Wraith | Kites and throws lances of dead sunlight after a tracking aim line | Step aside late; Ward to reflect |
+
+**Boss - the Ashen King.** Greatsword sweeps, **Sunfall** (pillars of light
+that land where you were standing, one after another), the **Corona** (a ring of
+black suns with a three-wide gap) and a leaping slam with a shockwave to dodge
+through. At 50% - **the Eclipse**: every ~13 s the sun goes out across the arena
+and only the light of a lit brazier shelters you (it cannot be Warded, only
+dodged or avoided). Each eclipse snuffs one brazier; strike dark braziers to
+relight them, and relighting all four brings the **Dawn** - the King is seared,
+staggered and exposed. His sweeps now cast lances, and ash hounds answer him.
+Enrages at 20%. Drops the Sunfall Mantle (legendary) and Eclipse Shards.
+
+## Difficulty tiers
+
+Chosen on the Descent screen (I Kindling, II Smoulder, III Blaze, IV Inferno,
+V Ashfall, VI Eclipse, VII Sunless, VIII Undying Night). Tiers I-II are open
+from the start; each capstone win at your top tier opens two more.
+
+| Per tier above I | Effect |
+|---|---|
+| Enemy health | x1.30 (compounding) |
+| Enemy damage | x1.21 (compounding) |
+| Enemy poise | +8% |
+| Elites | +4% chance per encounter; from Tier IV they carry two affixes |
+| Embers and Memories | +25% |
+| Materials | +20% |
+| Gear | drops at the run's tier: x(1 + 0.4 per tier) stats plus **tier might** (+4% damage per tier) |
+| Loot quality | better rarity rolls; set pieces from Tier II; more blueprints |
+
+The smithy forges at the highest tier you have won. The Descent screen shows a
+single **power** number (tree, sanctuary and gear; 100 for a fresh Kindled) and
+a suggested tier. Tuned with `tools/dev/power_report.tscn`: with a full epic
+loadout of the matching item tier, kill times stay at 0.75-1.2x and survival at
+1.5-2x of a fresh Kindled on Tier I; the Hearthtree, sanctuary, sets, uniques
+and skill are what let you climb above your gear. (Before tier might, gear
+defence outgrew offence and high tiers turned into sponges.)
 
 ## Room events
 
@@ -166,13 +218,14 @@ choice. Combat rooms seal with soul-light gates until cleared.
 ## Gear, materials and the smithy
 
 - **Slots**: Head, Chest, Hands, Feet, Ring, Charm (plus the weapon, which keeps
-  its own forge). 19 craftable bases across the slots and two boss legendaries
-  (Gloamward Lantern from the Warden, Crown of the Hollow Bloom).
+  its own forge). 37 craftable bases, 20 tier-set pieces, 13 uniques from
+  blueprints and three boss legendaries (Gloamward Lantern from the Warden,
+  Crown of the Hollow Bloom, Sunfall Mantle from the Ashen King).
 - **Items** are instances: base + rarity (Common, Rare with one random affix,
   Epic with two, Legendary fixed) + level 1-5. Stats scale with level and rarity.
 - **Materials**: Bone Dust, Grave Iron, Soul Glass (Ossuary); Rootwood, Spore
-  Silk (Rootmire); Ember Cores (chests); Warden Sigils and Bloom Hearts (bosses,
-  masterwork catalysts). Each enemy type has its own drop table; elites drop
+  Silk (Rootmire); Sun Gold (Sunken Throne); Ember Cores (chests); Warden
+  Sigils, Bloom Hearts and Eclipse Shards (bosses, masterwork catalysts). Each enemy type has its own drop table; elites drop
   more and sometimes gear; chests drop materials and often gear; bosses drop
   catalysts, an extra piece and (always the first time) their legendary.
 - **Keeping it**: loot is carried in the run; on extraction or victory all of it
@@ -185,6 +238,27 @@ choice. Combat rooms seal with soul-light gates until cleared.
   expedition, bought with Embers; sells gear back for half its price.
 - **Satchel** (I / right-stick click / pause menu): the Kindled with their
   equipment, the bag, materials, and a stats panel that opens and closes.
+
+## Blueprints, uniques and tier sets
+
+- **Blueprints** are rare finds (elites, chests, always one from the Ashen
+  King) that you learn from the satchel; each unlocks one **unique** at the
+  smithy. Thirteen uniques, deliberately not all about damage: Gambler's Coin
+  (crits sometimes spill Embers - "KA-CHING!"), Seven-League Boots, Squeaky
+  Clogs (every step squeaks; enemies sometimes trip over the noise), Heart of
+  the Mountain, Spellweaver Circlet, Echoing Gauntlets (every fourth hit
+  repeats), Ring of the Last Ember (once per expedition, a killing blow rekindles
+  you), Lantern of Avarice (more materials, tougher foes), Stormcaller Signet
+  (crits call lightning), Vampire's Kiss, Featherfall Hood (float over spikes),
+  Berserker's Mantle (stronger the more you bleed), Kindle Battery.
+- **Tier sets** (green, one affix, from Tier II): Emberwrought (fire: always
+  burns, +25% vs burning), Rimeguard (frost: a Ward freezes the area and grants
+  a barrier, chilled foes hit softer), Gloamweave (shadow: dodging makes your
+  next blows certain crits; a perfect dodge resets cooldowns), Verdant Warden
+  (thorns, spores and healing on kills). Bonuses at 2 and 4 pieces.
+- **Wardrobe (transmogrification)**: two set pieces or a legendary unlock that
+  look - a palette swap of the Kindled's cloak and scarf, applied in the sprite
+  shader so every frame changes. Wear any unlocked look, or let it follow your gear.
 
 ## Signature: the dungeon remembers
 
@@ -239,3 +313,17 @@ along the killing blow as it dissolves; elites go out with a soul-light flash.
   death feels worse than losing a pile of dust, and gear is the exciting part.
 - **Data in GDScript tables** (not .tres): diffable, compile-checked, easy to
   extend; migrate to Resources if an in-editor content workflow is needed.
+- **Looks as palette swaps, not new sprite sheets**: eight looks for the price
+  of eight colour lists, and every animation (and future one) recolours for
+  free. Sources are matched in sRGB in the shader (dark linear tones are too
+  close together to match reliably).
+- **Difficulty tiers gate on the capstone** rather than on a power number:
+  unlocking harder tiers is a feat (beat the Ashen King at your top tier), and
+  the power number only advises.
+- **Tier might on gear** instead of steeper item stats: one transparent line in
+  the tooltip keeps damage in step with enemy health at every tier without
+  inflating defence too.
+- **New enemies reuse proven behaviours** where they fit (Sentinel = Guard,
+  Hound = Skitter, Acolyte = Bonecaller, Wraith = Archer) with new art, stats
+  and projectiles from data; only the Spider, Toad and the Ashen King needed
+  new code. Variety for the player, little new risk.

@@ -50,7 +50,12 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 	v.add_child(UIKit.label("%s %s   Level %d/%d   Tier %s" % [kind, ItemDB.SLOT_NAMES[b.slot], int(item.level), ItemDB.MAX_LEVEL, Difficulty.roman(int(item.get("tier", 1)))], 8, UIKit.C_DIM))
 	var mods := ItemDB.mods_of(item)
 	var nb := (b.mods as Array).size()
+	var might := ItemDB.tier_might(item)
 	for i in mods.size():
+		if might > 0.0 and i == mods.size() - 1:
+			var tt := int(item.get("tier", 1))
+			v.add_child(UIKit.label("  Tier %s might: +%d%% damage" % [Difficulty.roman(tt), int(round(might * 100.0))], 8, Difficulty.tier_color(tt)))
+			continue
 		var txt := UIKit.describe_mod(mods[i])
 		v.add_child(UIKit.para(("  " if i < nb else "+ ") + txt, width, UIKit.C_TEXT if i < nb else Color(0.6, 0.85, 1.0)))
 	if b.has("desc"):
@@ -137,6 +142,7 @@ static func stat_lines() -> Array:
 	return [
 		["Max health", str(int(round(st.v("max_hp"))))],
 		["Armor", "%d%%" % int(round(st.v("armor") * 100.0))],
+		["All damage", pct.call(st.v("damage"))],
 		["Melee damage", pct.call(st.v("melee_damage"))],
 		["Fire damage", pct.call(st.v("fire_damage"))],
 		["Frost damage", pct.call(st.v("frost_damage"))],

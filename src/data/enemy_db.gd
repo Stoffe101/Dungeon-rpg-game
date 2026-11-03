@@ -98,7 +98,7 @@ const ENEMIES := {
 	},
 	"ashen_king": {
 		"name": "The Ashen King", "script": "res://src/entities/enemies/ashen_king.gd", "sheet": "ashen_king",
-		"hp": 3400.0, "speed": 3.2, "radius": 0.9, "poise": 320.0, "damage": 26.0, "armor": 0.1,
+		"hp": 3400.0, "speed": 3.2, "radius": 0.9, "poise": 420.0, "damage": 26.0, "armor": 0.1,
 		"xp": 320, "embers": 240, "cost": 99, "min_depth": 99, "boss": true,
 		"epithet": "Last of the Sun-Kings", "fall": "The Ashen King Falls",
 		"lore": "He ruled the day. When the sun died, he would not kneel to the dark, so he burned instead - and is burning still.",

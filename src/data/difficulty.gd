@@ -36,11 +36,11 @@ static func roman(t: int) -> String:
 # --- what a tier does ---------------------------------------------------------
 
 static func hp_mult(t: int) -> float:
-	return pow(1.35, t - 1)
+	return pow(1.3, t - 1)
 
 
 static func damage_mult(t: int) -> float:
-	return pow(1.18, t - 1)
+	return pow(1.21, t - 1)
 
 
 ## Extra chance that a regular encounter brings an elite.
@@ -142,6 +142,9 @@ static func power() -> int:
 
 ## The tier whose enemies roughly match the Kindled's power (never above unlocked).
 static func recommended() -> int:
-	var ratio := float(power()) / 100.0
-	var t := 1 + int(floor(log(maxf(ratio, 1.0)) / log(1.28)))
-	return clampi(t, 1, unlocked())
+	return clampi(recommended_for(power()), 1, unlocked())
+
+
+static func recommended_for(p: int) -> int:
+	var ratio := float(p) / 100.0
+	return clampi(1 + int(floor(log(maxf(ratio, 1.0)) / log(1.28))), 1, MAX_TIER)

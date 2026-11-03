@@ -31,12 +31,16 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Import / refresh class cache (needed after adding `class_name` scripts):
   `"$GODOT" --headless --path . --import`
 - Run tests (exit code 0 = pass): `"$GODOT" --headless --path . res://tests/test_runner.tscn`
+- Balance report (gear power vs difficulty tiers): `"$GODOT" --headless --path . res://tools/dev/power_report.tscn`
+- After rebuilding art, run `--import` again or the game keeps showing the old textures.
 - Rebuild art: `"$GODOT" --headless --path . -s res://tools/art/build_art.gd [-- only=player,enemies,...]`
 - Rebuild audio: `"$GODOT" --headless --path . -s res://tools/audio/build_audio.gd [-- only=sfx|music|amb]`
 - Preview a sprite sheet upscaled: `"$GODOT" --headless --path . -s res://tools/art/preview.gd -- res://assets/sprites/husk.png scale=5`
 - Run the game: `"$GODOT" --path .`
-- Dev args (after `--`): `scene=menu|hub|dungeon|boss`, `region=ossuary|rootmire`, `seed=N`,
-  `open=skilltree|forge|descent|settings|controls|pause|relic|summary` (with `open=skilltree`: `hover=<node id>`,
+- Dev args (after `--`): `scene=menu|hub|dungeon|boss`, `region=ossuary|rootmire|throne`, `seed=N`,
+  `tier=N` (open and select a difficulty tier), `kit=N` (wear random epic gear of item tier N),
+  `unlock=all` (open every region and tier), `wear=<set or base ids>`, `look=<look id>`,
+  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe` (with `open=skilltree`: `hover=<node id>`,
   `search=<text>`), `warp=boss|event`, `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
@@ -56,7 +60,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 ## Architecture in one breath
 
 `src/core` pure rules (Stats, Hit, Combat, StatusSet, RunState, Iso projection) ->
-`src/data` data tables (SkillDB, RelicDB, GearDB, EnemyDB, Lore, Keeper) ->
+`src/data` data tables (SkillDB, RelicDB, GearDB, ItemDB, EnemyDB, Difficulty, Looks, Lore, Keeper) ->
 `src/world` (TileGrid, DungeonGen, Room, Stage, Dungeon, Hub, LevelBuilder, Prop, Pickup) ->
 `src/entities` (Actor, Player, Enemy + enemies/, Projectile, Hazard, Wisp) ->
 `src/combat` (Weapon + weapons/, Abilities) -> `src/render` (PixelView, PixelSprite,

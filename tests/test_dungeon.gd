@@ -144,3 +144,37 @@ func test_rootmire_brambles_never_seal_doors() -> void:
 					if p.kind in ["bramble", "root_node"]:
 						blocked.append(p.tile)
 				check(DungeonGen._doors_connected(lay, r, blocked), "seed %d depth %d room %d sealed by brambles" % [s, depth, r.id])
+
+
+func test_regions_and_their_creatures() -> void:
+	for rid in EnemyDB.REGIONS:
+		var reg: Dictionary = EnemyDB.REGIONS[rid]
+		eq(int(reg.depths), 3, "%s has three depths" % rid)
+		check(EnemyDB.get_def(String(reg.boss)).has("epithet"), "%s boss has an epithet" % rid)
+		check(FileAccess.file_exists("res://assets/textures/%s_floor.png" % reg.theme), "%s tiles exist" % rid)
+		for id in reg.pool + [reg.boss]:
+			var d := EnemyDB.get_def(String(id))
+			check(ResourceLoader.exists(String(d.script)), "%s script" % id)
+			check(FileAccess.file_exists("res://assets/sprites/%s.json" % d.sheet), "%s sheet" % id)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 3
+		for i in 20:
+			for id in EnemyDB.roll_encounter(rng, rid, 3, 9):
+				check(reg.pool.has(id), "%s rolls only its own creatures (%s)" % [rid, id])
+	Profile.data = Profile.fresh()
+	check(not EnemyDB.region_unlocked("throne"), "the Throne is sealed at first")
+	Profile.data.world["warden_kills"] = 1
+	check(not EnemyDB.region_unlocked("throne"), "one boss is not enough")
+	Profile.data.world["bloom_kills"] = 1
+	check(EnemyDB.region_unlocked("throne"), "both bosses open the Throne")
+
+
+func test_tier_might() -> void:
+	var rng := RandomNumberGenerator.new()
+	var lo := ItemDB.make_item("soft_boots", "common", 1, rng, 1)
+	var hi := ItemDB.make_item("soft_boots", "common", 1, rng, 5)
+	eq(ItemDB.tier_might(lo), 0.0, "no might at Tier I")
+	near(ItemDB.tier_might(hi), 0.16, 0.001, "+4% damage per tier above I")
+	var last: Array = ItemDB.mods_of(hi).back()
+	eq(last[0], "damage", "tier might is the last mod")
+	eq(ItemDB.mods_of(lo).size() + 1, ItemDB.mods_of(hi).size(), "only higher tiers carry it")

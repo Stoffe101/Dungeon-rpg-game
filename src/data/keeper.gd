@@ -23,6 +23,12 @@ static func lines() -> Array:
 	if int(d.world.get("warden_kills", 0)) > 0:
 		out.append("The Warden fell, and the Undervault noticed. Its dead will be stronger now - and so will what they guard.")
 		out.append("With the Warden gone, the way to the Rootmire lies open. Bring fire. The brambles there remember it, and they are afraid.")
+	if EnemyDB.region_unlocked("throne") and int(d.world.get("ashen_king_kills", 0)) == 0:
+		out.append("Warden and Bloom both fallen... then the Sunken Throne will open for you. The last sun-king sits there in his ashes. When he puts out the sun, stand by a fire.")
+	if int(d.world.get("ashen_king_kills", 0)) > 0 and Difficulty.unlocked() < Difficulty.MAX_TIER:
+		out.append("You've felled a king. The deep will burn hotter for you now - choose a harder tier at the Descent, and win the Throne again to go deeper still.")
+	if not Profile.scrolls().is_empty():
+		out.append("You carry an unread blueprint. Open your satchel and learn it - the smith can forge things from those that I cannot describe.")
 	out.append("Ward with the right hand: a well-timed Ward turns arrows back and leaves brutes reeling.")
 	out.append("The Hearthstone at each stairway can carry you home. There's no shame in returning with full pockets.")
 	return [out[randi() % out.size()]]

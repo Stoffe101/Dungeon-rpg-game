@@ -383,6 +383,10 @@ func _end_attack() -> void:
 
 
 func on_poise_break(h: Hit) -> void:
+	# nothing interrupts the eclipse once it has begun
+	if state == "eclipse":
+		stage.fx.number(pos, 4.0, "UNSHAKEN", Color(0.75, 0.5, 1.0))
+		return
 	super.on_poise_break(h)
 	if tele and is_instance_valid(tele):
 		stage.fx.release(tele)

@@ -283,7 +283,7 @@ func _process(_delta: float) -> void:
 	embers_lbl.text = str(pl.run.embers if in_dungeon and pl.run else Profile.currency("embers"))
 	shards_lbl.text = str((pl.run.sunshards if in_dungeon and pl.run else 0) + Profile.currency("sunshards"))
 	if in_dungeon and pl.run:
-		depth_lbl.text = "Depth %d  %s" % [pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
+		depth_lbl.text = "Tier %s  Depth %d  %s" % [Difficulty.roman(pl.run.tier), pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
 	level_lbl.text = "LV %d" % Profile.level()
 	# abilities
 	for i in 2:

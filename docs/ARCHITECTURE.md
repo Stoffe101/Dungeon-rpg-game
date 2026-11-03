@@ -6,7 +6,9 @@
 src/core      pure rules, no scene tree: Iso (projection), Stats, Hit, Combat,
               StatusSet, RunState
 src/data      content tables: SkillDB (Hearthtree), RelicDB, GearDB (weapons,
-              abilities), EnemyDB (enemies, affixes, regions), Lore, Keeper
+              abilities), ItemDB (gear, sets, uniques, blueprints, materials),
+              EnemyDB (enemies, affixes, regions), Difficulty (tiers and
+              their unlocks), Looks (wardrobe palette swaps), Lore, Keeper
 src/world     TileGrid (collision/LOS), DungeonGen + Room (generation),
               Stage (simulation host), Dungeon / Hub (concrete stages),
               LevelBuilder (meshes), Prop, Pickup

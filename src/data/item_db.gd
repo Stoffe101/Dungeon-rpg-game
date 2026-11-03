@@ -325,7 +325,15 @@ static func mods_of(item: Dictionary) -> Array:
 			out.append([m[0], m[1], v * k * rar_k])
 	for a in item.get("affixes", []):
 		out.append([a[0], a[1], float(a[2]) * k])
+	# tier might: gear from harder tiers hits harder, so damage keeps pace
+	# with the health of what lives there (always the last entry)
+	if tier_might(item) > 0.0:
+		out.append(["damage", "add", tier_might(item)])
 	return out
+
+
+static func tier_might(item: Dictionary) -> float:
+	return 0.04 * (int(item.get("tier", 1)) - 1)
 
 
 ## Equipped gear: mods, unique flags, and set bonuses for 2 / 4 pieces.

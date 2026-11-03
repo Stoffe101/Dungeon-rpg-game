@@ -77,7 +77,7 @@ func _draw() -> void:
 		if clip.has_point(pp):
 			draw_rect(Rect2(pp - Vector2(1, 1), Vector2(3, 3)), Color(1.0, 0.75, 0.35))
 	if big:
-		draw_string(UIKit.FONT_OUTLINE, Vector2(6, 12), "%s - Depth %d" % [d.region.name, lay.depth], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_GOLD)
+		draw_string(UIKit.FONT_OUTLINE, Vector2(6, 12), "%s - Depth %d/%d - Tier %s" % [d.region.name, lay.depth, int(d.region.depths), Difficulty.roman(d.run.tier)], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_GOLD)
 
 
 func _cell_center(r: Room) -> Vector2:
