@@ -85,6 +85,13 @@ func _fork(proj: Projectile, target: Actor) -> void:
 		f.hit_set[target.get_instance_id()] = true
 
 
+func predict_charge() -> void:
+	charged = false
+	aim_dir = player.aim
+	strike = {"recover": 0.3}
+	_set_phase(Phase.RECOVER, 0.3 / speed())
+
+
 func release_charge() -> void:
 	charged = false
 	aim_dir = player.aim

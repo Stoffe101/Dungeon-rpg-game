@@ -134,10 +134,19 @@ func release_charge() -> void:
 	phase_t = 0.0
 	strike = {"active": 0.4, "recover": 0.35}
 	player.invuln_t = maxf(player.invuln_t, 0.42)
-	Audio.play("leap", 0.0)
+	player.cosmetic(func() -> void: Audio.play("leap", 0.0))
+
+
+## The leap is movement: a predicting client makes it too (the host lands the blow).
+func predict_charge() -> void:
+	release_charge()
 
 
 func _land() -> void:
+	if predicting:
+		_set_phase(Phase.RECOVER, 0.35 / speed())
+		combo = 0
+		return
 	var c := player.pos
 	var r := 2.7 * player.stats.v("area")
 	hit_ids.clear()

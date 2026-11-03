@@ -61,6 +61,17 @@ var revive_k := 0.0
 var aegis_echo := false       # Rune of Echoes: the ward forms once more when it breaks
 var still_t := 0.0            # Stillness keystone: how long the Kindled has stood still
 var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
+var predicting := false       # co-op client: this machine's Kindled acts at once; the host's word corrects it (NetRun)
+var pred_move := Vector2.ZERO # co-op client: the movement last sent to the host (the prediction uses only that)
+var pred_speed := 1.0         # co-op client: the host's slows and chills on this Kindled
+var in_seq := 0               # host: the newest input from a remote Kindled's owner
+var in_age := 0.0             # host: how long (simulated) that input has been driving it
+var lag_grace := 0.0          # host: how long blows on a remote Kindled wait for its owner's late dodge or Ward
+var remote_hold := -1.0       # host: how long the owner held attack before letting go, by their own clock
+var lag_saves := 0            # host: blows that a late dodge or Ward still caught
+var _deferred: Array = []     # host: [due, hit, attacker] waiting out lag_grace
+var _settling := false
+var _held_until := {}         # co-op client: what the prediction changed itself, kept until the host has heard
 ## Press counters for every button: they only go up, so a network packet lost
 ## in between can never lose a press (the host compares counts).
 var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0}
@@ -242,6 +253,7 @@ func set_weapon(id: String, level: int) -> void:
 	var def := GearDB.weapon(id)
 	var scr: GDScript = load(def.script)
 	weapon = scr.new()
+	weapon.predicting = predicting
 	weapon.setup(self, id, level)
 
 
@@ -383,6 +395,18 @@ func _assisted(dir: Vector2) -> Vector2:
 func think(dt: float) -> void:
 	if not alive or controller == Ctrl.REPLICA:
 		return
+	# sounds and screen shake from here on are this Kindled's (see Net.actor_peer)
+	var prev := Net.actor_peer
+	Net.actor_peer = peer_id
+	Net.actor_pos = pos
+	_think(dt)
+	Net.actor_peer = prev
+
+
+func _think(dt: float) -> void:
+	if controller == Ctrl.REMOTE:
+		in_age += dt
+		_settle_deferred(false)
 	if downed:
 		_bleed(dt)
 		return
@@ -393,15 +417,7 @@ func think(dt: float) -> void:
 		_handle_actions(dt)
 		if weapon:
 			weapon.update(dt)
-		var spd := stats.v("move_speed")
-		var mult := weapon.move_mult() if weapon else 1.0
-		if cast_t > 0.0:
-			mult *= 0.55
-		if ward_t > 0.0 or ward_recover > 0.0:
-			mult *= 0.35
-		if flask_t > 0.0:
-			mult *= 0.45
-		vel = move_in * spd * mult
+		vel = move_in * stats.v("move_speed") * _move_mult()
 		if hearthcall_t >= 0.0:
 			vel = Vector2.ZERO
 			_tick_hearthcall(dt)
@@ -421,6 +437,146 @@ func think(dt: float) -> void:
 	_update_anim()
 	_footsteps()
 	_update_aegis_fx()
+
+
+## How much the Kindled's stance slows its walk (attacking, casting, warding, drinking).
+func _move_mult() -> float:
+	var mult := weapon.move_mult() if weapon else 1.0
+	if cast_t > 0.0:
+		mult *= 0.55
+	if ward_t > 0.0 or ward_recover > 0.0:
+		mult *= 0.35
+	if flask_t > 0.0:
+		mult *= 0.45
+	return mult
+
+
+# --- co-op prediction (a client's own Kindled) -------------------------------------
+
+func can_predict() -> bool:
+	return predicting and alive and not downed and stats != null
+
+
+## Keeps what the prediction just changed (a spent dodge, Kindle, a cooldown)
+## from being overwritten by host snapshots sent before the host heard of it.
+func _hold(k: String) -> void:
+	_held_until[k] = Time.get_ticks_msec() + int(Net.rtt_s() * 1000.0) + 200
+
+
+func held_local(k: String) -> bool:
+	return Time.get_ticks_msec() < int(_held_until.get(k, 0))
+
+
+## Co-op client: this machine's Kindled moves, turns, dodges, wards and swings
+## the moment its owner asks, the way think() would on the host; NetRun pulls it
+## toward the host's word, and the host deals every blow.
+func _predict(dt: float) -> void:
+	_react = move_toward(_react, 0.0, dt * 6.0)
+	move_in = pred_move
+	for i in 2:
+		ability_cd[i] = maxf(0.0, ability_cd[i] - dt)
+	ward_cd = maxf(0.0, ward_cd - dt)
+	ward_recover = maxf(0.0, ward_recover - dt)
+	cast_t = maxf(0.0, cast_t - dt)
+	hurt_t = maxf(0.0, hurt_t - dt)
+	flask_t = maxf(0.0, flask_t - dt)
+	dodge_age += dt
+	if ward_t > 0.0:
+		ward_t -= dt
+		if ward_t <= 0.0:
+			ward_recover = 0.28
+			ward_cd = 0.35 * (1.5 if stats.has("bastion") else 1.0)
+	var maxc := stats.v("dodge_charges")
+	if dodge_charges < maxc:
+		dodge_charges = minf(maxc, dodge_charges + dt / maxf(0.2, stats.v("dodge_recharge")))
+	if dodge_t > 0.0:
+		dodge_t -= dt
+		vel = dodge_dir * DODGE_SPEED
+		_trail_t += dt
+		if _trail_t >= 0.035:
+			_trail_t = 0.0
+			stage.fx.ghost(sprite, global_position + sprite.position + visual.position, Color(1.0, 0.6, 0.3), 0.18)
+		if dodge_t <= 0.0:
+			dodge_t = 0.0
+			vel = Vector2.ZERO
+		if weapon:
+			weapon.update_visual(dt)
+	else:
+		_handle_actions(dt)
+		if weapon:
+			weapon.update(dt)
+		vel = move_in * stats.v("move_speed") * _move_mult()
+		if hearthcall_t >= 0.0:
+			vel = Vector2.ZERO
+	# Actor._move, with the host's slows standing in for this machine's statuses
+	if vel != Vector2.ZERO and pred_speed > 0.0:
+		pos = stage.grid.move_box(pos, box(), vel * pred_speed * dt, flying)
+	if push.length_squared() > 0.0001:
+		pos = stage.grid.move_box(pos, box(), push * dt, flying)
+		push *= exp(-9.0 * dt)
+	else:
+		push = Vector2.ZERO
+	draw_off = draw_off * exp(-dt * 12.0) if draw_off.length() > 0.005 else Vector2.ZERO
+	_update_look(dt)
+	facing = look
+	_update_lantern(dt)
+	_update_anim()
+	_footsteps()
+	sync_visual()
+
+
+func _predict_dodge() -> void:
+	var d := move_in if move_in.length() > 0.2 else aim
+	dodge_dir = d.normalized()
+	dodge_len = stats.v("dodge_distance") / DODGE_SPEED
+	dodge_t = dodge_len
+	dodge_age = 0.0
+	perfect_done = false
+	dodge_charges -= 1.0
+	_hold("dodge")
+	if weapon:
+		weapon.cancel()
+	ward_t = 0.0
+	cast_t = 0.0
+	Audio.play("dodge", -2.0, randf_range(0.95, 1.05))
+	stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 10, 2.6, 0.4, 3.0, -dodge_dir, 0.8)
+	stage.fx.kick(dodge_dir, 1.0)
+
+
+## Effects of this Kindled's own action that its owner has already shown itself
+## (prediction): the host sends them to everyone else only.
+func cosmetic(fn: Callable) -> void:
+	var was := Net.skip_peer
+	if controller == Ctrl.REMOTE:
+		Net.skip_peer = peer_id
+	fn.call()
+	Net.skip_peer = was
+
+
+# --- co-op lag compensation (host) ----------------------------------------------------
+
+## A remote Kindled's owner sees each blow coming a round trip late. Blows that
+## would land wait `lag_grace` for a dodge or Ward already on its way; one that
+## arrives in time turns the blow (a perfect dodge, a Ward) as it would have
+## on the owner's screen.
+func _settle_deferred(now_all: bool) -> void:
+	if _deferred.is_empty():
+		return
+	var due: Array = []
+	for d in _deferred:
+		if now_all or stage.elapsed >= float(d[0]):
+			due.append(d)
+	for d in due:
+		_deferred.erase(d)
+		var att: Variant = d[2]
+		if att is Object and not is_instance_valid(att):
+			att = null
+		var before := hp
+		_settling = true
+		take_enemy_hit(d[1], att)
+		_settling = false
+		if now_all and hp >= before:
+			lag_saves += 1
 
 
 var _moth_t := 1.0
@@ -462,12 +618,16 @@ func _timers(dt: float) -> void:
 func _handle_actions(_dt: float) -> void:
 	if _buf.home > 0.0:
 		_buf.home = 0.0
+		if predicting:
+			return     # the host decides the Hearthcall
 		if hearthcall_t >= 0.0:
 			break_hearthcall()
 		else:
 			start_hearthcall()
 		return
 	if hearthcall_t >= 0.0:
+		if predicting:
+			return
 		# anything else the Kindled does breaks the call
 		if _buf.attack > 0.0 or _buf.dodge > 0.0 or _buf.ward > 0.0 or _buf.a1 > 0.0 or _buf.a2 > 0.0 or _buf.flask > 0.0 or move_in.length() > 0.5:
 			break_hearthcall()
@@ -499,10 +659,16 @@ func _handle_actions(_dt: float) -> void:
 			_release_pending = true
 	if _release_pending and not (_buf.attack > 0.0):
 		_release_pending = false
+		if remote_hold >= 0.0:
+			weapon.sync_hold(remote_hold)
+			remote_hold = -1.0
 		weapon.release()
 
 
 func _start_dodge() -> void:
+	if predicting:
+		_predict_dodge()
+		return
 	if stats.has("shadowdancer"):
 		Abilities.shade(self, pos, 14.0 * stats.damage_mult(["shadow"]), 0.4)
 	var d := move_in if move_in.length() > 0.2 else aim
@@ -518,13 +684,15 @@ func _start_dodge() -> void:
 		weapon.cancel()
 	ward_t = 0.0
 	cast_t = 0.0
-	Audio.play("dodge", -2.0, randf_range(0.95, 1.05))
 	if stats.has("gloam_set4"):
 		gloam_t = 2.0 + dodge_len
-	stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 10, 2.6, 0.4, 3.0, -dodge_dir, 0.8)
-	stage.fx.kick(dodge_dir, 1.0)
+	cosmetic(func() -> void:
+		Audio.play("dodge", -2.0, randf_range(0.95, 1.05))
+		stage.fx.burst(pos, 0.1, Color(0.55, 0.52, 0.5), 10, 2.6, 0.4, 3.0, -dodge_dir, 0.8)
+		stage.fx.kick(dodge_dir, 1.0))
 	if stats.has("dodge_afterimage"):
 		Abilities.shade(self, pos, 30.0 * (2.0 if stats.has("afterimage_double") else 1.0), 0.6)
+	_settle_deferred(true)
 
 
 func _update_dodge(dt: float) -> void:
@@ -557,8 +725,10 @@ func _start_ward() -> void:
 	ward_t = stats.v("parry_window")
 	if weapon:
 		weapon.cancel()
-	Audio.play("ward", -3.0)
-	stage.fx.shape(Fx.Shape.RING, pos, Vector2.RIGHT, Vector2(2.4, 2.4), Color(1.0, 0.85, 0.5, 0.6), Color(1.0, 0.95, 0.75, 1.0), ward_t, {"inner": 0.82, "glow": 1.4})
+	cosmetic(func() -> void:
+		Audio.play("ward", -3.0)
+		stage.fx.shape(Fx.Shape.RING, pos, Vector2.RIGHT, Vector2(2.4, 2.4), Color(1.0, 0.85, 0.5, 0.6), Color(1.0, 0.95, 0.75, 1.0), ward_t, {"inner": 0.82, "glow": 1.4}))
+	_settle_deferred(true)
 
 
 func is_warding() -> bool:
@@ -587,6 +757,14 @@ func _try_ability(slot: int) -> void:
 			return
 	if weapon:
 		weapon.cancel()
+	if predicting:
+		# the host casts it; here the Kindled takes the stance and pays at once
+		kindle = maxf(0.0, kindle - cost)
+		ability_cd[slot] = float(d.cooldown) * stats.v("cooldown") * Runes.cooldown_mult(self, id)
+		cast_t = 0.2
+		_hold("kindle")
+		_hold("a%d" % slot)
+		return
 	var cast_at := pos
 	var cast_dir := aim
 	if not Abilities.cast(self, id):
@@ -608,8 +786,9 @@ func _try_ability(slot: int) -> void:
 
 
 func _deny() -> void:
-	Audio.play("deny", -6.0)
-	stage.fx.number(pos, 2.2, "no kindle", Color(0.7, 0.7, 0.75))
+	cosmetic(func() -> void:
+		Audio.play("deny", -6.0)
+		stage.fx.number(pos, 2.2, "no kindle", Color(0.7, 0.7, 0.75)))
 
 
 func _drink() -> void:
@@ -622,22 +801,26 @@ func _drink() -> void:
 	flask_t = 0.45
 	if weapon:
 		weapon.cancel()
-	var amount := max_hp * stats.v("flask_heal") * stats.v("heal_mult")
-	heal(amount)
-	Audio.play("flask", 0.0)
-	# hearth-fire rises through you: motes, a warm ring, a soft flash of light
-	stage.fx.motes(pos, 0.4, Color(1.0, 0.75, 0.4), 18, 1.6, 0.8, 0.4)
-	stage.fx.motes(pos, 0.1, Color(0.6, 1.0, 0.6), 10, 2.2, 0.7, 0.3)
-	stage.fx.ring(pos, 1.3, Color(1.0, 0.8, 0.45), 0.35, 0.2)
-	stage.fx.flash_light(pos, 1.0, Color(1.0, 0.75, 0.45), 2.0, 4.0, 0.4)
-	if sprite:
+	if predicting:
+		_hold("flask")     # the host heals
+	else:
+		heal(max_hp * stats.v("flask_heal") * stats.v("heal_mult"))
+	cosmetic(func() -> void:
+		Audio.play("flask", 0.0)
+		# hearth-fire rises through you: motes, a warm ring, a soft flash of light
+		stage.fx.motes(pos, 0.4, Color(1.0, 0.75, 0.4), 18, 1.6, 0.8, 0.4)
+		stage.fx.motes(pos, 0.1, Color(0.6, 1.0, 0.6), 10, 2.2, 0.7, 0.3)
+		stage.fx.ring(pos, 1.3, Color(1.0, 0.8, 0.45), 0.35, 0.2)
+		stage.fx.flash_light(pos, 1.0, Color(1.0, 0.75, 0.45), 2.0, 4.0, 0.4))
+	if sprite and controller != Ctrl.REMOTE:
 		sprite.flash(Color(1.0, 0.85, 0.55), 0.25)
-	Settings.rumble(0.25, 0.0, 0.15)
+		Settings.rumble(0.25, 0.0, 0.15)
 
 
 func _deny_flask() -> void:
-	Audio.play("deny", -6.0)
-	stage.fx.number(pos, 2.2, "flask empty", Color(0.7, 0.7, 0.75))
+	cosmetic(func() -> void:
+		Audio.play("deny", -6.0)
+		stage.fx.number(pos, 2.2, "flask empty", Color(0.7, 0.7, 0.75)))
 
 
 func gain_kindle(amount: float) -> void:
@@ -658,8 +841,9 @@ func on_attack_start() -> void:
 
 
 func on_weapon_charged() -> void:
-	Audio.play("charged", -4.0)
-	stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.2, 0.25)
+	cosmetic(func() -> void:
+		Audio.play("charged", -4.0)
+		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.2, 0.25))
 
 
 func on_weapon_strike(_hits: int, _finisher: bool) -> void:
@@ -686,6 +870,15 @@ func on_weapon_strike(_hits: int, _finisher: bool) -> void:
 func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	if t == null or not t.alive:
 		return Combat.Result.new()
+	var prev := Net.actor_peer
+	Net.actor_peer = peer_id
+	Net.actor_pos = pos
+	var res := _deal_hit(t, h, finisher)
+	Net.actor_peer = prev
+	return res
+
+
+func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var dot := h.has_tag("dot")
 	var direct := (h.has_tag("melee") or h.has_tag("ranged")) and not dot
 	var mult := 1.0
@@ -990,6 +1183,15 @@ func _thermal_shock(t: Actor) -> void:
 
 ## All enemy damage to the player passes through here (dodge, ward, aegis, barrier).
 func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
+	var prev := Net.actor_peer
+	Net.actor_peer = peer_id
+	Net.actor_pos = pos
+	var res := _take_enemy_hit(h, attacker)
+	Net.actor_peer = prev
+	return res
+
+
+func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	var empty := Combat.Result.new()
 	if not alive or godmode:
 		return empty
@@ -998,6 +1200,9 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 			_perfect_dodge()
 		return empty
 	if invuln_t > 0.0:
+		return empty
+	if controller == Ctrl.REMOTE and lag_grace > 0.0 and not _settling and not h.has_tag("dot") and ward_t <= 0.0:
+		_deferred.append([stage.elapsed + lag_grace, h, attacker])
 		return empty
 	if hearthcall_t >= 0.0:
 		break_hearthcall("The call is broken!")
@@ -1257,6 +1462,7 @@ func die(killer: Node) -> void:
 	if stage.players.size() > 1 and not downed:
 		_go_down()
 		return
+	_deferred.clear()
 	alive = false
 	downed = false
 	vel = Vector2.ZERO
@@ -1305,6 +1511,9 @@ func set_seat(col: Color) -> void:
 
 ## Co-op client: the picture of a Kindled the host simulates.
 func replica_present(dt: float) -> void:
+	if can_predict():
+		_predict(dt)
+		return
 	super.replica_present(dt)
 	_update_lantern(dt)
 	if weapon and alive and not downed:
@@ -1326,6 +1535,7 @@ func revive_replica() -> void:
 ## At 0 health with friends about, the Kindled falls but its light holds for a
 ## while: an ally who stands beside it long enough brings it back.
 func _go_down() -> void:
+	_deferred.clear()
 	downed = true
 	hp = 0.0
 	bleed_t = BLEED_TIME

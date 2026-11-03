@@ -60,6 +60,7 @@ func _ready() -> void:
 	toast_box.position = Vector2(10, 0)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_box)
+	root.add_child(NetDiag.new())
 	modal_layer = Control.new()
 	modal_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE

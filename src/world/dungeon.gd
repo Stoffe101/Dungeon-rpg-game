@@ -376,6 +376,7 @@ func _spawn_party(start: Room) -> void:
 		if replica:
 			pl.controller = Player.Ctrl.REPLICA
 			pl.replica = true
+			pl.predicting = mine
 		elif not mine:
 			pl.controller = Player.Ctrl.REMOTE
 		if not mine:

@@ -28,6 +28,10 @@ var visual: MeshInstance3D
 var hit_ids := {}
 var _charge_fx_t := 0.0
 var _hit_flash := 0.0     # the blade glints when it connects
+## Co-op client, this machine's Kindled: the weapon keeps its timing and its
+## picture (so a swing starts the moment it is asked for) but deals nothing;
+## the host deals the blows.
+var predicting := false
 
 
 func setup(p: Player, weapon_id: String, lvl: int) -> void:
@@ -85,7 +89,7 @@ func release() -> void:
 	held = false
 	if phase == Phase.CHARGE:
 		if charged:
-			release_charge()
+			_fire_charge()
 		else:
 			_set_phase(Phase.IDLE, 0.0)
 			begin_combo()
@@ -141,6 +145,39 @@ func release_charge() -> void:
 	_set_phase(Phase.IDLE, 0.0)
 
 
+## The charged blow: dealt by the host; a predicting client only takes its stance.
+func _fire_charge() -> void:
+	if predicting:
+		predict_charge()
+	else:
+		release_charge()
+
+
+## Co-op client: how the start of ACTIVE moves the Kindled (the host deals the hits).
+func predict_active() -> void:
+	if strike.has("lunge"):
+		player.push += aim_dir * float(strike.lunge)
+
+
+## Co-op client: the charged release's stance and timing (override where it differs).
+func predict_charge() -> void:
+	charged = false
+	aim_dir = player.aim
+	strike = {"windup": 0.0, "active": 0.22, "recover": 0.3}
+	_set_phase(Phase.ACTIVE, 0.22 / speed())
+	combo = 0
+
+
+## Host, remote Kindled: line the draw up with how long its owner actually held
+## (their clock; the packets carrying press and release can arrive unevenly).
+func sync_hold(client_hold: float) -> void:
+	var d := clampf(client_hold - hold_t, -0.15, 0.15)
+	hold_t += d
+	if phase == Phase.CHARGE:
+		phase_t = maxf(0.0, phase_t + d)
+		charged = phase_t >= charge_time / speed()
+
+
 func max_combo() -> int:
 	return 1
 
@@ -165,7 +202,10 @@ func update(dt: float) -> void:
 			if phase_t >= phase_len:
 				_set_phase(Phase.ACTIVE, strike.get("active", 0.07) / speed())
 				hit_ids.clear()
-				on_active()
+				if predicting:
+					predict_active()
+				else:
+					on_active()
 		Phase.ACTIVE:
 			if phase_t >= phase_len:
 				_set_phase(Phase.RECOVER, strike.get("recover", 0.16) / speed())
@@ -193,7 +233,8 @@ func update(dt: float) -> void:
 			if _charge_fx_t > 0.05:
 				_charge_fx_t = 0.0
 				var c := Color(1.0, 0.8, 0.4) if charged else Color(1.0, 0.55, 0.25)
-				player.stage.fx.motes(player.pos + aim_dir * 0.4, 0.6, c, 1 if not charged else 2, 1.5, 0.35, 0.3)
+				player.cosmetic(func() -> void:
+					player.stage.fx.motes(player.pos + aim_dir * 0.4, 0.6, c, 1 if not charged else 2, 1.5, 0.35, 0.3))
 	update_visual(dt)
 
 

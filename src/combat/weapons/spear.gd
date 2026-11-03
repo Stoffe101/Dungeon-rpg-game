@@ -83,6 +83,21 @@ func update_visual(dt: float) -> void:
 		visual.position += Iso.to_world(aim_dir * 0.45, 0.0) - Iso.to_world(Vector2.ZERO, 0.0)
 
 
+## The lunge is movement: a predicting client makes it too (the host strikes).
+func predict_charge() -> void:
+	aim_dir = player.aim
+	charged = false
+	var from := player.pos
+	var to := player.stage.grid.move_box(from, player.box(), aim_dir * LUNGE, true)
+	strike = {"windup": 0.0, "active": 0.14, "recover": 0.3, "thrust": true}
+	_set_phase(Phase.ACTIVE, 0.14)
+	for i in 4:
+		player.stage.fx.ghost(player.sprite, Iso.to_world(from.lerp(to, i / 3.0), 0.0), Color(1.0, 0.75, 0.35), 0.2 + i * 0.04)
+	player.pos = to
+	Audio.play("rush", -2.0, 1.1)
+	combo = 0
+
+
 ## Comet Lunge: point-first through the line, then a burst of sunfire.
 func release_charge() -> void:
 	aim_dir = player.aim
@@ -96,7 +111,7 @@ func release_charge() -> void:
 	for i in 4:
 		player.stage.fx.ghost(player.sprite, Iso.to_world(from.lerp(to, i / 3.0), 0.0), Color(1.0, 0.75, 0.35), 0.2 + i * 0.04)
 	player.pos = to
-	Audio.play("rush", -2.0, 1.1)
+	player.cosmetic(func() -> void: Audio.play("rush", -2.0, 1.1))
 	var hits := line_hit(from, to, 0.9, def.charged, ["melee"], 6.0, 30.0, {"finisher": true, "unblockable": true})
 	# the landing burst
 	var r := 1.9 * player.stats.v("area")

@@ -108,7 +108,12 @@ func _takes(sname: String) -> int:
 ## crowd from stacking the same sound (voices use a longer gap).
 func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms := 30) -> void:
 	if Net.recording and bus == "SFX" and in_sim:
-		Net.rec(["snd", sname, null, volume_db, pitch])
+		Net.rec(["snd", sname, null, volume_db, pitch, Net.actor_peer])
+		if Net.actor_peer != 0 and Net.actor_peer != Net.my_id():
+			# another Kindled's own sound: heard from where they stand
+			volume_db = _volume_at(Net.actor_pos, volume_db - 3.0)
+			if is_nan(volume_db):
+				return
 	var now := Time.get_ticks_msec()
 	if now - int(_last_play.get(sname, -100000)) < gap_ms:
 		return
@@ -132,17 +137,25 @@ func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms :=
 	p.play()
 
 
+## How loud a sound from `at` is where this machine's Kindled stands (NAN: out of earshot).
+func _volume_at(at: Vector2, volume_db: float) -> float:
+	var st = Game.stage
+	if st and st.player:
+		var d: float = (st.player.pos as Vector2).distance_to(at)
+		if d > 16.0:
+			return NAN
+		volume_db -= clampf((d - 4.0) * 1.4, 0.0, 18.0)
+	return volume_db
+
+
 ## A sound from a place in the world: quieter with distance from the Kindled,
 ## silent beyond earshot.
 func play_at(sname: String, at: Vector2, volume_db := 0.0, pitch := 1.0, gap_ms := 30) -> void:
 	if Net.recording:
 		Net.rec(["snd", sname, at, volume_db, pitch])
-	var st = Game.stage
-	if st and st.player:
-		var d: float = (st.player.pos as Vector2).distance_to(at)
-		if d > 16.0:
-			return
-		volume_db -= clampf((d - 4.0) * 1.4, 0.0, 18.0)
+	volume_db = _volume_at(at, volume_db)
+	if is_nan(volume_db):
+		return
 	var was := in_sim
 	in_sim = false
 	play(sname, volume_db, pitch, "SFX", gap_ms)
