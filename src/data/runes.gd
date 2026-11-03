@@ -64,6 +64,17 @@ static func of(pl: Player, ability: String) -> Array:
 	return socketed.get(ability, [])
 
 
+## How many runes are set across all of this Kindled's spells.
+static func total(pl: Player) -> int:
+	var socketed: Dictionary = pl.sheet.get("runes", {}) if not pl.sheet.is_empty() else Profile.runes().get("socketed", {})
+	var n := 0
+	for ab in socketed:
+		for r in socketed[ab]:
+			if String(r) != "":
+				n += 1
+	return n
+
+
 static func has(pl: Player, ability: String, rune: String) -> bool:
 	return of(pl, ability).has(rune)
 

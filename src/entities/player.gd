@@ -59,6 +59,7 @@ var downed := false          # co-op: at 0 health, waiting for an ally
 var bleed_t := 0.0
 var revive_k := 0.0
 var aegis_echo := false       # Rune of Echoes: the ward forms once more when it breaks
+var still_t := 0.0            # Stillness keystone: how long the Kindled has stood still
 var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
 ## Press counters for every button: they only go up, so a network packet lost
 ## in between can never lose a press (the host compares counts).
@@ -404,6 +405,13 @@ func think(dt: float) -> void:
 		if hearthcall_t >= 0.0:
 			vel = Vector2.ZERO
 			_tick_hearthcall(dt)
+	if stats.has("stillness"):
+		var was := still_t >= 0.6
+		still_t = still_t + dt if move_in.length() < 0.1 and dodge_t <= 0.0 else 0.0
+		if still_t >= 0.6 and not was:
+			stage.fx.ring(pos, 0.9, Color(0.65, 0.88, 1.0), 0.3, 0.15)
+		if still_t >= 0.6 and fmod(stage.elapsed, 0.25) < dt:
+			stage.fx.motes(pos, 0.2, Color(0.65, 0.88, 1.0), 1, 0.4, 0.8, 0.5)
 	_update_look(dt)
 	facing = look
 	if stats.has("featherfall"):
@@ -445,7 +453,7 @@ func _timers(dt: float) -> void:
 		ward_t -= dt
 		if ward_t <= 0.0:
 			ward_recover = 0.28
-			ward_cd = 0.35
+			ward_cd = 0.35 * (1.5 if stats.has("bastion") else 1.0)
 	var maxc := stats.v("dodge_charges")
 	if dodge_charges < maxc:
 		dodge_charges = minf(maxc, dodge_charges + dt / maxf(0.2, stats.v("dodge_recharge")))
@@ -495,6 +503,8 @@ func _handle_actions(_dt: float) -> void:
 
 
 func _start_dodge() -> void:
+	if stats.has("shadowdancer"):
+		Abilities.shade(self, pos, 14.0 * stats.damage_mult(["shadow"]), 0.4)
 	var d := move_in if move_in.length() > 0.2 else aim
 	dodge_dir = d.normalized()
 	var dist := stats.v("dodge_distance")
@@ -702,6 +712,11 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		mult *= 1.0 + minf(0.2, 0.04 * Profile.active_grudges().size())
 	if stats.has("glass_lantern") and t.pos.distance_to(pos) < 4.0:
 		mult *= 1.35
+	if stats.has("stillness") and still_t >= 0.6:
+		mult *= 1.4
+		h.chill = maxf(h.chill, 0.2)
+	if stats.has("ashbringer") and float(t.get_meta("ashen_until", -1.0)) > stage.elapsed:
+		mult *= 1.25
 	if direct and stats.has("headsman") and t.hp_ratio() < 0.25:
 		h.forced_crit = true
 	if stats.has("ember_set4") and t.status.burning():
@@ -766,6 +781,9 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		return res
 	if not runes.is_empty() and h.proc:
 		_rune_on_hit(t, h, res, runes)
+	if stats.has("ashbringer") and h.has_tag("ability") and h.has_tag("fire") and float(t.get_meta("ash_cd", -1.0)) < stage.elapsed:
+		t.set_meta("ash_cd", stage.elapsed + 0.8)
+		_ash_ground(t.pos)
 	Events.damage_dealt.emit(t, res.amount, res.crit)
 	if res.crit and stats.has("pyre_brand") and t.alive:
 		t.status.apply_burn(3, 3.0 * (1.0 + stats.v("burn_damage")), int(stats.v("burn_stacks")), self)
@@ -848,6 +866,20 @@ static func _echo_later(st: Stage, pref: WeakRef, tref: WeakRef, amount: float, 
 
 
 ## Stormcaller Signet: lightning on a nearby enemy (not the one just hit if others are near).
+## Ashbringer: a patch of burning ground; foes in it are marked to take more.
+func _ash_ground(at: Vector2) -> void:
+	var me := self
+	var hz := Hazard.spawn(stage, at, 1.2, 3.0, team, Color(1.0, 0.45, 0.15), func(_hz: Hazard, a: Actor) -> void:
+		a.set_meta("ashen_until", me.stage.elapsed + 0.6)
+		var dh := Combat.player_hit(me, me.stats, 3.0, ["fire", "dot"])
+		dh.can_crit = false
+		dh.silent = true
+		dh.proc = false
+		me.deal_hit(a, dh))
+	hz.period = 0.4
+	hz.particle_rate = 8.0
+
+
 ## Runes that act on each spell hit: Arcing, Ruin and Kindling.
 func _rune_on_hit(t: Actor, h: Hit, res: Combat.Result, runes: Array) -> void:
 	if runes.has("siphon"):
@@ -972,6 +1004,12 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if ward_t > 0.0 and not h.has_tag("dot") and not h.unblockable:
 		_on_ward(attacker, false)
 		return empty
+	if not h.has_tag("dot") and not h.unblockable and stage.players.size() > 1:
+		for ally in stage.players_near(pos, 4.0):
+			if ally != self and ally.ward_t > 0.0 and ally.stats.has("bastion"):
+				ally._on_ward(attacker, false)
+				stage.fx.ring(pos, 1.2, Color(1.0, 0.85, 0.45), 0.25, 0.25)
+				return empty
 	if stats.has("hearthguard") and kindle >= stats.v("kindle_max") - 0.01:
 		h.amount *= 0.85
 	if stats.has("rime_set4") and attacker is Actor and is_instance_valid(attacker) and ((attacker as Actor).status.chill > 0.0 or (attacker as Actor).status.is_frozen()):
@@ -1118,6 +1156,27 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	stage.fx.burst(pos + aim * 0.5, 0.8, Color(1.0, 0.9, 0.6), 14, 6.0, 0.3, 4.0)
 	stage.fx.flash_light(pos, 1.0, Color(1.0, 0.8, 0.45), 3.0, 4.0, 0.2)
 	stage.fx.number(pos, 2.4, "WARD", Color(1.0, 0.9, 0.55))
+	if stats.has("counterweight") and weapon:
+		# the blow you turned becomes the one you strike
+		weapon.cancel()
+		if weapon.has_method("inscribe"):
+			for k in 5:
+				stage.after(k * 0.06, func() -> void:
+					if alive and weapon and weapon.has_method("_mote"):
+						weapon._mote())
+		else:
+			weapon.aim_dir = aim
+			weapon.charged = true
+			weapon.release_charge()
+	if stats.has("bastion"):
+		ward_cd = 0.6
+		stage.fx.ring(pos, 3.0, Color(1.0, 0.85, 0.45), 0.3, 0.3)
+		for a in stage.in_circle(team, pos, 3.0):
+			var bh := Combat.player_hit(self, stats, 12.0, ["melee"])
+			bh.knockback = (a.pos - pos).normalized() * 9.0
+			bh.poise = 35.0
+			bh.proc = false
+			deal_hit(a, bh)
 	if stats.has("mirror_ward") and not projectile and attacker is Enemy and is_instance_valid(attacker) and (attacker as Enemy).alive:
 		var en := attacker as Enemy
 		var mh := Hit.make(self, en.damage * 3.0, ["melee"])

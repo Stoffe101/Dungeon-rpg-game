@@ -695,3 +695,43 @@ func test_bow_and_tome() -> void:
 	eq(String(pl.weapon.inscribed), "fire", "casting Flare writes fire into the Tome")
 	check(int(pl.weapon.inscribed_n) > 0, "for the next motes")
 	st.queue_free()
+
+
+func test_outer_keystones() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	# Stillness: standing still for a breath makes hits land harder
+	pl.stats.add_flag("stillness")
+	var e := _enemy(st, "husk", Vector2(6.2, 7))
+	e.speed = 0.0
+	e.max_hp = 999.0
+	e.hp = 999.0
+	_run(st, 0.8)
+	pl.still_t = 0.0
+	var h1 := Hit.make(pl, 10.0, ["melee"])
+	h1.can_crit = false
+	var moving := pl.deal_hit(e, h1).amount
+	pl.still_t = 1.0
+	var h2 := Hit.make(pl, 10.0, ["melee"])
+	h2.can_crit = false
+	var still := pl.deal_hit(e, h2).amount
+	check(still > moving * 1.3, "Still hits land harder (%.1f vs %.1f)" % [still, moving])
+	# Shadowdancer: a dodge leaves a shade that detonates
+	pl.stats.add_flag("shadowdancer")
+	var hp0 := e.hp
+	pl.pos = e.pos + Vector2(-0.5, 0)
+	pl.move_in = Vector2.LEFT
+	pl.press("dodge")
+	_run(st, 0.9)
+	check(e.hp < hp0, "the shade a dodge leaves behind hurts (%d -> %d)" % [int(hp0), int(e.hp)])
+	# Runebound: more runes set, stronger spells
+	for r in ["chain", "siphon"]:
+		Profile.add_rune(r)
+	Profile.set_rune("flare", 0, "chain")
+	eq(Runes.total(pl), 1, "runes are counted across the spells")
+	st.queue_free()
+	# the outer keystones are reachable from their masteries
+	for k in ["b7", "p7", "r7", "g7", "w7", "k7"]:
+		check(SkillDB.node(k).get("kind", "") == "keystone", "%s is a keystone" % k)
+		check(not SkillDB.path_to(k, ["hearth"]).is_empty(), "%s can be reached from the Hearth" % k)

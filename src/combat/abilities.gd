@@ -14,6 +14,8 @@ static var _power := 1.0
 static func cast(pl: Player, id: String, power := 1.0, at := Vector2.INF, dir := Vector2.ZERO) -> bool:
 	_ab = id
 	_power = power * Runes.damage_mult(pl, id)
+	if pl.stats.has("runebound"):
+		_power *= 1.0 + 0.08 * Runes.total(pl)
 	var ok := false
 	match id:
 		"flare":
