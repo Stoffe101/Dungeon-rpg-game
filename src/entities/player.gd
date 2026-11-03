@@ -1706,6 +1706,7 @@ func start_hearthcall() -> void:
 		return
 	hearthcall_t = 0.0
 	_hc_fx_t = 0.0
+	move_in = Vector2.ZERO     # the Kindled plants its feet (walking on breaks the call)
 	if weapon:
 		weapon.cancel()
 	cast_t = 0.0
@@ -1740,6 +1741,10 @@ func _tick_hearthcall(dt: float) -> void:
 
 func _complete_hearthcall() -> void:
 	hearthcall_t = -1.0
+	if Net.active() and Net.party_size() > 1 and Net.i.run_sync:
+		# the whole party goes home, or nobody does
+		Net.i.run_sync.start_vote("hearthcall", -1, self)
+		return
 	input_enabled = false
 	invuln_t = 5.0
 	Audio.play("hearthcall_go", 0.0)

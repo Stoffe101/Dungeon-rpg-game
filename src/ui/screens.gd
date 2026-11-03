@@ -321,19 +321,39 @@ class _KeyPicker:
 
 # --- merchant -------------------------------------------------------------------------
 
+## The Cinder Merchant, for this machine's Kindled on the host (or alone).
 static func shop(ui: UIRoot, prop: Prop) -> Control:
 	var d := Game.stage as Dungeon
-	var run := d.run
-	if not prop.data.has("stock"):
-		var ids := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), run.depth, false)
-		var stock: Array = []
-		for id in ids:
-			var r := RelicDB.relic(id)
-			var price: int = {"common": 45, "rare": 80, "epic": 130}[r.rarity] + 15 * (run.depth - 1)
-			stock.append({"kind": "relic", "id": id, "price": price})
-		stock.append({"kind": "flask", "price": 35})
-		stock.append({"kind": "heal", "price": 25})
-		prop.data["stock"] = stock
+	var ctx := {"stock": Party.shop_stock(d, d.player, prop)}
+	ctx.buy = func(i: int) -> void:
+		if Party.buy(d, d.player, prop, i):
+			Audio.play("buy", 0.0)
+		else:
+			Audio.ui("deny")
+		ctx.rebuild.call()
+	return _shop_panel(ui, ctx)
+
+
+## The Cinder Merchant on a guest's screen: the host keeps the stock and the
+## purse, and answers each purchase with the stock as it now stands.
+static func shop_view(ui: UIRoot, idx: int, stock: Array) -> Control:
+	var ctx := {"stock": stock, "idx": idx}
+	ctx.buy = func(i: int) -> void:
+		var item: Dictionary = ctx.stock[i]
+		if item.get("sold", false) or Game.run == null or Game.run.embers < int(item.price):
+			Audio.ui("deny")
+			return
+		Audio.play("buy", 0.0)
+		item["pending"] = true
+		Net.ask("buy", [idx, i])
+		ctx.rebuild.call()
+	var node := _shop_panel(ui, ctx)
+	ctx.node = node
+	Party._shop_view = ctx
+	return node
+
+
+static func _shop_panel(ui: UIRoot, ctx: Dictionary) -> Control:
 	var p := UIKit.panel()
 	var v := UIKit.vbox(6)
 	p.add_child(v)
@@ -344,12 +364,15 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 	var list := UIKit.vbox(3)
 	v.add_child(list)
 	# lambdas capture by value, so self-reference goes through a shared dict
-	var ctx := {}
 	ctx.rebuild = func() -> void:
-		have.text = "Carried Embers: %d" % run.embers
+		if not is_instance_valid(list):
+			return
+		var embers: int = Game.run.embers if Game.run else 0
+		have.text = "Carried Embers: %d" % embers
 		for c in list.get_children():
 			c.queue_free()
-		for item in prop.data.stock:
+		for i in (ctx.stock as Array).size():
+			var item: Dictionary = ctx.stock[i]
 			var row := UIKit.hbox(6)
 			var name := ""
 			var desc := ""
@@ -376,23 +399,8 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 			var fill := Control.new()
 			fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(fill)
-			var b := UIKit.button("%d Embers" % item.price, func() -> void:
-				if run.embers < int(item.price) or item.get("sold", false):
-					Audio.ui("deny")
-					return
-				run.embers -= int(item.price)
-				item["sold"] = true
-				Audio.play("buy", 0.0)
-				var pl := d.player
-				match item.kind:
-					"relic":
-						Game.grant_relic(item.id)
-					"flask":
-						pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
-					"heal":
-						pl.heal(pl.max_hp * 0.4)
-				ctx.rebuild.call(), 70)
-			b.disabled = item.get("sold", false) or run.embers < int(item.price)
+			var b := UIKit.button("%d Embers" % item.price, func() -> void: ctx.buy.call(i), 70)
+			b.disabled = item.get("sold", false) or item.get("pending", false) or embers < int(item.price)
 			row.add_child(b)
 			list.add_child(row)
 	ctx.rebuild.call()
@@ -402,47 +410,67 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 
 # --- shrine -----------------------------------------------------------------------------
 
+## The shrine of pacts for this machine's Kindled on the host (or alone).
 static func shrine(ui: UIRoot, prop: Prop) -> Control:
 	var d := Game.stage as Dungeon
-	var run := d.run
+	var pl := d.player
+	return _shrine_panel(ui, Party.spent(prop, pl), Party.shrine_curse(d, pl, prop), func(choice: String) -> void:
+		Party.shrine_choice(d, pl, prop, choice))
+
+
+## The shrine on a guest's screen: the host makes the bargain.
+static func shrine_view(ui: UIRoot, idx: int, curse_id: String, spent: bool) -> Control:
+	return _shrine_panel(ui, spent, curse_id, func(choice: String) -> void:
+		Audio.play("pact", 0.0, 1.0 if choice == "blood" else 0.8)
+		Net.ask("shrine", [idx, choice]))
+
+
+static func _shrine_panel(ui: UIRoot, spent: bool, curse_id: String, choose: Callable) -> Control:
 	var p := UIKit.panel()
 	var v := UIKit.vbox(6)
 	p.add_child(v)
 	v.add_child(_title("Shrine of Pacts", Color(0.8, 0.6, 1.0)))
-	if prop.used:
-		v.add_child(UIKit.para("The idol's eyes are dark. Its bargain is spent.", 240, UIKit.C_DIM))
+	if spent:
+		v.add_child(UIKit.para("The idol's eyes are dark to you. Your bargain is spent.", 240, UIKit.C_DIM))
 		v.add_child(UIKit.button("Leave", func() -> void: ui.close_top(), 70))
 		return _center(p)
 	v.add_child(UIKit.para("A hollow voice: \"Power is never free. What will you give?\"", 260, UIKit.C_DIM))
-	var pl := d.player
 	var blood := UIKit.button("Blood Pact: lose 25% of your health, choose a rare relic", func() -> void:
-		prop.used = true
-		pl.hp = maxf(1.0, pl.hp - pl.max_hp * 0.25)
-		pl.stage.fx.burst(pl.pos, 1.0, Color(0.8, 0.2, 0.3), 16, 3.0, 0.5, 4.0)
-		Audio.play("pact", 0.0)
 		ui.close_top()
-		var offer := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), run.depth + 2, false)
-		offer = offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
-		if offer.is_empty():
-			offer = RelicDB.roll_offer(run.rng, 3, run.relics, {}, [], 3, false)
-		ui.relic_choice(offer, func(id: String) -> void:
-			if id != "":
-				Game.grant_relic(id)), 250)
+		choose.call("blood"), 250)
 	v.add_child(blood)
-	var curses: Array = RelicDB.RELICS.filter(func(r): return r.get("cursed", false) and not run.relics.has(r.id))
-	if not curses.is_empty():
-		var c: Dictionary = curses[run.rng.randi_range(0, curses.size() - 1)]
+	if curse_id != "":
+		var c := RelicDB.relic(curse_id)
 		var txt := "Embrace the Curse: %s (%s) +40 Embers" % [c.name, c.desc]
 		var curse := UIKit.button(txt, func() -> void:
-			prop.used = true
-			Game.grant_relic(c.id)
-			run.embers += 40
-			Audio.play("pact", 0.0, 0.8)
-			ui.close_top(), 250)
+			ui.close_top()
+			choose.call("curse"), 250)
 		curse.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		curse.custom_minimum_size = Vector2(250, 26)
 		v.add_child(curse)
 	v.add_child(UIKit.button("Refuse", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+## A party vote: shown to everyone, answered by each on their own screen. The
+## world keeps going meanwhile (the screen does not pause it).
+static func vote(ui: UIRoot, title: String, body: String, answer: Callable) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(6)
+	p.add_child(v)
+	v.add_child(_title(title))
+	v.add_child(UIKit.para(body, 220))
+	var row := UIKit.hbox(8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var ok := UIKit.button("Agree", func() -> void:
+		ui.close_top()
+		answer.call(true), 70)
+	row.add_child(ok)
+	row.add_child(UIKit.button("Not yet", func() -> void:
+		ui.close_top()
+		answer.call(false), 70))
+	v.add_child(row)
+	ok.call_deferred("grab_focus")
 	return _center(p)
 
 

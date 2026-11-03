@@ -22,7 +22,10 @@ const HOST_ONLY := ["merchant", "shrine", "ember_well", "trial_altar", "echo", "
 
 var stage: Dungeon
 var host := false
+var floor_id := 0             # the depth: every message names the floor it belongs to
 var events: Array = []
+var _waiting := false         # host: holding the floor until every guest has built it
+var _wait_t := 0.0
 var _snap_t := 0.0
 # host
 var _last_presses := {}       # peer -> press counts (Net.PRESS_KEYS order)
@@ -48,6 +51,9 @@ var _last_c := -1
 var _lost := 0.0
 var _got := 0.0
 var diag := {}                # client: figures for the network overlay
+# host: party votes (Party.VOTED, the Hearthcall)
+var _votes := {}              # id -> {"id", "kind", "idx", "by", "yes": {peer: true}, "until"}
+var _vote_n := 0
 # client: this machine's Kindled
 var _seq := 0
 var _seq_t := {}              # input seq -> local seconds it was sent
@@ -74,6 +80,7 @@ func setup(st: Dungeon, as_host: bool) -> void:
 	stage = st
 	host = as_host
 	name = "NetRun"
+	floor_id = st.layout.depth
 	Net.i.run_sync = self
 	if host:
 		Net.recording = true
@@ -83,18 +90,27 @@ func setup(st: Dungeon, as_host: bool) -> void:
 		for a in stage.actors:
 			if a.net_id == 0:
 				register_actor(a)
+		# nobody starts a floor ahead of the party
+		if Net.party_size() > 1:
+			_waiting = true
+			stage.paused_sim = true
 	else:
 		Net.recording = false
 		for a in stage.actors:
 			if a is Player and a.net_id != 0:
 				replicas[a.net_id] = a
+		apply_events(Net.i.take_early(floor_id))
+		Net.i.to_host("_floor_ready", [floor_id])
 
 
 func _exit_tree() -> void:
+	# the next floor's NetRun is set up before this one is freed: only the
+	# floor still in charge may stop the recording
 	if Net.i and Net.i.run_sync == self:
 		Net.i.run_sync = null
+		if host:
+			Net.recording = false
 	if host:
-		Net.recording = false
 		if Events.banner.is_connected(_on_banner):
 			Events.banner.disconnect(_on_banner)
 			Events.toast.disconnect(_on_toast)
@@ -140,16 +156,29 @@ func _process(delta: float) -> void:
 	if not Net.active():
 		return
 	if host:
+		if _waiting:
+			_wait_t += delta
+			var all := true
+			for pid in Net.i.roster.keys():
+				if int(pid) != 1 and int(Net.i.ready_floor.get(pid, -1)) != floor_id:
+					all = false
+			if all or _wait_t > 10.0:
+				_waiting = false
+				stage.paused_sim = false
+				print("[net] floor %d starts (%s, %.1f s)" % [floor_id, "everyone is here" if all else "waited long enough", _wait_t])
 		# events go out the frame they happen (a batch per frame, reliable)
 		if not events.is_empty():
 			var evs := events
 			events = []
-			Net.i.rpc("_events", evs)
+			Net.i.rpc("_events", floor_id, evs)
 		_snap_t += delta
 		if _snap_t >= 1.0 / SNAP_HZ:
 			_snap_t = 0.0
 			_capture_props()
 			_send_snapshots()
+			for v in _votes.values():
+				if stage.elapsed > float(v.until):
+					_finish_vote(v, false, "Not everyone answered.")
 	else:
 		_client_tick(delta)
 
@@ -249,7 +278,7 @@ func _ship(peer: int, chunk: Dictionary) -> void:
 	var z := raw.compress(FileAccess.COMPRESSION_ZSTD)
 	Net.i.count("snap_out", z.size())
 	Net.i.count("snap_pk")
-	Net.i.rpc_id(peer, "_snapz", z, raw.size())
+	Net.i.rpc_id(peer, "_snapz", floor_id, z, raw.size())
 
 
 ## Props change rarely: send what changed (opened, lit, emptied, gone).
@@ -317,7 +346,26 @@ func on_ask(peer: int, kind: String, args: Array) -> void:
 	var pl := _player_of(peer)
 	if pl == null:
 		return
+	var p0: Prop = _prop(int(args[0])) if kind in ["buy", "shrine", "echo", "confirm"] else null
+	if p0 and p0.pos.distance_to(pl.pos) > p0.interact_radius + 2.5:
+		p0 = null     # they walked away with the menu open
 	match kind:
+		"buy":
+			if p0 and p0.kind == "merchant":
+				Party.buy(stage, pl, p0, int(args[1]))
+				# the truth either way: what is sold, what is left
+				Net.i.rpc_id(peer, "_offer", "shop", [p0.net_idx, Party.shop_stock(stage, pl, p0)])
+		"shrine":
+			if p0 and p0.kind == "shrine":
+				Party.shrine_choice(stage, pl, p0, String(args[1]))
+		"echo":
+			if p0 and p0.kind == "echo":
+				Party.echo_gift(stage, pl, p0)
+		"confirm":
+			if p0 and p0.kind == "ember_well" and String(args[1]) == "well":
+				Party.draw_well(stage, pl, p0)
+		"vote":
+			cast_vote(peer, int(args[0]), bool(args[1]))
 		"interact":
 			var p := _prop(int(args[0]))
 			if p == null or not p.interactable() or pl.downed or not pl.alive:
@@ -343,6 +391,75 @@ func on_peer_left(peer: int) -> void:
 		pl.queue_free()
 	_sent.erase(peer)
 	_pick_sent.erase(peer)
+	for v in _votes.values():
+		v.yes.erase(peer)
+		_check_vote(v)
+
+
+# --- host: party votes ---------------------------------------------------------------
+
+## Someone asks the party (the stairs, the Hearthstone, the Trial, a Hearthcall):
+## everyone has to agree, within Party.VOTE_TIME; one "not yet" ends it.
+func start_vote(kind: String, idx: int, by: Player) -> void:
+	for v in _votes.values():
+		if v.kind == kind and int(v.idx) == idx:
+			cast_vote(by.peer_id, int(v.id), true)
+			return
+	_vote_n += 1
+	var nv := {"id": _vote_n, "kind": kind, "idx": idx, "by": by.peer_id, "yes": {by.peer_id: true},
+		"until": stage.elapsed + Party.VOTE_TIME}
+	_votes[_vote_n] = nv
+	print("[net] vote %d: %s asked by %s" % [_vote_n, kind, Net.name_of(by.peer_id)])
+	_announce_vote(nv)
+	_check_vote(nv)
+
+
+func cast_vote(peer: int, id: int, agree: bool) -> void:
+	var v: Dictionary = _votes.get(id, {})
+	if v.is_empty() or not Net.i.roster.has(peer):
+		return
+	if not agree:
+		_finish_vote(v, false, "%s is not ready yet." % Net.name_of(peer))
+		return
+	if v.yes.has(peer):
+		return
+	v.yes[peer] = true
+	_announce_vote(v)
+	_check_vote(v)
+
+
+func _announce_vote(v: Dictionary) -> void:
+	var yes: Array = v.yes.keys()
+	Net.rec(["vote", v.id, v.kind, v.by, yes, Net.i.roster.size()])
+	Party.show_vote(int(v.id), String(v.kind), int(v.by), yes, Net.i.roster.size())
+
+
+func _check_vote(v: Dictionary) -> void:
+	if not _votes.has(v.id):
+		return
+	for pid in Net.i.roster.keys():
+		if not v.yes.has(pid):
+			return
+	_finish_vote(v, true, "")
+	match String(v.kind):
+		"stairs":
+			Game.descend()
+		"hearthstone":
+			var hs := _prop(int(v.idx))
+			Game.end_run("victory" if hs and hs.data.get("victory", false) else "extracted")
+		"trial":
+			var tp := _prop(int(v.idx))
+			if tp:
+				stage.begin_trial(tp)
+		"hearthcall":
+			Game.end_run("extracted")
+
+
+func _finish_vote(v: Dictionary, passed: bool, why: String) -> void:
+	_votes.erase(v.id)
+	print("[net] vote %d (%s) %s %s" % [int(v.id), String(v.kind), "passed" if passed else "failed:", why])
+	Net.rec(["vote_end", v.id, passed, why])
+	Party.end_vote(int(v.id), passed, why)
 
 
 func _player_of(peer: int) -> Player:
@@ -574,6 +691,10 @@ func apply_events(evs: Array) -> void:
 					Events.boss_started.emit(b)
 			"boss_down":
 				Events.boss_defeated.emit(stage.boss)
+			"vote":
+				Party.show_vote(int(ev[1]), String(ev[2]), int(ev[3]), ev[4], int(ev[5]))
+			"vote_end":
+				Party.end_vote(int(ev[1]), bool(ev[2]), String(ev[3]))
 
 
 func _spawn_replica(id: int, d: Dictionary) -> void:
@@ -872,12 +993,7 @@ func _interpolate() -> void:
 
 
 func on_offer(kind: String, args: Array) -> void:
-	match kind:
-		"relic":
-			var idx := int(args[0])
-			Game.ui.relic_choice(args[1], func(id: String) -> void:
-				if id != "":
-					Net.ask("relic", [idx, id]))
+	Party.on_offer(kind, args)
 
 
 ## A plain picture of a non-enemy actor (familiars and such) on a client.

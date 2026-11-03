@@ -14,7 +14,7 @@ signal status_changed(text: String)
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 2
+const PROTOCOL := 3
 ## Each seat's colour: nameplates, map markers and the ring under each Kindled.
 const COLORS := [Color(1.0, 0.72, 0.35), Color(0.45, 0.82, 1.0), Color(0.62, 1.0, 0.5), Color(1.0, 0.52, 0.78)]
 ## The order of the press counters in an input packet.
@@ -41,6 +41,8 @@ var peer: MultiplayerPeer
 var roster := {}               # peer id -> {"name", "sheet", "slot"}
 var run_sync: NetRun           # the expedition being shared (host or client)
 var status := ""
+var ready_floor := {}          # host: peer -> the floor that peer has built (NetRun waits for all)
+var _early: Array = []         # client: [floor, events] sent before this machine had built that floor
 
 # measured link (client: to the host)
 var rtt := 0.0                 # seconds, smoothed
@@ -260,6 +262,8 @@ func leave() -> void:
 	recording = false
 	rtt = 0.0
 	jitter = 0.0
+	ready_floor.clear()
+	_early.clear()
 	_simq.clear()
 	_sim_last.clear()
 	roster_changed.emit()
@@ -425,19 +429,41 @@ func _n_input(d: Array) -> void:
 
 
 @rpc("authority", "unreliable_ordered")
-func _snapz(b: PackedByteArray, n: int) -> void:
+func _snapz(fl: int, b: PackedByteArray, n: int) -> void:
 	count("snap_bytes", b.size())
 	_through("snap", false, func() -> void:
 		count("snaps")
-		if run_sync:
+		if run_sync and run_sync.floor_id == fl:
 			run_sync.apply_snapshot(bytes_to_var(b.decompress(n, FileAccess.COMPRESSION_ZSTD))))
 
 
+## Host -> clients, every frame something happened on floor `fl`. A client that
+## has not built that floor yet keeps them until it has (Game is still showing
+## the depth's title card): nothing that happens there first is lost.
 @rpc("authority", "reliable")
-func _events(evs: Array) -> void:
+func _events(fl: int, evs: Array) -> void:
 	_through("rel", true, func() -> void:
-		if run_sync:
-			run_sync.apply_events(evs))
+		if run_sync and run_sync.floor_id == fl:
+			run_sync.apply_events(evs)
+		elif run_sync == null or fl > run_sync.floor_id:
+			_early.append([fl, evs]))
+
+
+## Client: what was sent for floor `fl` before it was built here (and forget older floors).
+func take_early(fl: int) -> Array:
+	var out: Array = []
+	for e in _early:
+		if int(e[0]) == fl:
+			out.append_array(e[1])
+	_early = _early.filter(func(e): return int(e[0]) > fl)
+	return out
+
+
+## Client -> host: this machine has built floor `fl` and is ready to play it.
+@rpc("any_peer", "reliable")
+func _floor_ready(fl: int) -> void:
+	if multiplayer.is_server():
+		ready_floor[multiplayer.get_remote_sender_id()] = fl
 
 
 @rpc("any_peer", "reliable")

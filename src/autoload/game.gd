@@ -210,6 +210,7 @@ func run_of(peer_id: int) -> RunState:
 ## Client: the host is taking the party down.
 func begin_coop_client(params: Dictionary) -> void:
 	ui.close_all()
+	Net.i._early.clear()     # a new expedition: nothing from an old one carries over
 	var reg: Dictionary = {"name": Delve.NAME} if String(params.region) == "delve" else EnemyDB.REGIONS[String(params.region)]
 	var wait := 0.0
 	if stage is Hub:
@@ -256,7 +257,7 @@ func abandon_coop_run() -> void:
 
 
 func grant_relic_to(pl: Player, id: String) -> void:
-	if pl == stage.player:
+	if stage and pl == stage.player:
 		grant_relic(id)
 		return
 	pl.run.add_relic(id)
@@ -264,7 +265,7 @@ func grant_relic_to(pl: Player, id: String) -> void:
 	var r := RelicDB.relic(id)
 	if r.get("refill_flask", false):
 		pl.flask = int(pl.stats.v("flask_charges"))
-	stage.fx.motes(pl.pos, 0.6, RelicDB.RARITY_COLOR.get("cursed" if r.get("cursed", false) else r.rarity, Color.WHITE), 16, 1.5, 1.0, 0.5)
+	pl.stage.fx.motes(pl.pos, 0.6, RelicDB.RARITY_COLOR.get("cursed" if r.get("cursed", false) else r.rarity, Color.WHITE), 16, 1.5, 1.0, 0.5)
 
 
 func grant_relic(id: String) -> void:

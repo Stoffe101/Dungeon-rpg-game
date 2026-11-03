@@ -92,12 +92,17 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.room_id = start.id
 			add_actor(e)
 	if "coopdive" in OS.get_cmdline_user_args() and not replica:
-		# dev: depth 1 -> descend after a moment; depth 2 -> Hearthcall home
+		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
-			after(4.0, Game.descend)
+			after(4.0, func() -> void:
+				if Net.i.run_sync and Net.party_size() > 1:
+					Net.i.run_sync.start_vote("stairs", -1, player)
+				else:
+					Game.descend())
 		else:
 			after(3.0, func() -> void:
 				if player and player.alive:
+					player.invuln_t = 8.0     # dev: so the ritual is not broken mid-test
 					player.start_hearthcall())
 	if "lootlab" in OS.get_cmdline_user_args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
@@ -749,15 +754,20 @@ func _relic_taken(prop: Prop, who: Player) -> void:
 			prop.light.light_energy = 0.3
 
 
-## Co-op host: a client chose from their offer.
+## Co-op host: a guest chose from the relics offered to them (an altar, a
+## chest, a pact). One pick per offer: a repeated answer finds nothing.
 func coop_relic_pick(pl: Player, idx: int, id: String) -> void:
 	for prop in props:
-		if is_instance_valid(prop) and prop.net_idx == idx and prop.kind == "relic_altar":
-			var offer: Array = prop.data.get("offer_%d" % pl.peer_id, [])
-			if not offer.has(id) or (prop.data.get("taken", []) as Array).has(pl.peer_id):
+		if is_instance_valid(prop) and prop.net_idx == idx:
+			var key := "offer_%d" % pl.peer_id
+			var offer: Array = prop.data.get(key, [])
+			if not offer.has(id):
 				return
+			prop.data.erase(key)
+			print("[net] %s chose relic %s (%s)" % [Net.name_of(pl.peer_id), id, prop.kind])
 			Game.grant_relic_to(pl, id)
-			_relic_taken(prop, pl)
+			if prop.kind == "relic_altar":
+				_relic_taken(prop, pl)
 			return
 
 
@@ -1082,6 +1092,9 @@ func _on_player_died() -> void:
 # --- props asking for things -----------------------------------------------------------
 
 func request(what: String, prop: Prop) -> void:
+	var who: Player = interactor if interactor else player
+	if Party.serve(self, who, what, prop):
+		return
 	match what:
 		"stairs":
 			Game.descend()
@@ -1092,29 +1105,17 @@ func request(what: String, prop: Prop) -> void:
 				Game.ui.confirm("Return to the Last Hearth?", "You keep everything you carry. The descent ends here.", func() -> void:
 					Game.end_run("extracted"))
 		"relic":
-			var who: Player = interactor if interactor else player
+			if (prop.data.get("taken", []) as Array).has(who.peer_id):
+				return
 			var tier: int = prop.data.get("tier", 1)
-			var skills: Array = Profile.skills() if who.sheet.is_empty() else who.sheet.get("skills", ["hearth"])
+			var skills := Party.skills_of(who)
 			var offer := RelicDB.roll_offer(run.rng, 6 if tier >= 3 else 3, who.run.relics, SkillDB.branch_counts(skills), SkillDB.abilities(skills), layout.depth + tier - 1, tier < 3)
 			if tier >= 3:
 				# trial prizes: no commons
 				var better := offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
 				offer = (better if better.size() >= 2 else offer).slice(0, 3)
-			if who.controller == Player.Ctrl.REMOTE:
-				# their choice, on their screen
-				prop.data["offer_%d" % who.peer_id] = offer
-				Net.i.rpc_id(who.peer_id, "_offer", "relic", [prop.net_idx, offer])
-				return
-			if player.autopilot:
-				if not offer.is_empty():
-					Game.grant_relic(offer[0])
-					print("[bot] took relic ", offer[0])
-				_relic_taken(prop, who)
-				return
-			Game.ui.relic_choice(offer, func(id: String) -> void:
-				if id != "":
-					Game.grant_relic(id)
-					_relic_taken(prop, who))
+			# their choice, on their screen
+			Party.offer_relic(self, who, prop, offer, func() -> void: _relic_taken(prop, who))
 		"chest":
 			note_request("chest")
 			_chest_loot(prop, int(prop.data.get("tier", 1)))
@@ -1127,14 +1128,12 @@ func request(what: String, prop: Prop) -> void:
 				Pickup.spawn(self, "ember", prop.pos, 2 + tier2)
 			if tier2 >= 2 and rng.randf() < 0.6:
 				Pickup.spawn(self, "sunshard", prop.pos, 1)
-			var offer2 := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + tier2 - 1, false)
-			if player.autopilot:
-				if not offer2.is_empty():
-					Game.grant_relic(offer2[0])
-				return
-			Game.ui.relic_choice(offer2, func(id: String) -> void:
-				if id != "":
-					Game.grant_relic(id))
+			# the spill is everyone's; every Kindled chooses a relic of their own
+			for pl in players:
+				if not is_instance_valid(pl) or not pl.alive or pl.run == null:
+					continue
+				var sk := Party.skills_of(pl)
+				Party.offer_relic(self, pl, prop, RelicDB.roll_offer(run.rng, 3, pl.run.relics, SkillDB.branch_counts(sk), SkillDB.abilities(sk), layout.depth + tier2 - 1, false))
 		"shrine":
 			Game.ui.shrine(prop)
 		"merchant":
@@ -1151,40 +1150,18 @@ func request(what: String, prop: Prop) -> void:
 		"secret":
 			_open_secret(prop)
 		"well":
-			var gain := 40 + 25 * layout.depth
-			_ask("Draw from the Ember Well?", "Lose 20% of your health. Gain about %d Embers." % gain, func() -> void:
-				if prop.used:
-					return
-				prop.used = true
-				player.hp = maxf(1.0, player.hp - player.max_hp * 0.2)
-				player.stage.fx.burst(player.pos, 0.8, Color(0.9, 0.25, 0.3), 14, 3.0, 0.5, 4.0)
-				for i in 10:
-					Pickup.spawn(self, "ember", prop.pos, int(ceil(gain / 10.0)))
-				prop.sprite.play("empty")
-				if prop.light:
-					prop.light.light_energy = 0.2
-				Audio.play("pact", -2.0, 1.2))
+			_ask("Draw from the Ember Well?", "Lose 20%% of your health. Gain about %d Embers." % Party.well_gain(self), func() -> void:
+				Party.draw_well(self, who, prop))
 		"trial":
 			_ask("Begin the Trial?", "Three hard waves. The doors seal until it is done. The prize: a rare relic and a Sunshard.", func() -> void:
-				if prop.used:
-					return
-				prop.used = true
-				prop.sprite.play("spent")
-				var r := layout.room(prop.room_id)
-				r.cleared = false
-				active_room = r
-				wave = 0
-				_set_gates(r, true)
-				Audio.play("boss_roar", -6.0, 1.4)
-				Events.banner.emit("The Trial Begins", "Survive three waves")
-				_spawn_wave(r))
+				begin_trial(prop))
 		"echo":
 			var line: Array = Lore.random_for(layout.region, rng)
-			if prop.used:
+			if Party.spent(prop, who):
 				Game.ui.dialogue("Echo of a Fallen Kindled", ["...the light was warm, once. Go on. Carry it further than I did."])
 				return
 			var offer_fn := func() -> void:
-				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, _echo_gift.bind(prop))
+				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, func() -> void: Party.echo_gift(self, who, prop))
 			if player.autopilot:
 				offer_fn.call()
 			else:
@@ -1287,17 +1264,20 @@ func _open_secret(prop: Prop) -> void:
 	minimap_changed.emit()
 
 
-func _echo_gift(prop: Prop) -> void:
-	if prop.used or run.embers < 30:
-		Events.toast.emit("You do not carry enough Embers.", Color(0.8, 0.7, 0.7))
+## The Trial altar wakes: three hard waves behind sealed doors.
+func begin_trial(prop: Prop) -> void:
+	if prop.used:
 		return
 	prop.used = true
-	run.embers -= 30
-	var offer := RelicDB.roll_offer(run.rng, 1, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + 1, false)
-	if not offer.is_empty():
-		Game.grant_relic(offer[0])
-	prop.sprite.set_instance_shader_parameter("tint", Color(1, 1, 1, 0.3))
-	Audio.play("relic", 0.0, 0.9)
+	prop.sprite.play("spent")
+	var r := layout.room(prop.room_id)
+	r.cleared = false
+	active_room = r
+	wave = 0
+	_set_gates(r, true)
+	Audio.play("boss_roar", -6.0, 1.4)
+	Events.banner.emit("The Trial Begins", "Survive three waves")
+	_spawn_wave(r)
 
 
 ## Confirmation that the autopilot answers "yes" to.

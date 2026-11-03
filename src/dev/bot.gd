@@ -57,6 +57,9 @@ func _process(delta: float) -> void:
 			for e in d.room_enemies:
 				if is_instance_valid(e):
 					print("[bot]   foe %s%s state=%s pos=%s hp=%d/%d" % [e.id, " (elite %s %s)" % [e.affix, e.affix2] if e.elite else "", e.state, str(e.pos.snapped(Vector2(0.1, 0.1))), int(e.hp), int(e.max_hp)])
+	if pl.hearthcall_t >= 0.0:
+		pl.move_in = Vector2.ZERO     # the ritual needs stillness (moving breaks it)
+		return
 	var target := _pick_target()
 	# boss phase 2: relight the braziers to sear the Warden
 	for a in pl.stage.actors:

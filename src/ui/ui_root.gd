@@ -370,6 +370,17 @@ func _close_now() -> void:
 		get_tree().paused = false
 
 
+## Closes one particular screen, wherever it is in the stack (a vote that ended).
+func close_modal(dim: Control) -> void:
+	if not modals.has(dim):
+		return
+	if modals.back() == dim:
+		close_top()
+		return
+	modals.erase(dim)
+	dim.queue_free()
+
+
 func close_all() -> void:
 	closed_frame = Engine.get_process_frames()
 	for m in modals:

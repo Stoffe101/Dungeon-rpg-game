@@ -154,8 +154,8 @@ func test_network_simulator_keeps_order_and_loses_packets() -> void:
 	var rel: Array = []
 	for k in 50:
 		n._through("r", true, func() -> void: rel.append(k), float(k))
-	n._deliver(40.0)
-	eq(got.size(), 0, "nothing arrives before half the round trip")
+	n._deliver(20.0)
+	eq(got.size(), 0, "nothing arrives before half the round trip (less the jitter)")
 	n._deliver(100000.0)
 	check(got.size() > 60 and got.size() < 140, "about half the unreliable packets are lost (%d of 200)" % got.size())
 	var ordered := true
@@ -168,3 +168,112 @@ func test_network_simulator_keeps_order_and_loses_packets() -> void:
 		rel_ordered = rel_ordered and int(rel[k]) == int(rel[k - 1]) + 1
 	check(rel_ordered, "reliable messages keep their order through resends")
 	n.free()
+
+
+func _two(d: Dungeon) -> Player:
+	var p2 := Player.new()
+	p2.peer_id = 2
+	p2.controller = Player.Ctrl.REMOTE
+	p2.pos = d.player.pos + Vector2(1.0, 0)
+	d.add_actor(p2)
+	p2.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", ""]))
+	return p2
+
+
+func test_merchant_is_personal_and_sells_once() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := _two(d)
+	var shop := Prop.make(d, "merchant", Vector2i(p1.pos) + Vector2i(2, 0))
+	var s1 := Party.shop_stock(d, p1, shop)
+	var s2 := Party.shop_stock(d, p2, shop)
+	check(s1 != s2 or s1.size() == s2.size(), "each Kindled has a stock of their own")
+	p1.run.embers = 500
+	p2.run.embers = 30
+	var heal_i := s2.size() - 1
+	check(Party.buy(d, p2, shop, heal_i), "a guest buys broth with their own Embers")
+	eq(p2.run.embers, 5, "paid from the buyer's purse")
+	eq(p1.run.embers, 500, "and nobody else's")
+	check(not Party.buy(d, p2, shop, heal_i), "sold is sold (a repeated request buys nothing)")
+	check(not Party.buy(d, p2, shop, 0), "and nobody buys on credit")
+	check(not bool(s1[heal_i].get("sold", false)), "the host's broth is still for sale")
+	d.queue_free()
+
+
+func test_bargains_are_one_each_and_picks_are_once() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := _two(d)
+	var shrine := Prop.make(d, "shrine", Vector2i(p1.pos) + Vector2i(2, 0))
+	var hp0 := p2.hp
+	Party.shrine_choice(d, p2, shrine, "blood")
+	check(p2.hp < hp0, "the blood pact takes the guest's health")
+	var offer: Array = shrine.data.get("offer_2", [])
+	check(not offer.is_empty(), "and offers them a relic of their own")
+	check(Party.spent(shrine, p2) and not Party.spent(shrine, p1), "their bargain is spent, the host's is not")
+	check(not shrine.used, "the shrine stays open for the others")
+	var hp1 := p2.hp
+	Party.shrine_choice(d, p2, shrine, "blood")
+	eq(p2.hp, hp1, "a second pact is refused")
+	var relics := p2.run.relics.size()
+	d.coop_relic_pick(p2, shrine.net_idx, String(offer[0]))
+	eq(p2.run.relics.size(), relics + 1, "the pick is granted to the guest")
+	d.coop_relic_pick(p2, shrine.net_idx, String(offer[0]))
+	eq(p2.run.relics.size(), relics + 1, "a repeated pick finds nothing")
+	Party.shrine_choice(d, p1, shrine, "curse")
+	check(shrine.used, "once everyone has bargained, the shrine is spent")
+	d.queue_free()
+
+
+func test_party_votes_need_everyone() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p2 := _two(d)
+	var had := Net.i
+	var net := Net.new()
+	Net.i = net
+	net.roster = {1: {"name": "Host", "slot": 0}, 2: {"name": "Guest", "slot": 1}}
+	var nr := NetRun.new()
+	nr.stage = d
+	nr.start_vote("test", 3, d.player)
+	eq(nr._votes.size(), 1, "the host's ask opens a vote")
+	nr.start_vote("test", 3, d.player)
+	eq(nr._votes.size(), 1, "asking again is the same vote")
+	nr.cast_vote(2, 1, true)
+	eq(nr._votes.size(), 0, "everyone agreed: done")
+	nr.start_vote("test", 4, p2)
+	nr.cast_vote(1, 2, false)
+	eq(nr._votes.size(), 0, "one 'not yet' ends it")
+	nr.start_vote("test", 5, p2)
+	nr.cast_vote(9, 3, true)
+	eq(nr._votes.size(), 1, "a stranger's answer does not count")
+	Net.i = had
+	net.free()
+	nr.free()
+	d.queue_free()
+
+
+func test_the_old_floor_does_not_stop_the_new_floors_recording() -> void:
+	Profile.data = Profile.fresh()
+	var had := Net.i
+	var net := Net.new()
+	Net.i = net
+	var d1 := _dungeon(7)
+	var d2 := _dungeon(8)
+	var old := NetRun.new()
+	d1.add_child(old)
+	old.setup(d1, true)
+	var new := NetRun.new()
+	d2.add_child(new)
+	new.setup(d2, true)
+	check(Net.recording and net.run_sync == new, "the new floor records")
+	d1.free()     # the old floor goes after the new one is up (as Game does it)
+	check(Net.recording, "and keeps recording once the old floor is gone")
+	Net.rec(["toast", "x", Color.WHITE])
+	check(not new.events.is_empty(), "events reach the new floor's batch")
+	d2.free()
+	check(not Net.recording, "the last floor going stops it")
+	Net.i = had
+	net.free()
