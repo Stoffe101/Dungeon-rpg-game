@@ -146,6 +146,8 @@ func _open_dev_screen(what: String) -> void:
 			ui.pause_menu()
 		"feats":
 			ui.open(Screens.feats(ui))
+		"bestiary":
+			ui.open(Screens.bestiary(ui))
 		"inventory":
 			ui.inventory()
 		"wardrobe":

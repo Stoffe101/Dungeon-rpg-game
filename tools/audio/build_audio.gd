@@ -331,6 +331,20 @@ func _ambience() -> void:
 		var t3 := rt.rng.randf_range(0.0, 21.0)
 		rt.tone(t3, 2.0, 70.0, 64.0, "saw", 0.05, 0.4, 1.5, 0.02, 3.0, 300.0)
 	rt.save(MUS + "amb_root.wav", 0.5)
+	# the Sunken Throne: wind moaning through a vast hall, embers still
+	# crackling in the ash, stone settling, and now and then a far-off bell
+	var th := Synth.new(22050, 24.0, true, 14)
+	th.noise(0.0, 24.0, 0.32, 260.0, 260.0, 40.0, 1.5, 0.0, 0.05)
+	th.noise(0.0, 24.0, 0.14, 900.0, 600.0, 300.0, 3.0, 0.0, 0.12)
+	for k in 180:
+		var t := th.rng.randf_range(0.0, 23.8)
+		th.noise(t, 0.015, th.rng.randf_range(0.05, 0.25), 6000.0, 3000.0, 1500.0, 0.001, 9.0)
+	for k in 5:
+		var t2 := th.rng.randf_range(0.0, 22.0)
+		th.noise(t2, 0.5, 0.18, 300.0, 120.0, 40.0, 0.01, 4.0)
+	for k in 2:
+		th.bell(4.0 + k * 11.0, 5.0, midi(57 - k * 5), 0.05)
+	th.save(MUS + "amb_throne.wav", 0.5)
 
 
 func _music() -> void:

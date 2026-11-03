@@ -196,7 +196,7 @@ const REGIONS := {
 		"ambient": Color(0.5, 0.4, 0.38),
 		"flame": Color(1.0, 0.72, 0.35),
 		"music": "throne",
-		"ambience": "amb_crypt",
+		"ambience": "amb_throne",
 		"torch": "torch_warm",
 		"unlock": {"warden_kills": 1, "bloom_kills": 1},
 		"blurb": "The capstone. Three depths of the sun-king's drowned court, then the Ashen King. Win here to open harder tiers.",

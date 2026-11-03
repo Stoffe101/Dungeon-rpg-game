@@ -382,6 +382,7 @@ static func pause(ui: UIRoot) -> Control:
 	v.add_child(resume)
 	v.add_child(UIKit.button("Satchel", func() -> void: ui.inventory(), 140))
 	v.add_child(UIKit.button("Feats  %d / %d" % [Feats.earned_count(), Feats.FEATS.size()], func() -> void: ui.open(feats(ui)), 140))
+	v.add_child(UIKit.button("Bestiary", func() -> void: ui.open(bestiary(ui)), 140))
 	v.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 140))
 	if Game.stage is Dungeon:
 		v.add_child(UIKit.button("Abandon Expedition", func() -> void:
@@ -829,6 +830,102 @@ static func _tier_picker() -> VBoxContainer:
 	v.add_child(info)
 	refresh.call()
 	return v
+
+
+# --- bestiary --------------------------------------------------------------------------------------
+
+## The first idle frame of a creature's sheet, for portraits.
+static func creature_tex(id: String) -> AtlasTexture:
+	var info := SpriteLib.get_sheet(String(EnemyDB.get_def(id).sheet))
+	var anims: Dictionary = info.anims
+	var a: Dictionary = anims.get("idle", anims.values()[0])
+	var t := AtlasTexture.new()
+	t.atlas = info.texture
+	t.region = Rect2(0, float(a.row) * info.frame_size.y, info.frame_size.x, info.frame_size.y)
+	return t
+
+
+static func _region_of(id: String) -> String:
+	for rid in EnemyDB.REGIONS:
+		var r: Dictionary = EnemyDB.REGIONS[rid]
+		if (r.pool as Array).has(id) or String(r.boss) == id:
+			return String(r.name)
+	return ""
+
+
+## Every creature of the Undervault: a silhouette until met, then its portrait,
+## where it lives, how many have fallen to you, and what is known of it.
+static func bestiary(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("Bestiary"))
+	var seen: Array = Profile.data.get("seen", {}).get("enemies", [])
+	var order: Array = []
+	for rid in EnemyDB.REGIONS:
+		for id in EnemyDB.REGIONS[rid].pool:
+			if not order.has(id) and EnemyDB.ENEMIES.has(id):
+				order.append(id)
+		if not order.has(EnemyDB.REGIONS[rid].boss):
+			order.append(EnemyDB.REGIONS[rid].boss)
+	v.add_child(UIKit.label("%d of %d creatures met." % [order.filter(func(i): return seen.has(i)).size(), order.size()], 8, UIKit.C_DIM))
+	var row := UIKit.hbox(8)
+	v.add_child(row)
+	var grid := GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 3)
+	grid.add_theme_constant_override("v_separation", 3)
+	row.add_child(grid)
+	var detail := UIKit.vbox(3)
+	detail.custom_minimum_size = Vector2(170, 200)
+	row.add_child(detail)
+	var show := func(id: String) -> void:
+		for c in detail.get_children():
+			c.queue_free()
+		var d := EnemyDB.get_def(id)
+		var met := seen.has(id)
+		var big := TextureRect.new()
+		big.texture = creature_tex(id)
+		big.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		big.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		big.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		big.custom_minimum_size = Vector2(170, 72)
+		big.modulate = Color(1, 1, 1) if met else Color(0, 0, 0, 0.85)
+		detail.add_child(big)
+		detail.add_child(UIKit.label(String(d.name) if met else "???", 16, UIKit.C_GOLD if met else UIKit.C_DIM, true))
+		detail.add_child(UIKit.label(_region_of(id) + ("   BOSS" if d.get("boss", false) else ""), 8, UIKit.C_DIM))
+		if met:
+			detail.add_child(UIKit.label("Slain: %d" % int(Profile.data.stats.get("k_" + id, 0)), 8, UIKit.C_TEXT))
+			detail.add_child(UIKit.para(String(d.get("lore", "")), 170, Color(0.85, 0.8, 0.7)))
+		else:
+			detail.add_child(UIKit.para("Not yet met. Go deeper.", 170, UIKit.C_DIM))
+	for id in order:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(38, 38)
+		b.focus_mode = Control.FOCUS_ALL
+		var tr := TextureRect.new()
+		tr.texture = creature_tex(String(id))
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tr.size = Vector2(34, 34)
+		tr.position = Vector2(2, 2)
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tr.modulate = Color(1, 1, 1) if seen.has(id) else Color(0, 0, 0, 0.8)
+		b.add_child(tr)
+		var pick: String = id
+		b.pressed.connect(func() -> void:
+			Audio.ui("ui_click")
+			show.call(pick))
+		b.focus_entered.connect(func() -> void: show.call(pick))
+		b.mouse_entered.connect(func() -> void: show.call(pick))
+		grid.add_child(b)
+	var met_ids: Array = order.filter(func(i): return seen.has(i))
+	show.call(String(met_ids[0] if not met_ids.is_empty() else order[0]))
+	var close := UIKit.button("Close", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
 
 
 # --- feats ---------------------------------------------------------------------------------------

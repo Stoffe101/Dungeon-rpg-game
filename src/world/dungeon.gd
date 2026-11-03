@@ -411,6 +411,8 @@ func _make_enemy(id: String) -> Enemy:
 
 func register_enemy(e: Enemy) -> void:
 	room_enemies.append(e)
+	# everything met goes in the bestiary: waves, bosses, summons, Grudges
+	Profile.note_seen("enemies", e.id)
 
 
 func _spawn_grudge(r: Room) -> void:
@@ -645,6 +647,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		var e := a as Enemy
 		run.kills += 1
 		Profile.stat_add("kills")
+		Profile.stat_add("k_" + e.id)
 		if e.elite:
 			run.elites_slain += 1
 			Profile.stat_add("elites")
