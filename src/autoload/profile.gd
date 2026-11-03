@@ -674,7 +674,7 @@ func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNu
 		"id": "g%d" % Time.get_unix_time_from_system(),
 		"enemy": enemy_id,
 		"name": "%s %s" % [GRUDGE_NAMES[rng.randi_range(0, GRUDGE_NAMES.size() - 1)], GRUDGE_TITLES[rng.randi_range(0, GRUDGE_TITLES.size() - 1)]],
-		"affix": EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)],
+		"affix": EnemyDB.roll_affix(rng, enemy_id),
 		"level": 1,
 		"embers": lost_embers,
 		"depth": depth,

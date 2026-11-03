@@ -113,6 +113,31 @@ func test_encounter_budget() -> void:
 		check(cost <= 9 and cost >= 5, "budget respected (%d)" % cost)
 
 
+func test_encounters_have_shape() -> void:
+	# fights are built from role pairings, and capped roles never stack
+	for rid in EnemyDB.REGIONS:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 21
+		var paired := 0
+		for i in 60:
+			var e := EnemyDB.roll_encounter(rng, rid, 3, 14)
+			var roles := {}
+			for id in e:
+				var r := String(EnemyDB.get_def(id).get("role", ""))
+				roles[r] = int(roles.get(r, 0)) + 1
+			for r in EnemyDB.ROLE_CAP:
+				check(int(roles.get(r, 0)) <= int(EnemyDB.ROLE_CAP[r]), "%s: at most %d %s (%s)" % [rid, EnemyDB.ROLE_CAP[r], r, e])
+			if roles.size() >= 2:
+				paired += 1
+		check(paired >= 50, "%s fights mix roles (%d/60)" % [rid, paired])
+	# the same seed rolls the same fight
+	var a := RandomNumberGenerator.new()
+	a.seed = 5
+	var b := RandomNumberGenerator.new()
+	b.seed = 5
+	check(EnemyDB.roll_encounter(a, "throne", 2, 12) == EnemyDB.roll_encounter(b, "throne", 2, 12), "encounters are deterministic")
+
+
 func test_event_rooms() -> void:
 	# events appear, their centrepieces stand on open floor, and trials have three waves
 	var seen := {}

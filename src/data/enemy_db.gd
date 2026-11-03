@@ -55,6 +55,7 @@ const ENEMIES := {
 	},
 	"gravemole": {
 		"voice": "beast", "voice_pitch": 1.45, "role": "ambush",
+		"no_affix": ["phasing"],
 		"name": "Gravemole", "script": "res://src/entities/enemies/gravemole.gd", "sheet": "gravemole",
 		"hp": 46.0, "speed": 2.6, "radius": 0.4, "poise": 22.0, "damage": 14.0,
 		"xp": 8, "embers": 5, "cost": 3, "min_depth": 2,
@@ -186,6 +187,26 @@ const ENEMIES := {
 	},
 }
 
+## Roles: what a creature does in a fight, and the answer to it (bestiary).
+const ROLES := {
+	"brute": ["Brute", "Walks in and swings. Dodge the swing, punish the recovery."],
+	"swarm": ["Swarm", "Fast, fragile, never alone. Sweep them."],
+	"ranged": ["Ranged", "Keeps its distance. Close in, or Ward the shot back."],
+	"tank": ["Tank", "Guards its front. Get behind it, or break its guard."],
+	"summoner": ["Summoner", "Raises help. Kill it first."],
+	"exploder": ["Exploder", "Its death is everyone's problem - its friends' too."],
+	"controller": ["Controller", "Decides where you can stand."],
+	"charger": ["Charger", "Rushes in a line. Sidestep, then punish."],
+	"harrier": ["Harrier", "Darts in and out to wear you down."],
+	"ambush": ["Ambush", "Strikes from hiding. Watch the floor and keep moving."],
+	"support": ["Support", "Strengthens others. Break the link, or kill it first."],
+	"artillery": ["Artillery", "Bombards marked ground from afar. Read the marks and close in."],
+	"terrain": ["Terrain", "Reshapes the room. Fire and blades clear the way."],
+	"duelist": ["Duelist", "Punishes careless swings. Learn its rhythm."],
+	"beam": ["Beam", "Sweeps a line of light. Dash through it, or get behind the source."],
+	"boss": ["Boss", ""],
+}
+
 ## Elite affixes: a twist on an enemy, never just a bigger health bar.
 const AFFIXES := {
 	"hasted": {"name": "Hasted", "color": Color(1.0, 0.85, 0.35), "desc": "Moves and attacks faster."},
@@ -193,7 +214,25 @@ const AFFIXES := {
 	"volatile": {"name": "Volatile", "color": Color(1.0, 0.45, 0.25), "desc": "Erupts in flame when it dies."},
 	"vampiric": {"name": "Vampiric", "color": Color(0.9, 0.25, 0.35), "desc": "Heals whenever it wounds you."},
 	"phasing": {"name": "Phasing", "color": Color(0.75, 0.5, 0.95), "desc": "Periodically slips out of the world, becoming untouchable."},
+	"molten": {"name": "Molten", "color": Color(1.0, 0.5, 0.15), "desc": "Leaves a trail of burning ground. Don't chase it - make it come to you."},
+	"splitting": {"name": "Splitting", "color": Color(0.6, 0.95, 0.5), "desc": "Splits into two lesser copies when it dies."},
+	"gloom": {"name": "Gloom", "color": Color(0.6, 0.45, 0.9), "desc": "Wrapped in darkness: near it your lantern dims and Kindle comes at half the rate."},
 }
+
+
+## Whether an affix does anything on this creature (a rooted Mortar can't
+## leave a trail; a burrower can't phase).
+static func affix_ok(id: String, a: String) -> bool:
+	var d: Dictionary = ENEMIES.get(id, {})
+	if a == "molten" and float(d.get("speed", 1.0)) <= 0.0:
+		return false
+	return not (d.get("no_affix", []) as Array).has(a)
+
+
+## A random affix that suits this creature.
+static func roll_affix(rng: RandomNumberGenerator, id: String, exclude := "") -> String:
+	var pool: Array = AFFIXES.keys().filter(func(k): return k != exclude and affix_ok(id, k))
+	return String(pool[rng.randi_range(0, pool.size() - 1)])
 
 ## Regions: each has its own enemy pool, look and boss. Only the Ossuary is
 ## playable in the first slice; the others are seeds for expansion.
@@ -270,6 +309,23 @@ static func get_def(id: String) -> Dictionary:
 	return ENEMIES.get(id, {})
 
 
+## Squads: every fight is built around a pairing of roles, so it has a shape -
+## a wall with shooters behind it, a guarded caster, a pack with a bomb in it -
+## rather than a random heap. Slots are filled in order; the rest of the budget
+## is spent freely. A squad is only used where its region has the roles.
+const SQUADS := {
+	"line": [["tank", "brute", "duelist", "charger"], ["ranged", "artillery", "beam"]],
+	"pack": [["swarm"], ["swarm", "harrier"], ["exploder", "ranged", "harrier"]],
+	"ward": [["support"], ["tank", "brute", "duelist", "charger"]],
+	"court": [["summoner"], ["brute", "tank", "duelist", "swarm"]],
+	"snare": [["controller", "terrain"], ["ranged", "artillery", "beam", "harrier"]],
+	"ambush": [["ambush"], ["ranged", "swarm", "exploder"]],
+}
+## How many of a role one fight may hold: two Lampwights shielding each other,
+## or three Mortars, are not puzzles, just walls.
+const ROLE_CAP := {"support": 1, "summoner": 1, "terrain": 1, "artillery": 2, "beam": 2, "ambush": 2}
+
+
 ## Builds a list of enemy ids worth roughly `budget` points for a room.
 static func roll_encounter(rng: RandomNumberGenerator, region: String, depth: int, budget: int) -> Array:
 	var pool: Array = []
@@ -279,25 +335,54 @@ static func roll_encounter(rng: RandomNumberGenerator, region: String, depth: in
 			pool.append(id)
 	var out: Array = []
 	var left := budget
+	# the squad that shapes this fight
+	var fits: Array = []
+	for sq in SQUADS:
+		var ok := true
+		for slot in SQUADS[sq]:
+			if pool.filter(func(i): return (slot as Array).has(ENEMIES[i].get("role", ""))).is_empty():
+				ok = false
+		if ok:
+			fits.append(sq)
+	if not fits.is_empty():
+		fits.sort()   # dictionary order is stable, but be explicit for determinism
+		var sq: String = fits[rng.randi_range(0, fits.size() - 1)]
+		for slot in SQUADS[sq]:
+			var cands: Array = pool.filter(func(i): return (slot as Array).has(ENEMIES[i].get("role", "")) and _fits(i, out, left))
+			if cands.is_empty():
+				continue
+			left -= _add(rng, String(cands[rng.randi_range(0, cands.size() - 1)]), out, left)
 	var guard := 0
 	while left > 0 and guard < 40:
 		guard += 1
 		var id: String = pool[rng.randi_range(0, pool.size() - 1)]
-		var c := int(ENEMIES[id].cost)
-		if c > left:
+		if not _fits(id, out, left):
 			if left <= 1:
 				id = _filler(region)
-				c = 1
 			else:
 				continue
-		var d: Dictionary = ENEMIES[id]
-		if d.has("pack"):
-			var n := rng.randi_range(int(d.pack[0]), int(d.pack[1]))
-			n = mini(n, left)
-			for k in n:
-				out.append(id)
-			left -= n
-			continue
-		out.append(id)
-		left -= c
+		left -= _add(rng, id, out, left)
 	return out
+
+
+static func _fits(id: String, out: Array, left: int) -> bool:
+	if int(ENEMIES[id].cost) > left:
+		return false
+	var role := String(ENEMIES[id].get("role", ""))
+	if ROLE_CAP.has(role):
+		var n := out.filter(func(o): return ENEMIES[o].get("role", "") == role).size()
+		if n >= int(ROLE_CAP[role]):
+			return false
+	return true
+
+
+## Adds one creature (or a pack of it) and returns the budget it used.
+static func _add(rng: RandomNumberGenerator, id: String, out: Array, left: int) -> int:
+	var d: Dictionary = ENEMIES[id]
+	if d.has("pack"):
+		var n := mini(rng.randi_range(int(d.pack[0]), int(d.pack[1])), left)
+		for k in n:
+			out.append(id)
+		return n
+	out.append(id)
+	return int(d.cost)

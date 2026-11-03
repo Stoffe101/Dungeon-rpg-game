@@ -62,6 +62,8 @@ var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "fl
 ## breaks it, and no fire can be heard over a boss.
 const HEARTHCALL_TIME := 3.0
 var hearthcall_t := -1.0
+var gloom_t := 0.0          # inside a Gloom elite's darkness
+var _gloom_k := 0.0
 var _hc_shapes: Array = []
 var _hc_fx_t := 0.0
 var _release_pending := false
@@ -493,6 +495,8 @@ func _deny_flask() -> void:
 func gain_kindle(amount: float) -> void:
 	var mx := stats.v("kindle_max")
 	var before := kindle
+	if gloom_t > 0.0 and amount > 0.0:
+		amount *= 0.5
 	kindle = minf(mx, kindle + amount * stats.v("kindle_gain"))
 	if before < mx and kindle >= mx:
 		stage.fx.ring(pos, 1.2, Color(1.0, 0.8, 0.35), 0.3, 0.2)
@@ -990,6 +994,11 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("glass_lantern"):
 		rng *= 1.4
 		en *= 1.15
+	gloom_t -= dt
+	_gloom_k = move_toward(_gloom_k, 1.0 if gloom_t > 0.0 else 0.0, dt * 2.5)
+	if _gloom_k > 0.0:
+		rng *= lerpf(1.0, 0.65, _gloom_k)
+		en *= lerpf(1.0, 0.75, _gloom_k)
 	if hearthcall_t >= 0.0:
 		# the lantern swells as the Hearth answers
 		var hk := clampf(hearthcall_t / HEARTHCALL_TIME, 0.0, 1.0)

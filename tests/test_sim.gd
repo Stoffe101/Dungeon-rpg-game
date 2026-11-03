@@ -437,3 +437,43 @@ func test_sunwatcher_sweeps_a_beam() -> void:
 	_run(st, 4.0)
 	check(pl.hp < pl.max_hp, "the Sunwatcher's beam burns a Kindled who stands in it (hp %d)" % int(pl.hp))
 	st.queue_free()
+
+
+func test_behavioural_affixes() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(4, 7))
+	# Molten leaves burning ground where it walks
+	var m := _enemy(st, "husk", Vector2(14, 7))
+	m.make_elite("molten")
+	_run(st, 2.5)
+	check(st.hazards.size() >= 3, "a Molten elite leaves a burning trail (%d)" % st.hazards.size())
+	m.take_hit(Hit.make(pl, 9999.0, ["melee"]))
+	# Splitting: two lesser copies climb out
+	var s := _enemy(st, "husk", Vector2(12, 9))
+	s.make_elite("splitting")
+	_run(st, 0.8)
+	var n0 := st.actors.filter(func(a): return a is Enemy and a.alive).size()
+	s.take_hit(Hit.make(pl, 9999.0, ["melee"]))
+	_run(st, 0.4)
+	var kids := st.actors.filter(func(a): return a is Enemy and a.alive and a.summoned)
+	check(kids.size() == 2, "a Splitting elite splits in two (%d)" % kids.size())
+	check(st.actors.filter(func(a): return a is Enemy and a.alive).size() == n0 + 1, "the elite itself is gone")
+	for k in kids:
+		k.take_hit(Hit.make(pl, 9999.0, ["melee"]))
+	_run(st, 0.4)
+	check(st.actors.filter(func(a): return a is Enemy and a.alive and a.summoned).is_empty(), "the copies do not split again")
+	# Gloom: near it Kindle comes at half the rate
+	var g := _enemy(st, "guard", Vector2(5.5, 7))
+	g.make_elite("gloom")
+	_run(st, 0.9)
+	pl.kindle = 0.0
+	pl.gain_kindle(10.0)
+	var gloomed := pl.kindle
+	g.pos = Vector2(20, 11)
+	_run(st, 0.5)
+	pl.kindle = 0.0
+	pl.gain_kindle(10.0)
+	check(gloomed > 0.0 and absf(gloomed * 2.0 - pl.kindle) < 0.01, "Gloom halves Kindle gain (%.1f vs %.1f)" % [gloomed, pl.kindle])
+	check(not EnemyDB.affix_ok("spore_mortar", "molten") and not EnemyDB.affix_ok("gravemole", "phasing"), "affixes only go where they work")
+	st.queue_free()

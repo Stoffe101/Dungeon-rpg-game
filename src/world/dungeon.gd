@@ -74,13 +74,16 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	_enter_room(start)
 	if "hitlab" in OS.get_cmdline_user_args():
 		# dev: enemies right beside the player, to look at hit feedback up close
-		# (lab=<id,id,...> picks who)
+		# (lab=<id,id:affix,...> picks who, and which are elites)
 		var ids: Array = ["husk", "husk", "guard"]
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("lab="):
 				ids = a.substr(4).split(",")
 		for k in ids.size():
-			var e := _make_enemy(String(ids[k]))
+			var parts := String(ids[k]).split(":")
+			var e := _make_enemy(parts[0])
+			if parts.size() > 1:
+				e.make_elite(parts[1])
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
@@ -380,11 +383,12 @@ func _spawn_wave(r: Room) -> void:
 		_scale(e, layout.depth, memory)
 		var swarm := EnemyDB.get_def(id).has("pack")
 		if r.type == Room.Type.ELITE and not elite_done and not swarm:
-			e.make_elite(r.elite_affix, _second_affix(r.elite_affix))
+			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
+			e.make_elite(ea, _second_affix(ea, id))
 			elite_done = true
 		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) and not swarm:
-			var a: String = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
-			e.make_elite(a, _second_affix(a))
+			var a := EnemyDB.roll_affix(rng, id)
+			e.make_elite(a, _second_affix(a, id))
 		e.room_id = r.id
 		e.spawn_t = 0.6 + i * 0.08
 		add_actor(e)
@@ -405,11 +409,10 @@ func _scale(e: Enemy, depth: int, memory: int) -> void:
 
 
 ## From Tier IV elites carry a second, different affix.
-func _second_affix(first: String) -> String:
+func _second_affix(first: String, id := "") -> String:
 	if not Difficulty.double_affix(run.tier):
 		return ""
-	var pool: Array = EnemyDB.AFFIXES.keys().filter(func(k): return k != first)
-	return String(pool[rng.randi_range(0, pool.size() - 1)])
+	return EnemyDB.roll_affix(rng, id, first)
 
 
 func _make_enemy(id: String) -> Enemy:

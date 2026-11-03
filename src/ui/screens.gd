@@ -894,10 +894,13 @@ static func bestiary(ui: UIRoot) -> Control:
 		big.modulate = Color(1, 1, 1) if met else Color(0, 0, 0, 0.85)
 		detail.add_child(big)
 		detail.add_child(UIKit.label(String(d.name) if met else "???", 16, UIKit.C_GOLD if met else UIKit.C_DIM, true))
-		detail.add_child(UIKit.label(_region_of(id) + ("   BOSS" if d.get("boss", false) else ""), 8, UIKit.C_DIM))
+		var role: Array = EnemyDB.ROLES.get(String(d.get("role", "")), ["", ""])
+		detail.add_child(UIKit.label(_region_of(id) + "   " + (String(role[0]).to_upper() if met else ""), 8, UIKit.C_DIM))
 		if met:
 			detail.add_child(UIKit.label("Slain: %d" % int(Profile.data.stats.get("k_" + id, 0)), 8, UIKit.C_TEXT))
 			detail.add_child(UIKit.para(String(d.get("lore", "")), 170, Color(0.85, 0.8, 0.7)))
+			if String(role[1]) != "":
+				detail.add_child(UIKit.para(String(role[1]), 170, UIKit.C_DIM))
 		else:
 			detail.add_child(UIKit.para("Not yet met. Go deeper.", 170, UIKit.C_DIM))
 	for id in order:

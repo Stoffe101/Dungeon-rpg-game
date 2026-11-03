@@ -40,6 +40,10 @@ var _repath_t := 0.0
 var _goal := Vector2.ZERO
 ## Pixels from the top of the sprite frame down to where the health bar sits.
 var bar_offset := 4.0
+var _trail_t := 0.0
+var _aura_t := 0.0
+var _gloom_light: OmniLight3D
+const GLOOM_R := 4.0
 var _wildfire_t := 0.0
 
 
@@ -115,6 +119,23 @@ func _apply_affix(a: String) -> void:
 		"warded":
 			shield_max = max_hp * 0.45
 			shield = shield_max
+		"gloom":
+			# a light that takes light away: the room darkens around it
+			_gloom_light = OmniLight3D.new()
+			_gloom_light.light_negative = true
+			_gloom_light.light_color = Color(0.9, 0.85, 1.0)
+			_gloom_light.light_energy = 0.7
+			_gloom_light.omni_range = GLOOM_R + 0.5
+			_gloom_light.position = Vector3(0, 0.8, 0)
+			# ...but its own violet eyes still show where it is
+			var eyes := OmniLight3D.new()
+			eyes.light_color = Color(0.65, 0.45, 1.0)
+			eyes.light_energy = 1.4
+			eyes.omni_range = 2.2
+			eyes.position = Vector3(0, 1.4, 0.5)
+			_gloom_light.add_child(eyes)
+			if visual:
+				visual.add_child(_gloom_light)
 
 
 func make_grudge(g: Dictionary) -> void:
@@ -134,6 +155,8 @@ func _ready() -> void:
 	sprite.set_dissolve(1.0)
 	if elite or not grudge.is_empty():
 		_make_nameplate()
+	if _gloom_light and _gloom_light.get_parent() == null:
+		visual.add_child(_gloom_light)
 	state = "spawn"
 	state_t = 0.0
 
@@ -181,6 +204,38 @@ func tick(dt: float) -> void:
 	super.tick(dt)
 	_update_bar(dt)
 	_wildfire(dt)
+	if elite and alive:
+		_affix_tick(dt)
+
+
+## The affixes that change how a fight plays, every frame.
+func _affix_tick(dt: float) -> void:
+	if has_affix("molten") and vel.length() > 0.5:
+		_trail_t -= dt
+		if _trail_t <= 0.0:
+			_trail_t = 0.3
+			_molten_patch(stage, pos, damage * 0.2)
+	if has_affix("gloom"):
+		var pl := stage.player
+		if pl and pl.alive and pl.pos.distance_to(pos) < GLOOM_R:
+			pl.gloom_t = 0.25
+		_aura_t -= dt
+		if _aura_t <= 0.0:
+			_aura_t = 0.1
+			var p := pos + Vector2.from_angle(randf() * TAU) * randf_range(0.4, GLOOM_R * 0.8)
+			stage.fx.motes(p, 0.1, Color(0.55, 0.4, 0.85), 1, 0.8, 1.0, 0.2)
+
+
+## A patch of burning ground; static so it outlives the one who left it.
+static func _molten_patch(st: Stage, p: Vector2, dmg: float) -> void:
+	var hz := Hazard.spawn(st, p, 0.6, 2.6, Team.ENEMY, Color(1.0, 0.45, 0.12), func(_h: Hazard, a: Actor) -> void:
+		if a is Player:
+			var h := Hit.make(null, dmg, ["fire", "dot"])
+			h.can_crit = false
+			h.silent = true
+			(a as Player).take_enemy_hit(h, null))
+	hz.period = 0.45
+	hz.particle_rate = 3.0
 
 
 ## Wildfire (Pyre notable): burning foes pass their flames to a neighbour.
@@ -434,6 +489,39 @@ func die(killer: Node) -> void:
 			_shatter(pl)
 	if has_affix("volatile"):
 		_volatile_burst()
+	if has_affix("splitting") and not summoned and not def.get("boss", false):
+		_split()
+
+
+## Splitting: two lesser copies climb out of the remains.
+func _split() -> void:
+	var st := stage
+	var at := pos
+	var kind := id
+	var hp_each := max_hp * 0.2
+	var dmg := damage * 0.75
+	var room := room_id
+	var side := last_hit_from.orthogonal() if last_hit_from != Vector2.ZERO else Vector2.UP
+	st.fx.burst(at, 0.6, Color(0.6, 0.95, 0.5), 16, 4.0, 0.5, 6.0)
+	st.fx.number(at, 2.4, "SPLIT", Color(0.6, 0.95, 0.5))
+	st.after(0.15, func() -> void:
+		for k in 2:
+			var e: Enemy = load(EnemyDB.get_def(kind).script).new()
+			e.configure(kind)
+			e.summoned = true
+			e.max_hp = hp_each
+			e.hp = hp_each
+			e.damage = dmg
+			e.xp = 2
+			e.embers = 1
+			e.spawn_t = 0.3
+			e.pos = st.random_floor_near(at + side * (0.7 if k == 0 else -0.7), 0.4)
+			e.room_id = room
+			st.add_actor(e)
+			if e.visual:
+				e.visual.scale = Vector3.ONE * 0.8
+			if st.has_method("register_enemy"):
+				st.register_enemy(e))
 
 
 ## Verdant Warden 4pc: a kill heals and bursts into poisoning spores.
