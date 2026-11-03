@@ -46,9 +46,44 @@ var _hum_t := 0.0
 var _gate_flaring := false
 var lit_lanterns: Array = []
 var _last_bark := -99.0
+## What the camp looks like (see camp_of_profile): this profile's own, or - for
+## a guest in a party - the host's. A guest visits the host's sanctuary; their
+## own progression (Hearthtree, forge, satchel, requests) stays theirs.
+var camp := {}
+var sync: HubSync               # co-op: the party in this sanctuary (null alone)
+var cat: CampCat
 
 
-func build(v: PixelView) -> void:
+## This profile's camp: what has been built and earned, as the sanctuary shows it.
+static func camp_of_profile() -> Dictionary:
+	var forged := 0
+	for wid in GearDB.WEAPONS:
+		if Profile.weapon_unlocked(wid):
+			forged += 1
+	var trophies: Array = []
+	for k in ["warden", "bloom", "ashen_king"]:
+		if int(Profile.data.world.get("%s_kills" % k, 0)) > 0:
+			trophies.append(k)
+	return {"hearth": Profile.building("hearth"), "forge": Profile.building("forge"), "apothecary": Profile.building("apothecary"),
+		"shrine": Profile.building("shrine"), "level": Profile.level(), "garden": Residents.garden_stage(),
+		"residents": Residents.count_present(), "feats": Feats.earned_count(), "trophies": trophies,
+		"cat": int(Profile.data.stats.get("runs", 0)) > 0, "forged": forged, "host": String(Settings.get_value("player_name", "Kindled"))}
+
+
+## The camp to build: the host's while this machine is a guest in a party.
+static func current_camp() -> Dictionary:
+	if Net.is_client() and not Net.i.camp.is_empty():
+		return Net.i.camp
+	return camp_of_profile()
+
+
+## Is this the local player's own sanctuary (not a guest's visit)?
+func own_camp() -> bool:
+	return not Net.is_client()
+
+
+func build(v: PixelView, at := Vector2(-1, -1)) -> void:
+	camp = current_camp()
 	var g := TileGrid.new(MAP[0].length(), MAP.size())
 	for y in MAP.size():
 		var row: String = MAP[y]
@@ -75,7 +110,11 @@ func build(v: PixelView) -> void:
 	_place()
 	if not menu_mode:
 		player = Player.new()
-		player.pos = Vector2(21.0, 15.0)
+		player.pos = Vector2(21.0, 15.0) if at.x < 0.0 else at
+		if at.x < 0.0 and Net.active() and Net.i.roster.has(Net.my_id()):
+			# in a party each seat arrives at its own place by the fire
+			var slot := int(Net.i.roster[Net.my_id()].get("slot", 0))
+			player.pos = [Vector2(21.0, 15.0), Vector2(19.3, 15.4), Vector2(22.7, 15.4), Vector2(21.0, 16.4)][slot % 4]
 		for a in Dev.args():
 			if a.begins_with("spawn="):
 				# dev: start somewhere else in the camp (captures)
@@ -92,14 +131,10 @@ func build(v: PixelView) -> void:
 			# dev: step through the gate a second after the camp loads (captures)
 			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 		_dev_net()
+		# (the very first sanctuary is built before Game has added Net)
+		_hook_party.call_deferred()
 		if not Profile.data.flags.get("intro_done", false):
-			Profile.data.flags.intro_done = true
-			after(0.8, func() -> void:
-				Game.ui.dialogue("The Keeper", [
-					"Another Kindled wakes. Good. The Hearth was starting to forget what hands felt like.",
-					"Below us lies the Undervault. It swallowed the sun, piece by piece. Every ember you carry back feeds the Hearth - and you.",
-					"Walk to the Descent when you're ready. Commune with the Hearth to grow stronger. And Kindled... the dark remembers who hurts it.",
-				]))
+			after(0.8, _intro)
 	else:
 		view.focus = Iso.to_world(Vector2(21.0, 11.5))
 
@@ -110,7 +145,7 @@ func _environment() -> void:
 	env.background_color = Color(0.02, 0.022, 0.045)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.35, 0.38, 0.62)
-	env.ambient_light_energy = 0.55 + 0.06 * Profile.building("hearth")
+	env.ambient_light_energy = 0.55 + 0.06 * int(camp.hearth)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.6
@@ -123,40 +158,40 @@ func _environment() -> void:
 
 
 func _place() -> void:
-	var lvl := Profile.building("hearth")
+	var lvl := int(camp.hearth)
 	var warm := Color(1.0, 0.62, 0.32)
 	# the Hearth burns a little brighter with every level the Kindled gains
-	var grow := float(Profile.level())
+	var grow := float(camp.level)
 	hearth_prop = Prop.make(self, "hearth", Vector2i(21, 11), {"sheet": "hearth", "anim": "burn", "prompt": "Commune with the Hearth", "radius": 1.8, "solid": true,
 		"light": [warm, 2.2 + 0.4 * lvl + 0.012 * grow, 11.0 + 1.5 * lvl + 0.05 * grow], "light_h": 1.6})
-	for t in [Vector2i(20, 11), Vector2i(22, 11), Vector2i(21, 12), Vector2i(20, 12), Vector2i(22, 12)]:
+	# the fire pit's stone ring is three tiles wide and one deep (its sprite
+	# ends a few pixels south of the flames): the row south of it is open
+	# ground - it used to block, an invisible step in front of the fire
+	for t in [Vector2i(20, 11), Vector2i(22, 11)]:
 		if grid.at(t.x, t.y) == TileGrid.FLOOR:
 			grid.put(t.x, t.y, TileGrid.PROP)
 			set_tile_solid(t, true)
 	gate_prop = Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.2,
 		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.4})
-	if Profile.building("forge") > 0:
+	if int(camp.forge) > 0:
 		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.5, 0.25), 1.6, 6.0], "light_h": 0.8})
 		Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
 	else:
 		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
 	# the rack fills as weapons are forged
-	var forged := 0
-	for wid in GearDB.WEAPONS:
-		if Profile.weapon_unlocked(wid):
-			forged += 1
+	var forged := int(camp.forged)
 	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack_display", "anim": "n%d" % mini(forged, 5), "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
 	# the peddler's stall: gear for Embers, restocked after every descent
 	Prop.make(self, "peddler", Vector2i(14, 15), {"sheet": "merchant", "anim": "idle", "prompt": "Browse the Peddler's wares", "radius": 1.4, "solid": true,
 		"light": [Color(1.0, 0.75, 0.4), 0.9, 3.5], "light_h": 1.0})
 	Prop.make(self, "peddler_crates", Vector2i(16, 15), {"sheet": "crates", "solid": true})
-	if Profile.building("apothecary") > 0:
+	if int(camp.apothecary) > 0:
 		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary", "anim": "idle", "prompt": "Ember Apothecary", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.45, 0.5), 1.2, 5.0], "light_h": 1.0})
 	else:
 		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary_ruin", "prompt": "Build the Apothecary", "radius": 1.6, "solid": true})
-	if Profile.building("shrine") > 0:
+	if int(camp.shrine) > 0:
 		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial", "anim": "idle", "prompt": "Shrine of Memory", "radius": 1.6, "solid": true,
 			"light": [Color(0.75, 0.45, 0.95), 1.2, 5.0], "light_h": 1.4})
 	else:
@@ -204,7 +239,7 @@ func _camp() -> void:
 		grid.put(t.x, t.y, TileGrid.PROP)
 		set_tile_solid(t, true)
 	_spot(Vector2(30.5, 18.45), "sit", "tent")
-	var bloom := Residents.garden_stage()
+	var bloom := int(camp.garden)
 	for x in [18, 20, 22, 24]:
 		Prop.make(self, "planter", Vector2i(x, 19), {"sheet": "planter", "anim": "s%d" % bloom, "solid": true,
 			"light": [Color(1.0, 0.85, 0.45), 0.35, 1.6] if bloom >= 3 else [], "light_h": 0.5})
@@ -216,9 +251,9 @@ func _camp() -> void:
 	_spot(Vector2(15.5, 6.3), "idle", "posts")
 	_spot(Vector2(27.5, 6.3), "idle", "posts")
 	_spot(Vector2(18.6, 5.0), "idle", "descent")
-	if Profile.building("forge") > 0:
+	if int(camp.forge) > 0:
 		_spot(Vector2(11.6, 10.6), "idle", "forge")
-	if Profile.building("shrine") > 0:
+	if int(camp.shrine) > 0:
 		_spot(Vector2(31.8, 15.3), "idle", "memorial")
 
 
@@ -229,6 +264,8 @@ func _signboards() -> void:
 		"apothecary": ["apothecary", "RUINED APOTHECARY", "More, stronger flasks"],
 		"memorial": ["shrine", "FALLEN SHRINE", "Settle Grudges for more"],
 	}
+	if not own_camp():
+		return     # a guest's own ruins are at home
 	for p in props:
 		if not is_instance_valid(p) or not ruins.has(p.kind):
 			continue
@@ -255,12 +292,12 @@ func _keepsakes() -> void:
 	]
 	for i in trophies.size():
 		var t: Array = trophies[i]
-		if int(Profile.data.world.get("%s_kills" % t[0], 0)) > 0:
+		if (camp.trophies as Array).has(t[0]):
 			Prop.make(self, "trophy", Vector2i(30 + i * 2, 4), {"sheet": t[1], "prompt": t[2], "radius": 1.1, "solid": true,
 				"lines": t[4], "light": [t[3], 0.7, 2.6], "light_h": 1.0})
 	# feat lanterns along the south wall
 	var xs := [5, 7, 9, 11, 13, 15, 27, 29, 32, 34, 36]
-	var lit := int(ceil(Feats.earned_count() * xs.size() / float(Feats.FEATS.size())))
+	var lit := int(ceil(int(camp.feats) * xs.size() / float(Feats.FEATS.size())))
 	for i in xs.size():
 		var on: bool = i < lit
 		var lp := Prop.make(self, "feat_lantern", Vector2i(xs[i], 19), {"sheet": "hang_lantern", "anim": "lit" if on else "unlit", "solid": true,
@@ -274,8 +311,8 @@ func _keepsakes() -> void:
 	if m.sprite:
 		m.sprite.speed_scale = 0.0
 		m.sprite.set_tint(Color(0.8, 0.78, 0.76))
-	if int(Profile.data.stats.get("runs", 0)) > 0:
-		var cat := CampCat.new()
+	if bool(camp.cat):
+		cat = CampCat.new()
 		cat.stage = self
 		cat.kind = "cat"
 		cat.tile = Vector2i(20, 13)
@@ -292,9 +329,11 @@ func _spot(p: Vector2, pose: String, tag: String) -> void:
 
 
 func _spawn_residents() -> void:
-	var n := Residents.count_present()
+	var n := int(camp.residents)
 	for i in n:
 		residents.append(Wanderer.spawn(self, Residents.LIST[i], spots, rng))
+	if not own_camp():
+		return
 	# newcomers are announced once
 	var seen := int(Profile.data.flags.get("residents_seen", 1))
 	if n > seen:
@@ -315,32 +354,43 @@ func _talk_to(w: Wanderer) -> void:
 	var who := String(d.name) + ("" if String(d.title) == "" else ", " + String(d.title))
 	var lines: Array = Residents.talk(id).duplicate()
 	var after := func() -> void: pass
-	match Residents.request_state(id):
-		"":
-			if not req.is_empty():
-				lines = req.ask
+	var choices: Array = []
+	if not Residents.present(id):
+		# a guest in someone else's sanctuary: their favours are asked at home
+		lines = Residents.talk(id).slice(0, 1)
+		lines.append("You're %s's guest tonight, aren't you? Warm yourself. Your own camp's folk will want you back." % Net.name_of(1))
+	else:
+		match Residents.request_state(id):
+			"":
+				if not req.is_empty():
+					lines = req.ask
+					choices = [["Accept", func() -> void:
+						if Residents.request_state(id) == "":
+							Residents.start_request(id)
+							Game.ui.toast("New request: %s" % req.title, UIKit.C_GOLD)
+							Audio.play("skill_unlock", -8.0, 1.3)
+							Profile.save_profile()], ["Not now", Callable()]]
+			"active":
+				lines.append("(%s: %d/%d)" % [req.title, Residents.request_progress(id), int(req.goal)])
+			"complete":
+				lines = req.done
+				# the gift is theirs however the conversation ends (claim() pays once)
 				after = func() -> void:
-					Residents.start_request(id)
-					Game.ui.toast("New request: %s" % req.title, UIKit.C_GOLD)
-					Profile.save_profile()
-		"active":
-			lines.append("(%s: %d/%d)" % [req.title, Residents.request_progress(id), int(req.goal)])
-		"complete":
-			lines = req.done
-			after = func() -> void:
-				if Residents.claim(id):
-					Audio.play("relic", 0.0)
-					Game.ui.toast("Gift - %s" % req.gift, UIKit.C_GOLD)
-					fx.burst(w.pos, 1.0, Color(1.0, 0.85, 0.45), 24, 3.0, 0.8, 2.0)
-					if player:
-						player.rebuild_stats()
-					Profile.save_profile()
+					if Residents.claim(id):
+						Audio.play("relic", 0.0)
+						Game.ui.toast("Gift - %s" % req.gift, UIKit.C_GOLD)
+						fx.burst(w.pos, 1.0, Color(1.0, 0.85, 0.45), 24, 3.0, 0.8, 2.0)
+						if player:
+							player.rebuild_stats()
+						Profile.save_profile()
+	if OS.is_debug_build():
+		print("[hub] talk to %s: request '%s', %d choices, %d lines" % [id, Residents.request_state(id), choices.size(), lines.size()])
 	w.listen(600.0)   # until the conversation closes
 	Game.ui.dialogue(who, lines, func() -> void:
 		after.call()
 		if is_instance_valid(w):
 			w.listen(1.5, false)
-			w.refresh_mark())
+			w.refresh_mark(), choices)
 
 
 ## Residents take turns speaking so the sanctuary never turns into a chorus.
@@ -379,20 +429,86 @@ func _dev_net() -> void:
 			if a.begins_with("net=join:"):
 				var addr := a.substr(9)
 				after(0.6, func() -> void: Net.i.join(addr))
-			# dev: a joining guest says it is ready once it is in the party
-			var ready_up := func(again: Callable) -> void:
-				if Net.is_client() and Net.i.roster.has(Net.my_id()):
-					Net.i.set_ready(true)
-				else:
-					after(0.5, again.bind(again))
-			after(1.0, ready_up.bind(ready_up))
 	if want > 1:
+		# dev: once n Kindled are in the sanctuary the host proposes the
+		# expedition; the bots answer it (Net._dev_answer)
 		var check := func(again: Callable) -> void:
-			if Net.is_host() and Net.i.roster.size() >= want and Net.i.all_ready():
-				after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
+			if not is_inside_tree():
+				return
+			var here := 0
+			if Net.is_host():
+				for pid in Net.i.roster:
+					if String(Net.i.roster[pid].get("where", "")) == "hub":
+						here += 1
+			if Net.is_host() and here >= want and Net.i.proposal.is_empty():
+				after(1.0, func() -> void:
+					Expedition.request(String(Profile.data.descent.get("region", "ossuary")), Difficulty.selected(),
+						(Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))))
 			else:
 				after(0.5, again.bind(again))
 		after(0.5, check.bind(check))
+
+
+## The Keeper greets a new Kindled - once nothing else is on screen (a menu
+## opened in the first moment keeps it waiting, it never covers one).
+func _intro() -> void:
+	if Profile.data.flags.get("intro_done", false):
+		return
+	if Game.ui.has_modal() or Game.ui.card_pending:
+		after(0.5, _intro)
+		return
+	Profile.data.flags.intro_done = true
+	Game.ui.dialogue("The Keeper", [
+		"Another Kindled wakes. Good. The Hearth was starting to forget what hands felt like.",
+		"Below us lies the Undervault. It swallowed the sun, piece by piece. Every ember you carry back feeds the Hearth - and you.",
+		"Walk to the Descent when you're ready. Commune with the Hearth to grow stronger. And Kindled... the dark remembers who hurts it.",
+	])
+
+
+func _hook_party() -> void:
+	if Net.i == null or not is_inside_tree():
+		return
+	Net.i.roster_changed.connect(_on_party_changed)
+	Net.i.camp_changed.connect(_on_camp_changed)
+	if not Net.i.sheet_changed.is_connected(_on_sheet_changed):
+		Net.i.sheet_changed.connect(_on_sheet_changed)
+	if Net.active():
+		_join_party_here()
+		if Net.is_client() and camp != current_camp():
+			Game.reload_hub()
+
+
+## Co-op: the party is here (a session started, or this sanctuary was built
+## with one running): everyone walks it together (HubSync).
+func _join_party_here() -> void:
+	if sync != null or menu_mode or not Net.active():
+		return
+	sync = HubSync.new()
+	sync.hub = self
+	add_child(sync)
+
+
+func _on_party_changed() -> void:
+	if menu_mode or not is_inside_tree():
+		return
+	if Net.active():
+		_join_party_here()
+	elif sync != null:
+		# the party broke up: back to this profile's own camp
+		sync.queue_free()
+		sync = null
+		for a in actors.duplicate():
+			if a is Player and a != player:
+				remove_actor(a)
+				fx.unmark(a)
+				a.queue_free()
+		if camp != camp_of_profile():
+			Game.reload_hub()
+
+
+func _on_camp_changed() -> void:
+	if not menu_mode and camp != current_camp():
+		Game.reload_hub()
 
 
 func _spawn_dummies() -> void:
@@ -468,6 +584,16 @@ func flare_gate() -> float:
 	tw.tween_interval(0.25)
 	tw.tween_callback(pl.hide_gear)
 	tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.75)
+	# the whole party goes into the light together
+	if sync:
+		sync.set_process(false)
+		for other in sync.others.values():
+			if is_instance_valid(other):
+				var tw2 := create_tween()
+				tw2.tween_interval(0.25)
+				tw2.tween_callback(other.hide_gear)
+				tw2.tween_method(other.sprite.set_dissolve, 0.0, 1.0, 0.75)
+				fx.motes(other.pos, 0.4, Color(1.0, 0.7, 0.35), 10, 1.6, 0.8, 0.3)
 	for k in 6:
 		after(0.25 + k * 0.12, func() -> void:
 			fx.motes(pl.pos, 0.4, Color(1.0, 0.7, 0.35), 3, 1.6, 0.8, 0.3))
@@ -482,17 +608,24 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.descent_prompt()
 		"rack":
 			Game.ui.weapon_select()
-		"forge":
-			Game.ui.forge()
+		"forge", "forge_ruin":
+			# a guest at the host's forge uses (or rebuilds) their own
+			if Profile.building("forge") > 0:
+				Game.ui.forge()
+			else:
+				Game.ui.sanctuary_build("forge")
 		"smith":
-			Game.ui.smithy()
+			if Profile.building("forge") > 0:
+				Game.ui.smithy()
+			else:
+				Game.ui.toast("Your own camp needs its forge rebuilt first.", UIKit.C_DIM)
 		"peddler":
 			Game.ui.peddler()
-		"forge_ruin", "apothecary", "memorial":
+		"apothecary", "memorial":
 			if what == "memorial" and Profile.building("shrine") > 0:
 				Game.ui.memorial()
 			else:
-				Game.ui.sanctuary_build({"forge_ruin": "forge", "apothecary": "apothecary", "memorial": "shrine"}[what])
+				Game.ui.sanctuary_build({"apothecary": "apothecary", "memorial": "shrine"}[what])
 		"keeper":
 			prop.sprite.play("talk")
 			prop.sprite.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -524,6 +657,9 @@ class CampCat:
 	var target := Vector2.ZERO
 
 	func tick(dt: float) -> void:
+		if following:
+			follow_step(dt, 1.6)
+			return
 		mode_t -= dt
 		match mode:
 			"walk":

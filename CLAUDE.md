@@ -58,7 +58,10 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `descend` (hub: walk through the gate a second after loading), `net=host|join:<ip>`, `name=`, `coop=<n>`,
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
-  peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`. Dev args and the testing stockpile work in debug
+  peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
+  `scenario=journey|bestiary|stairs|talk|partyesc role=host|guest guests=N stay=S` (docs/TESTING.md),
+  `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`.
+  (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args and the testing stockpile work in debug
   builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
   steam_appid.txt in exports, dev switches gated, game code never uses tools/ tests/ docs/ captures/ - they
@@ -141,9 +144,34 @@ Key conventions:
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
   bramble, elite); gifts apply in `Profile.apply_sanctuary` via `Residents.apply_rewards`.
 
+## Testing co-op (read docs/TESTING.md)
+
+The first two-PC playtest found five game-breaking bugs every automated test had
+passed. For any change a co-op player can see or feel:
+1. test the logic (`tests/`); 2. run separate host and guest processes
+(`tools/dev/e2e.sh [n] [journey|bestiary|stairs] [netsim...]`), not a second
+Kindled inside one process; 3. drive them with real input (`src/dev/scenario.gd`
+presses the bound keys and clicks drawn buttons; never call `interact()` or
+`descend()` instead); 4. capture every machine at once (`Net.dev_shot`) and look
+at each side's capture; 5. check transitions (floors, sanctuary, join/leave);
+6. use 4 players where it matters; 7. play a whole expedition; 8. run solo
+regressions (tests, uismoke, autopilot, `scenario=talk`); 9. repeat under
+`netsim` links (floor races only show with latency); 10. report what was
+unit-tested / run as separate processes / viewed / played by a human.
+`tools/dev/e2e_compare.py` flags a Kindled frozen on another screen;
+`tools/dev/e2e_recovery.sh` covers crashes and rejoining; `-- showcol` overlays
+collision. A scenario's own mouse goes through `Dev.mouse` (the window reads the
+real OS cursor, which scripted events do not move).
+- Co-op rules learned the hard way: every message, including input, names its
+  floor (`expedition*1000 + depth`); an open screen holds the player's input
+  (`UIRoot.blocks_world`); anything a guest draws must not depend on the host's
+  simulation step (`replica_present`); overlay nodes (bars, nameplates) must be
+  freed when their actor leaves (`_exit_tree`).
+
 ## Workflow
 
-- Branch: `feature/initial-playable-foundation` (draft PR to `main`). Don't merge large work to main without review.
+- Branches are stacked feature branches with draft PRs (latest: `feature/coop-playtest-repair` -> `feature/steam-coop`
+  -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,
   and (for gameplay) a headless autopilot run: `-- autopilot scene=dungeon seed=7 frames=20000 quit`.

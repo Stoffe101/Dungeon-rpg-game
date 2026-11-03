@@ -64,6 +64,7 @@ static func save_now(name: String) -> String:
 	var dir := ProjectSettings.globalize_path("res://captures") if OS.has_feature("editor") else OS.get_user_data_dir().path_join("captures")
 	DirAccess.make_dir_recursive_absolute(dir)
 	var path := dir.path_join(name + ".png")
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	img.save_png(path)
 	print("[capture] saved ", path, " ", img.get_size())
 	return path

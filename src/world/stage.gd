@@ -39,6 +39,17 @@ func setup(g: TileGrid, v: PixelView) -> void:
 	fx.view = v
 	add_child(fx)
 	rebuild_nav()
+	if Net.i:
+		Net.i.sheet_changed.connect(_on_sheet_changed)
+
+
+## Co-op: a party member changed what they wear or wield: redraw their Kindled here.
+func _on_sheet_changed(pid: int) -> void:
+	if not Net.active() or pid == Net.my_id() or not Net.i.roster.has(pid):
+		return
+	for pl in players:
+		if is_instance_valid(pl) and pl.peer_id == pid and pl != player:
+			pl.apply_sheet(Net.i.roster[pid].get("sheet", {}))
 
 
 func rebuild_nav() -> void:
@@ -122,7 +133,11 @@ func simulate(dt: float) -> void:
 				t[1].call()
 	Audio.in_sim = true
 	for a in actors.duplicate():
-		if is_instance_valid(a) and a.alive:
+		if not is_instance_valid(a):
+			continue
+		if a.replica:
+			a.replica_present(dt)     # another machine's Kindled (the shared sanctuary)
+		elif a.alive:
 			a.tick(dt)
 	for p in projectiles.duplicate():
 		if is_instance_valid(p):
@@ -192,14 +207,21 @@ func _separate() -> void:
 			var l := sqrt(l2)
 			var push := (rr - l) * 0.5
 			var nrm := d / l
+			# another machine's Kindled (the shared sanctuary) is moved by its owner
+			# only: it eases a Kindled that stands in it aside, but never blocks
+			# one that is walking (a crowd at a door must not wall anyone in)
+			if (a.replica and b is Player and (b as Player).move_in.length() > 0.1) or (b.replica and a is Player and (a as Player).move_in.length() > 0.1):
+				continue
 			var wa := b.mass / (a.mass + b.mass)
 			var wb := 1.0 - wa
-			if a.anchored:
+			var a_fixed := a.anchored or a.replica
+			var b_fixed := b.anchored or b.replica
+			if a_fixed:
 				wa = 0.0
 				wb = 1.0
-			if b.anchored:
+			if b_fixed:
 				wb = 0.0
-				wa = 1.0 if not a.anchored else 0.0
+				wa = 1.0 if not a_fixed else 0.0
 			a.pos = grid.move_box(a.pos, a.box(), -nrm * push * 2.0 * wa, a.flying)
 			b.pos = grid.move_box(b.pos, b.box(), nrm * push * 2.0 * wb, b.flying)
 
@@ -390,6 +412,22 @@ func nearest_interactable(p: Vector2, max_r := 1.6) -> Prop:
 			continue
 		var d: float = pr.pos.distance_to(p) - pr.interact_radius
 		if d < bd:
+			bd = d
+			best = pr
+	return best
+
+
+## The interactable under the mouse (`at`, plane coords) that a Kindled at
+## `from` can reach, or null. Props are tall: the point may be on its body,
+## a little north of where it stands.
+func interactable_at(at: Vector2, from: Vector2, reach := 1.6) -> Prop:
+	var best: Prop = null
+	var bd := 1.0
+	for pr in props:
+		if not is_instance_valid(pr) or not pr.interactable():
+			continue
+		var d: float = minf(pr.pos.distance_to(at), (pr.pos + Vector2(0, -0.7)).distance_to(at))
+		if d < bd and pr.pos.distance_to(from) - pr.interact_radius < reach:
 			bd = d
 			best = pr
 	return best

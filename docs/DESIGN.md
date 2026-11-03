@@ -508,8 +508,25 @@ materials and Sunshards are credited to everyone; gear, blueprints and runes
 drop once per player; relic altars give each player their own pick. Foes target
 the nearest Kindled (with aggro on heavy hitters); each extra Kindled adds about
 30% more foes and a third more health (bosses half) - never four times anything.
-Sealing a room draws everyone in. Downed players can be revived; the fallen
-return when the room is won. Seat colours ring each Kindled and name allies.
+Sealing a room draws everyone in - to just inside the door the fight began
+from, never into the room's middle (a pillar, a pit, the fight). Downed players
+can be revived; the fallen return when the room is won. Seat colours ring each
+Kindled and name allies.
+
+**The sanctuary is shared: the party gathers at the host's fire.** A guest
+walks the host's camp (what the host has built, who lives there) in their own
+gear; their progression stays their own - the Hearthtree, forge, smithy,
+peddler, satchel, wardrobe and requests always open the guest's own profile.
+Seeing the host's camp keeps the world consistent for everyone (one camp, one
+set of residents in one place); a guest's own camp is theirs to show when they
+host.
+
+**Expeditions are proposed, not readied.** Whoever is at the gate chooses the
+region, tier and Omens and proposes; everyone is asked on a card that does not
+interrupt them, answers with one key, and sees the others' answers arrive. A
+short countdown follows agreement, so a slip can still be taken back. Votes
+below (stairs, Hearthstone, Trial, Hearthcall) use the same card; standing at
+the stairs with the asker counts as agreeing.
 
 ## Co-op interactions
 
@@ -636,6 +653,21 @@ where Omens, Grudges, runes and co-op meet.
   gets 60 s to come back as itself (profile identity or Steam ID). The host's
   machine runs the world, so a lost host ends the expedition; each guest banks
   the checkpoint from the start of the depth instead of losing everything.
+- **Shared sanctuary, personal progression.** The party walks the host's camp
+  (host-owned environment), each Kindled in its own gear (per-player state),
+  each machine moving its own Kindled (nothing to fight there, so no
+  prediction), personal facilities on the local profile. Alternatives rejected:
+  everyone in their own camp with visitors (two players at "the forge" would see
+  different forges and residents in different places), or merging camps (whose
+  upgrades count?).
+- **A screen has the player's hands.** In co-op the world never pauses, so an
+  open menu or conversation must stop that player's Kindled taking input - the
+  missing rule behind the playtest's black screens. Questions for the whole
+  party (proposals, votes) are the exception: a card at the side, answered
+  with Y / N, that never takes focus or the hands.
+- **Test what each player sees.** The playtest's bugs were all invisible to
+  host-side tests; co-op changes are now checked with separate windows, real
+  input and captures from every machine (docs/TESTING.md).
 - **Steam is optional and reached dynamically.** The game builds and runs
   without GodotSteam (LAN / direct IP); with it, lobbies and Valve's relay
   carry the same messages. Development switches only work in debug builds.

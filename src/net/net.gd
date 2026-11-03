@@ -10,11 +10,18 @@ extends Node
 
 signal roster_changed
 signal status_changed(text: String)
+## A party member's character sheet changed (gear, wardrobe, weapon, skills):
+## every machine redraws that Kindled (and the host rebuilds its stats).
+signal sheet_changed(peer_id: int)
+## The open expedition proposal changed (Expedition): made, answered, counting, gone.
+signal proposal_changed
+## Guest: the host's camp arrived or changed (the sanctuary is rebuilt to match).
+signal camp_changed
 
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 4
+const PROTOCOL := 5
 ## How long a seat waits for a Kindled that lost the link, and how long that
 ## Kindled keeps trying to reach the host again (seconds).
 const SEAT_WAIT := 60.0
@@ -51,8 +58,20 @@ var away := {}                 # host: peer -> ms until its seat is given up (it
 var reconnecting_until := 0    # client: ms until it stops trying to reach the host again
 var _last_join := ["", 0]      # client: the address it joined (to reach it again)
 var _connect_until := 0        # client: ms until a connection attempt is given up
+var _sheet_due := -1.0         # seconds until this machine's changed sheet goes out (changes come in bursts)
+var _sheet_sent := {}          # the sheet the party last heard from this machine
 var _retry_t := 0.0
 var _early: Array = []         # client: [floor, events] sent before this machine had built that floor
+## The party's expedition count (the host's): floor ids are expedition * 1000 +
+## depth, so nothing from a floor left behind - or from the last expedition's
+## floor of the same depth - is ever taken for the floor being played.
+var expedition := 0
+var proposal := {}             # the party's open expedition proposal (the host's; a copy elsewhere) - see Expedition
+var camp := {}                 # guest: the host's camp (Hub.camp_of_profile), which this machine's sanctuary shows
+var hub_sync: HubSync          # the shared sanctuary, while this machine is in it
+var _camp_sent := {}           # host: the camp the party last heard of
+var _where_me := "menu"        # where this machine's player is: menu, hub, below, summary
+var _where_set := false
 
 # measured link (client: to the host)
 var rtt := 0.0                 # seconds, smoothed
@@ -85,13 +104,36 @@ func _ready() -> void:
 			set_netsim(a.substr(7))
 	steam = SteamLink.new()
 	add_child(steam)
+	# the first scene is built before this node exists: start from it
+	if not _where_set and Game.stage is Hub:
+		_where_me = "menu" if (Game.stage as Hub).menu_mode else "hub"
 	roster_changed.connect(func() -> void:
 		if is_host():
 			steam.update_lobby())
+	# what this Kindled wears and wields is seen by the whole party, live
+	Profile.changed.connect(func() -> void:
+		if active():
+			_sheet_due = 0.25)
+	if Dev.args().has("autopilot") or Dev.args().has("autoaccept"):
+		proposal_changed.connect(_dev_answer)
+	roster_changed.connect(func() -> void:
+		if is_host():
+			Expedition.on_roster()
+		elif not active() and not proposal.is_empty():
+			proposal = {}
+			proposal_changed.emit())
 
 
 func _process(delta: float) -> void:
 	_deliver(Time.get_ticks_msec())
+	if _sheet_due >= 0.0:
+		_sheet_due -= delta
+		if _sheet_due < 0.0:
+			refresh_sheet()
+			if is_host():
+				send_camp()
+	if is_host():
+		Expedition.tick()
 	if _connect_until > 0 and Time.get_ticks_msec() > _connect_until and not active():
 		# the host never answered (a Steam peer can wait forever): give up on this try
 		_connect_until = 0
@@ -130,6 +172,49 @@ func _process(delta: float) -> void:
 		for pid in away.keys():
 			if Time.get_ticks_msec() > int(away[pid]):
 				_drop_seat(int(pid))
+
+
+## Dev: every machine in the party saves its screen now (`<name>_<player
+## name>.png`), so what each player saw at one moment can be compared.
+func dev_shot(shot: String) -> void:
+	if not Dev.enabled():
+		return
+	if is_client():
+		to_host("_dev_shot", [shot])
+	else:
+		_shot_here(shot)
+		if is_host():
+			rpc("_dev_shot_all", shot)
+
+
+@rpc("any_peer", "reliable")
+func _dev_shot(shot: String) -> void:
+	if multiplayer.is_server():
+		dev_shot(shot)
+
+
+@rpc("authority", "reliable")
+func _dev_shot_all(shot: String) -> void:
+	_shot_here(shot)
+
+
+func _shot_here(shot: String) -> void:
+	if not Dev.enabled():
+		return
+	var tag := "p%d" % my_id()
+	for a in Dev.args():
+		if a.begins_with("name="):
+			tag = a.substr(5).to_lower()
+	Capture.save_now("%s_%s" % [shot, tag])
+
+
+## Dev (bots, `autoaccept`): agree to the party's expedition after a moment.
+func _dev_answer() -> void:
+	if proposal.is_empty() or Expedition.my_answer() != "":
+		return
+	get_tree().create_timer(0.8).timeout.connect(func() -> void:
+		if not proposal.is_empty() and Expedition.my_answer() == "":
+			Expedition.reply(true))
 
 
 # --- static helpers ---------------------------------------------------------------
@@ -278,7 +363,8 @@ func use_peer(p: MultiplayerPeer, hosting: bool, reach := []) -> void:
 	if not hosting:
 		_connect_until = Time.get_ticks_msec() + 20000
 	if hosting:
-		roster = {1: {"name": _my_name(), "sheet": Profile.character_sheet(), "slot": 0, "id": identity(), "ready": true}}
+		_sheet_sent = Profile.character_sheet()
+		roster = {1: {"name": _my_name(), "sheet": _sheet_sent, "slot": 0, "id": identity(), "where": _where_me}}
 		roster_changed.emit()
 
 
@@ -328,6 +414,10 @@ func leave(keep_lobby := false) -> void:
 	peer = null
 	multiplayer.multiplayer_peer = null
 	roster.clear()
+	proposal = {}
+	camp = {}
+	_camp_sent = {}
+	proposal_changed.emit()
 	recording = false
 	rtt = 0.0
 	jitter = 0.0
@@ -369,10 +459,11 @@ func _on_connected() -> void:
 	_connect_until = 0
 	_steady(1)
 	_status("Connected. Waiting for the host's word..." if reconnecting_until == 0 else "Found the host. Asking for our seat back...")
-	var info := {"proto": PROTOCOL, "ver": game_version(), "id": identity()}
+	var info := {"proto": PROTOCOL, "ver": game_version(), "id": identity(), "where": _where_me}
 	if reconnecting_until > 0 and Game.run:
 		info["rejoin"] = Game.run.run_id
-	to_host("_hello", [_my_name(), Profile.character_sheet(), info])
+	_sheet_sent = Profile.character_sheet()
+	to_host("_hello", [_my_name(), _sheet_sent, info])
 
 
 ## Who this player is to the host: the profile's identity (Steam: the Steam ID).
@@ -463,13 +554,19 @@ func _broadcast_roster() -> void:
 	roster_changed.emit()
 
 
-## The client's Kindled changed (gear, skills) while waiting in the sanctuary.
+## This machine's Kindled changed (gear, wardrobe, weapon, skills): the party
+## hears of it (only when something they would see or feel changed).
 func refresh_sheet() -> void:
+	var sh := Profile.character_sheet()
+	if sh == _sheet_sent or not active():
+		return
+	_sheet_sent = sh
 	if is_client():
-		to_host("_sheet", [Profile.character_sheet()])
-	elif is_host():
-		roster[1].sheet = Profile.character_sheet()
+		to_host("_sheet", [sh])
+	elif is_host() and roster.has(1):
+		roster[1].sheet = sh
 		_broadcast_roster()
+		sheet_changed.emit(1)
 
 
 ## Host: the measured link to one client (ENet's figures, or Steam's).
@@ -522,9 +619,13 @@ func _hello(pname: String, sheet: Dictionary, info := {}) -> void:
 	var slot := 0
 	while used.has(slot):
 		slot += 1
-	roster[id] = {"name": pname.substr(0, 16), "sheet": sheet, "slot": slot, "id": String(info.get("id", "")), "ready": false}
+	roster[id] = {"name": pname.substr(0, 16), "sheet": sheet, "slot": slot, "id": String(info.get("id", "")), "where": String(info.get("where", "menu"))}
+	# the sanctuary they walk into is this one, and they hear of any open proposal
+	rpc_id(id, "_camp", Hub.camp_of_profile())
+	rpc_id(id, "_proposal", proposal)
 	_broadcast_roster()
 	_status("%s joined the party." % pname)
+	Events.toast.emit("%s joined the party." % pname, color_of(id))
 
 
 ## Host: the guest seat held by this identity (its peer id), or 0.
@@ -551,8 +652,12 @@ func _rejoin(old: int, new: int) -> void:
 	_broadcast_roster()
 	var r := Game.run_of(new)
 	var params := {"seed": Game.run.seed, "region": "delve" if Game.run.delve else Game.run.region, "tier": Game.run.tier,
-		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth}
+		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth, "exp": expedition}
 	rpc_id(new, "_rejoined", params, r.to_dict())
+	# what it carried into this depth, in case this host's fire goes out next
+	var cp: Dictionary = Game.checkpoints.get(String(entry.get("id", "")), {})
+	if not cp.is_empty():
+		rpc_id(new, "_checkpoint", cp)
 	if run_sync:
 		rpc_id(new, "_events", run_sync.floor_id, run_sync.world_dump())
 	_status("%s found the party again." % String(entry.name))
@@ -572,34 +677,95 @@ func _rejoined(params: Dictionary, run_data: Dictionary) -> void:
 		Game.rejoin_coop_client(params, run_data))
 
 
-## Client -> host: ready (or not) to go down.
+# --- where everyone is, and the expedition they agree on --------------------------------
+
+## This machine's player moved on: the sanctuary, the menu, below, the summary.
+## The party screen and proposals show it ("at the main menu").
+func set_where(w: String) -> void:
+	_where_me = w
+	_where_set = true
+	if is_host() and roster.has(1):
+		roster[1]["where"] = w
+		_broadcast_roster()
+	elif is_client():
+		to_host("_where", [w])
+
+
 @rpc("any_peer", "reliable")
-func _ready_up(on: bool) -> void:
+func _where(w: String) -> void:
 	var id := multiplayer.get_remote_sender_id()
-	if multiplayer.is_server() and roster.has(id):
-		roster[id]["ready"] = on
+	if multiplayer.is_server() and roster.has(id) and w in ["menu", "hub", "below", "summary"]:
+		roster[id]["where"] = w
 		_broadcast_roster()
 
 
-func set_ready(on: bool) -> void:
-	if is_client():
-		to_host("_ready_up", [on])
+## Where a party member is, in words ("in the sanctuary").
+static func where_text(peer_id: int) -> String:
+	if i == null or not i.roster.has(peer_id):
+		return ""
+	if bool(i.roster[peer_id].get("away", false)):
+		return "lost the link"
+	return {"menu": "at the main menu", "hub": "in the sanctuary", "below": "below", "summary": "reading the summary"}.get(
+		String(i.roster[peer_id].get("where", "")), "")
 
 
-## Host: every guest is ready (the host's own press is its readiness).
-func all_ready() -> bool:
-	for pid in roster:
-		if int(pid) != 1 and not bool(roster[pid].get("ready", false)):
-			return false
-	return true
+## Host: the camp everyone in the party walks, sent when it changes (a forge
+## rebuilt, a resident arrived...).
+func send_camp() -> void:
+	if not is_host():
+		return
+	var c := Hub.camp_of_profile()
+	if c != _camp_sent:
+		_camp_sent = c
+		rpc("_camp", c)
 
 
-## Host: a new expedition, or back at the Hearth: everyone answers again.
-func unready_all() -> void:
-	for pid in roster:
-		roster[pid]["ready"] = false
-	if is_host():
-		_broadcast_roster()
+@rpc("authority", "reliable")
+func _camp(c: Dictionary) -> void:
+	_through("rel", true, func() -> void:
+		if c != camp:
+			camp = c
+			camp_changed.emit())
+
+
+@rpc("any_peer", "reliable")
+func _propose(region: String, tier: int, omens: Array) -> void:
+	if multiplayer.is_server():
+		Expedition.propose(multiplayer.get_remote_sender_id(), region, tier, omens)
+
+
+@rpc("any_peer", "reliable")
+func _answer(id: int, yes: bool) -> void:
+	if multiplayer.is_server():
+		Expedition.answer(multiplayer.get_remote_sender_id(), id, yes)
+
+
+@rpc("any_peer", "reliable")
+func _withdraw(id: int) -> void:
+	if multiplayer.is_server():
+		Expedition.cancel(multiplayer.get_remote_sender_id(), id)
+
+
+@rpc("authority", "reliable")
+func _proposal(p: Dictionary) -> void:
+	_through("rel", true, func() -> void:
+		proposal = p
+		proposal_changed.emit())
+
+
+## Client -> host, 20 a second in the sanctuary: where its Kindled stands (HubSync).
+@rpc("any_peer", "unreliable_ordered")
+func _hub_pose(pose: Array) -> void:
+	if multiplayer.is_server() and hub_sync:
+		hub_sync.on_pose(multiplayer.get_remote_sender_id(), pose)
+
+
+## Host -> clients, 20 a second: the party in the sanctuary, and the camp's movers.
+@rpc("authority", "unreliable_ordered")
+func _hub_world(poses: Dictionary, movers: Array) -> void:
+	_through("hub", false, func() -> void:
+		if hub_sync:
+			hub_sync.on_world(poses, movers))
 
 
 @rpc("authority", "reliable")
@@ -612,10 +778,14 @@ func _rejected(why: String) -> void:
 @rpc("authority", "reliable")
 func _roster(r: Dictionary) -> void:
 	_through("rel", true, func() -> void:
+		var old := roster
 		roster = r
 		if status.begins_with("Connected") or status.begins_with("Connecting"):
 			_status("In %s's party." % name_of(1))
-		roster_changed.emit())
+		roster_changed.emit()
+		for pid in roster:
+			if old.has(pid) and old[pid].get("sheet") != roster[pid].get("sheet"):
+				sheet_changed.emit(int(pid)))
 
 
 @rpc("any_peer", "reliable")
@@ -624,6 +794,7 @@ func _sheet(sheet: Dictionary) -> void:
 	if multiplayer.is_server() and roster.has(id):
 		roster[id].sheet = sheet
 		_broadcast_roster()
+		sheet_changed.emit(id)
 
 
 ## Host -> clients: the party goes down.
@@ -648,11 +819,19 @@ func _checkpoint(run_data: Dictionary) -> void:
 	_through("rel", true, func() -> void: Game.coop_checkpoint = run_data)
 
 
-## Client -> host, every frame (up to 60 a second): see NetRun.pack_input.
+## Client -> host, every frame (up to 60 a second): see NetRun._send_input.
+## Each packet names its floor: a client still on the floor the party just
+## left keeps sending input (and counting its sequence) until it has built the
+## next one, and the host must not take those numbers for the new floor - its
+## fresh Kindled would then drop every real input as old, and stand frozen
+## while its owner walked on (the "frozen after the stairs" bug).
 @rpc("any_peer", "unreliable_ordered")
-func _n_input(d: Array) -> void:
+func _n_input(fl: int, d: Array) -> void:
 	if multiplayer.is_server() and run_sync:
 		count("in_msgs")
+		if fl != run_sync.floor_id:
+			count("in_stale")
+			return
 		run_sync.on_input(multiplayer.get_remote_sender_id(), d)
 
 

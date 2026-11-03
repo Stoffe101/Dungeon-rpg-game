@@ -184,8 +184,11 @@ Run each step with the network overlay on (F3) and keep the console logs (the
 
 ### LAN (two PCs on one network)
 
-1. PC A: party screen, "Host (LAN / IP)"; note the address it shows.
-2. PC B: enter that address, "Join IP". Both: Descent; B "Ready"; A descends.
+1. PC A: Play Together, "Host"; the party screen shows the address
+   ("Show connection details").
+2. PC B: Play Together, "Join by Address", that address, "Join". A proposes an
+   expedition at the gate; B answers Ready (Y); the party goes down. (The full
+   two-PC pass, sanctuary to stairs, is in docs/TESTING.md.)
 3. Play a floor together: watch B's own Kindled (should feel immediate),
    A's Kindled on B's screen and foes (smooth, ~60-100 ms behind), hits and
    sounds on both, the overlay's prediction error and loss.
@@ -205,8 +208,9 @@ table in NETWORK.md.
 
 ### Steam (two Steam accounts on two PCs; debug builds with `steam_appid=480`)
 
-1. A: "Host on Steam". B: "Join a friend" and pick A, or accept A's invite
-   ("Invite friends" > Invite).
+1. A: Play Together, "Host" (with Steam running it hosts on Steam). B: "Join a
+   Friend" and pick A, or accept A's invite (party screen > "Invite friends" >
+   Invite).
 2. B joins from A's "Join game" in the Steam friends list (rich presence).
 3. Private lobby (`net=steamhost` on A): B can join only by invite.
 4. Different builds (bump `application/config/version` on one side): B must be

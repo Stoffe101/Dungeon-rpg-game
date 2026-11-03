@@ -77,6 +77,16 @@ static func count_present() -> int:
 	return clampi(Profile.building("hearth") + runs / 3, 1, LIST.size())
 
 
+## Has this resident found this profile's Hearth? (A guest in a friend's
+## sanctuary meets residents of the host's camp that may not live in theirs.)
+static func present(id: String) -> bool:
+	var n := count_present()
+	for i in n:
+		if String(LIST[i].id) == id:
+			return true
+	return false
+
+
 static func get_def(id: String) -> Dictionary:
 	for r in LIST:
 		if r.id == id:

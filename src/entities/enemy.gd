@@ -223,6 +223,29 @@ func tick(dt: float) -> void:
 		_affix_tick(dt)
 
 
+var _seen_hp := -1.0
+
+
+## Co-op client: the picture of a foe the host simulates. It rises out of the
+## dark as it does on the host (it starts fully dissolved: without this a
+## guest saw only its shadow), and keeps its health bar, nameplate and a
+## phasing foe's fade, which the host's simulation step would otherwise draw.
+func replica_present(dt: float) -> void:
+	if state == "spawn":
+		state_t += dt
+		var k := clampf(state_t / maxf(spawn_t, 0.01), 0.0, 1.0)
+		sprite.set_dissolve(1.0 - k)
+		if k >= 1.0:
+			state = "idle"
+	if _seen_hp >= 0.0 and hp < _seen_hp - 0.01:
+		_hb_show_t = 3.0
+	_seen_hp = hp
+	if has_affix("phasing"):
+		sprite.set_tint(Color(1, 1, 1, 1.0 if targetable else 0.35))
+	_update_bar(dt)
+	super.replica_present(dt)
+
+
 ## The affixes that change how a fight plays, every frame.
 func _affix_tick(dt: float) -> void:
 	if has_affix("molten") and vel.length() > 0.5:
@@ -476,6 +499,26 @@ func on_damaged(hit: Hit, res: Combat.Result) -> void:
 		voice("hurt", -9.0)
 	if state == "idle" or state == "wander":
 		set_state("idle")
+
+
+## Its health bar and nameplate live in the view's overlay, not under the foe:
+## they go with it however it goes (a co-op guest's foes never run die()).
+func _clear_overlay() -> void:
+	if bar and is_instance_valid(bar):
+		bar.queue_free()
+	bar = null
+	if nameplate and is_instance_valid(nameplate):
+		nameplate.queue_free()
+	nameplate = null
+
+
+func _exit_tree() -> void:
+	_clear_overlay()
+
+
+func replica_die() -> void:
+	_clear_overlay()
+	super.replica_die()
 
 
 func die(killer: Node) -> void:

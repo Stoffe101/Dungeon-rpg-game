@@ -81,7 +81,7 @@ func setup(st: Dungeon, as_host: bool) -> void:
 	stage = st
 	host = as_host
 	name = "NetRun"
-	floor_id = st.layout.depth
+	floor_id = Net.i.expedition * 1000 + st.layout.depth
 	Net.i.run_sync = self
 	if host:
 		Net.recording = true
@@ -150,8 +150,10 @@ func _describe(a: Actor) -> Dictionary:
 	var d := {"pos": a.pos}
 	if a is Enemy:
 		var e := a as Enemy
+		# how long it still takes to rise (a guest who arrives late sees it whole)
+		var rising := maxf(0.0, e.spawn_t - e.state_t) if e.state == "spawn" else 0.0
 		d.merge({"kind": "enemy", "id": e.id, "elite": e.elite, "affix": e.affix, "affix2": e.affix2,
-			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": e.spawn_t, "boss": e == stage.boss})
+			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
 	return d
@@ -483,6 +485,12 @@ func start_vote(kind: String, idx: int, by: Player) -> void:
 	_vote_n += 1
 	var nv := {"id": _vote_n, "kind": kind, "idx": idx, "by": by.peer_id, "yes": {by.peer_id: true},
 		"until": stage.elapsed + Party.VOTE_TIME}
+	# whoever is already standing there with them is plainly agreeing
+	var at := _prop(idx)
+	if at:
+		for pl in stage.players:
+			if is_instance_valid(pl) and pl.alive and not pl.away and pl.pos.distance_to(at.pos) < 3.0:
+				nv.yes[pl.peer_id] = true
 	_votes[_vote_n] = nv
 	print("[net] vote %d: %s asked by %s" % [_vote_n, kind, Net.name_of(by.peer_id)])
 	_announce_vote(nv)
@@ -555,7 +563,9 @@ func _prop(idx: int) -> Prop:
 ## A line for one player only: on this machine, or sent to theirs.
 func tell(pl: Player, text: String, col: Color) -> void:
 	if pl.peer_id == Net.my_id():
-		Events.toast.emit(text, col)
+		# straight to this screen (Events.toast would be recorded for everyone)
+		if Game.ui:
+			Game.ui.toast(text, col)
 	else:
 		Net.i.rpc_id(pl.peer_id, "_tell", text, col)
 
@@ -624,7 +634,7 @@ func _send_input(pl: Player, now_s: float) -> void:
 	var m := pl.move_in.limit_length(1.0)
 	var pkt := [_seq, q(m.x), q(m.y), q(pl.aim.x), q(pl.aim.y), q(pl.aim_point.x), q(pl.aim_point.y), down, pr,
 		int(Net.rtt_s() * 1000.0), _hold_ms, q(pl.pos.x), q(pl.pos.y)]
-	Net.i.to_host("_n_input", [pkt], "in", false)
+	Net.i.to_host("_n_input", [floor_id, pkt], "in", false)
 	Net.i.count("in_out")
 	pl.pred_move = Vector2(pkt[1], pkt[2])
 	_seq_t[_seq] = now_s
@@ -654,6 +664,13 @@ func _reconcile(me: Array) -> void:
 	if pl == null or not is_instance_valid(pl) or not pl.can_predict() or _traj.is_empty():
 		return
 	var seq := int(me[0])
+	if seq > _seq:
+		# the host is applying input this floor never sent: the two disagree
+		# about whose numbers these are (should never happen; say so once)
+		if not diag.has("bad_ack"):
+			print("[net] floor %d: the host acknowledged input %d, but only %d were sent here" % [floor_id, seq, _seq])
+		diag["bad_ack"] = int(diag.get("bad_ack", 0)) + 1
+		return
 	if not _seq_t.has(seq):
 		return
 	var te := float(_seq_t[seq]) + float(me[1]) / 1000.0

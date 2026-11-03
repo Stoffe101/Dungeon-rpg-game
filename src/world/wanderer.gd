@@ -57,7 +57,9 @@ func tick(dt: float) -> void:
 			else:
 				_pose_anim()
 		return
-	if moving:
+	if following:
+		follow_step(dt, SPEED * 1.6)
+	elif moving:
 		_walk(dt)
 	else:
 		wait -= dt
@@ -72,6 +74,9 @@ func tick(dt: float) -> void:
 
 ## "!" when they have something to ask, "?" when a request is ready to hand in.
 func refresh_mark() -> void:
+	if not Residents.present(String(def.id)):
+		stage.fx.unmark(self)     # (a guest's own residents ask at home)
+		return
 	match Residents.request_state(String(def.id)):
 		"":
 			stage.fx.mark(self, head_height() - 0.2, "!", UIKit.C_GOLD)
@@ -84,6 +89,8 @@ func refresh_mark() -> void:
 ## Where a speech bubble sits: just above the head (children and sitters are lower).
 func head_height() -> float:
 	var h := 1.5 if def.get("child", false) else 1.9
+	if following:
+		return h - (0.3 if follow_anim == "sit" else 0.0)
 	if not moving and spot >= 0 and String(spots[spot].pose) == "sit":
 		h -= 0.3
 	return h

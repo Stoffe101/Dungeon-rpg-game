@@ -258,6 +258,21 @@ func set_weapon(id: String, level: int) -> void:
 	weapon.setup(self, id, level)
 
 
+## Co-op: this (other) player's character sheet changed - new armour, a
+## wardrobe pick, a hidden slot, another weapon. Drawn at once on every
+## machine; the host's copy also takes the new stats. Below, the weapon stays
+## the one the expedition began with.
+func apply_sheet(sh: Dictionary) -> void:
+	if sh.is_empty():
+		return
+	sheet = sh
+	rebuild_stats()
+	var wid := String(sh.get("weapon", ""))
+	var wl := int(sh.get("weapon_level", 0))
+	if stage is Hub and wid != "" and (weapon == null or weapon.id != wid or weapon.level != wl):
+		set_weapon(wid, wl)
+
+
 ## Hides what the Kindled carries (the blade drawn beside the sprite), for
 ## when they dissolve into light.
 func hide_gear() -> void:
@@ -287,7 +302,12 @@ func _process(delta: float) -> void:
 		return
 	if controller == Ctrl.REPLICA and peer_id != Net.my_id():
 		return
-	if not input_enabled or not alive or get_tree().paused:
+	# a menu or a conversation has the player's hands: in co-op the world goes
+	# on (it is never paused), but this Kindled waits - its keys belong to the
+	# screen (F advancing a dialogue used to talk to the same resident again,
+	# stacking a dimmed screen per press)
+	var held := Game.ui != null and Game.ui.blocks_world()
+	if not input_enabled or not alive or get_tree().paused or held:
 		move_in = Vector2.ZERO
 		if _attack_down:
 			_attack_down = false
@@ -309,19 +329,26 @@ func _process(delta: float) -> void:
 	if not _pad_aim and stage and stage.view:
 		# root-window UI coordinates: get_viewport() here is the world SubViewport,
 		# whose mouse position never updates
-		var mp := stage.view.get_global_mouse_position()
+		var mp := Dev.mouse_at(stage.view)
 		aim_point = stage.view.screen_to_plane(mp, 0.6)
 		var d := aim_point - pos
 		if d.length() > 0.05:
 			aim = d.normalized()
-	# the press that closed a menu must not also act in the world
-	if Game.ui and Engine.get_process_frames() - Game.ui.closed_frame <= 1:
+	# the press that closed a menu must not also act in the world (nor open the
+	# same conversation again straight away)
+	if Game.ui and (Engine.get_process_frames() - Game.ui.closed_frame <= 1 or Game.ui.just_closed()):
 		return
 	if Input.is_action_just_pressed("interact"):
 		try_interact()
 	if Input.is_action_just_pressed("hearthcall"):
 		press("home")
-	if Input.is_action_just_pressed("attack"):
+	# in the sanctuary a click on someone (or something) within reach talks to them
+	var clicked: Prop = null
+	if Input.is_action_just_pressed("attack") and not _pad_aim and stage is Hub:
+		clicked = stage.interactable_at(aim_point, pos)
+	if clicked:
+		_use(clicked)
+	elif Input.is_action_just_pressed("attack"):
 		press("attack")
 		_attack_down = true
 	if _attack_down and not Input.is_action_pressed("attack"):
@@ -361,13 +388,19 @@ func try_interact() -> Prop:
 		return null
 	var near := stage.nearest_interactable(pos)
 	if near:
-		presses.interact = int(presses.interact) + 1
-		if controller == Ctrl.REPLICA:
-			# a client asks the host, which owns every prop
-			Net.ask("interact", [near.net_idx])
-		else:
-			near.interact(self)
+		_use(near)
 	return near
+
+
+func _use(p: Prop) -> void:
+	if Game.ui and Game.ui.blocks_world():
+		return     # one screen at a time
+	presses.interact = int(presses.interact) + 1
+	if controller == Ctrl.REPLICA and not (stage is Hub):
+		# a client asks the host, which owns every prop below
+		Net.ask("interact", [p.net_idx])
+	else:
+		p.interact(self)
 
 
 ## Gamepad aim assist: bend the stick direction toward the enemy closest to it.
