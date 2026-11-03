@@ -55,7 +55,7 @@ func free_visual() -> void:
 
 
 func speed() -> float:
-	return maxf(0.2, player.stats.v("attack_speed"))
+	return maxf(0.2, player.stats.v("attack_speed") * player.flow_speed())
 
 
 func tempered() -> bool:

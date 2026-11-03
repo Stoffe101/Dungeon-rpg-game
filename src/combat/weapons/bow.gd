@@ -114,7 +114,16 @@ func release_charge() -> void:
 	player.on_weapon_strike(0, true)
 
 
-func _arrow(d: Vector2, dmg: float, pierce: int, perfect: bool) -> void:
+## One shot: an arrow, or a fan of them with the Kindled's extra projectiles
+## (Volley: chain, split, return and pierce apply to every one).
+func _arrow(d0: Vector2, dmg: float, pierce: int, perfect: bool) -> void:
+	var group := {}
+	for d: Vector2 in Volley.directions(player, d0, 1, 0.1):
+		_one_arrow(d, dmg, pierce, perfect, group)
+	player.stage.fx.burst(player.pos + d0 * 0.6, 0.6, Color(1.0, 0.85, 0.6), 3 if not perfect else 9, 3.0, 0.15, 0.0, d0, 0.4)
+
+
+func _one_arrow(d: Vector2, dmg: float, pierce: int, perfect: bool, group: Dictionary) -> void:
 	var pr := Projectile.create(player.stage, "proj_arrow", player.pos + d * 0.5, d * (26.0 if perfect else 21.0) * player.stats.v("projectile_speed"), player.team)
 	pr.source = player
 	pr.damage = dmg
@@ -160,4 +169,4 @@ func _arrow(d: Vector2, dmg: float, pierce: int, perfect: bool) -> void:
 	else:
 		pr.on_hit_fn = func(_proj: Projectile, _t: Actor, _res) -> void:
 			player.gain_kindle(1.8)
-	player.stage.fx.burst(player.pos + d * 0.6, 0.6, Color(1.0, 0.85, 0.6), 3 if not perfect else 9, 3.0, 0.15, 0.0, d, 0.4)
+	Volley.shape(pr, player, group)

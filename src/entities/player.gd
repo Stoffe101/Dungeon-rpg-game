@@ -11,8 +11,10 @@ const PERFECT_WINDOW := 0.2
 var stats: Stats
 var run: RunState
 var weapon: Weapon
-var ability_slots: Array = ["flare", ""]
-var ability_cd: Array = [0.0, 0.0]
+var ability_slots: Array = ["flare", "", ""]
+var ability_cd: Array = [0.0, 0.0, 0.0]
+## The third slot opens at this character level (a third rite for the Kindled).
+const THIRD_SLOT_LEVEL := 5
 var kindle := 0.0
 var dodge_charges := 2.0
 var dodge_t := 0.0
@@ -62,6 +64,7 @@ var aegis_echo := false       # Rune of Echoes: the ward forms once more when it
 var still_t := 0.0            # Stillness keystone: how long the Kindled has stood still
 var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
 var predicting := false       # co-op client: this machine's Kindled acts at once; the host's word corrects it (NetRun)
+var kindle_cap := -1.0        # co-op client: another Kindled's Kindle maximum, as the host has it
 var pred_move := Vector2.ZERO # co-op client: the movement last sent to the host (the prediction uses only that)
 var pred_speed := 1.0         # co-op client: the host's slows and chills on this Kindled
 var in_seq := 0               # host: the newest input from a remote Kindled's owner
@@ -75,7 +78,7 @@ var _held_until := {}         # co-op client: what the prediction changed itself
 var away := false             # co-op host: its owner lost the link; it waits, untouchable, for them
 ## Press counters for every button: they only go up, so a network packet lost
 ## in between can never lose a press (the host compares counts).
-var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0}
+var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0, "a3": 0}
 const BLEED_TIME := 25.0
 const REVIVE_TIME := 2.5
 var last_attacker_id := ""
@@ -85,7 +88,17 @@ var dir_name := "down"
 var hit_once := {}
 var dead_t := 0.0
 
-var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "flask": 0.0, "home": 0.0}
+var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "flask": 0.0, "home": 0.0, "a3": 0.0}
+# build mechanics (the Hearthtree's transformative nodes; see SkillDB)
+var shelter_t := 0.0          # in a Hearth Lantern's light: Kindle and less damage
+var spellblade_n := 0         # Spellblade: weapon hits charged by the last spell
+var spellblade_el := "fire"
+var momentum := 0             # Momentum: hits in quick succession (0-8)
+var _momentum_t := 0.0
+var cuts := 0                 # Thousand Cuts: hits in a row
+var retribution := 0.0        # Retribution: damage held for the next Ward
+var _bond_t := 0.0
+var _calm_t := 0.0            # Last Light: time since the last blow
 ## Hearthcall: stand still for a few breaths and the Last Hearth pulls you home
 ## from anywhere below (keeping everything you carry). Any hit, step or swing
 ## breaks it, and no fire can be heard over a boss.
@@ -140,6 +153,8 @@ func setup_from(r: RunState) -> void:
 	var wid: String = r.weapon_id
 	set_weapon(wid, r.weapon_level)
 	ability_slots = r.abilities.duplicate()
+	while ability_slots.size() < 3:
+		ability_slots.append("")
 	hp = max_hp if r.hp < 0.0 else minf(r.hp, max_hp)
 	kindle = r.kindle
 	flask = int(stats.v("flask_charges")) if r.flask < 0 else r.flask
@@ -284,6 +299,8 @@ func hide_gear() -> void:
 
 
 func kindle_max() -> float:
+	if kindle_cap > 0.0 and controller == Ctrl.REPLICA and not predicting:
+		return kindle_cap     # another Kindled: the host's figure (its relics included)
 	return stats.v("kindle_max")
 
 
@@ -362,6 +379,8 @@ func _process(delta: float) -> void:
 		press("a1")
 	if Input.is_action_just_pressed("ability_2"):
 		press("a2")
+	if Input.is_action_just_pressed("ability_3"):
+		press("a3")
 	if Input.is_action_just_pressed("flask"):
 		press("flask")
 
@@ -376,7 +395,7 @@ func press(k: String) -> void:
 			_buf.dodge = 0.15
 		"ward":
 			_buf.ward = 0.12
-		"a1", "a2", "flask":
+		"a1", "a2", "a3", "flask":
 			_buf[k] = 0.15
 		"home":
 			_buf.home = 0.2
@@ -518,10 +537,13 @@ func held_local(k: String) -> bool:
 func _predict(dt: float) -> void:
 	_react = move_toward(_react, 0.0, dt * 6.0)
 	move_in = pred_move
-	for i in 2:
+	for i in ability_cd.size():
 		ability_cd[i] = maxf(0.0, ability_cd[i] - dt)
 	ward_cd = maxf(0.0, ward_cd - dt)
 	ward_recover = maxf(0.0, ward_recover - dt)
+	shelter_t = maxf(0.0, shelter_t - dt)
+	# (Momentum, Last Light and Hearthbond run on the host; Momentum comes back
+	# in the snapshot so the swings predicted here keep its pace)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	flask_t = maxf(0.0, flask_t - dt)
@@ -630,12 +652,29 @@ var _moth_t := 1.0
 func _timers(dt: float) -> void:
 	if stats.has("moth_swarm") and stage is Dungeon:
 		_moth(dt)
-	for i in 2:
+	for i in ability_cd.size():
 		ability_cd[i] = maxf(0.0, ability_cd[i] - dt)
 	ward_cd = maxf(0.0, ward_cd - dt)
 	ward_recover = maxf(0.0, ward_recover - dt)
 	riposte_t = maxf(0.0, riposte_t - dt)
 	ambush_t = maxf(0.0, ambush_t - dt)
+	shelter_t = maxf(0.0, shelter_t - dt)
+	if momentum > 0:
+		_momentum_t -= dt
+		if _momentum_t <= 0.0:
+			momentum = 0
+			cuts = 0
+	# Last Light: unhurt for a breath, the lantern's flame comes back quickly
+	_calm_t += dt
+	if stats.has("last_light") and _calm_t > 2.0 and kindle < stats.v("kindle_max"):
+		kindle = minf(stats.v("kindle_max"), kindle + 6.0 * dt)
+	# Hearthbond: every Kindled near you (you too) is fed a little Kindle
+	if stats.has("hearthbond") and stage is Dungeon:
+		_bond_t -= dt
+		if _bond_t <= 0.0:
+			_bond_t = 0.5
+			for ally in stage.players_near(pos, 5.0):
+				ally.gain_kindle(1.0)
 	gloam_t = maxf(0.0, gloam_t - dt)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
@@ -674,7 +713,7 @@ func _handle_actions(_dt: float) -> void:
 		if predicting:
 			return
 		# anything else the Kindled does breaks the call
-		if _buf.attack > 0.0 or _buf.dodge > 0.0 or _buf.ward > 0.0 or _buf.a1 > 0.0 or _buf.a2 > 0.0 or _buf.flask > 0.0 or move_in.length() > 0.5:
+		if _buf.attack > 0.0 or _buf.dodge > 0.0 or _buf.ward > 0.0 or _buf.a1 > 0.0 or _buf.a2 > 0.0 or _buf.a3 > 0.0 or _buf.flask > 0.0 or move_in.length() > 0.5:
 			break_hearthcall()
 		else:
 			return
@@ -687,8 +726,8 @@ func _handle_actions(_dt: float) -> void:
 		_buf.ward = 0.0
 		_start_ward()
 		return
-	for i in 2:
-		var key: String = "a1" if i == 0 else "a2"
+	for i in 3:
+		var key: String = "a%d" % (i + 1)
 		if _buf[key] > 0.0 and not leaping:
 			_buf[key] = 0.0
 			_try_ability(i)
@@ -780,9 +819,17 @@ func is_warding() -> bool:
 	return ward_t > 0.0
 
 
+## The third spell slot opens at THIRD_SLOT_LEVEL (another Kindled: their sheet's level).
+func slot_open(slot: int) -> bool:
+	if slot < 2:
+		return true
+	var lvl := Profile.level() if sheet.is_empty() else int(sheet.get("level", 1))
+	return lvl >= THIRD_SLOT_LEVEL
+
+
 func _try_ability(slot: int) -> void:
 	var id: String = ability_slots[slot] if slot < ability_slots.size() else ""
-	if id == "" or ability_cd[slot] > 0.0 or cast_t > 0.0:
+	if id == "" or slot >= ability_cd.size() or ability_cd[slot] > 0.0 or cast_t > 0.0 or not slot_open(slot):
 		return
 	var d := GearDB.ability(id)
 	if d.is_empty():
@@ -809,6 +856,14 @@ func _try_ability(slot: int) -> void:
 		cast_t = 0.2
 		_hold("kindle")
 		_hold("a%d" % slot)
+		# a blink or a rush moves the Kindled at once (the host picks the same spot)
+		if id == "gloamstep" or id == "rush":
+			var rng: float = float(d.range) * (stats.v("area") if id == "rush" else 1.0)
+			var to := Abilities.dash_dest(self, rng, id == "gloamstep")
+			if to.distance_to(pos) >= 0.6:
+				stage.fx.ghost(sprite, global_position + sprite.position, Color(1.0, 0.6, 0.3) if id == "rush" else Color(0.55, 0.3, 0.75), 0.3)
+				pos = to
+				invuln_t = maxf(invuln_t, 0.25)
 		return
 	var cast_at := pos
 	var cast_dir := aim
@@ -962,6 +1017,23 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if direct and stats.has("gloam_set4") and gloam_t > 0.0:
 		h.forced_crit = true
 		mult *= 1.3
+	if direct and stats.has("thousand_cuts"):
+		mult *= 0.7
+	if direct and spellblade_n > 0 and not h.has_tag("ability"):
+		# Spellblade: the spell's element rides this hit
+		spellblade_n -= 1
+		mult *= 1.4
+		if not h.tags.has(spellblade_el):
+			h.tags.append(spellblade_el)
+		match spellblade_el:
+			"fire":
+				h.burn = maxi(h.burn, 1)
+			"frost":
+				h.chill = maxf(h.chill, 0.3)
+			"shadow":
+				h.expose = maxf(h.expose, 1.5)
+		var sc: Color = {"frost": Color(0.6, 0.85, 1.0), "shadow": Color(0.7, 0.45, 0.95)}.get(spellblade_el, Color(1.0, 0.6, 0.3))
+		stage.fx.burst(t.pos, 0.7, sc, 6, 3.0, 0.25, 0.0, h.from_dir, 0.6)
 	h.amount *= mult
 	if direct and ambush_t > 0.0:
 		h.forced_crit = true
@@ -1032,6 +1104,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		gain_kindle(g)
 	if res.crit and h.proc and stats.has("crit_chain"):
 		_crit_chain(t, res.amount * 0.5)
+	if direct and h.proc and (stats.has("momentum") or stats.has("thousand_cuts")):
+		_flow(t, finisher)
 	_unique_on_hit(t, h, res, direct)
 	if h.proc and stats.has("thermal_shock"):
 		if (h.has_tag("fire") and was_chilled) or (h.has_tag("frost") and was_burning):
@@ -1067,6 +1141,64 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
 			stage.fx.kick(h.from_dir, 2.0)
 	return res
+
+
+## Momentum and Thousand Cuts: weapon hits in quick succession build up.
+## Momentum: +4% attack speed per hit (up to 8); at 8, a finisher sends a
+## cutting wave. Thousand Cuts: every third hit in a row looses a spectral blade
+## at another foe.
+func _flow(t: Actor, finisher: bool) -> void:
+	momentum = mini(8, momentum + 1)
+	_momentum_t = 1.5
+	cuts += 1
+	if stats.has("thousand_cuts") and cuts % 3 == 0:
+		var other: Actor = null
+		var bd := 7.0
+		for a in stage.hostiles(team):
+			if a != t and a.targetable and a.pos.distance_to(pos) < bd and stage.grid.line_clear(pos, a.pos):
+				bd = a.pos.distance_to(pos)
+				other = a
+		var to := other if other else t
+		var dmg: float = 6.0 + 0.35 * (float(weapon.def.damage[0]) if weapon else 10.0)
+		var me := self
+		Volley.fire(self, "proj_knife", pos, (to.pos - pos).normalized(), 24.0, 1, func(pr: Projectile, _d: Vector2) -> void:
+			pr.damage = dmg
+			pr.tags = ["melee", "shadow"]
+			pr.life = 0.4
+			pr.height = 0.7
+			pr.spin = true
+			pr.reflectable = false
+			pr.trail_color = Color(0.72, 0.5, 1.0)
+			pr.trail_rate = 24.0
+			pr.make_hit_fn = func(proj: Projectile, _x: Actor) -> Hit:
+				var hh := Combat.player_hit(me, me.stats, proj.damage, proj.tags.duplicate())
+				hh.proc = false
+				hh.from_dir = proj.vel.normalized()
+				return hh)
+	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
+		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
+		_combo_wave_at(aim)
+
+
+## A cutting wave of embers along `dir` (Momentum at its peak).
+func _combo_wave_at(dir: Vector2) -> void:
+	var pr := Projectile.create(stage, "proj_wave", pos + dir * 0.6, dir * 13.0, team)
+	pr.source = self
+	pr.damage = 0.6 * (weapon.def.damage[0] if weapon else 12.0) * (weapon.damage_scale() if weapon else 1.0)
+	pr.tags = ["melee", "ranged"]
+	pr.pierce = 3
+	pr.radius = 0.45
+	pr.life = 0.45
+	pr.spin = true
+	pr.knockback = 4.0
+	pr.trail_color = Color(1.0, 0.8, 0.45)
+	pr.trail_rate = 40.0
+	pr.reflectable = false
+
+
+## Attack speed from Momentum (Weapon.speed reads it).
+func flow_speed() -> float:
+	return 1.0 + 0.04 * momentum if stats.has("momentum") else 1.0
 
 
 ## Effects from unique gear when a hit lands.
@@ -1262,6 +1394,17 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 				return empty
 	if stats.has("hearthguard") and kindle >= stats.v("kindle_max") - 0.01:
 		h.amount *= 0.85
+	if shelter_t > 0.0:
+		h.amount *= 0.9
+	_calm_t = 0.0
+	if stats.has("last_light") and kindle > 0.0 and not h.has_tag("dot"):
+		# Last Light: the lantern's flame takes the blow before you do
+		var soak := minf(kindle, h.amount)
+		kindle -= soak
+		h.amount -= soak
+		stage.fx.burst(pos, 0.9, Color(1.0, 0.8, 0.4), 5, 2.5, 0.25, 0.0)
+		if h.amount <= 0.0:
+			return empty
 	if stats.has("rime_set4") and attacker is Actor and is_instance_valid(attacker) and ((attacker as Actor).status.chill > 0.0 or (attacker as Actor).status.is_frozen()):
 		h.amount *= 0.85
 	if aegis_t > 0.0 and aegis_hp > 0.0:
@@ -1311,7 +1454,30 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 			gain_kindle(10.0 / maxf(stats.v("kindle_gain"), 0.01))
 		if stats.has("bramble_burst"):
 			_bramble_burst(res.amount)
+		if stats.has("retribution"):
+			retribution = minf(max_hp, retribution + res.amount)
+		# Hearthbond: friends who carry it feel the blow, and their flame answers
+		for ally in stage.players_near(pos, 5.0):
+			if ally != self and ally.stats.has("hearthbond"):
+				ally.gain_kindle(4.0)
 	return res
+
+
+## Retribution: every blow taken since the last Ward bursts out of this one,
+## doubled.
+func _retribute() -> void:
+	var dmg := retribution * 2.0
+	retribution = 0.0
+	stage.fx.ring(pos, 3.0, Color(1.0, 0.9, 0.6), 0.3, 0.3)
+	stage.fx.burst(pos, 0.8, Color(1.0, 0.85, 0.5), 20, 5.0, 0.4, 1.0)
+	stage.fx.shake(0.3)
+	Audio.play("aegis", -2.0, 0.7)
+	for a in stage.in_circle(team, pos, 3.0):
+		var h := Combat.player_hit(self, stats, dmg, ["melee"])
+		h.knockback = (a.pos - pos).normalized() * 9.0
+		h.poise = 60.0
+		h.proc = false
+		deal_hit(a, h)
 
 
 ## Thornmail: thorns burst out at everything within reach.
@@ -1390,7 +1556,7 @@ func _perfect_dodge() -> void:
 		dodge_charges = minf(stats.v("dodge_charges"), dodge_charges + 1.0)
 		stage.fx.ring(pos, 3.2, Color(0.55, 0.9, 1.0), 0.6, 0.12)
 	if stats.has("gloam_set4"):
-		ability_cd = [0.0, 0.0]
+		ability_cd = [0.0, 0.0, 0.0]
 		stage.fx.number(pos, 2.0, "COOLDOWNS RESET", Color(0.8, 0.55, 1.0))
 	if stats.has("counterstep"):
 		counter_ready = true
@@ -1398,6 +1564,8 @@ func _perfect_dodge() -> void:
 
 
 func _on_ward(attacker: Node, projectile: bool) -> void:
+	if stats.has("retribution") and retribution > 1.0:
+		_retribute()
 	ward_t = 0.0
 	ward_cd = 0.1
 	ward_recover = 0.0

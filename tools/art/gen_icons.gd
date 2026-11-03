@@ -13,7 +13,8 @@ const NAMES := [
 	"hourglass", "candle", "ring_cursed", "shield", "flare", "lance", "gloamstep", "aegis", "wisp", "skull",
 	"chest", "shrine", "merchant", "stairs", "boss", "relic", "embers", "vigor", "memory", "sunshard",
 	"ember", "xp", "flask", "dodge", "kindle", "lock", "eye", "hearth", "star", "key",
-	"daggers", "spear", "bow", "tome",
+	"daggers", "spear", "bow", "tome", "knives", "rush", "rekindle", "ricochet", "return", "momentum",
+	"hail", "spellblade", "lastlight", "bond", "splinter", "cuts", "fan", "retribution", "lanterns",
 ]
 
 const REWARD_KEYS := ["relic", "embers", "vigor", "memory", "sunshard", "chest", "shrine", "merchant", "skull", "stairs", "boss"]
@@ -331,6 +332,129 @@ static func draw(n: String) -> Px:
 			c.line(6, 6, 13, 13, Pal.GOLD[3])
 			c.line(11, 13, 12, 12, Pal.GOLD[3])
 			c.put(5, 5, Pal.INK)
+		"knives":
+			# three spectral blades fanned out from one point
+			for k in 3:
+				var ang := -0.55 + k * 0.55 - PI * 0.25
+				var d := Vector2.from_angle(ang)
+				var b := Vector2(3, 13)
+				var tip := b + d * 12.0
+				var mid := b + d * 5.0
+				var side := Vector2(-d.y, d.x) * 1.2
+				c.fill_lit(c.mask().poly(V([[mid.x + side.x, mid.y + side.y], [tip.x, tip.y], [mid.x - side.x, mid.y - side.y], [b.x + d.x * 3.0, b.y + d.y * 3.0]])), Pal.GLOAM[4])
+				c.lit(int(tip.x - d.x), int(tip.y - d.y), Pal.WHITE)
+			c.lit(3, 13, Pal.EMBER[4])
+		"rush":
+			# a streak of fire with a bright head
+			c.line(1, 14, 9, 6, Pal.EMBER[2])
+			c.line(2, 15, 10, 7, Pal.EMBER[1])
+			c.line(3, 11, 9, 5, Pal.EMBER[3])
+			c.line(1, 10, 5, 6, Pal.EMBER[2])
+			c.fill_lit(c.mask().poly(V([[8, 5], [13, 2], [15, 1], [14, 3], [11, 8]])), Pal.EMBER[4])
+			c.lit(13, 3, Pal.WHITE)
+			c.lit(12, 4, Pal.EMBER[5])
+		"rekindle":
+			# a ring of hearth-light with a flame rising inside
+			var m := c.mask().ellipse(8.0, 9.0, 7.0, 5.5)
+			m.subtract(c.mask().ellipse(8.0, 9.0, 5.8, 4.4))
+			c.fill_lit(m, Pal.GOLD[3])
+			_flame(c, 8.0, 12.0, 2.8, 8.0, Pal.EMBER)
+			c.lit(2, 6, Pal.GOLD[4])
+			c.lit(14, 6, Pal.GOLD[4])
+		"ricochet":
+			# a bolt that bounces from foe to foe
+			c.line(1, 13, 6, 4, Pal.EMBER[3])
+			c.line(6, 4, 10, 12, Pal.EMBER[3])
+			c.line(10, 12, 14, 3, Pal.EMBER[4])
+			for p in [Vector2i(6, 4), Vector2i(10, 12)]:
+				c.fill(c.mask().ellipse(float(p.x) + 0.5, float(p.y) + 0.5, 1.6, 1.6), Pal.BLOOD[3])
+			c.lit(14, 3, Pal.WHITE)
+		"return":
+			# a crescent arrow curving back toward its thrower
+			var m := c.mask().ellipse(8.0, 8.0, 6.0, 6.0)
+			m.subtract(c.mask().ellipse(8.0, 8.0, 4.6, 4.6))
+			m.subtract(c.mask().rect(0, 9, 8, 7))
+			c.fill_lit(m, Pal.FROST[4])
+			c.fill_lit(c.mask().poly(V([[0, 10], [5, 10], [2.5, 14]])), Pal.FROST[5])
+			c.lit(13, 7, Pal.WHITE)
+		"momentum":
+			# three chevrons, each brighter than the last
+			for k in 3:
+				var x := 2 + k * 4
+				var col: Color = [Pal.GOLD[2], Pal.GOLD[3], Pal.EMBER[5]][k]
+				c.line(x, 3, x + 4, 8, col)
+				c.line(x, 13, x + 4, 8, col)
+				c.line(x + 1, 3, x + 5, 8, col)
+				c.line(x + 1, 13, x + 5, 8, col)
+		"hail":
+			# embers falling in a slanting volley
+			for p in [Vector2(4, 4), Vector2(9, 2), Vector2(13, 6), Vector2(6, 10), Vector2(11, 12)]:
+				c.line(int(p.x) - 2, int(p.y) - 2, int(p.x), int(p.y), Pal.EMBER[2])
+				c.fill_lit(c.mask().ellipse(p.x + 0.5, p.y + 0.5, 1.4, 1.4), Pal.EMBER[3])
+				c.lit(int(p.x), int(p.y), Pal.EMBER[5])
+		"spellblade":
+			# a sword wreathed in fire and frost
+			var m := c.mask().poly(V([[3, 13], [11, 3], [13, 3], [13, 5], [5, 14]]))
+			c.paint(m, Pal.STEEL, 4)
+			c.line(2, 10, 6, 14, Pal.GOLD[3])
+			c.line(1, 15, 3, 13, Pal.WOOD[3])
+			c.lit(9, 4, Pal.EMBER[4])
+			c.lit(7, 7, Pal.EMBER[5])
+			c.lit(12, 7, Pal.FROST[4])
+			c.lit(10, 9, Pal.FROST[5])
+			c.lit(14, 2, Pal.GLOAM[5])
+		"lastlight":
+			# a small flame held inside a cupped shield
+			c.paint(c.mask().poly(V([[2, 3], [14, 3], [14, 8], [8, 15], [2, 8]])), Pal.STEEL, 2, true)
+			c.fill(c.mask().poly(V([[4, 5], [12, 5], [12, 8], [8, 12], [4, 8]])), Pal.INK)
+			_flame(c, 8.0, 11.0, 2.2, 6.0, Pal.EMBER)
+		"bond":
+			# two flames joined by an arc of light
+			_flame(c, 4.0, 14.0, 2.4, 7.0, Pal.EMBER)
+			_flame(c, 12.0, 14.0, 2.4, 7.0, Pal.EMBER)
+			var m := c.mask().ellipse(8.0, 7.0, 5.0, 4.0)
+			m.subtract(c.mask().ellipse(8.0, 7.0, 4.0, 3.0))
+			m.subtract(c.mask().rect(0, 7, 16, 9))
+			c.fill_lit(m, Pal.GOLD[4])
+		"splinter":
+			# a bolt that breaks in two on impact
+			c.line(1, 8, 6, 8, Pal.EMBER[2])
+			c.fill_lit(c.mask().ellipse(7.0, 8.0, 1.8, 1.8), Pal.EMBER[4])
+			c.line(8, 7, 14, 2, Pal.EMBER[3])
+			c.line(8, 9, 14, 14, Pal.EMBER[3])
+			c.lit(14, 2, Pal.EMBER[5])
+			c.lit(14, 14, Pal.EMBER[5])
+			c.lit(7, 8, Pal.WHITE)
+		"cuts":
+			# a thousand cuts: three slashes
+			for k in 3:
+				c.line(2 + k * 4, 13, 7 + k * 4, 2, Pal.BONE[4])
+				c.line(3 + k * 4, 13, 8 + k * 4, 2, Pal.GLOAM[3])
+			c.lit(8, 2, Pal.WHITE)
+			c.lit(12, 2, Pal.WHITE)
+		"fan":
+			# projectiles fanning out from one hand
+			for k in 3:
+				var d := Vector2.from_angle(-0.6 + k * 0.6)
+				c.line(2, 8, int(2 + d.x * 12.0), int(8 + d.y * 12.0), Pal.GLOAM[3])
+				c.lit(int(2 + d.x * 12.0), int(8 + d.y * 12.0), Pal.GLOAM[5])
+			c.fill_lit(c.mask().ellipse(2.5, 8.5, 1.6, 1.6), Pal.GLOAM[4])
+		"retribution":
+			# a shield answering with a burst
+			for a in 8:
+				var d := Vector2.from_angle(a * PI / 4.0 + PI / 8.0)
+				c.lit(int(8 + d.x * 7), int(8 + d.y * 7), Pal.GOLD[4])
+			c.paint(c.mask().poly(V([[4, 3], [12, 3], [12, 8], [8, 13], [4, 8]])), Pal.STEEL, 3, true)
+			c.lit(8, 7, Pal.WHITE)
+		"lanterns":
+			# two lanterns on one crook
+			c.line(1, 2, 14, 2, Pal.STEEL[3])
+			for x in [3, 10]:
+				c.paint(c.mask().rect(x, 4, 4, 1), Pal.STEEL, 3)
+				c.fill_lit(c.mask().rect(x, 5, 4, 6), Pal.EMBER[3])
+				c.lit(x + 1, 7, Pal.EMBER[5])
+				c.paint(c.mask().rect(x, 11, 4, 1), Pal.STEEL, 2)
+				c.put(x + 1, 3, Pal.STEEL[3])
 		_:
 			c.paint(c.mask().ellipse(8.0, 8.0, 5.0, 5.0), Pal.STONE, 3)
 	c.outline(Pal.INK)

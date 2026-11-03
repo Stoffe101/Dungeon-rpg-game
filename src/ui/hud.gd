@@ -29,6 +29,9 @@ var _relic_count := -1
 var _boss: Enemy
 var _hp_shown := 1.0
 var _hp_lag := 1.0
+var party: PartyFrames     # co-op: every other Kindled (made once Net exists)
+var _bar := Rect2()        # the hotbar plate (drawn under the slots)
+var _cd_was: Array = [0.0, 0.0, 0.0]
 
 
 func _ready() -> void:
@@ -74,11 +77,11 @@ func _ready() -> void:
 	add_child(prompt_lbl)
 	relic_row = UIKit.hbox(2)
 	add_child(relic_row)
-	for i in 2:
+	for i in 3:
 		var slot := _make_slot(i)
 		add_child(slot)
 		slot_nodes.append(slot)
-	flask_slot = _make_slot(2)
+	flask_slot = _make_slot(3)
 	(flask_slot.get_node("Icon") as TextureRect).texture = UIKit.icon("flask")
 	add_child(flask_slot)
 	boss_name = UIKit.label("", 8, UIKit.C_TEXT, true)
@@ -152,7 +155,7 @@ func refresh_controls() -> void:
 		["Attack / hold to charge", Settings.describe_action("attack")],
 		["Dodge (perfect = slow-mo)", Settings.describe_action("dodge")],
 		["Ward: parry & reflect", Settings.describe_action("ward")],
-		["Abilities (cost Kindle)", "%s / %s" % [Settings.describe_action("ability_1"), Settings.describe_action("ability_2")]],
+		["Spells (cost Kindle)", "%s / %s / %s" % [Settings.describe_action("ability_1"), Settings.describe_action("ability_2"), Settings.describe_action("ability_3")]],
 		["Flask", Settings.describe_action("flask")],
 		["Interact", Settings.describe_action("interact")],
 		["Satchel (gear)", Settings.describe_action("inventory")],
@@ -174,8 +177,12 @@ func toggle_big_map() -> void:
 	big_map.visible = not big_map.visible
 
 
+## One hotbar slot: frame, icon, the cooldown shade with its seconds, a flash
+## when the spell comes back, the key (top left, on the rim) and the Kindle
+## cost (inside, bottom right; the flask shows its charges there).
 func _make_slot(i: int) -> Control:
 	var c := Control.new()
+	c.name = "Slot%d" % i
 	c.custom_minimum_size = Vector2(26, 26)
 	c.size = Vector2(26, 26)
 	var frame := TextureRect.new()
@@ -183,27 +190,113 @@ func _make_slot(i: int) -> Control:
 	frame.size = Vector2(26, 26)
 	frame.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	frame.stretch_mode = TextureRect.STRETCH_SCALE
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(frame)
 	var ic := UIKit.icon_rect("lock")
 	ic.position = Vector2(5, 5)
 	ic.name = "Icon"
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(ic)
 	var cd := ColorRect.new()
-	cd.color = Color(0, 0, 0, 0.65)
+	cd.color = Color(0.02, 0.01, 0.05, 0.72)
 	cd.position = Vector2(3, 3)
 	cd.size = Vector2(20, 0)
 	cd.name = "Cooldown"
 	cd.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	c.add_child(cd)
-	var key := UIKit.label(["Q", "E", "R"][i], 8, UIKit.C_GOLD, true)
-	key.position = Vector2(-2, 17)
+	var fl := ColorRect.new()
+	fl.color = Color(1.0, 0.88, 0.55, 0.0)
+	fl.position = Vector2(3, 3)
+	fl.size = Vector2(20, 20)
+	fl.name = "Flash"
+	fl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(fl)
+	var secs := UIKit.label("", 8, UIKit.C_TEXT, true)
+	secs.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	secs.position = Vector2(0, 7)
+	secs.size = Vector2(26, 10)
+	secs.name = "Secs"
+	c.add_child(secs)
+	var key := UIKit.label("", 8, UIKit.C_GOLD, true)
+	key.position = Vector2(0, -5)
 	key.name = "Key"
 	c.add_child(key)
 	var cost := UIKit.label("", 8, UIKit.C_EMBER, true)
-	cost.position = Vector2(15, 17)
+	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cost.position = Vector2(4, 15)
+	cost.size = Vector2(21, 10)
 	cost.name = "Cost"
 	c.add_child(cost)
 	return c
+
+
+## Keys as short as the slot corner allows ("Space" -> "Spc").
+static func short_key(s: String) -> String:
+	var m := {"Space": "Spc", "Shift": "Sft", "Ctrl": "Ctl", "Alt": "Alt", "Tab": "Tab", "D-Left": "D<", "D-Right": "D>",
+		"D-Up": "D^", "D-Down": "Dv", "Menu": "Mnu", "View": "Vw", "Escape": "Esc", "Enter": "Ent"}
+	if m.has(s):
+		return m[s]
+	return s if s.length() <= 3 else s.substr(0, 3)
+
+
+func _update_spell_slot(pl: Player, i: int) -> void:
+	var id: String = pl.ability_slots[i] if i < pl.ability_slots.size() else ""
+	var slot: Control = slot_nodes[i]
+	var ic: TextureRect = slot.get_node("Icon")
+	var cd: ColorRect = slot.get_node("Cooldown")
+	var cost_l: Label = slot.get_node("Cost")
+	var key_l: Label = slot.get_node("Key")
+	var secs: Label = slot.get_node("Secs")
+	key_l.text = short_key(Settings.describe_action("ability_%d" % (i + 1)))
+	if not pl.slot_open(i):
+		ic.texture = UIKit.icon("lock")
+		ic.modulate = Color(1, 1, 1, 0.4)
+		cd.size.y = 0
+		secs.text = ""
+		key_l.text = ""
+		cost_l.text = "Lv%d" % Player.THIRD_SLOT_LEVEL
+		cost_l.add_theme_color_override("font_color", UIKit.C_DIM)
+		slot.tooltip_text = "A third spell slot opens at level %d." % Player.THIRD_SLOT_LEVEL
+		return
+	if id == "":
+		ic.texture = UIKit.icon("lock")
+		ic.modulate = Color(1, 1, 1, 0.12)
+		cd.size.y = 0
+		secs.text = ""
+		cost_l.text = ""
+		slot.tooltip_text = "No spell in this slot. Pick one in the Descent loadout; the Hearthtree teaches more."
+		return
+	var d := GearDB.ability(id)
+	ic.texture = UIKit.icon(d.icon)
+	var cost: float = d.cost * pl.stats.v("ability_cost")
+	cost_l.text = str(int(round(cost)))
+	var left: float = pl.ability_cd[i] if i < pl.ability_cd.size() else 0.0
+	var is_ready := left <= 0.0
+	var afford := pl.kindle >= cost or pl.stats.has("bonfire_soul")
+	ic.modulate = Color(1, 1, 1, 1) if is_ready and afford else Color(0.5, 0.46, 0.52, 1)
+	cost_l.add_theme_color_override("font_color", UIKit.C_EMBER if afford else UIKit.C_BAD)
+	var full: float = float(d.cooldown) * pl.stats.v("cooldown")
+	cd.size.y = roundf(20.0 * clampf(left / maxf(full, 0.01), 0.0, 1.0))
+	# seconds only for real waits (a knife flurry's half-second would flicker)
+	if left > 0.0 and full >= 1.5:
+		secs.text = "%d" % ceili(left) if left >= 1.0 else "%.1f" % left
+	else:
+		secs.text = ""
+	if float(_cd_was[i]) > 0.0 and is_ready and full >= 1.5:
+		_ready_flash(slot)
+	_cd_was[i] = left
+	slot.tooltip_text = "%s  -  %d Kindle, %s s cooldown\n%s" % [d.name, int(round(cost)), str(snappedf(full, 0.1)), d.desc]
+
+
+## A spell back off cooldown: a short warm flash and a pop.
+func _ready_flash(slot: Control) -> void:
+	var fl: ColorRect = slot.get_node("Flash")
+	fl.color.a = 0.7
+	slot.create_tween().tween_property(fl, "color:a", 0.0, 0.3)
+	slot.pivot_offset = Vector2(13, 13)
+	var tw := slot.create_tween()
+	tw.tween_property(slot, "scale", Vector2(1.15, 1.15), 0.05)
+	tw.tween_property(slot, "scale", Vector2.ONE, 0.12)
 
 
 func _on_damage_dealt(_t: Node, _amount: float, crit: bool) -> void:
@@ -235,7 +328,7 @@ func _update_flask_slot(pl: Player) -> void:
 	var cd: ColorRect = flask_slot.get_node("Cooldown")
 	var cnt: Label = flask_slot.get_node("Cost")
 	var key_l: Label = flask_slot.get_node("Key")
-	key_l.text = Settings.describe_action("flask")
+	key_l.text = short_key(Settings.describe_action("flask"))
 	var mx := int(pl.stats.v("flask_charges"))
 	cnt.text = "%d" % pl.flask
 	cnt.add_theme_color_override("font_color", UIKit.C_TEXT if pl.flask > 0 else UIKit.C_BAD)
@@ -272,11 +365,14 @@ func _process(_delta: float) -> void:
 	cur.size.x = cw
 	cur.position = Vector2(vp.x - cw - 8, (minimap.size.y + 12) if in_dungeon else 8)
 	big_map.position = (vp - big_map.size) * 0.5
-	var slot_y := vp.y - 40
+	# hotbar: three spells, a hearth notch, the flask, on one plate
+	var slot_y := vp.y - 38
+	var bx := roundf(vp.x * 0.5 - 62)
 	for i in slot_nodes.size():
-		slot_nodes[i].position = Vector2(vp.x * 0.5 - 47 + i * 34, slot_y)
-	flask_slot.position = Vector2(vp.x * 0.5 - 47 + 2 * 34 + 6, slot_y)
-	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 18)
+		slot_nodes[i].position = Vector2(bx + i * 30, slot_y)
+	flask_slot.position = Vector2(bx + 98, slot_y)
+	_bar = Rect2(bx - 5, slot_y - 6, 134, 36)
+	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 22)
 	prompt_lbl.size.x = 200
 	relic_row.position = Vector2(8, vp.y - 26)
 	if controls_card.visible:
@@ -285,6 +381,12 @@ func _process(_delta: float) -> void:
 	level_lbl.position = Vector2(8, vp.y - 12)
 	boss_name.position = Vector2(vp.x * 0.5 - 150, 14)
 	boss_name.size.x = 300
+	if party == null and Net.i:
+		party = PartyFrames.new()
+		party.name = "Party"
+		add_child(party)
+	if party:
+		party.position = Vector2(8, 32)
 	if pl == null:
 		queue_redraw()
 		return
@@ -294,31 +396,9 @@ func _process(_delta: float) -> void:
 		depth_lbl.text = "Tier %s  Depth %d  %s" % [Difficulty.roman(pl.run.tier), pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
 		omen_lbl.text = Omens.names(pl.run.omens)
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
-	# abilities
-	for i in 2:
-		var id: String = pl.ability_slots[i] if i < pl.ability_slots.size() else ""
-		var slot: Control = slot_nodes[i]
-		var ic: TextureRect = slot.get_node("Icon")
-		var cd: ColorRect = slot.get_node("Cooldown")
-		var cost_l: Label = slot.get_node("Cost")
-		var key_l: Label = slot.get_node("Key")
-		key_l.text = Settings.describe_action("ability_1" if i == 0 else "ability_2")
-		if id == "":
-			ic.texture = UIKit.icon("lock")
-			ic.modulate = Color(1, 1, 1, 0.25)
-			cd.size.y = 0
-			cost_l.text = ""
-			continue
-		var d := GearDB.ability(id)
-		ic.texture = UIKit.icon(d.icon)
-		var cost: float = d.cost * pl.stats.v("ability_cost")
-		cost_l.text = str(int(cost))
-		var is_ready: bool = pl.ability_cd[i] <= 0.0
-		var afford := pl.kindle >= cost or pl.stats.has("bonfire_soul")
-		ic.modulate = Color(1, 1, 1, 1) if is_ready and afford else Color(0.55, 0.5, 0.55, 1)
-		cost_l.add_theme_color_override("font_color", UIKit.C_EMBER if afford else UIKit.C_BAD)
-		var full: float = float(d.cooldown) * pl.stats.v("cooldown")
-		cd.size.y = 20.0 * clampf(pl.ability_cd[i] / maxf(full, 0.01), 0.0, 1.0)
+	# spells
+	for i in slot_nodes.size():
+		_update_spell_slot(pl, i)
 	_update_flask_slot(pl)
 	# combo counter fades out once the chain breaks
 	combo_box.position = Vector2(vp.x - 70, vp.y * 0.5 - 20)
@@ -365,6 +445,19 @@ func _draw() -> void:
 	if st == null or st.player == null:
 		return
 	var pl := st.player
+	# --- the hotbar plate (the slots draw over it) ---
+	if _bar.size.x > 0.0:
+		draw_rect(_bar.grow(1), Color(0.03, 0.02, 0.05, 0.92))
+		draw_rect(_bar, Color(0.1, 0.075, 0.1, 0.88))
+		draw_rect(Rect2(_bar.position, Vector2(_bar.size.x, 1)), Color(0.45, 0.34, 0.25))
+		draw_rect(Rect2(_bar.position.x, _bar.end.y - 1, _bar.size.x, 1), Color(0.2, 0.15, 0.13))
+		# the hearth notch between the spells and the flask
+		var nx := _bar.position.x + 5 + 3 * 30 + 1
+		var ny := _bar.position.y + 17
+		draw_rect(Rect2(nx, _bar.position.y + 4, 1, 26), Color(0.26, 0.19, 0.16))
+		var glow := 0.6 + 0.4 * (pl.kindle / maxf(1.0, pl.kindle_max()))
+		draw_colored_polygon(PackedVector2Array([Vector2(nx + 0.5, ny - 3), Vector2(nx + 3.5, ny), Vector2(nx + 0.5, ny + 3), Vector2(nx - 2.5, ny)]), Color(0.03, 0.02, 0.05))
+		draw_colored_polygon(PackedVector2Array([Vector2(nx + 0.5, ny - 2), Vector2(nx + 2.5, ny), Vector2(nx + 0.5, ny + 2), Vector2(nx - 1.5, ny)]), Color(1.0, 0.6, 0.25) * glow)
 	var x0 := 8.0
 	var y0 := 8.0
 	# --- health ---
@@ -401,26 +494,7 @@ func _draw() -> void:
 		var partial := clampf(pl.dodge_charges - i, 0.0, 1.0)
 		_diamond(Vector2(px + 2, ky + 3), filled, partial)
 	# (flasks have their own slot beside the abilities)
-	# --- the party (co-op): each ally's name, health, and how long they can wait ---
-	var py := ky + 12.0
-	for ally in st.players:
-		if ally == pl or not is_instance_valid(ally):
-			continue
-		var col := Net.color_of(ally.peer_id)
-		draw_rect(Rect2(x0, py + 1, 3, 3), col)
-		draw_string(UIKit.FONT_OUTLINE, Vector2(x0 + 6, py + 6), Net.name_of(ally.peer_id), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
-		var aw := 56.0
-		var ax := x0 + 60.0
-		draw_rect(Rect2(ax, py + 1, aw, 4), Color(0.18, 0.05, 0.08))
-		if ally.downed:
-			draw_rect(Rect2(ax, py + 1, roundf(aw * clampf(ally.bleed_t / Player.BLEED_TIME, 0.0, 1.0)), 4), Color(1.0, 0.55, 0.3))
-			draw_rect(Rect2(ax, py + 4, roundf(aw * clampf(ally.revive_k, 0.0, 1.0)), 1), Color(1.0, 0.95, 0.7))
-			draw_string(UIKit.FONT_OUTLINE, Vector2(ax + aw + 4, py + 6), "DOWN - revive!", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1.0, 0.55, 0.45))
-		elif not ally.alive:
-			draw_string(UIKit.FONT_OUTLINE, Vector2(ax + aw + 4, py + 6), "fallen", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_DIM)
-		else:
-			draw_rect(Rect2(ax, py + 1, roundf(aw * ally.hp_ratio()), 4), Color(0.8, 0.2, 0.25))
-		py += 9.0
+	# (the party has its own cards: PartyFrames)
 	# --- xp bar along the bottom ---
 	var vp := get_viewport_rect().size
 	var need := Combat.xp_to_next(Profile.level())

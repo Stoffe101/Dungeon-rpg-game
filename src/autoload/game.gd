@@ -306,8 +306,9 @@ func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
 	r.result = ""
 	run = r
 	coop_checkpoint = {}
-	# memories, kills, guardians and Grudges were never banked live on this machine
-	Profile.add_xp(r.xp_gained)
+	# kills, guardians and Grudges were never banked live on this machine;
+	# experience was, as it came (Profile.live_xp): only the rest is added
+	Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
 	Profile.bank_shared(r)
 	end_run(outcome, killer)
 
@@ -350,7 +351,7 @@ func abandon_coop_run() -> void:
 		if Profile.first_settlement(r.run_id):
 			r.result = ""
 			run = r
-			Profile.add_xp(r.xp_gained)
+			Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
 			Profile.bank_shared(r)
 			print("[game] the host is gone: banking the checkpoint from depth %d" % r.depth)
 			end_run("extracted")

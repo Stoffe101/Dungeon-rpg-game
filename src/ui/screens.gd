@@ -969,8 +969,11 @@ static func descent(ui: UIRoot) -> Control:
 	var avail := SkillDB.abilities(Profile.skills())
 	var row := UIKit.hbox(4)
 	v.add_child(row)
-	for i in 2:
-		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_1" if i == 0 else "ability_2"), 8, UIKit.C_DIM))
+	for i in 3:
+		if i == 2 and Profile.level() < Player.THIRD_SLOT_LEVEL:
+			row.add_child(UIKit.label("(3rd: Lv %d)" % Player.THIRD_SLOT_LEVEL, 8, UIKit.C_DIM))
+			continue
+		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_%d" % (i + 1)), 8, UIKit.C_DIM))
 		var ob := OptionButton.new()
 		var cur: String = Profile.slots()[i]
 		var opts := [""] + avail

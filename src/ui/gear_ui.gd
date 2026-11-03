@@ -38,6 +38,40 @@ static func portrait(sheet: Dictionary, size := 56) -> Control:
 	return box
 
 
+## Head and shoulders from a character sheet, `size` UI pixels square (a 16
+## pixel crop of the body and its armour, drawn whole pixels): the party HUD.
+static func head(sheet: Dictionary, size := 16) -> Control:
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(size, size)
+	box.size = box.custom_minimum_size
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.clip_contents = true
+	var info := SpriteLib.get_sheet("player")
+	var a: Dictionary = info.anims.get("idle_down", info.anims.values()[0])
+	var crop := Rect2(8, float(a.row) * info.frame_size.y + 3, 16, 16)
+	var body := AtlasTexture.new()
+	body.atlas = info.texture
+	body.region = crop
+	var layers: Array = [body]
+	for t in GearLooks.portrait_layers(sheet.get("equipped", {}), sheet.get("shown", {})):
+		var at: AtlasTexture = (t as AtlasTexture).duplicate()
+		at.region = Rect2(at.region.position + Vector2(8, 3), Vector2(16, 16))
+		layers.append(at)
+	var look := String(sheet.get("look", ""))
+	for k in layers.size():
+		var tr := TextureRect.new()
+		tr.texture = layers[k]
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.size = Vector2(size, size)
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if k == 0:
+			tr.material = Looks.canvas_material(look if look != "" else "kindled")
+		box.add_child(tr)
+	return box
+
+
 static func slot_button(item: Dictionary, size := 24, empty_icon := "") -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(size, size)

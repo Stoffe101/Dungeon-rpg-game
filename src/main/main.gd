@@ -41,6 +41,9 @@ func _ready() -> void:
 					if Profile.allocate(id):
 						changed = true
 			Profile.data.equipped.slots = ["cinder_lance", "frost_sigil"] if a.substr(7) == "all" else Profile.data.equipped.slots
+		elif a.begins_with("build="):
+			# dev: build=knives|lantern|rush|hail|bulwark|frost|starter (src/dev/build_presets.gd)
+			BuildPresets.apply(a.substr(6))
 		elif a.begins_with("grudge="):
 			var rng := RandomNumberGenerator.new()
 			Profile.record_grudge(a.substr(7), 60, 1, rng)

@@ -111,6 +111,31 @@ func _sfx() -> void:
 	fx("wisp", 0.6, func(s):
 		for k in 4:
 			s.bell(k * 0.05, 0.4, midi(84 + [0, 4, 7, 12][k]), 0.14))
+	# Gloam Knives: a fan of thin blades cut from shadow - quick airy whips
+	# with a faint glassy ring, light enough to repeat every half second
+	fx("knives", 0.28, func(s):
+		for k in 3:
+			s.noise(k * 0.03, 0.09, 0.32, 9000.0, 3500.0, 2500.0, 0.002, 4.0)
+			s.tone(k * 0.03, 0.12, 1700.0 + k * 260.0, 900.0 + k * 140.0, "sine", 0.12, 0.002, 5.0)
+		s.bell(0.0, 0.22, 1568.0, 0.06, [[1.0, 1.0, 9.0], [2.4, 0.4, 12.0]]))
+	# Hearth Lantern: a stake driven into stone, then the lantern catching
+	fx("lantern", 0.9, func(s):
+		s.tone(0.0, 0.12, 140.0, 70.0, "sine", 0.7, 0.001, 5.0)
+		s.noise(0.0, 0.08, 0.5, 2500.0, 800.0, 200.0, 0.001, 6.0)
+		s.noise(0.12, 0.6, 0.35, 1200.0, 2600.0, 200.0, 0.08, 2.0)
+		s.bell(0.18, 0.6, 659.0, 0.12)
+		s.bell(0.26, 0.6, 988.0, 0.1))
+	# Ember Rush: a roar of flame that streaks past
+	fx("ember_rush", 0.5, func(s):
+		s.noise(0.0, 0.42, 0.85, 900.0, 4200.0, 200.0, 0.02, 2.4)
+		s.tone(0.0, 0.3, 220.0, 520.0, "saw", 0.22, 0.01, 2.5, 0.0, 6.0, 1600.0)
+		s.tone(0.02, 0.25, 90.0, 60.0, "sine", 0.5, 0.002, 3.0))
+	# Rekindle: a warm swell of hearth-light and a rising chord
+	fx("rekindle", 1.2, func(s):
+		s.pad(0.0, 1.1, [392.0, 494.0, 587.0, 784.0], 0.3, 2400.0, 0.12, 0.6)
+		for k in 3:
+			s.bell(0.12 + k * 0.08, 0.6, midi(72 + [0, 4, 7][k]), 0.12)
+		s.noise(0.0, 0.6, 0.18, 1500.0, 4500.0, 300.0, 0.15, 2.0))
 	fx("steam", 0.6, func(s): s.noise(0.0, 0.55, 0.6, 9000.0, 4000.0, 1500.0, 0.01, 2.5))
 	fx("shatter", 0.6, func(s):
 		for k in 8:

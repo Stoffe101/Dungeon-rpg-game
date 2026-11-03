@@ -26,6 +26,12 @@ var on_hit_fn: Callable = Callable()   # (proj, target, result)
 var on_end_fn: Callable = Callable()   # (proj, pos)
 var make_hit_fn: Callable = Callable() # (proj, target) -> Hit
 var hit_set := {}
+# the Kindled's projectile modifiers (see Volley)
+var chain := 0                # leaps left to the next foe
+var fork := 0                 # splits left (on a first hit)
+var returning := false        # flies back to its shooter, striking again
+var group: Dictionary = {}    # shared by a volley: a foe is struck by one of its shots only
+var _back := false            # on the way back
 var sprite: PixelSprite
 var light: OmniLight3D
 var spin := false
@@ -105,7 +111,13 @@ func tick(dt: float) -> void:
 		_announce()
 	life -= dt
 	if life <= 0.0:
-		_end()
+		if returning and not _back:
+			_turn_back()
+		else:
+			_end()
+			return
+	if _back:
+		_fly_back(dt)
 		return
 	if lob_max > 0.0:
 		_lob_t += dt
@@ -127,6 +139,11 @@ func tick(dt: float) -> void:
 	for i in n:
 		pos += step / n
 		if stage.grid.blocks_shot(floori(pos.x), floori(pos.y)):
+			if returning and not _back:
+				pos -= step / n
+				_turn_back()
+				_sync()
+				return
 			_impact_wall()
 			return
 		if _check_hits():
@@ -156,10 +173,15 @@ func _check_hits() -> bool:
 			if pl.try_reflect(self):
 				return false
 	for a in stage.hostiles(team):
-		if hit_set.has(a.get_instance_id()):
+		var aid := a.get_instance_id()
+		if hit_set.has(aid):
 			continue
+		if not _back and not group.is_empty() and group.has(aid):
+			continue    # another shot of this volley struck it
 		if a.pos.distance_to(pos) <= radius + a.radius:
-			hit_set[a.get_instance_id()] = true
+			hit_set[aid] = true
+			if not group.is_empty():
+				group[aid] = true
 			var res: Combat.Result = null
 			if a is Player and team == Actor.Team.ENEMY:
 				res = (a as Player).take_enemy_hit(_build_hit(a), source)
@@ -169,11 +191,99 @@ func _check_hits() -> bool:
 				res = a.take_hit(_build_hit(a))
 			if on_hit_fn.is_valid():
 				on_hit_fn.call(self, a, res)
+			if fork > 0:
+				_fork_from(a)
+			if chain > 0 and _chain_from(a):
+				return false
 			if pierce <= 0:
+				if returning and not _back:
+					_turn_back(a)
+					return false
 				_end()
 				return true
 			pierce -= 1
 	return false
+
+
+## Chain: on to the nearest foe this shot has not struck (in sight, close).
+func _chain_from(_from: Actor) -> bool:
+	var best: Actor = null
+	var bd := 7.0
+	for a in stage.hostiles(team):
+		if hit_set.has(a.get_instance_id()) or not a.targetable:
+			continue
+		var d := a.pos.distance_to(pos)
+		if d < bd and stage.grid.line_clear(pos, a.pos):
+			bd = d
+			best = a
+	if best == null:
+		return false
+	chain -= 1
+	vel = (best.pos - pos).normalized() * vel.length()
+	life = maxf(life, bd / maxf(vel.length(), 0.1) + 0.15)
+	stage.fx.burst(pos, height, trail_color, 4, 2.0, 0.2, 0.0, vel, 0.5)
+	return true
+
+
+## Fork: two shots split off the first foe struck, each at half strength.
+func _fork_from(a: Actor) -> void:
+	fork = 0
+	for s in [-0.45, 0.45]:
+		var f := Projectile.create(stage, sprite.sheet.name if sprite else "", pos, vel.rotated(s), team)
+		f.source = source
+		f.damage = damage * 0.5
+		f.tags = tags.duplicate()
+		f.radius = radius
+		f.height = height
+		f.life = 0.55
+		f.chain = chain
+		f.burn = burn
+		f.chill = chill
+		f.knockback = knockback * 0.5
+		f.spin = spin
+		f.reflectable = false
+		f.make_hit_fn = make_hit_fn
+		f.trail_color = trail_color
+		f.trail_rate = trail_rate * 0.5
+		f.hit_set[a.get_instance_id()] = true
+
+
+## Return: about face, toward whoever loosed it; it can strike everything again
+## on the way home - except the foe it just turned on (no double blow).
+func _turn_back(off: Actor = null) -> void:
+	if source == null or not is_instance_valid(source) or not (source is Actor):
+		_end()
+		return
+	_back = true
+	hit_set.clear()
+	if off:
+		hit_set[off.get_instance_id()] = true
+	pierce = 99
+	life = 3.0
+	vel = ((source as Actor).pos - pos).normalized() * maxf(vel.length(), 12.0)
+
+
+func _fly_back(dt: float) -> void:
+	if source == null or not is_instance_valid(source) or not (source as Actor).alive:
+		_end()
+		return
+	var to: Vector2 = (source as Actor).pos - pos
+	if to.length() < 0.5:
+		_end()
+		return
+	vel = to.normalized() * vel.length()
+	var step := vel * dt
+	var n := maxi(1, int(ceil(step.length() / 0.2)))
+	for i in n:
+		pos += step / n
+		if _check_hits():
+			return
+	if trail_rate > 0.0:
+		_trail_t += dt
+		while _trail_t > 1.0 / trail_rate:
+			_trail_t -= 1.0 / trail_rate
+			stage.fx.burst(pos, height, trail_color, 1, 0.4, 0.3, 0.0, -vel, 0.6, 0.3)
+	_sync()
 
 
 func _build_hit(target: Actor) -> Hit:

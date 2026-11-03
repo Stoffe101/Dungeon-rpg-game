@@ -214,6 +214,7 @@ func _on_proposal() -> void:
 		if Net.is_host():
 			_buttons.add_child(UIKit.button("Cancel", func() -> void: Expedition.withdraw(), 50))
 	_show()
+	set_deferred("size", Vector2(W, 0))     # shrink to what it now holds
 	if fresh and not mine:
 		Audio.play("gate_hum", -6.0, 1.15)
 
@@ -239,6 +240,7 @@ func show_vote(id: int, title: String, body: String, yes: Array, present: Array,
 		_buttons.add_child(UIKit.button("Agree  [%s]" % _key("party_yes"), func() -> void: _answer(true), 80))
 		_buttons.add_child(UIKit.button("Not yet  [%s]" % _key("party_no"), func() -> void: _answer(false), 80))
 	_show()
+	set_deferred("size", Vector2(W, 0))     # shrink to what it now holds
 
 
 func end_vote(id: int) -> void:

@@ -92,6 +92,22 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
+		player.kindle = player.kindle_max()
+		for a in Dev.args():
+			if a.begins_with("cast="):
+				# dev: cast=1,3 casts those spell slots in turn at the nearest lab foe
+				# (the Kindled stops reading the mouse so the aim holds for captures)
+				var order: Array = Array(a.substr(5).split(","))
+				player.input_enabled = false
+				for k in order.size():
+					var slot := int(order[k])
+					after(1.0 + k * 0.8, func() -> void:
+						var t := nearest_hostile(player.team, player.pos, 14.0)
+						if t:
+							player.aim_point = t.pos
+							player.aim = (t.pos - player.pos).normalized()
+						player.kindle = player.kindle_max()
+						player.press("a%d" % slot))
 	if "coopdive" in Dev.args() and not replica:
 		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
@@ -531,6 +547,12 @@ func _spawn_wave(r: Room) -> void:
 		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
 		_scale(e, layout.depth, memory)
 		_coop_scale(e)
+		# a party shares out what its extra foes pay (Party.reward_share)
+		var share := Party.reward_share(players.size())
+		if share < 1.0:
+			e.xp = maxi(1, int(round(e.xp * share)))
+			e.embers = int(round(e.embers * share))
+			e.set_meta("share", share)
 		var swarm := EnemyDB.get_def(id).has("pack")
 		if r.type == Room.Type.ELITE and not elite_done and not swarm:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
@@ -1011,7 +1033,7 @@ func _start_boss(r: Room) -> void:
 ## Materials (and now and then gear) from a fallen enemy; elites and bosses
 ## drop more, and a boss's first defeat always yields its legendary.
 func _drop_loot(e: Enemy) -> void:
-	var mult := (2.0 if e.elite else 1.0) * Difficulty.material_mult(run.tier)
+	var mult := (2.0 if e.elite else 1.0) * Difficulty.material_mult(run.tier) * float(e.get_meta("share", 1.0))
 	if player and player.stats.has("avarice"):
 		mult *= 1.6
 	for d in ItemDB.enemy_drops(e.id, layout.region):

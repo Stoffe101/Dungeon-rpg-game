@@ -299,9 +299,11 @@ func _collect(pl: Player) -> void:
 				stage.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)
 				stage.fx.motes(pl.pos, 0.3, rc, 12 + 8 * grade, 1.8, 1.2, 0.5)
 				stage.fx.flash_light(pl.pos, 1.0, rc, 2.5 + grade, 6.0, 0.5)
-			if grade >= 3 and pl == stage.player:
-				Events.banner.emit(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
+			if grade >= 3 and pl == stage.player and Game.ui:
+				Game.ui.banner(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
 			_tell(pl, "Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
+			if grade >= 2:
+				Party.announce_find(stage, pl, it)
 			Audio.play("relic", -4.0)
 		"sunshard":
 			for p in party:

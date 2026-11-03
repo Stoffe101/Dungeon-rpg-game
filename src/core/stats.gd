@@ -53,6 +53,11 @@ const PLAYER_BASE := {
 	"area": 1.0,
 	"summon_damage": 0.0,
 	"projectile_speed": 1.0,
+	"projectiles": 0.0,       # extra shots per volley (Volley)
+	"pierce": 0.0,
+	"chain": 0.0,
+	"fork": 0.0,
+	"projectile_damage": 0.0,
 	"heal_mult": 1.0,
 }
 

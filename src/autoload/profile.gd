@@ -53,7 +53,7 @@ static func fresh() -> Dictionary:
 		"feats": {},
 		"respecs": 0,
 		"weapons": {"sword": {"unlocked": true, "level": 0}, "hammer": {"unlocked": false, "level": 0}, "staff": {"unlocked": false, "level": 0}},
-		"equipped": {"weapon": "sword", "slots": ["flare", ""]},
+		"equipped": {"weapon": "sword", "slots": ["flare", "", ""]},
 		"sanctuary": {"hearth": 1, "forge": 0, "apothecary": 0, "shrine": 0},
 		"unlocks": {},
 		"grudges": [],
@@ -332,6 +332,29 @@ func spend(kind: String, amount: int) -> bool:
 
 
 ## Adds experience; returns the number of levels gained.
+## Co-op guest: experience the host has credited to this Kindled during
+## expedition `run_id` (`total` so far) is added as it comes, and remembered
+## per run (in the save), so a settlement or a checkpoint never pays it twice.
+func live_xp(run_id: String, total: int) -> void:
+	if run_id == "":
+		return
+	var book: Dictionary = data.get("coop_xp", {})
+	var had := int(book.get(run_id, 0))
+	if total > had:
+		book[run_id] = total
+		data["coop_xp"] = book
+		add_xp(total - had)
+
+
+## What the settlement of `run_id` still owes in experience (and forget the run).
+func xp_still_owed(run_id: String, total: int) -> int:
+	var book: Dictionary = data.get("coop_xp", {})
+	var had := int(book.get(run_id, 0))
+	book.erase(run_id)
+	data["coop_xp"] = book
+	return maxi(0, total - had)
+
+
 func add_xp(amount: int) -> int:
 	var gained := 0
 	if level() >= MAX_LEVEL:
@@ -436,21 +459,26 @@ func equipped_weapon() -> String:
 
 
 func slots() -> Array:
-	var s: Array = data.equipped.get("slots", ["flare", ""]).duplicate()
+	var s: Array = data.equipped.get("slots", ["flare", "", ""]).duplicate()
+	while s.size() < 3:
+		s.append("")
 	var avail := SkillDB.abilities(skills())
 	for i in s.size():
 		if s[i] != "" and not avail.has(s[i]):
 			s[i] = ""
-	if s[0] == "" and s[1] != "flare":
+	if s[0] == "" and not s.has("flare"):
 		s[0] = "flare"
 	return s
 
 
 func set_slot(i: int, ability: String) -> void:
-	var s: Array = data.equipped.get("slots", ["flare", ""])
-	var other := 1 - i
-	if s[other] == ability:
-		s[other] = s[i]
+	var s: Array = data.equipped.get("slots", ["flare", "", ""])
+	while s.size() < 3:
+		s.append("")
+	# a spell sits in one slot only: taking it elsewhere swaps the two
+	for other in s.size():
+		if other != i and ability != "" and s[other] == ability:
+			s[other] = s[i]
 	s[i] = ability
 	data.equipped.slots = s
 	_changed()
