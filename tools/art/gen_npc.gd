@@ -14,7 +14,7 @@
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 const Sheet = preload("res://tools/art/sheet.gd")
 
 const SKIN_DEEP := [Color8(58, 36, 34), Color8(98, 62, 50), Color8(140, 96, 70), Color8(178, 132, 96)]

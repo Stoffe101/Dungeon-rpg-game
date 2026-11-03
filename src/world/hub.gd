@@ -76,7 +76,7 @@ func build(v: PixelView) -> void:
 	if not menu_mode:
 		player = Player.new()
 		player.pos = Vector2(21.0, 15.0)
-		for a in OS.get_cmdline_user_args():
+		for a in Dev.args():
 			if a.begins_with("spawn="):
 				# dev: start somewhere else in the camp (captures)
 				var q := a.substr(6).split(",")
@@ -88,7 +88,7 @@ func build(v: PixelView) -> void:
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
 		_spawn_residents()
-		if "descend" in OS.get_cmdline_user_args():
+		if "descend" in Dev.args():
 			# dev: step through the gate a second after the camp loads (captures)
 			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 		_dev_net()
@@ -360,20 +360,35 @@ func _dev_net() -> void:
 		return
 	_dev_net_done = true
 	var want := 0
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("name="):
 			Settings.set_value("player_name", a.substr(5), false)
 		elif a.begins_with("coop="):
 			want = int(a.substr(5))
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a == "net=host" and not Net.active():
 			after(0.3, func() -> void: Net.i.host())
-		elif a.begins_with("net=join:") and not Net.active():
-			var addr := a.substr(9)
-			after(0.6, func() -> void: Net.i.join(addr))
+		elif a == "net=steamhost" and not Net.active():
+			# a private lobby (friends see nothing to join) hosted over Steam
+			after(0.5, func() -> void: Net.i.steam.host_lobby(false))
+		elif a.begins_with("net=steamjoin:") and not Net.active():
+			# straight to a host's Steam ID ("self": this account, for a second process)
+			var who := a.substr(14)
+			after(1.0, func() -> void: Net.i.steam.connect_to(Net.i.steam.my_id if who == "self" else int(who)))
+		if (a.begins_with("net=join:") or a.begins_with("net=steamjoin:")) and not Net.active():
+			if a.begins_with("net=join:"):
+				var addr := a.substr(9)
+				after(0.6, func() -> void: Net.i.join(addr))
+			# dev: a joining guest says it is ready once it is in the party
+			var ready_up := func(again: Callable) -> void:
+				if Net.is_client() and Net.i.roster.has(Net.my_id()):
+					Net.i.set_ready(true)
+				else:
+					after(0.5, again.bind(again))
+			after(1.0, ready_up.bind(ready_up))
 	if want > 1:
 		var check := func(again: Callable) -> void:
-			if Net.is_host() and Net.i.roster.size() >= want:
+			if Net.is_host() and Net.i.roster.size() >= want and Net.i.all_ready():
 				after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 			else:
 				after(0.5, again.bind(again))

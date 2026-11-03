@@ -22,6 +22,7 @@ var gate_nodes: Dictionary = {}     # room id -> Array[Node3D]
 var door_icons: Array = []          # [{node, to}]
 var boss: Enemy
 var grudge_room := -1
+var _grudge := {}           # the Grudge waiting on this floor (with its owner's peer)
 var grudge_spawned := false
 var env: Environment
 var _clear_t := -1.0
@@ -53,12 +54,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	# the player (co-op: the whole party)
 	var start := layout.room(layout.start_id)
 	_spawn_party(start)
-	if "autopilot" in OS.get_cmdline_user_args():
+	if "autopilot" in Dev.args():
 		player.add_child(Bot.new())
-	if "hearthcall" in OS.get_cmdline_user_args():
+	if "hearthcall" in Dev.args():
 		# dev: start a Hearthcall once the floor is up
 		after(1.0, player.start_hearthcall)
-	if "warp=boss" in OS.get_cmdline_user_args() and layout.boss_depth:
+	if "warp=boss" in Dev.args() and layout.boss_depth:
 		# dev: start in the antechamber next to the boss arena
 		var boss_room := layout.room(layout.exit_id)
 		var ante := layout.room(boss_room.doors[0].to)
@@ -68,7 +69,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				rm.visited = true
 				rm.cleared = true
 		start = ante
-	if "warp=event" in OS.get_cmdline_user_args():
+	if "warp=event" in Dev.args():
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
@@ -76,11 +77,11 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if view:
 		view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
-	if "hitlab" in OS.get_cmdline_user_args() and not replica:
+	if "hitlab" in Dev.args() and not replica:
 		# dev: enemies right beside the player, to look at hit feedback up close
 		# (lab=<id,id:affix,...> picks who, and which are elites)
 		var ids: Array = ["husk", "husk", "guard"]
-		for a in OS.get_cmdline_user_args():
+		for a in Dev.args():
 			if a.begins_with("lab="):
 				ids = a.substr(4).split(",")
 		for k in ids.size():
@@ -91,15 +92,20 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
-	if "coopdive" in OS.get_cmdline_user_args() and not replica:
-		# dev: depth 1 -> descend after a moment; depth 2 -> Hearthcall home
+	if "coopdive" in Dev.args() and not replica:
+		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
-			after(4.0, Game.descend)
+			after(4.0, func() -> void:
+				if Net.i.run_sync and Net.party_size() > 1:
+					Net.i.run_sync.start_vote("stairs", -1, player)
+				else:
+					Game.descend())
 		else:
 			after(3.0, func() -> void:
 				if player and player.alive:
+					player.invuln_t = 8.0     # dev: so the ritual is not broken mid-test
 					player.start_hearthcall())
-	if "lootlab" in OS.get_cmdline_user_args() and not replica:
+	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
 		lr.seed = 4
@@ -111,7 +117,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			pk.vel = Vector2.ZERO
 		var bp := Pickup.spawn(self, "blueprint", player.pos + Vector2(5.0, -2.5), 1, {"id": "gamblers_coin"})
 		bp.vel = Vector2.ZERO
-	if "dumpmap" in OS.get_cmdline_user_args():
+	if "dumpmap" in Dev.args():
 		_dump_map()
 	if OS.is_debug_build():
 		for rm in layout.rooms:
@@ -290,13 +296,31 @@ func _icon_key(r: Room) -> String:
 	return ""
 
 
+## Every Kindled's Grudges, each with its owner's peer (co-op: the guests' come
+## from their character sheets; their own profile settles them).
+func party_grudges() -> Array:
+	var out: Array = []
+	for g in Profile.active_grudges():
+		var c: Dictionary = g.duplicate()
+		c["owner"] = Net.my_id()
+		out.append(c)
+	for pl in players:
+		if is_instance_valid(pl) and not pl.sheet.is_empty():
+			for g in pl.sheet.get("grudges", []):
+				var c2: Dictionary = (g as Dictionary).duplicate()
+				c2["owner"] = pl.peer_id
+				out.append(c2)
+	return out
+
+
 func _pick_grudge_room() -> void:
 	# a Grudge waits on the depth where it won, or on the last one if that was deeper
-	var gs := Profile.active_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
+	var gs := party_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
 	if run.has_omen("hunted"):
-		gs = Profile.active_grudges()
+		gs = party_grudges()
 	if gs.is_empty():
 		return
+	_grudge = gs[rng.randi_range(0, gs.size() - 1)]
 	var cands: Array = []
 	for r in layout.rooms:
 		if r.type == Room.Type.COMBAT and r.id != layout.start_id:
@@ -376,6 +400,7 @@ func _spawn_party(start: Room) -> void:
 		if replica:
 			pl.controller = Player.Ctrl.REPLICA
 			pl.replica = true
+			pl.predicting = mine
 		elif not mine:
 			pl.controller = Player.Ctrl.REMOTE
 		if not mine:
@@ -567,10 +592,12 @@ func register_enemy(e: Enemy) -> void:
 
 
 func _spawn_grudge(r: Room) -> void:
-	var gs := Profile.active_grudges()
-	if gs.is_empty():
-		return
-	var g: Dictionary = gs[0]
+	var g: Dictionary = _grudge
+	if g.is_empty():
+		var gs := party_grudges()
+		if gs.is_empty():
+			return
+		g = gs[0]
 	grudge_spawned = true
 	var e := _make_enemy(g.enemy)
 	var t: Vector2i = r.spawns[rng.randi_range(0, r.spawns.size() - 1)] if not r.spawns.is_empty() else Vector2i(r.center())
@@ -580,6 +607,7 @@ func _spawn_grudge(r: Room) -> void:
 	e.room_id = r.id
 	e.spawn_t = 1.2
 	e.set_meta("grudge_id", g.id)
+	e.set_meta("grudge_owner", int(g.get("owner", Net.my_id())))
 	e.set_meta("grudge_embers", int(g.embers))
 	e.set_meta("grudge_level", int(g.level))
 	add_actor(e)
@@ -748,15 +776,20 @@ func _relic_taken(prop: Prop, who: Player) -> void:
 			prop.light.light_energy = 0.3
 
 
-## Co-op host: a client chose from their offer.
+## Co-op host: a guest chose from the relics offered to them (an altar, a
+## chest, a pact). One pick per offer: a repeated answer finds nothing.
 func coop_relic_pick(pl: Player, idx: int, id: String) -> void:
 	for prop in props:
-		if is_instance_valid(prop) and prop.net_idx == idx and prop.kind == "relic_altar":
-			var offer: Array = prop.data.get("offer_%d" % pl.peer_id, [])
-			if not offer.has(id) or (prop.data.get("taken", []) as Array).has(pl.peer_id):
+		if is_instance_valid(prop) and prop.net_idx == idx:
+			var key := "offer_%d" % pl.peer_id
+			var offer: Array = prop.data.get(key, [])
+			if not offer.has(id):
 				return
+			prop.data.erase(key)
+			print("[net] %s chose relic %s (%s)" % [Net.name_of(pl.peer_id), id, prop.kind])
 			Game.grant_relic_to(pl, id)
-			_relic_taken(prop, pl)
+			if prop.kind == "relic_altar":
+				_relic_taken(prop, pl)
 			return
 
 
@@ -963,6 +996,9 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 	if a is Enemy:
 		var e := a as Enemy
 		run.kills += 1
+		# the party's kills count for everyone (guests bank them when they settle)
+		for pr in _party_runs():
+			pr.kill_counts[e.id] = int(pr.kill_counts.get(e.id, 0)) + 1
 		Profile.stat_add("kills")
 		Profile.stat_add("k_" + e.id)
 		if e.elite:
@@ -988,11 +1024,24 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		if run.has_omen("restless") and not e.summoned and not e.def.get("boss", false) and not e.has_meta("grudge_id") and e.room_id >= 0 and rng.randf() < 0.33:
 			_rise_again(e.id, e.pos, e.room_id)
 		if e.has_meta("grudge_id"):
-			var g := Profile.settle_grudge(e.get_meta("grudge_id"))
-			var back := int(e.get_meta("grudge_embers")) * (2 if Profile.building("shrine") > 0 else 1)
+			# settled for its owner (a guest's on their machine, when they bank)
+			var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+			var bearer: Player = player
+			var g := {}
+			if owner == Net.my_id():
+				g = Profile.settle_grudge(e.get_meta("grudge_id"))
+			for pl in players:
+				if is_instance_valid(pl) and pl.peer_id == owner and owner != Net.my_id():
+					bearer = pl
+					pl.run.grudges_won.append(String(e.get_meta("grudge_id")))
+					for pg in pl.sheet.get("grudges", []):
+						if String(pg.id) == String(e.get_meta("grudge_id")):
+							g = pg
+			var shrine_lv := Profile.building("shrine") if bearer == player else int(bearer.sheet.get("sanctuary", {}).get("shrine", 0))
+			var back := int(e.get_meta("grudge_embers")) * (2 if shrine_lv > 0 else 1)
 			if run.has_omen("hunted"):
 				back *= 2
-			if player and player.stats.has("grudgebearer"):
+			if bearer and bearer.stats.has("grudgebearer"):
 				back = int(back * 1.5)
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
@@ -1058,6 +1107,19 @@ func _boss_defeated(e: Enemy) -> void:
 	Audio.play_music("victory", 2.0)
 	var key := "%s_kills" % e.id
 	Profile.data.world[key] = int(Profile.data.world.get(key, 0)) + 1
+	# every Kindled in the party felled it (guests bank it when they settle)
+	for pr in _party_runs():
+		if pr != run:
+			pr.bosses.append(e.id)
+
+
+## The guests' runs on this floor (the host's own is `run`).
+func _party_runs() -> Array:
+	var out: Array = [run]
+	for pl in players:
+		if is_instance_valid(pl) and pl.run and pl.run != run:
+			out.append(pl.run)
+	return out
 
 
 func _on_player_died() -> void:
@@ -1081,6 +1143,9 @@ func _on_player_died() -> void:
 # --- props asking for things -----------------------------------------------------------
 
 func request(what: String, prop: Prop) -> void:
+	var who: Player = interactor if interactor else player
+	if Party.serve(self, who, what, prop):
+		return
 	match what:
 		"stairs":
 			Game.descend()
@@ -1091,29 +1156,17 @@ func request(what: String, prop: Prop) -> void:
 				Game.ui.confirm("Return to the Last Hearth?", "You keep everything you carry. The descent ends here.", func() -> void:
 					Game.end_run("extracted"))
 		"relic":
-			var who: Player = interactor if interactor else player
+			if (prop.data.get("taken", []) as Array).has(who.peer_id):
+				return
 			var tier: int = prop.data.get("tier", 1)
-			var skills: Array = Profile.skills() if who.sheet.is_empty() else who.sheet.get("skills", ["hearth"])
+			var skills := Party.skills_of(who)
 			var offer := RelicDB.roll_offer(run.rng, 6 if tier >= 3 else 3, who.run.relics, SkillDB.branch_counts(skills), SkillDB.abilities(skills), layout.depth + tier - 1, tier < 3)
 			if tier >= 3:
 				# trial prizes: no commons
 				var better := offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
 				offer = (better if better.size() >= 2 else offer).slice(0, 3)
-			if who.controller == Player.Ctrl.REMOTE:
-				# their choice, on their screen
-				prop.data["offer_%d" % who.peer_id] = offer
-				Net.i.rpc_id(who.peer_id, "_offer", "relic", [prop.net_idx, offer])
-				return
-			if player.autopilot:
-				if not offer.is_empty():
-					Game.grant_relic(offer[0])
-					print("[bot] took relic ", offer[0])
-				_relic_taken(prop, who)
-				return
-			Game.ui.relic_choice(offer, func(id: String) -> void:
-				if id != "":
-					Game.grant_relic(id)
-					_relic_taken(prop, who))
+			# their choice, on their screen
+			Party.offer_relic(self, who, prop, offer, func() -> void: _relic_taken(prop, who))
 		"chest":
 			note_request("chest")
 			_chest_loot(prop, int(prop.data.get("tier", 1)))
@@ -1126,14 +1179,12 @@ func request(what: String, prop: Prop) -> void:
 				Pickup.spawn(self, "ember", prop.pos, 2 + tier2)
 			if tier2 >= 2 and rng.randf() < 0.6:
 				Pickup.spawn(self, "sunshard", prop.pos, 1)
-			var offer2 := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + tier2 - 1, false)
-			if player.autopilot:
-				if not offer2.is_empty():
-					Game.grant_relic(offer2[0])
-				return
-			Game.ui.relic_choice(offer2, func(id: String) -> void:
-				if id != "":
-					Game.grant_relic(id))
+			# the spill is everyone's; every Kindled chooses a relic of their own
+			for pl in players:
+				if not is_instance_valid(pl) or not pl.alive or pl.run == null:
+					continue
+				var sk := Party.skills_of(pl)
+				Party.offer_relic(self, pl, prop, RelicDB.roll_offer(run.rng, 3, pl.run.relics, SkillDB.branch_counts(sk), SkillDB.abilities(sk), layout.depth + tier2 - 1, false))
 		"shrine":
 			Game.ui.shrine(prop)
 		"merchant":
@@ -1150,40 +1201,18 @@ func request(what: String, prop: Prop) -> void:
 		"secret":
 			_open_secret(prop)
 		"well":
-			var gain := 40 + 25 * layout.depth
-			_ask("Draw from the Ember Well?", "Lose 20% of your health. Gain about %d Embers." % gain, func() -> void:
-				if prop.used:
-					return
-				prop.used = true
-				player.hp = maxf(1.0, player.hp - player.max_hp * 0.2)
-				player.stage.fx.burst(player.pos, 0.8, Color(0.9, 0.25, 0.3), 14, 3.0, 0.5, 4.0)
-				for i in 10:
-					Pickup.spawn(self, "ember", prop.pos, int(ceil(gain / 10.0)))
-				prop.sprite.play("empty")
-				if prop.light:
-					prop.light.light_energy = 0.2
-				Audio.play("pact", -2.0, 1.2))
+			_ask("Draw from the Ember Well?", "Lose 20%% of your health. Gain about %d Embers." % Party.well_gain(self), func() -> void:
+				Party.draw_well(self, who, prop))
 		"trial":
 			_ask("Begin the Trial?", "Three hard waves. The doors seal until it is done. The prize: a rare relic and a Sunshard.", func() -> void:
-				if prop.used:
-					return
-				prop.used = true
-				prop.sprite.play("spent")
-				var r := layout.room(prop.room_id)
-				r.cleared = false
-				active_room = r
-				wave = 0
-				_set_gates(r, true)
-				Audio.play("boss_roar", -6.0, 1.4)
-				Events.banner.emit("The Trial Begins", "Survive three waves")
-				_spawn_wave(r))
+				begin_trial(prop))
 		"echo":
 			var line: Array = Lore.random_for(layout.region, rng)
-			if prop.used:
+			if Party.spent(prop, who):
 				Game.ui.dialogue("Echo of a Fallen Kindled", ["...the light was warm, once. Go on. Carry it further than I did."])
 				return
 			var offer_fn := func() -> void:
-				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, _echo_gift.bind(prop))
+				_ask("Offer 30 Embers to the Echo?", "You carry %d Embers." % run.embers, func() -> void: Party.echo_gift(self, who, prop))
 			if player.autopilot:
 				offer_fn.call()
 			else:
@@ -1286,17 +1315,20 @@ func _open_secret(prop: Prop) -> void:
 	minimap_changed.emit()
 
 
-func _echo_gift(prop: Prop) -> void:
-	if prop.used or run.embers < 30:
-		Events.toast.emit("You do not carry enough Embers.", Color(0.8, 0.7, 0.7))
+## The Trial altar wakes: three hard waves behind sealed doors.
+func begin_trial(prop: Prop) -> void:
+	if prop.used:
 		return
 	prop.used = true
-	run.embers -= 30
-	var offer := RelicDB.roll_offer(run.rng, 1, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + 1, false)
-	if not offer.is_empty():
-		Game.grant_relic(offer[0])
-	prop.sprite.set_instance_shader_parameter("tint", Color(1, 1, 1, 0.3))
-	Audio.play("relic", 0.0, 0.9)
+	prop.sprite.play("spent")
+	var r := layout.room(prop.room_id)
+	r.cleared = false
+	active_room = r
+	wave = 0
+	_set_gates(r, true)
+	Audio.play("boss_roar", -6.0, 1.4)
+	Events.banner.emit("The Trial Begins", "Survive three waves")
+	_spawn_wave(r)
 
 
 ## Confirmation that the autopilot answers "yes" to.

@@ -61,13 +61,21 @@ func set_tile_solid(t: Vector2i, solid: bool) -> void:
 
 # --- time ---------------------------------------------------------------------
 
+## In a shared expedition the world's clock belongs to everyone: one Kindled's
+## blow cannot freeze or slow it for the others (and each client predicts its
+## own Kindled against that steady clock).
+func shared_clock() -> bool:
+	return Net.active() and Net.party_size() > 1
+
 func hitstop(seconds: float) -> void:
-	if not Settings.get_value("hitstop", true):
+	if not Settings.get_value("hitstop", true) or shared_clock():
 		return
 	_hitstop = maxf(_hitstop, seconds)
 
 
 func slow_motion(scale: float, seconds: float) -> void:
+	if shared_clock():
+		return
 	_slow_scale = scale
 	_slow_t = maxf(_slow_t, seconds)
 
@@ -87,7 +95,7 @@ func _process(delta: float) -> void:
 		simulate(dt)
 	fx.step(real if not paused_sim else 0.0)
 	if view and player and is_instance_valid(player):
-		var target := Iso.to_world(player.pos + player.aim_offset(), 0.0)
+		var target := Iso.to_world(player.pos + player.draw_off + player.aim_offset(), 0.0)
 		view.focus = view.focus.lerp(target, 1.0 - exp(-real * 9.0)) if view.focus.distance_to(target) < 12.0 else target
 	_stage_process(real)
 
@@ -218,7 +226,7 @@ func remove_actor(a: Actor) -> void:
 func active_players() -> Array[Player]:
 	var out: Array[Player] = []
 	for p in players:
-		if is_instance_valid(p) and p.alive and not p.downed:
+		if is_instance_valid(p) and p.alive and not p.downed and not p.away:
 			out.append(p)
 	return out
 

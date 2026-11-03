@@ -26,6 +26,7 @@ const DEFAULTS := {
 	"hitstop": true,
 	"reduce_flashes": false,
 	"effects_intensity": 1.0,
+	"ally_effects": 0.6,         # co-op: other Kindled's particles, relative to your own
 	"damage_numbers": true,
 	"show_fps": false,
 	"aim_assist": 0.5,
@@ -64,7 +65,7 @@ var using_pad := false   # last meaningful input came from a gamepad
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	for a in OS.get_cmdline_user_args():
+	for a in Dev.args():
 		if a.begins_with("profile="):
 			path = DEV_PATH
 	values = DEFAULTS.duplicate(true)

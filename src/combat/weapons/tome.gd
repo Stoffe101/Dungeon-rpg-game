@@ -29,7 +29,8 @@ func update(dt: float) -> void:
 	_gap = maxf(0.0, _gap - dt)
 	if held and _gap <= 0.0 and player.alive:
 		_gap = MOTE_GAP / speed()
-		_mote()
+		if not predicting:
+			_mote()
 	super.update(dt)
 	swing = 0.0
 	if visual:
@@ -47,7 +48,8 @@ func press() -> void:
 	# a tap reads one word at once; holding keeps reading
 	if _gap <= 0.0 and player.alive:
 		_gap = MOTE_GAP / speed()
-		_mote()
+		if not predicting:
+			_mote()
 
 
 func release() -> void:

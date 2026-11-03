@@ -60,6 +60,7 @@ func _ready() -> void:
 	toast_box.position = Vector2(10, 0)
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_box)
+	root.add_child(NetDiag.new())
 	modal_layer = Control.new()
 	modal_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	modal_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -205,7 +206,7 @@ func _make_cursor() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		if hud.visible and Game.stage is Dungeon and not has_modal() and not "autopilot" in OS.get_cmdline_user_args():
+		if hud.visible and Game.stage is Dungeon and not has_modal() and not "autopilot" in Dev.args():
 			pause_menu()
 
 
@@ -367,6 +368,17 @@ func _close_now() -> void:
 	Audio.ui(String(m.get_meta("close_sound", "ui_close")))
 	if modals.is_empty() and not _menu_open:
 		get_tree().paused = false
+
+
+## Closes one particular screen, wherever it is in the stack (a vote that ended).
+func close_modal(dim: Control) -> void:
+	if not modals.has(dim):
+		return
+	if modals.back() == dim:
+		close_top()
+		return
+	modals.erase(dim)
+	dim.queue_free()
 
 
 func close_all() -> void:

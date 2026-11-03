@@ -220,14 +220,20 @@ static func coop(ui: UIRoot) -> Control:
 				var r: Dictionary = Net.i.roster[pid]
 				var sh: Dictionary = r.get("sheet", {})
 				var w := GearDB.weapon(String(sh.get("weapon", "sword")))
-				var line := "%s%s   Lv %d   %s" % [String(r.name), "  (host)" if int(pid) == 1 else "", int(sh.get("level", 1)), String(w.get("name", "?"))]
+				var state := "  (host)" if int(pid) == 1 else ("  (away)" if r.get("away", false) else ("  - ready" if r.get("ready", false) else ""))
+				var line := "%s%s   Lv %d   %s" % [String(r.name), state, int(sh.get("level", 1)), String(w.get("name", "?"))]
 				party.add_child(UIKit.label(line, 8, Net.color_of(int(pid)), true))
 		for c in buttons.get_children():
 			c.queue_free()
 		if not Net.active():
-			buttons.add_child(UIKit.button("Host", func() -> void: Net.i.host(), 60))
-			buttons.add_child(UIKit.button("Join", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
+			if Net.i.steam.online:
+				buttons.add_child(UIKit.button("Host on Steam", func() -> void: Net.i.steam.host_lobby(true), 80))
+				buttons.add_child(UIKit.button("Join a friend", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
+			buttons.add_child(UIKit.button("Host (LAN / IP)", func() -> void: Net.i.host(), 80))
+			buttons.add_child(UIKit.button("Join IP", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
 		else:
+			if Net.is_host() and Net.i.steam.lobby_id != 0:
+				buttons.add_child(UIKit.button("Invite friends", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
 			buttons.add_child(UIKit.button("Leave party", func() -> void:
 				Net.i.leave()
 				Net.i._status("Left the party."), 80))
@@ -238,7 +244,8 @@ static func coop(ui: UIRoot) -> Control:
 		if Net.i.roster_changed.is_connected(refresh):
 			Net.i.roster_changed.disconnect(refresh))
 	refresh.call()
-	v.add_child(UIKit.para("Internet play: the host forwards UDP port %d on their router, or everyone joins the same LAN-style VPN (e.g. ZeroTier, Tailscale). LAN play needs nothing extra." % Net.PORT, 250, UIKit.C_DIM))
+	v.add_child(UIKit.para(Net.i.steam.status if Net.i.steam.status != "" else "", 250, UIKit.C_DIM))
+	v.add_child(UIKit.para("Without Steam: LAN play needs nothing extra; over the internet the host forwards UDP port %d, or everyone joins the same LAN-style VPN." % Net.PORT, 250, UIKit.C_DIM))
 	return _center(p)
 
 
@@ -321,19 +328,39 @@ class _KeyPicker:
 
 # --- merchant -------------------------------------------------------------------------
 
+## The Cinder Merchant, for this machine's Kindled on the host (or alone).
 static func shop(ui: UIRoot, prop: Prop) -> Control:
 	var d := Game.stage as Dungeon
-	var run := d.run
-	if not prop.data.has("stock"):
-		var ids := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), run.depth, false)
-		var stock: Array = []
-		for id in ids:
-			var r := RelicDB.relic(id)
-			var price: int = {"common": 45, "rare": 80, "epic": 130}[r.rarity] + 15 * (run.depth - 1)
-			stock.append({"kind": "relic", "id": id, "price": price})
-		stock.append({"kind": "flask", "price": 35})
-		stock.append({"kind": "heal", "price": 25})
-		prop.data["stock"] = stock
+	var ctx := {"stock": Party.shop_stock(d, d.player, prop)}
+	ctx.buy = func(i: int) -> void:
+		if Party.buy(d, d.player, prop, i):
+			Audio.play("buy", 0.0)
+		else:
+			Audio.ui("deny")
+		ctx.rebuild.call()
+	return _shop_panel(ui, ctx)
+
+
+## The Cinder Merchant on a guest's screen: the host keeps the stock and the
+## purse, and answers each purchase with the stock as it now stands.
+static func shop_view(ui: UIRoot, idx: int, stock: Array) -> Control:
+	var ctx := {"stock": stock, "idx": idx}
+	ctx.buy = func(i: int) -> void:
+		var item: Dictionary = ctx.stock[i]
+		if item.get("sold", false) or Game.run == null or Game.run.embers < int(item.price):
+			Audio.ui("deny")
+			return
+		Audio.play("buy", 0.0)
+		item["pending"] = true
+		Net.ask("buy", [idx, i])
+		ctx.rebuild.call()
+	var node := _shop_panel(ui, ctx)
+	ctx.node = node
+	Party._shop_view = ctx
+	return node
+
+
+static func _shop_panel(ui: UIRoot, ctx: Dictionary) -> Control:
 	var p := UIKit.panel()
 	var v := UIKit.vbox(6)
 	p.add_child(v)
@@ -344,12 +371,15 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 	var list := UIKit.vbox(3)
 	v.add_child(list)
 	# lambdas capture by value, so self-reference goes through a shared dict
-	var ctx := {}
 	ctx.rebuild = func() -> void:
-		have.text = "Carried Embers: %d" % run.embers
+		if not is_instance_valid(list):
+			return
+		var embers: int = Game.run.embers if Game.run else 0
+		have.text = "Carried Embers: %d" % embers
 		for c in list.get_children():
 			c.queue_free()
-		for item in prop.data.stock:
+		for i in (ctx.stock as Array).size():
+			var item: Dictionary = ctx.stock[i]
 			var row := UIKit.hbox(6)
 			var name := ""
 			var desc := ""
@@ -376,23 +406,8 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 			var fill := Control.new()
 			fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			row.add_child(fill)
-			var b := UIKit.button("%d Embers" % item.price, func() -> void:
-				if run.embers < int(item.price) or item.get("sold", false):
-					Audio.ui("deny")
-					return
-				run.embers -= int(item.price)
-				item["sold"] = true
-				Audio.play("buy", 0.0)
-				var pl := d.player
-				match item.kind:
-					"relic":
-						Game.grant_relic(item.id)
-					"flask":
-						pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
-					"heal":
-						pl.heal(pl.max_hp * 0.4)
-				ctx.rebuild.call(), 70)
-			b.disabled = item.get("sold", false) or run.embers < int(item.price)
+			var b := UIKit.button("%d Embers" % item.price, func() -> void: ctx.buy.call(i), 70)
+			b.disabled = item.get("sold", false) or item.get("pending", false) or embers < int(item.price)
 			row.add_child(b)
 			list.add_child(row)
 	ctx.rebuild.call()
@@ -402,47 +417,124 @@ static func shop(ui: UIRoot, prop: Prop) -> Control:
 
 # --- shrine -----------------------------------------------------------------------------
 
+## The shrine of pacts for this machine's Kindled on the host (or alone).
 static func shrine(ui: UIRoot, prop: Prop) -> Control:
 	var d := Game.stage as Dungeon
-	var run := d.run
+	var pl := d.player
+	return _shrine_panel(ui, Party.spent(prop, pl), Party.shrine_curse(d, pl, prop), func(choice: String) -> void:
+		Party.shrine_choice(d, pl, prop, choice))
+
+
+## The shrine on a guest's screen: the host makes the bargain.
+static func shrine_view(ui: UIRoot, idx: int, curse_id: String, spent: bool) -> Control:
+	return _shrine_panel(ui, spent, curse_id, func(choice: String) -> void:
+		Audio.play("pact", 0.0, 1.0 if choice == "blood" else 0.8)
+		Net.ask("shrine", [idx, choice]))
+
+
+static func _shrine_panel(ui: UIRoot, spent: bool, curse_id: String, choose: Callable) -> Control:
 	var p := UIKit.panel()
 	var v := UIKit.vbox(6)
 	p.add_child(v)
 	v.add_child(_title("Shrine of Pacts", Color(0.8, 0.6, 1.0)))
-	if prop.used:
-		v.add_child(UIKit.para("The idol's eyes are dark. Its bargain is spent.", 240, UIKit.C_DIM))
+	if spent:
+		v.add_child(UIKit.para("The idol's eyes are dark to you. Your bargain is spent.", 240, UIKit.C_DIM))
 		v.add_child(UIKit.button("Leave", func() -> void: ui.close_top(), 70))
 		return _center(p)
 	v.add_child(UIKit.para("A hollow voice: \"Power is never free. What will you give?\"", 260, UIKit.C_DIM))
-	var pl := d.player
 	var blood := UIKit.button("Blood Pact: lose 25% of your health, choose a rare relic", func() -> void:
-		prop.used = true
-		pl.hp = maxf(1.0, pl.hp - pl.max_hp * 0.25)
-		pl.stage.fx.burst(pl.pos, 1.0, Color(0.8, 0.2, 0.3), 16, 3.0, 0.5, 4.0)
-		Audio.play("pact", 0.0)
 		ui.close_top()
-		var offer := RelicDB.roll_offer(run.rng, 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), run.depth + 2, false)
-		offer = offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
-		if offer.is_empty():
-			offer = RelicDB.roll_offer(run.rng, 3, run.relics, {}, [], 3, false)
-		ui.relic_choice(offer, func(id: String) -> void:
-			if id != "":
-				Game.grant_relic(id)), 250)
+		choose.call("blood"), 250)
 	v.add_child(blood)
-	var curses: Array = RelicDB.RELICS.filter(func(r): return r.get("cursed", false) and not run.relics.has(r.id))
-	if not curses.is_empty():
-		var c: Dictionary = curses[run.rng.randi_range(0, curses.size() - 1)]
+	if curse_id != "":
+		var c := RelicDB.relic(curse_id)
 		var txt := "Embrace the Curse: %s (%s) +40 Embers" % [c.name, c.desc]
 		var curse := UIKit.button(txt, func() -> void:
-			prop.used = true
-			Game.grant_relic(c.id)
-			run.embers += 40
-			Audio.play("pact", 0.0, 0.8)
-			ui.close_top(), 250)
+			ui.close_top()
+			choose.call("curse"), 250)
 		curse.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		curse.custom_minimum_size = Vector2(250, 26)
 		v.add_child(curse)
 	v.add_child(UIKit.button("Refuse", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+## Steam friends who are online: Invite them to your lobby, or Join the party
+## they are in (works without the overlay, which often does not show when the
+## game was not started by Steam).
+static func steam_friends(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(5)
+	p.add_child(v)
+	var sl: SteamLink = Net.i.steam
+	var hosting := Net.is_host() and sl.lobby_id != 0
+	v.add_child(_title("Invite Friends" if hosting else "Steam Friends"))
+	if hosting and sl.online and bool(sl.steam.call("isOverlayEnabled")):
+		v.add_child(UIKit.button("Open the Steam overlay", func() -> void: sl.invite(), 140))
+	var friends := sl.friends_online()
+	if friends.is_empty():
+		v.add_child(UIKit.para("No friends are online on Steam right now.", 220, UIKit.C_DIM))
+	var list := UIKit.vbox(2)
+	v.add_child(list)
+	for f in friends.slice(0, 12):
+		var row := UIKit.hbox(6)
+		row.add_child(UIKit.label(String(f.name) + ("  (playing)" if f.playing else ""), 8, UIKit.C_GOLD if f.playing else UIKit.C_TEXT))
+		var fill := Control.new()
+		fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(fill)
+		var fid := int(f.id)
+		var lob := int(f.get("lobby", 0))
+		if hosting:
+			row.add_child(UIKit.button("Invite", func() -> void: sl.invite_friend(fid), 50))
+		elif lob != 0 and not Net.active():
+			row.add_child(UIKit.button("Join", func() -> void:
+				ui.close_top()
+				sl.join_lobby(lob), 50))
+		list.add_child(row)
+	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
+	return _center(p)
+
+
+## Shown while a guest reaches for a host it lost: the floor waits behind it.
+static func link_lost(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(6)
+	p.add_child(v)
+	v.add_child(_title("The Host's Light Is Lost", Color(1.0, 0.75, 0.5)))
+	var body := UIKit.para("", 230)
+	v.add_child(body)
+	var tick := Timer.new()
+	tick.wait_time = 0.25
+	tick.autostart = true
+	tick.timeout.connect(func() -> void:
+		var left := maxi(0, int((Net.i.reconnecting_until - Time.get_ticks_msec()) / 1000))
+		body.text = "Reaching for them again... (%d s)\nGiving up brings home what you carried into this depth." % left)
+	p.add_child(tick)
+	v.add_child(UIKit.button("Give up", func() -> void:
+		ui.close_top()
+		Net.i.give_up(), 80))
+	return _center(p)
+
+
+## A party vote: shown to everyone, answered by each on their own screen. The
+## world keeps going meanwhile (the screen does not pause it).
+static func vote(ui: UIRoot, title: String, body: String, answer: Callable) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(6)
+	p.add_child(v)
+	v.add_child(_title(title))
+	v.add_child(UIKit.para(body, 220))
+	var row := UIKit.hbox(8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var ok := UIKit.button("Agree", func() -> void:
+		ui.close_top()
+		answer.call(true), 70)
+	row.add_child(ok)
+	row.add_child(UIKit.button("Not yet", func() -> void:
+		ui.close_top()
+		answer.call(false), 70))
+	v.add_child(row)
+	ok.call_deferred("grab_focus")
 	return _center(p)
 
 
@@ -654,6 +746,7 @@ static func settings(ui: UIRoot) -> Control:
 	gp.name = "Gameplay"
 	gp.add_child(_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05))
 	gp.add_child(_slider("Effects", "effects_intensity", 0.25, 1.0, 0.05))
+	gp.add_child(_slider("Allies' effects (co-op)", "ally_effects", 0.2, 1.0, 0.05))
 	gp.add_child(_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05))
 	gp.add_child(_slider("Rumble (pad)", "rumble", 0.0, 1.0, 0.05))
 	gp.add_child(_toggle("Hit-stop", "hitstop"))
@@ -1002,11 +1095,25 @@ static func descent(ui: UIRoot) -> Control:
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var go := UIKit.button("Descend" if not Net.active() else "Descend together", func() -> void:
+		if Net.is_host() and not Net.i.all_ready():
+			Audio.ui("deny")
+			return
 		ui.close_all()
 		Game.begin_descent(ctx.region), 80)
 	if Net.is_client():
-		go.disabled = true
-		go.text = "%s leads the way" % Net.name_of(1)
+		# a guest says it is ready; the host leads the way once everyone is
+		var mine: bool = Net.i.roster.get(Net.my_id(), {}).get("ready", false)
+		go.text = "Ready" if not mine else "Not ready"
+		go.pressed.disconnect(go.pressed.get_connections()[0].callable)
+		go.pressed.connect(func() -> void:
+			Net.i.set_ready(not mine)
+			ui.close_top())
+	elif Net.is_host() and not Net.i.all_ready():
+		var waiting: Array = []
+		for pid in Net.i.roster:
+			if int(pid) != 1 and not bool(Net.i.roster[pid].get("ready", false)):
+				waiting.append(Net.name_of(int(pid)))
+		go.text = "Waiting: %s" % ", ".join(waiting)
 	row2.add_child(go)
 	row2.add_child(UIKit.button("Runes", func() -> void: ui.open(Screens.runes(ui)), 50))
 	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))

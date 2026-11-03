@@ -3,7 +3,7 @@
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 
 # Rows are top (cap line) -> bottom; rows 7-8 are descenders.
 const GLYPHS := {

@@ -61,6 +61,21 @@ func update(dt: float) -> void:
 		swing = deg_to_rad(strike.to) * (1.0 if cos(Iso.screen_angle(aim_dir)) >= 0.0 else -1.0)
 
 
+## The step is movement: a predicting client makes it too (the host cuts).
+func predict_charge() -> void:
+	aim_dir = player.aim
+	charged = false
+	var from := player.pos
+	var to := player.stage.grid.move_box(from, player.box(), aim_dir * STEP, true)
+	strike = {"windup": 0.0, "active": 0.12, "recover": 0.22}
+	_set_phase(Phase.ACTIVE, 0.12)
+	for i in 5:
+		player.stage.fx.ghost(player.sprite, Iso.to_world(from.lerp(to, i / 4.0), 0.0), Color(0.55, 0.4, 0.9), 0.25 + i * 0.04)
+	player.pos = to
+	Audio.play("blink", -2.0, 1.1)
+	combo = 0
+
+
 ## Shadowstep: the Kindled becomes a streak of shadow and reappears beyond,
 ## every foe on the way cut. Masterwork: the shadow left behind cuts again.
 func release_charge() -> void:
@@ -78,7 +93,7 @@ func release_charge() -> void:
 	player.pos = to
 	player.stage.fx.burst(to, 0.6, Color(0.6, 0.45, 0.95), 14, 4.0, 0.4, 2.0)
 	player.stage.fx.shape(Fx.Shape.RECT, from, aim_dir, Vector2(from.distance_to(to), 0.8), Color(0.6, 0.45, 0.95, 0.0), Color(0.8, 0.7, 1.0, 1.0), 0.14, {"progress": 1.0, "glow": 1.4})
-	Audio.play("blink", -2.0, 1.1)
+	player.cosmetic(func() -> void: Audio.play("blink", -2.0, 1.1))
 	var hits := line_hit(from, to, 0.9, def.charged, ["melee"], 4.0, 24.0, {"finisher": true, "crit": randf() < CRIT_BONUS + 0.2})
 	if hits > 0:
 		player.stage.hitstop(0.07)

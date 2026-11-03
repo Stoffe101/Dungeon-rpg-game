@@ -54,7 +54,7 @@ func release() -> void:
 	held = false
 	if phase == Phase.CHARGE:
 		if charged:
-			release_charge()
+			_fire_charge()
 		else:
 			# let go early: a quick shot
 			_set_phase(Phase.IDLE, 0.0)
@@ -82,6 +82,17 @@ func on_active() -> void:
 	_arrow(player.aim.rotated(deg_to_rad(randf_range(-2.5, 2.5))), def.damage[0] * damage_scale(), 1 if tempered() else 0, false)
 	Audio.play("bow", -3.0, randf_range(1.05, 1.2))
 	player.on_weapon_strike(0, false)
+
+
+func predict_active() -> void:
+	_cool = 0.3 / speed()
+
+
+func predict_charge() -> void:
+	charged = false
+	aim_dir = player.aim
+	strike = {"recover": 0.32}
+	_set_phase(Phase.RECOVER, 0.32 / speed())
 
 
 func release_charge() -> void:

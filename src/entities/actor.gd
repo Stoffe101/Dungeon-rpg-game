@@ -13,6 +13,7 @@ static var _shadow_mat: StandardMaterial3D
 var stage: Stage
 var net_id := 0              # co-op: the same actor's id on every machine
 var replica := false         # co-op client: drawn from the host's word, never simulated
+var draw_off := Vector2.ZERO # co-op client: where the picture still lags a correction (decays to zero)
 var team := Team.ENEMY
 var display_name := ""
 var pos := Vector2.ZERO
@@ -161,8 +162,8 @@ func sync_visual() -> void:
 	if visual == null:
 		return
 	# snap to the texel grid so sprites never shimmer
-	var sx := roundf(pos.x * Iso.PPU) / Iso.PPU
-	var sy := roundf(pos.y * Iso.PPU) / Iso.PPU
+	var sx := roundf((pos.x + draw_off.x) * Iso.PPU) / Iso.PPU
+	var sy := roundf((pos.y + draw_off.y) * Iso.PPU) / Iso.PPU
 	var sh := roundf((height + bob) * Iso.PPU) / Iso.PPU
 	position = Iso.to_world(Vector2(sx, sy), 0.0)
 	visual.position = Vector3(0, sh * Iso.SQ2, 0)

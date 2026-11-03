@@ -511,6 +511,26 @@ the nearest Kindled (with aggro on heavy hitters); each extra Kindled adds about
 Sealing a room draws everyone in. Downed players can be revived; the fallen
 return when the room is won. Seat colours ring each Kindled and name allies.
 
+## Co-op interactions
+
+Who decides what (src/net/party.gd), chosen so that nobody can spend a
+friend's chance and nobody is dragged somewhere they did not agree to go:
+
+| Kind | Interactions | Why |
+|---|---|---|
+| Personal | Cinder Merchant (own stock, own purse), shrine of pacts and the Echo (one bargain each), lore | a bargain is a choice about your own build |
+| Shared | Ember Well (whoever draws pays the health; the Embers spill for all), lost camps, sconces, chests (with a relic pick for every Kindled) | the party found it together |
+| Instanced | gear, blueprints, runes, relic altars | loot never becomes a race |
+| Voted | the stairs, the Hearthstone, the Trial, a Hearthcall | they move or end everyone's expedition |
+
+A vote needs everyone present within 30 s; one "not yet" ends it, and the
+world does not pause meanwhile. A Hearthcall in a party is a proposal: the
+ritual completes, then the party agrees to go home or stays.
+
+Each Kindled owns its progression: guests bank the party's kills, guardians
+felled and their own Grudges on their own profile, and a wipe names each
+Kindled's own killer. Guests' Grudges hunt the whole party.
+
 ## Room seals
 
 Combat rooms seal with woven soul-light: a diamond lattice with a rune column,
@@ -596,3 +616,26 @@ where Omens, Grudges, runes and co-op meet.
   project.godot (which the editor rewrites) does not have to change.
 - **One endgame, connected**: the Hollow Below reuses regions, bosses, Omens and
   Grudges rather than adding a parallel activity.
+
+- **Co-op stays host-authoritative, with prediction on top.** Each client
+  predicts its own Kindled with the host's movement code and reconciles; the
+  host leans toward the client's predicted spot only by a frame's walk (packet
+  timing), never through walls or against a shove. Fully client-authoritative
+  movement would remove the last corrections but would let a client place its
+  Kindled anywhere and fight the host's knockback; the bounded lean got the
+  error to about a pixel at the median on every simulated link.
+- **A shared world keeps one clock.** Hitstop and slow motion freeze nothing in
+  co-op: four players' hits would keep everyone's world stuttering, and each
+  client predicts against a steady clock.
+- **Lag compensation by waiting, not rewinding.** Blows on a remote Kindled wait
+  its round trip for a dodge or Ward already on the way. It is cheap, fair to
+  what the owner saw, and cannot be used to dodge after seeing the damage.
+- **Votes for what moves the party**, personal bargains for what shapes a build
+  (see "Co-op interactions").
+- **Seats wait for the same identity; no host migration.** A dropped guest
+  gets 60 s to come back as itself (profile identity or Steam ID). The host's
+  machine runs the world, so a lost host ends the expedition; each guest banks
+  the checkpoint from the start of the depth instead of losing everything.
+- **Steam is optional and reached dynamically.** The game builds and runs
+  without GodotSteam (LAN / direct IP); with it, lobbies and Valve's relay
+  carry the same messages. Development switches only work in debug builds.

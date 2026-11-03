@@ -19,3 +19,6 @@ Thumbs.db
 
 # licensed third-party sound packs: usable in the game, not redistributable (see tools/audio/import_licensed.py)
 assets/audio/licensed/
+
+# GodotSteam (GDExtension binaries; MIT, but 27 MiB with Valve redistributables): tools/steam/fetch_godotsteam.py installs it
+addons/godotsteam/

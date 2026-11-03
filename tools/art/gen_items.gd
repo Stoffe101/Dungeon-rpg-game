@@ -5,7 +5,7 @@
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 
 ## name -> [archetype, main ramp, accent ramp, glowing gem?]
 const GEAR := {

@@ -72,9 +72,20 @@ tests/        headless test runner + suites
 - `Profile` (autoload) holds the save dict. `save_profile()` writes JSON to a
   temp file, verifies it parses, rotates the old save to `.bak`, renames.
   `load_profile()` falls back to `.bak` when the main file is unreadable.
-  `migrate()` upgrades old versions and fills new keys; `VERSION` = 3.
+  `migrate()` upgrades old versions and fills new keys; `VERSION` = 10.
 - `Settings` persists to `user://settings.cfg` (options + rebinds). Input actions
   are created in code from `DEFAULT_BINDINGS`.
+
+## Networking (co-op)
+
+See NETWORK.md. In one breath: `Net` (transport: ENet or Steam through
+`use_peer`; roster, seats, RPCs, simulated conditions) -> `NetRun` per floor
+(host: snapshots per client at 30 Hz with deltas and interest, events every
+frame, remote input, votes, floor barrier; client: interpolation buffer,
+prediction record and reconciliation) -> `Party` (interaction ownership and
+guests' screens). The host's world is the only simulation; a client's own
+Kindled is predicted (`Player._predict`, weapons in predicting mode) and every
+other actor is a replica drawn in the past.
 
 ## Flow
 

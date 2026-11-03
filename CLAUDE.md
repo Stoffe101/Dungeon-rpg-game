@@ -56,14 +56,30 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `-s res://tools/dev/contact_sheet.gd -- out=captures/x.png crop=800x500 [at=x,y] [scale=k] [cols=n] <files>`.
   `lootlab` (one drop of each grade beside the player), `omens=<id,id>` (read these Omens next run),
   `descend` (hub: walk through the gate a second after loading), `net=host|join:<ip>`, `name=`, `coop=<n>`,
-  `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`. `warp=event` + the seed list printed
+  `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
+  `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
+  peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`. Dev args and the testing stockpile work in debug
+  builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
+- Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
+  steam_appid.txt in exports, dev switches gated, game code never uses tools/ tests/ docs/ captures/ - they
+  are not exported; the palette lives in `src/render/pal.gd`). Builds: `tools/dev/build_windows.sh release|debug`
+  -> builds/windows-<mode>/ (templates in %APPDATA%/Godot/export_templates/4.7.2.stable). Run a release exe
+  with `APPDATA` pointed at a scratch folder: release builds ignore `profile=` and would use the real save.
+- GodotSteam (gitignored `addons/godotsteam/`): `python tools/steam/fetch_godotsteam.py` (pinned 4.23.2,
+  SHA-256 checked), then `--import`. Steam code reaches it only through `SteamLink` (dynamic calls); the
+  game must keep working without it. Close a SteamMultiplayerPeer before `steamShutdown` (it crashed on quit). `warp=event` + the seed list printed
   as `[dungeon] event room N: <kind>` finds a seed for a given event.
 - Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
   Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled
   with `EnemyDB.roll_affix` so they only land where they work (`affix_ok`, `"no_affix"`).
   Lobbed shots: `Projectile.lob(flight, peak)` (no collision in flight; `on_end_fn` acts on landing).
-- Co-op (docs/NETWORK.md): `Net` (src/net/net.gd, added by Game at /root/Net - not an autoload) and
-  `NetRun` (per floor, host capture / client apply). `Stage.players` holds every Kindled, `Stage.player`
+- Co-op (docs/NETWORK.md, docs/STEAM.md): `Net` (src/net/net.gd, added by Game at /root/Net - not an
+  autoload), `NetRun` (per floor: host snapshots/events/votes, client interpolation/prediction/reconcile),
+  `Party` (who owns each interaction, guests' screens), `SteamLink` (optional GodotSteam lobbies, reached
+  dynamically). A client's own Kindled is `predicting` (weapons too: timing and picture, no hits); keep
+  `Player._predict` in step with `Player._think` when movement rules change. Bump `Net.PROTOCOL` when a
+  message changes shape. Measure with `tools/dev/netsim_matrix.sh` and `tools/dev/coop_local.sh <n> [frames]
+  [netsim...]`; `netsim=typical` (or rtt:loss:jitter), `netdiag` / F3, `netlog=<file>`. `Stage.players` holds every Kindled, `Stage.player`
   is this machine's; use `nearest_player`/`players_near`/`active_players` instead of assuming one player.
   `Player.controller` is LOCAL/REMOTE/REPLICA; stats come from `Player.sheet` (another player's
   `Profile.character_sheet()`) when set. Host-side effects are recorded through `Net.rec` (Fx, Audio,
@@ -116,7 +132,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v9 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v10 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.

@@ -1,37 +1,87 @@
 ## One shared expedition floor. On the host it watches the simulation and sends
-## the clients what they need to draw it (snapshots at 20 Hz, reliable events
-## for everything that happens once); it also drives the remote Kindled from
-## their owners' input. On a client it builds and moves the replicas.
+## each client what it needs to draw it (snapshots at 30 Hz with only what
+## changed near that client, reliable events every frame for everything that
+## happens once); it also drives the remote Kindled from their owners' input.
+## On a client it builds the replicas, draws them a little in the past between
+## two snapshots (interpolation), and lets this machine's Kindled run ahead on
+## its own input (prediction), pulled toward the host's word (reconciliation).
 class_name NetRun
 extends Node
 
-const SNAP_HZ := 20.0
-const INPUT_HZ := 30.0
+const SNAP_HZ := 30.0
+const INPUT_HZ := 60.0
+const INTEREST := 26.0    # tiles: farther actors are not sent to a client (bosses and players always are)
+const KEY_EVERY := 15     # every row is resent at least this often (snapshots), changed or not
+const SNAP_DIST := 2.5    # a correction larger than this is a jump (a pull, a teleport), not a slide
+## How far the host lets a remote Kindled drift toward where its owner's
+## prediction stood, per input: packet timing makes the two disagree by about a
+## frame of walking; anything larger (a shove, a wall, a cheat) stays the host's.
+const AGREE_STEP := 0.12
 ## What clients may not do themselves yet (they need a menu on the host).
 const HOST_ONLY := ["merchant", "shrine", "ember_well", "trial_altar", "echo", "hearthstone"]
 
 var stage: Dungeon
 var host := false
+var floor_id := 0             # the depth: every message names the floor it belongs to
 var events: Array = []
+var _waiting := false         # host: holding the floor until every guest has built it
+var _prop_made: Array = []    # host: props made since the floor was built (for a returning guest)
+var _wait_t := 0.0
 var _snap_t := 0.0
-var _in_t := 0.0
 # host
-var _last_presses := {}       # peer -> presses
+var _last_presses := {}       # peer -> press counts (Net.PRESS_KEYS order)
 var _last_held := {}          # peer -> attack held
 var _prop_state := {}         # prop index -> last sent state
-var _pick_pos := {}           # pickup id -> last sent position
+var _sent := {}               # peer -> {net id -> row last sent (frame left out)}
+var _pick_sent := {}          # peer -> {pickup id -> last sent position}
+var _chunk_n := {}            # peer -> snapshot chunks sent
+var _key_phase := 0
 # client
 var replicas := {}            # net id -> Actor
 var projs := {}               # net id -> Projectile
 var picks := {}               # net id -> Pickup
 var teles := {}               # telegraph id -> MeshInstance3D
-var _goal := {}               # net id -> [pos, height]
+var _hist := {}               # net id -> [[host ms, row], ...] (oldest first)
+var _pl_hist := {}            # net id -> [[host ms, player row], ...] (other Kindled)
+var _applied := {}            # net id -> host ms of the row last applied
+var _clock := 0.0             # host ms - local ms, for the fastest packets seen
+var _clock_set := false
+var _late := 0.0              # ms: how much later than the fastest packets they usually come
+var _delay := 1000.0 / SNAP_HZ * 2.0
+var _last_c := -1
+var _lost := 0.0
+var _got := 0.0
+var diag := {}                # client: figures for the network overlay
+# host: party votes (Party.VOTED, the Hearthcall)
+var _votes := {}              # id -> {"id", "kind", "idx", "by", "yes": {peer: true}, "until"}
+var _vote_n := 0
+# client: this machine's Kindled
+var _seq := 0
+var _seq_t := {}              # input seq -> local seconds it was sent
+var _traj: Array = []         # [local seconds, pos], newest last
+var _sent_presses: Array = []
+var _sent_down := false
+var _send_ms := 0
+var _hold_t0 := -1
+var _hold_ms := 0
+var _attack_ms := -100000     # when this machine last pressed attack (local ms)
+var _was_predicting := false
+var _err_sum := 0.0
+var _err_n := 0
+var _free_sum := 0.0          # the same, only while nothing touched the Kindled (no foe at hand, no blow)
+var _free_n := 0
+var _errs: Array = []         # this second's errors (for percentiles)
+var _err_max := 0.0
+var _fix_n := 0
+var _jump_n := 0
+var _diag_t := 0.0
 
 
 func setup(st: Dungeon, as_host: bool) -> void:
 	stage = st
 	host = as_host
 	name = "NetRun"
+	floor_id = st.layout.depth
 	Net.i.run_sync = self
 	if host:
 		Net.recording = true
@@ -41,18 +91,27 @@ func setup(st: Dungeon, as_host: bool) -> void:
 		for a in stage.actors:
 			if a.net_id == 0:
 				register_actor(a)
+		# nobody starts a floor ahead of the party
+		if Net.party_size() > 1:
+			_waiting = true
+			stage.paused_sim = true
 	else:
 		Net.recording = false
 		for a in stage.actors:
 			if a is Player and a.net_id != 0:
 				replicas[a.net_id] = a
+		apply_events(Net.i.take_early(floor_id))
+		Net.i.to_host("_floor_ready", [floor_id])
 
 
 func _exit_tree() -> void:
+	# the next floor's NetRun is set up before this one is freed: only the
+	# floor still in charge may stop the recording
 	if Net.i and Net.i.run_sync == self:
 		Net.i.run_sync = null
+		if host:
+			Net.recording = false
 	if host:
-		Net.recording = false
 		if Events.banner.is_connected(_on_banner):
 			Events.banner.disconnect(_on_banner)
 			Events.toast.disconnect(_on_toast)
@@ -84,6 +143,10 @@ func register_actor(a: Actor) -> void:
 		a.net_id = _next_id
 	if a is Player:
 		return    # every peer builds the party itself, ids by seat
+	Net.rec(["actor+", a.net_id, _describe(a)])
+
+
+func _describe(a: Actor) -> Dictionary:
 	var d := {"pos": a.pos}
 	if a is Enemy:
 		var e := a as Enemy
@@ -91,30 +154,42 @@ func register_actor(a: Actor) -> void:
 			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": e.spawn_t, "boss": e == stage.boss})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
-	Net.rec(["actor+", a.net_id, d])
+	return d
 
 
 func _process(delta: float) -> void:
 	if not Net.active():
 		return
 	if host:
+		if _waiting:
+			_wait_t += delta
+			var all := true
+			for pid in Net.i.present():
+				if int(pid) != 1 and int(Net.i.ready_floor.get(pid, -1)) != floor_id:
+					all = false
+			if all or _wait_t > 10.0:
+				_waiting = false
+				stage.paused_sim = false
+				Game.send_checkpoints()
+				print("[net] floor %d starts (%s, %.1f s)" % [floor_id, "everyone is here" if all else "waited long enough", _wait_t])
+		# events go out the frame they happen (a batch per frame, reliable)
+		if not events.is_empty():
+			var evs := events
+			events = []
+			for ev in evs:
+				if String(ev[0]) == "prop+":
+					_prop_made.append(ev)     # a returning guest gets these again
+			Net.i.rpc("_events", floor_id, evs)
 		_snap_t += delta
 		if _snap_t >= 1.0 / SNAP_HZ:
 			_snap_t = 0.0
 			_capture_props()
-			if not events.is_empty():
-				Net.i.rpc("_events", events)
-				events = []
-			# small, compressed chunks: each fits one packet (no fragmenting)
-			for chunk in _snapshot():
-				var raw := var_to_bytes(chunk)
-				Net.i.rpc("_snapz", raw.compress(FileAccess.COMPRESSION_ZSTD), raw.size())
+			_send_snapshots()
+			for v in _votes.values():
+				if stage.elapsed > float(v.until):
+					_finish_vote(v, false, "Not everyone answered.")
 	else:
-		_in_t += delta
-		if _in_t >= 1.0 / INPUT_HZ:
-			_in_t = 0.0
-			_send_input()
-		_smooth(delta)
+		_client_tick(delta)
 
 
 ## Floats rounded to 1/64 fit 32 bits exactly, which halves their size on the wire.
@@ -122,8 +197,9 @@ static func q(x: float) -> float:
 	return roundf(x * 64.0) / 64.0
 
 
-func _snapshot() -> Array:
-	var acts: Array = []
+func _send_snapshots() -> void:
+	var t := Time.get_ticks_msec()
+	var acts: Array = []      # [row, always sent]
 	var pls: Array = []
 	for a in stage.actors:
 		if not is_instance_valid(a) or a.net_id == 0:
@@ -135,8 +211,8 @@ func _snapshot() -> Array:
 		if a is Enemy:
 			sh = (a as Enemy).shield
 			shm = (a as Enemy).shield_max
-		acts.append([a.net_id, q(a.pos.x), q(a.pos.y), q(a.height), q(a.bob), q(a.facing.x), q(a.facing.y),
-			s.anim if s else "", s.frame_i if s else 0, q(a.hp), q(a.max_hp), q(sh), q(shm), flags])
+		acts.append([[a.net_id, q(a.pos.x), q(a.pos.y), q(a.height), q(a.bob), q(a.facing.x), q(a.facing.y),
+			s.anim if s else "", s.frame_i if s else 0, q(a.hp), q(a.max_hp), q(sh), q(shm), flags], a is Player or a == stage.boss])
 		if a is Player:
 			var p := a as Player
 			var w := p.weapon
@@ -144,25 +220,74 @@ func _snapshot() -> Array:
 				p.downed, q(p.bleed_t), q(p.revive_k), q(p.look.x), q(p.look.y), q(p.aim.x), q(p.aim.y),
 				int(w.phase) if w else 0, q(w.swing) if w else 0.0, q(w.aim_dir.x) if w else 1.0, q(w.aim_dir.y) if w else 0.0, w.charged if w else false,
 				p.hearthcall_t, p.run.embers if p.run else 0, p.run.sunshards if p.run else 0, p.run.relics if p.run else [],
-				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0])
+				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0, q(p.hurt_t), q(p.status.speed_mult())])
 	var prs: Array = []
 	for pr in stage.projectiles:
 		if is_instance_valid(pr) and pr.net_id != 0:
 			prs.append([pr.net_id, q(pr.pos.x), q(pr.pos.y), q(pr.height)])
+	_key_phase = (_key_phase + 1) % KEY_EVERY
+	for pid in Net.i.present():
+		if int(pid) != 1:
+			_send_to(int(pid), t, acts, pls, prs)
+
+
+## One client's snapshot: rows near its Kindled that changed (or are due a
+## refresh), in small compressed chunks that each fit one packet.
+func _send_to(peer: int, t: int, acts: Array, pls: Array, prs: Array) -> void:
+	var me := _player_of(peer)
+	var ref: Vector2 = me.pos if me else Vector2.ZERO
+	var r2 := INTEREST * INTEREST
+	var sent: Dictionary = _sent.get(peer, {})
+	_sent[peer] = sent
+	var rows: Array = []
+	for e in acts:
+		var row: Array = e[0]
+		var id := int(row[0])
+		if me and not bool(e[1]) and Vector2(row[1], row[2]).distance_squared_to(ref) > r2:
+			continue
+		var key := row.duplicate()
+		key[8] = 0     # animation frames tick on their own; only a jump is resent
+		if sent.get(id) != key or id % KEY_EVERY == _key_phase:
+			sent[id] = key
+			rows.append(row)
+	var near_prs: Array = []
+	for p in prs:
+		if me == null or Vector2(p[1], p[2]).distance_squared_to(ref) <= r2:
+			near_prs.append(p)
+	var pk_sent: Dictionary = _pick_sent.get(peer, {})
+	_pick_sent[peer] = pk_sent
 	var pks: Array = []
 	for pk in stage.pickups:
 		if is_instance_valid(pk) and pk.net_id != 0:
-			var last: Variant = _pick_pos.get(pk.net_id)
 			var cur := Vector3(pk.pos.x, pk.pos.y, pk.height)
+			var last: Variant = pk_sent.get(pk.net_id)
 			if last == null or (last as Vector3).distance_to(cur) > 0.01:
-				_pick_pos[pk.net_id] = cur
+				pk_sent[pk.net_id] = cur
 				pks.append([pk.net_id, q(cur.x), q(cur.y), q(cur.z)])
-	var chunks: Array = [{"a": acts.slice(0, 4), "pl": pls, "pr": prs, "pk": pks, "t": q(stage.run.elapsed)}]
+	var first := {"t": t, "a": rows.slice(0, 4), "pl": pls, "pr": near_prs, "pk": pks, "rt": q(stage.run.elapsed)}
+	if me:
+		# which input this answers, and for how long it has been driving the Kindled
+		first["me"] = [me.in_seq, int(me.in_age * 1000.0), q(me.pos.x), q(me.pos.y)]
+	_ship(peer, first)
 	var i := 4
-	while i < acts.size():
-		chunks.append({"a": acts.slice(i, i + 8)})
-		i += 8
-	return chunks
+	while i < rows.size():
+		# as many rows as stay well inside one packet once compressed
+		var n := mini(24, rows.size() - i)
+		while n > 6 and var_to_bytes(rows.slice(i, i + n)).size() > 2600:
+			n -= 6
+		_ship(peer, {"t": t, "a": rows.slice(i, i + n)})
+		i += n
+
+
+func _ship(peer: int, chunk: Dictionary) -> void:
+	var n: int = int(_chunk_n.get(peer, 0)) + 1
+	_chunk_n[peer] = n
+	chunk["c"] = n
+	var raw := var_to_bytes(chunk)
+	var z := raw.compress(FileAccess.COMPRESSION_ZSTD)
+	Net.i.count("snap_out", z.size())
+	Net.i.count("snap_pk")
+	Net.i.rpc_id(peer, "_snapz", floor_id, z, raw.size())
 
 
 ## Props change rarely: send what changed (opened, lit, emptied, gone).
@@ -187,33 +312,69 @@ func _capture_props() -> void:
 			_prop_state.erase(idx)
 
 
-func on_input(peer: int, d: Dictionary) -> void:
+## A client's input packet (see pack_input): newest only, presses counted.
+func on_input(peer: int, d: Array) -> void:
 	var pl := _player_of(peer)
-	if pl == null or not pl.alive:
+	if pl == null or not pl.alive or pl.away or d.size() < 11:
 		return
-	pl.move_in = (d.get("m", Vector2.ZERO) as Vector2).limit_length(1.0)
-	var a: Vector2 = d.get("a", pl.aim)
+	var seq := int(d[0])
+	if seq <= pl.in_seq:
+		return
+	pl.in_seq = seq
+	pl.in_age = 0.0
+	if d.size() > 12 and not pl.downed:
+		# where the owner's prediction stood as it sent this: close enough, with
+		# nothing shoving the Kindled and a clear path, and the host agrees
+		var claim := Vector2(d[11], d[12])
+		var gap := claim - pl.pos
+		if gap.length() > 0.001 and gap.length() <= AGREE_STEP * 3.0 and pl.push.length() < 0.3 and pl.hurt_t <= 0.0:
+			var step := gap.limit_length(AGREE_STEP)
+			pl.pos = stage.grid.move_box(pl.pos, pl.box(), step, pl.flying)
+	pl.move_in = Vector2(d[1], d[2]).limit_length(1.0)
+	var a := Vector2(d[3], d[4])
 	if a.length() > 0.1:
 		pl.aim = a.normalized()
-	pl.aim_point = d.get("ap", pl.aim_point)
-	var held := bool(d.get("h", false))
+	pl.aim_point = Vector2(d[5], d[6])
+	var held := bool(d[7])
 	if bool(_last_held.get(peer, false)) and not held:
 		pl._release_pending = true
+		pl.remote_hold = float(d[10]) / 1000.0
 	pl._attack_down = held
 	_last_held[peer] = held
-	var last: Dictionary = _last_presses.get(peer, {})
-	var now: Dictionary = d.get("p", {})
-	for k in now:
-		if k != "interact" and int(now[k]) > int(last.get(k, 0)):
-			pl.press(String(k))
-	_last_presses[peer] = now.duplicate()
+	var now: Array = d[8]
+	var last: Array = _last_presses.get(peer, [])
+	for k in mini(now.size(), Net.PRESS_KEYS.size()):
+		if Net.PRESS_KEYS[k] != "interact" and int(now[k]) > (int(last[k]) if k < last.size() else 0):
+			pl.press(Net.PRESS_KEYS[k])
+	_last_presses[peer] = now
+	# the owner sees the world a round trip late: give its dodges and Wards that long
+	pl.lag_grace = clampf(float(d[9]) / 1000.0 + 0.05, 0.05, 0.25)
 
 
 func on_ask(peer: int, kind: String, args: Array) -> void:
 	var pl := _player_of(peer)
 	if pl == null:
 		return
+	var p0: Prop = _prop(int(args[0])) if kind in ["buy", "shrine", "echo", "confirm"] else null
+	if p0 and p0.pos.distance_to(pl.pos) > p0.interact_radius + 2.5:
+		p0 = null     # they walked away with the menu open
 	match kind:
+		"buy":
+			if p0 and p0.kind == "merchant":
+				Party.buy(stage, pl, p0, int(args[1]))
+				# the truth either way: what is sold, what is left
+				Net.i.rpc_id(peer, "_offer", "shop", [p0.net_idx, Party.shop_stock(stage, pl, p0)])
+		"shrine":
+			if p0 and p0.kind == "shrine":
+				Party.shrine_choice(stage, pl, p0, String(args[1]))
+		"echo":
+			if p0 and p0.kind == "echo":
+				Party.echo_gift(stage, pl, p0)
+		"confirm":
+			if p0 and p0.kind == "ember_well" and String(args[1]) == "well":
+				Party.draw_well(stage, pl, p0)
+		"vote":
+			cast_vote(peer, int(args[0]), bool(args[1]))
 		"interact":
 			var p := _prop(int(args[0]))
 			if p == null or not p.interactable() or pl.downed or not pl.alive:
@@ -237,6 +398,144 @@ func on_peer_left(peer: int) -> void:
 		pl.alive = false
 		stage.remove_actor(pl)
 		pl.queue_free()
+	_sent.erase(peer)
+	_pick_sent.erase(peer)
+	for v in _votes.values():
+		v.yes.erase(peer)
+		_check_vote(v)
+
+
+## A guest lost the link: its Kindled waits where it stands, untouchable,
+## while its seat waits (Net.SEAT_WAIT); the party's votes go on without it.
+func on_peer_away(peer: int) -> void:
+	var pl := _player_of(peer)
+	if pl:
+		pl.set_away(true)
+		Events.toast.emit("%s's light flickers - they lost the link." % Net.name_of(peer), Color(1.0, 0.75, 0.5))
+	for v in _votes.values():
+		_check_vote(v)
+
+
+## The same Kindled is back under a new peer id: everything of theirs follows.
+func on_rejoin(old: int, new: int) -> void:
+	var pl := _player_of(old)
+	if pl:
+		pl.peer_id = new
+		pl.in_seq = 0
+		pl.set_away(false)
+	if Game.coop_runs.has(old):
+		Game.coop_runs[new] = Game.coop_runs[old]
+		Game.coop_runs.erase(old)
+	for pk in stage.pickups:
+		if is_instance_valid(pk) and pk.owner_peer == old:
+			pk.owner_peer = new
+	# their stock, bargains and pending offers keep their name
+	for p in stage.props:
+		if not is_instance_valid(p):
+			continue
+		for key in p.data.keys():
+			if String(key).ends_with("_%d" % old):
+				p.data[String(key).trim_suffix("_%d" % old) + "_%d" % new] = p.data[key]
+				p.data.erase(key)
+		var taken: Array = p.data.get("taken", [])
+		if taken.has(old):
+			taken[taken.find(old)] = new
+	for m in [_sent, _pick_sent, _chunk_n, _last_presses, _last_held]:
+		(m as Dictionary).erase(old)
+
+
+## Everything a client needs to draw this floor as it is now (a guest who
+## rebuilt it after losing the link): what was made, what changed, who is here.
+func world_dump() -> Array:
+	var out: Array = []
+	out.append_array(_prop_made)
+	for idx in _prop_state:
+		out.append(["prop", idx, _prop_state[idx]])
+	for r in stage.layout.rooms:
+		if r.visited:
+			out.append(["room", r.id])
+	for rid in stage.gate_nodes:
+		var nodes: Array = stage.gate_nodes[rid]
+		if not nodes.is_empty():
+			var t: Vector2i = nodes[0].get_meta("tile")
+			if stage.grid.at(t.x, t.y) == TileGrid.GATE:
+				out.append(["gate", rid, true])
+	for a in stage.actors:
+		if is_instance_valid(a) and a.alive and a.net_id != 0 and not (a is Player):
+			out.append(["actor+", a.net_id, _describe(a)])
+	if stage.boss and is_instance_valid(stage.boss) and stage.boss.alive:
+		out.append(["boss", stage.boss.net_id])
+	for pk in stage.pickups:
+		if is_instance_valid(pk) and pk.net_id != 0:
+			out.append(["pick+", [pk.net_id, pk.kind, pk.pos, pk.height, Vector2.ZERO, pk.amount, pk.data, pk.owner_peer]])
+	return out
+
+
+# --- host: party votes ---------------------------------------------------------------
+
+## Someone asks the party (the stairs, the Hearthstone, the Trial, a Hearthcall):
+## everyone has to agree, within Party.VOTE_TIME; one "not yet" ends it.
+func start_vote(kind: String, idx: int, by: Player) -> void:
+	for v in _votes.values():
+		if v.kind == kind and int(v.idx) == idx:
+			cast_vote(by.peer_id, int(v.id), true)
+			return
+	_vote_n += 1
+	var nv := {"id": _vote_n, "kind": kind, "idx": idx, "by": by.peer_id, "yes": {by.peer_id: true},
+		"until": stage.elapsed + Party.VOTE_TIME}
+	_votes[_vote_n] = nv
+	print("[net] vote %d: %s asked by %s" % [_vote_n, kind, Net.name_of(by.peer_id)])
+	_announce_vote(nv)
+	_check_vote(nv)
+
+
+func cast_vote(peer: int, id: int, agree: bool) -> void:
+	var v: Dictionary = _votes.get(id, {})
+	if v.is_empty() or not Net.i.present().has(peer):
+		return
+	if not agree:
+		_finish_vote(v, false, "%s is not ready yet." % Net.name_of(peer))
+		return
+	if v.yes.has(peer):
+		return
+	v.yes[peer] = true
+	_announce_vote(v)
+	_check_vote(v)
+
+
+func _announce_vote(v: Dictionary) -> void:
+	var yes: Array = v.yes.keys()
+	var need := Net.i.present().size()
+	Net.rec(["vote", v.id, v.kind, v.by, yes, need])
+	Party.show_vote(int(v.id), String(v.kind), int(v.by), yes, need)
+
+
+func _check_vote(v: Dictionary) -> void:
+	if not _votes.has(v.id):
+		return
+	for pid in Net.i.present():
+		if not v.yes.has(pid):
+			return
+	_finish_vote(v, true, "")
+	match String(v.kind):
+		"stairs":
+			Game.descend()
+		"hearthstone":
+			var hs := _prop(int(v.idx))
+			Game.end_run("victory" if hs and hs.data.get("victory", false) else "extracted")
+		"trial":
+			var tp := _prop(int(v.idx))
+			if tp:
+				stage.begin_trial(tp)
+		"hearthcall":
+			Game.end_run("extracted")
+
+
+func _finish_vote(v: Dictionary, passed: bool, why: String) -> void:
+	_votes.erase(v.id)
+	print("[net] vote %d (%s) %s %s" % [int(v.id), String(v.kind), "passed" if passed else "failed:", why])
+	Net.rec(["vote_end", v.id, passed, why])
+	Party.end_vote(int(v.id), passed, why)
 
 
 func _player_of(peer: int) -> Player:
@@ -261,14 +560,133 @@ func tell(pl: Player, text: String, col: Color) -> void:
 		Net.i.rpc_id(pl.peer_id, "_tell", text, col)
 
 
-# --- client: drawing the floor ------------------------------------------------------
+# --- client: this machine's Kindled ---------------------------------------------------
 
-func _send_input() -> void:
+func _client_tick(delta: float) -> void:
 	var pl := stage.player
-	if pl == null:
-		return
-	Net.i.rpc_id(1, "_n_input", {"m": pl.move_in, "a": pl.aim, "ap": pl.aim_point, "h": pl._attack_down, "p": pl.presses})
+	var now_s := Time.get_ticks_usec() / 1000000.0
+	if pl and is_instance_valid(pl):
+		var can := pl.can_predict()
+		if can and not _was_predicting:
+			# back on its feet (or just arrived): start the record afresh from the host's word
+			_traj.clear()
+			_seq_t.clear()
+		_was_predicting = can
+		_send_input(pl, now_s)
+		if can:
+			_traj.append([now_s, pl.pos])
+			while _traj.size() > 2 and now_s - float(_traj[0][0]) > 2.0:
+				_traj.pop_front()
+	_interpolate()
+	_diag_t += delta
+	if _diag_t >= 1.0:
+		diag["err_avg"] = _err_sum / maxf(1.0, _err_n)
+		_errs.sort()
+		diag["err_p50"] = _errs[_errs.size() / 2] if not _errs.is_empty() else 0.0
+		diag["err_p95"] = _errs[mini(_errs.size() - 1, int(_errs.size() * 0.95))] if not _errs.is_empty() else 0.0
+		_errs.clear()
+		diag["err_free"] = _free_sum / maxf(1.0, _free_n)
+		_free_sum = 0.0
+		_free_n = 0
+		diag["err_max"] = _err_max
+		diag["fixes"] = _fix_n / _diag_t
+		diag["jumps"] = _jump_n / _diag_t
+		diag["delay"] = _delay
+		diag["loss"] = _lost / maxf(1.0, _lost + _got)
+		_err_sum = 0.0
+		_err_n = 0
+		_err_max = 0.0
+		_fix_n = 0
+		_jump_n = 0
+		_diag_t = 0.0
 
+
+## Input goes out every frame something changes, and at least INPUT_HZ times a
+## second; the prediction only ever uses what was sent, so it and the host agree.
+func _send_input(pl: Player, now_s: float) -> void:
+	var now := Time.get_ticks_msec()
+	var pr: Array = []
+	for k in Net.PRESS_KEYS:
+		pr.append(int(pl.presses.get(k, 0)))
+	var down := pl._attack_down
+	var changed := pr != _sent_presses or down != _sent_down
+	if not changed and now - _send_ms < 1000.0 / INPUT_HZ - 1.0:
+		return
+	if pr[0] != (_sent_presses[0] if not _sent_presses.is_empty() else 0):
+		_attack_ms = now
+	if down and not _sent_down:
+		_hold_t0 = now
+	if _hold_t0 >= 0:
+		_hold_ms = now - _hold_t0
+	if not down:
+		_hold_t0 = -1
+	_seq += 1
+	var m := pl.move_in.limit_length(1.0)
+	var pkt := [_seq, q(m.x), q(m.y), q(pl.aim.x), q(pl.aim.y), q(pl.aim_point.x), q(pl.aim_point.y), down, pr,
+		int(Net.rtt_s() * 1000.0), _hold_ms, q(pl.pos.x), q(pl.pos.y)]
+	Net.i.to_host("_n_input", [pkt], "in", false)
+	Net.i.count("in_out")
+	pl.pred_move = Vector2(pkt[1], pkt[2])
+	_seq_t[_seq] = now_s
+	_sent_presses = pr
+	_sent_down = down
+	_send_ms = now
+
+
+## Where the prediction had the Kindled at local time `te`.
+func _traj_at(te: float) -> Vector2:
+	for k in range(_traj.size() - 1, -1, -1):
+		var a: Array = _traj[k]
+		if float(a[0]) <= te:
+			if k + 1 < _traj.size():
+				var b: Array = _traj[k + 1]
+				var f := clampf((te - float(a[0])) / maxf(float(b[0]) - float(a[0]), 0.000001), 0.0, 1.0)
+				return (a[1] as Vector2).lerp(b[1], f)
+			return a[1]
+	return _traj[0][1] if not _traj.is_empty() else stage.player.pos
+
+
+## The host says where the Kindled stood after input `seq` had driven it for
+## `age` ms. The prediction compares its own record for that same moment and
+## moves by the difference; the picture keeps up over a few frames.
+func _reconcile(me: Array) -> void:
+	var pl := stage.player
+	if pl == null or not is_instance_valid(pl) or not pl.can_predict() or _traj.is_empty():
+		return
+	var seq := int(me[0])
+	if not _seq_t.has(seq):
+		return
+	var te := float(_seq_t[seq]) + float(me[1]) / 1000.0
+	for s in _seq_t.keys():
+		if int(s) < seq:
+			_seq_t.erase(s)
+	var server := Vector2(me[2], me[3])
+	var err := server - _traj_at(te)
+	var e := err.length()
+	_err_sum += e
+	_err_n += 1
+	_errs.append(e)
+	if pl.hurt_t <= 0.0 and stage.nearest_hostile(pl.team, pl.pos, 2.5, false) == null:
+		_free_sum += e
+		_free_n += 1
+	_err_max = maxf(_err_max, e)
+	if e < 0.04:
+		return
+	var before := pl.pos
+	# from the host's spot, redo the movement made since (staying out of walls)
+	pl.pos = stage.grid.move_box(server, pl.box(), pl.pos - _traj_at(te), pl.flying)
+	var moved := pl.pos - before
+	for s in _traj:
+		s[1] = (s[1] as Vector2) + moved
+	if e > SNAP_DIST:
+		pl.draw_off = Vector2.ZERO
+		_jump_n += 1
+	else:
+		pl.draw_off = (pl.draw_off - moved).limit_length(1.5)
+		_fix_n += 1
+
+
+# --- client: drawing the floor ------------------------------------------------------
 
 func apply_events(evs: Array) -> void:
 	for ev in evs:
@@ -276,16 +694,33 @@ func apply_events(evs: Array) -> void:
 			"fx":
 				stage.fx.callv(String(ev[1]), ev.slice(2))
 			"snd":
-				if ev[2] == null:
+				var who := int(ev[5]) if ev.size() > 5 else 0
+				if ev[2] == null and (who == 0 or who == Net.my_id()):
 					Audio.play(String(ev[1]), float(ev[3]), float(ev[4]))
+				elif ev[2] == null:
+					# another Kindled's own sound: heard from where they stand
+					var other := _player_of(who)
+					if other:
+						Audio.play_at(String(ev[1]), other.pos, float(ev[3]) - 3.0, float(ev[4]))
 				else:
 					Audio.play_at(String(ev[1]), ev[2], float(ev[3]), float(ev[4]))
+			"not":
+				if int(ev[1]) != Net.my_id():
+					apply_events([ev[2]])
+			"by":
+				stage.fx.ally_k = 1.0 if int(ev[1]) == Net.my_id() else maxf(0.05, stage.fx.ally)
+				apply_events([ev[2]])
+				stage.fx.ally_k = 1.0
+			"own":
+				if int(ev[1]) == Net.my_id():
+					apply_events([ev[2]])
 			"actor+":
 				_spawn_replica(int(ev[1]), ev[2])
 			"die":
 				var r = replicas.get(int(ev[1]))
 				if is_instance_valid(r):
 					replicas.erase(int(ev[1]))
+					_hist.erase(int(ev[1]))
 					r.replica_die()
 			"react":
 				var r2 = replicas.get(int(ev[1]))
@@ -336,6 +771,10 @@ func apply_events(evs: Array) -> void:
 					Events.boss_started.emit(b)
 			"boss_down":
 				Events.boss_defeated.emit(stage.boss)
+			"vote":
+				Party.show_vote(int(ev[1]), String(ev[2]), int(ev[3]), ev[4], int(ev[5]))
+			"vote_end":
+				Party.end_vote(int(ev[1]), bool(ev[2]), String(ev[3]))
 
 
 func _spawn_replica(id: int, d: Dictionary) -> void:
@@ -363,7 +802,6 @@ func _spawn_replica(id: int, d: Dictionary) -> void:
 	a.replica = true
 	stage.add_actor(a)
 	replicas[id] = a
-	_goal[id] = [a.pos, 0.0]
 	if a is Enemy and bool(d.get("boss", false)):
 		stage.boss = a
 
@@ -431,64 +869,60 @@ func _tele(ev: Array) -> void:
 		node.set_instance_shader_parameter("progress", clampf((st.elapsed - start) / maxf(dur, 0.01), 0.0, 1.0))
 
 
+## Keeps an estimate of the host's clock from the fastest packets, and of how
+## much later than those the rest tend to arrive (that, plus a snapshot
+## interval and a half, is how far in the past the floor is drawn).
+func _note_clock(t: float, c: int) -> void:
+	var off := t - float(Time.get_ticks_msec())
+	if not _clock_set:
+		_clock = off
+		_clock_set = true
+	elif off > _clock:
+		_clock = off
+	else:
+		_clock += (off - _clock) * 0.002
+	_late = lerpf(_late, _clock - off, 0.1)
+	_delay = clampf(1000.0 / SNAP_HZ * 1.5 + _late * 2.0 + 4.0, 40.0, 250.0)
+	if c > 0:
+		if _last_c > 0 and c > _last_c + 1:
+			_lost += c - _last_c - 1
+		if c > _last_c:
+			_last_c = c
+		_got += 1.0
+		_lost *= 0.995
+		_got *= 0.995
+
+
+func _push_row(buf: Dictionary, id: int, t: float, row: Array) -> void:
+	var h: Array = buf.get(id, [])
+	if not h.is_empty():
+		var last: Array = h.back()
+		if t <= float(last[0]):
+			return
+		if t - float(last[0]) > 1.6 * 1000.0 / SNAP_HZ:
+			# rows only come when something changes: it stood still until just now
+			h.append([t - 1000.0 / SNAP_HZ, last[1]])
+	h.append([t, row])
+	buf[id] = h
+
+
 func apply_snapshot(d: Dictionary) -> void:
-	for e in d.get("a", []):
-		var id := int(e[0])
-		var a = replicas.get(id)
-		if not is_instance_valid(a):
-			continue
-		_goal[id] = [Vector2(e[1], e[2]), float(e[3])]
-		a.bob = float(e[4])
-		a.facing = Vector2(e[5], e[6])
-		if a.sprite and String(e[7]) != "":
-			if a.sprite.anim != String(e[7]) and a.sprite.has_anim(String(e[7])):
-				a.sprite.play(String(e[7]), true)
-			if absi(a.sprite.frame_i - int(e[8])) > 1:
-				a.sprite.set_frame(int(e[8]))
-		a.hp = float(e[9])
-		a.max_hp = float(e[10])
-		if a is Enemy:
-			(a as Enemy).shield = float(e[11])
-			(a as Enemy).shield_max = float(e[12])
-		var flags := int(e[13])
-		a.targetable = flags & 2 != 0
-		if a.visual:
-			a.visual.visible = flags & 4 != 0
-		if a is Player and flags & 1 == 0 and a.alive:
-			a.alive = false
-		elif a is Player and flags & 1 != 0 and not a.alive:
-			(a as Player).revive_replica()
+	var t := float(d.get("t", 0))
+	_note_clock(t, int(d.get("c", -1)))
+	for row in d.get("a", []):
+		_push_row(_hist, int(row[0]), t, row)
+	if d.has("me"):
+		_reconcile(d.me)
 	for p in d.get("pl", []):
 		var pl = replicas.get(int(p[0]))
 		if not is_instance_valid(pl):
 			continue
-		pl.kindle = float(p[1])
-		pl.flask = int(p[2])
-		pl.ability_cd[0] = float(p[3])
-		pl.ability_cd[1] = float(p[4])
-		pl.dodge_charges = float(p[5])
-		pl.downed = bool(p[6])
-		pl.bleed_t = float(p[7])
-		pl.revive_k = float(p[8])
-		pl.look = Vector2(p[9], p[10])
-		if pl != stage.player:
-			pl.aim = Vector2(p[11], p[12])
-		if pl.weapon:
-			pl.weapon.phase = int(p[13])
-			pl.weapon.swing = float(p[14])
-			pl.weapon.aim_dir = Vector2(p[15], p[16])
-			pl.weapon.charged = bool(p[17])
-		pl.hearthcall_t = float(p[18])
-		pl.ward_t = 0.1 if bool(p[22]) else 0.0
-		if pl == stage.player and Game.run:
-			Game.run.embers = int(p[19])
-			Game.run.sunshards = int(p[20])
-			Game.run.xp_gained = int(p[24])
-			if Game.run.relics != p[21]:
-				Game.run.relics = (p[21] as Array).duplicate()
-				pl.rebuild_stats()
-	if Game.run and d.has("t"):
-		Game.run.elapsed = float(d.t)
+		if pl == stage.player:
+			_apply_own(pl, p)
+		else:
+			_push_row(_pl_hist, int(p[0]), t, p)
+	if Game.run and d.has("rt"):
+		Game.run.elapsed = float(d.rt)
 	for p in d.get("pr", []):
 		var pr = projs.get(int(p[0]))
 		if is_instance_valid(pr):
@@ -505,27 +939,141 @@ func apply_snapshot(d: Dictionary) -> void:
 				pk._land()
 
 
-## Replicas glide toward where the host last saw them.
-func _smooth(delta: float) -> void:
-	var k := 1.0 - exp(-delta * 16.0)
-	for id in _goal.keys():
+## This machine's Kindled: the host's word on what only the host knows; what the
+## prediction just did itself (a dodge, a Ward, a spell) is kept until the host
+## has had time to hear of it.
+func _apply_own(pl: Player, p: Array) -> void:
+	var predicting := pl.can_predict()
+	if not pl.held_local("kindle"):
+		pl.kindle = float(p[1])
+	if not pl.held_local("flask"):
+		pl.flask = int(p[2])
+	for k in 2:
+		if not pl.held_local("a%d" % k):
+			pl.ability_cd[k] = float(p[3 + k])
+	if not pl.held_local("dodge"):
+		pl.dodge_charges = float(p[5])
+	pl.downed = bool(p[6])
+	pl.bleed_t = float(p[7])
+	pl.revive_k = float(p[8])
+	pl.hearthcall_t = float(p[18])
+	if p.size() > 26:
+		if float(p[25]) > pl.hurt_t + 0.05:
+			pl.hurt_t = float(p[25])
+		pl.pred_speed = float(p[26])
+	if not predicting:
+		pl.look = Vector2(p[9], p[10])
+		pl.ward_t = 0.1 if bool(p[22]) else 0.0
+	if pl.weapon:
+		var host_phase := int(p[13])
+		var mine_idle := pl.weapon.phase == Weapon.Phase.IDLE
+		# something the host started on its own (a Counterweight blow): take its word
+		var quiet := Time.get_ticks_msec() - _attack_ms > int(Net.rtt_s() * 1000.0) + 250
+		if not predicting or (mine_idle and host_phase != Weapon.Phase.IDLE and quiet):
+			pl.weapon.phase = host_phase
+			pl.weapon.swing = float(p[14])
+			pl.weapon.aim_dir = Vector2(p[15], p[16])
+			pl.weapon.charged = bool(p[17])
+	if Game.run:
+		Game.run.embers = int(p[19])
+		Game.run.sunshards = int(p[20])
+		Game.run.xp_gained = int(p[24])
+		if Game.run.relics != p[21]:
+			Game.run.relics = (p[21] as Array).duplicate()
+			pl.rebuild_stats()
+
+
+## Another Kindled's HUD-free state, applied when the floor's clock reaches it.
+func _apply_other(pl: Player, p: Array) -> void:
+	pl.kindle = float(p[1])
+	pl.flask = int(p[2])
+	pl.ability_cd[0] = float(p[3])
+	pl.ability_cd[1] = float(p[4])
+	pl.dodge_charges = float(p[5])
+	pl.downed = bool(p[6])
+	pl.bleed_t = float(p[7])
+	pl.revive_k = float(p[8])
+	pl.look = Vector2(p[9], p[10])
+	pl.aim = Vector2(p[11], p[12])
+	if pl.weapon:
+		pl.weapon.phase = int(p[13])
+		pl.weapon.swing = float(p[14])
+		pl.weapon.aim_dir = Vector2(p[15], p[16])
+		pl.weapon.charged = bool(p[17])
+	pl.hearthcall_t = float(p[18])
+	pl.ward_t = 0.1 if bool(p[22]) else 0.0
+
+
+func _apply_row(a: Actor, e: Array, own: bool) -> void:
+	if not own:
+		a.bob = float(e[4])
+		a.facing = Vector2(e[5], e[6])
+		if a.sprite and String(e[7]) != "":
+			if a.sprite.anim != String(e[7]) and a.sprite.has_anim(String(e[7])):
+				a.sprite.play(String(e[7]), true)
+			if absi(a.sprite.frame_i - int(e[8])) > 1:
+				a.sprite.set_frame(int(e[8]))
+	a.hp = float(e[9])
+	a.max_hp = float(e[10])
+	if a is Enemy:
+		(a as Enemy).shield = float(e[11])
+		(a as Enemy).shield_max = float(e[12])
+	var flags := int(e[13])
+	a.targetable = flags & 2 != 0
+	if a.visual and not own:
+		a.visual.visible = flags & 4 != 0
+	if a is Player and flags & 1 == 0 and a.alive:
+		a.alive = false
+	elif a is Player and flags & 1 != 0 and not a.alive:
+		(a as Player).revive_replica()
+
+
+## Every replica is drawn `_delay` ms in the past, between the two snapshots
+## around that moment: smooth at any snapshot rate, and true to the host's path.
+func _interpolate() -> void:
+	var rt := float(Time.get_ticks_msec()) + _clock - _delay
+	for id in _hist.keys():
 		var a = replicas.get(id)
 		if not is_instance_valid(a):
-			_goal.erase(id)
+			_hist.erase(id)
+			_applied.erase(id)
 			continue
-		var g: Array = _goal[id]
-		var to: Vector2 = g[0]
-		a.pos = to if a.pos.distance_to(to) > 3.0 else a.pos.lerp(to, k)
-		a.height = lerpf(a.height, float(g[1]), k)
+		var h: Array = _hist[id]
+		while h.size() > 1 and float(h[1][0]) <= rt:
+			h.pop_front()
+		var r0: Array = h[0]
+		var row: Array = r0[1]
+		var own: bool = a == stage.player and (a as Player).can_predict()
+		if not own:
+			var p := Vector2(row[1], row[2])
+			var ht := float(row[3])
+			if h.size() > 1 and rt > float(r0[0]):
+				var r1: Array = h[1]
+				var k := clampf((rt - float(r0[0])) / maxf(float(r1[0]) - float(r0[0]), 1.0), 0.0, 1.0)
+				p = p.lerp(Vector2(r1[1][1], r1[1][2]), k)
+				ht = lerpf(ht, float(r1[1][3]), k)
+			a.pos = p
+			a.height = ht
+		if float(_applied.get(id, -1.0)) != float(r0[0]):
+			_applied[id] = float(r0[0])
+			_apply_row(a, row, own)
+	for id in _pl_hist.keys():
+		var pl = replicas.get(id)
+		if not is_instance_valid(pl):
+			_pl_hist.erase(id)
+			continue
+		var hp: Array = _pl_hist[id]
+		var due: Array = []
+		while not hp.is_empty() and float(hp[0][0]) <= rt:
+			due = hp.pop_front()[1]
+		if not due.is_empty():
+			_apply_other(pl, due)
+		if hp.is_empty():
+			_pl_hist.erase(id)
 
 
 func on_offer(kind: String, args: Array) -> void:
-	match kind:
-		"relic":
-			var idx := int(args[0])
-			Game.ui.relic_choice(args[1], func(id: String) -> void:
-				if id != "":
-					Net.ask("relic", [idx, id]))
+	Party.on_offer(kind, args)
 
 
 ## A plain picture of a non-enemy actor (familiars and such) on a client.

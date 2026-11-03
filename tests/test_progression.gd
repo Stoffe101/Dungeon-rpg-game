@@ -556,3 +556,12 @@ func test_the_hollow_below() -> void:
 			check(not active.has(o), "a new Omen each time")
 			active.append(o)
 	check(active.size() >= 5, "the Omens run out after a while (%d)" % active.size())
+
+
+func test_migration_v9_remembers_settled_runs() -> void:
+	var d := Profile.fresh()
+	d.version = 9
+	d.erase("settled_runs")
+	var m := Profile.migrate(d)
+	eq(int(m.version), Profile.VERSION, "migrated to the current version")
+	check(m.has("settled_runs") and (m.settled_runs as Array).is_empty(), "v10: no co-op runs banked yet")
