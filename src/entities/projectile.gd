@@ -30,6 +30,11 @@ var sprite: PixelSprite
 var light: OmniLight3D
 var spin := false
 var _trail_t := 0.0
+# lobbed shots fly over walls and actors and only act where they land
+var lob_max := 0.0
+var lob_peak := 0.0
+var _lob_t := 0.0
+var _lob_base := 0.0
 
 
 static func create(st: Stage, sheet: String, p: Vector2, v: Vector2, t: int) -> Projectile:
@@ -57,10 +62,31 @@ func with_light(col: Color, energy := 0.8, rng := 2.5) -> Projectile:
 	return self
 
 
+## Makes this a lobbed shot: it arcs up to `peak` and comes down after `flight`.
+func lob(flight: float, peak: float) -> Projectile:
+	lob_max = flight
+	lob_peak = peak
+	life = flight
+	_lob_base = height
+	return self
+
+
 func tick(dt: float) -> void:
 	life -= dt
 	if life <= 0.0:
 		_end()
+		return
+	if lob_max > 0.0:
+		_lob_t += dt
+		var k := clampf(_lob_t / lob_max, 0.0, 1.0)
+		pos += vel * dt
+		height = lerpf(_lob_base, 0.0, k) + 4.0 * lob_peak * k * (1.0 - k)
+		if trail_rate > 0.0:
+			_trail_t += dt
+			while _trail_t > 1.0 / trail_rate:
+				_trail_t -= 1.0 / trail_rate
+				stage.fx.burst(pos, height, trail_color, 1, 0.3, 0.4, 0.0, -vel, 0.6, 0.3)
+		_sync()
 		return
 	if homing_target and is_instance_valid(homing_target) and homing_target.alive and homing_turn > 0.0:
 		var want := (homing_target.pos - pos).normalized() * vel.length()

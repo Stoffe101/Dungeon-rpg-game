@@ -74,9 +74,15 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	_enter_room(start)
 	if "hitlab" in OS.get_cmdline_user_args():
 		# dev: enemies right beside the player, to look at hit feedback up close
-		for k in 3:
-			var e := _make_enemy(["husk", "husk", "guard"][k])
+		# (lab=<id,id,...> picks who)
+		var ids: Array = ["husk", "husk", "guard"]
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("lab="):
+				ids = a.substr(4).split(",")
+		for k in ids.size():
+			var e := _make_enemy(String(ids[k]))
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
+			e.room_id = start.id
 			add_actor(e)
 	if "dumpmap" in OS.get_cmdline_user_args():
 		_dump_map()

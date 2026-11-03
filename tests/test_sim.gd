@@ -348,3 +348,92 @@ func test_new_uniques_work() -> void:
 	for b in ItemDB.blueprints():
 		check(UIKit.item_icon(String(ItemDB.base(b).icon)) != null, "%s has an icon" % b)
 	st.queue_free()
+
+
+func test_gravemole_burrows_and_erupts() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	var m := _enemy(st, "gravemole", Vector2(12, 7))
+	_run(st, 1.0)
+	check(m.state == "under" and not st.hostiles(Actor.Team.PLAYER).has(m), "the Gravemole digs under and can't be targeted")
+	_run(st, 5.0)
+	check(pl.hp < pl.max_hp, "the Gravemole erupts under the Kindled (hp %d)" % int(pl.hp))
+	st.queue_free()
+
+
+func test_lampwight_binds_and_unbinds() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(4, 7))
+	var h := _enemy(st, "husk", Vector2(14, 7))
+	var w := _enemy(st, "lampwight", Vector2(17, 7))
+	_run(st, 2.5)
+	check(h.shield_max > 0.0 and h.shield > 0.0, "the Lampwight shields an ally (%d)" % int(h.shield))
+	w.take_hit(Hit.make(pl, 999.0, ["melee"]))
+	_run(st, 0.2)
+	check(h.shield_max == 0.0, "killing the Lampwight takes the shield away")
+	st.queue_free()
+
+
+func test_spore_mortar_lobs_bombs() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	var m := _enemy(st, "spore_mortar", Vector2(14, 7))
+	var start := m.pos
+	_run(st, 5.0)
+	check(m.pos.distance_to(start) < 0.05, "the Mortar stays rooted")
+	check(pl.hp < pl.max_hp, "a spore bomb lands on a Kindled who stands still (hp %d)" % int(pl.hp))
+	st.queue_free()
+
+
+func test_bramblewright_grows_a_wall_that_withers() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	var b := _enemy(st, "bramblewright", Vector2(11, 7))
+	b.grow_cd = 0.0
+	_run(st, 3.0)
+	var grown := st.props.filter(func(p): return p.kind == "bramble" and p.data.get("grown", false))
+	check(grown.size() >= 3, "the Bramblewright grows a wall (%d)" % grown.size())
+	var solid := 0
+	for p in grown:
+		if st.grid.at(p.tile.x, p.tile.y) == TileGrid.PROP:
+			solid += 1
+	check(solid == grown.size(), "the brambles block the floor")
+	b.grow_cd = 99.0
+	_run(st, 12.0)
+	var left := st.props.filter(func(p): return is_instance_valid(p) and p.kind == "bramble" and p.data.get("grown", false))
+	check(left.is_empty(), "grown brambles wither")
+	check(st.grid.at(grown[0].tile.x, grown[0].tile.y) == TileGrid.FLOOR if not grown.is_empty() else true, "the floor comes back")
+	st.queue_free()
+
+
+func test_duelist_ripostes_blades() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(8, 7))
+	var d := _enemy(st, "duelist", Vector2(9.6, 7))
+	_run(st, 0.8)
+	d.set_state("stance")
+	var hp0 := d.hp
+	pl.deal_hit(d, Hit.make(pl, 20.0, ["melee"]))
+	check(d.hp == hp0 and d.state == "riposte", "a blade in the stance is turned aside")
+	_run(st, 0.4)
+	check(pl.hp < pl.max_hp, "the riposte cuts back (hp %d)" % int(pl.hp))
+	d.set_state("stance")
+	pl.deal_hit(d, Hit.make(pl, 20.0, ["ability", "fire"]))
+	check(d.hp < hp0, "a spell still lands in the stance")
+	st.queue_free()
+
+
+func test_sunwatcher_sweeps_a_beam() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(6, 7))
+	var s := _enemy(st, "sunwatcher", Vector2(13, 7))
+	s.cooldown = 0.0
+	_run(st, 4.0)
+	check(pl.hp < pl.max_hp, "the Sunwatcher's beam burns a Kindled who stands in it (hp %d)" % int(pl.hp))
+	st.queue_free()
