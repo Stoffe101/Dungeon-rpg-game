@@ -54,6 +54,14 @@ for dirpath, _, files in os.walk(os.path.join(ROOT, "src")):
         if f.endswith(".gd") and f != "dev.gd":
             if "get_cmdline_user_args" in open(os.path.join(dirpath, f), encoding="utf-8").read():
                 problems.append("%s reads dev arguments directly (use Dev.args())" % f)
+# exports leave tools/, tests/, docs/ and captures/ out: the game must not need them
+for dirpath, _, files in os.walk(os.path.join(ROOT, "src")):
+    for f in files:
+        if f.endswith((".gd", ".tscn", ".tres")):
+            text = open(os.path.join(dirpath, f), encoding="utf-8").read()
+            for d in ("res://tools/", "res://tests/", "res://docs/", "res://captures/"):
+                if d in text:
+                    problems.append("%s uses %s (left out of exports)" % (f, d))
 steam = read("src/net/steam_link.gd")
 if "if id == SPACEWAR and not Dev.enabled()" not in steam:
     problems.append("SteamLink no longer refuses Spacewar in release builds")

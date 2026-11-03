@@ -5,7 +5,7 @@
 class_name Looks
 extends RefCounted
 
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 
 const LOOKS := {
 	"kindled": {"short": "Kindled", "name": "The Kindled", "desc": "Hearth-blue cloak, ember scarf.", "cloak": [], "scarf": []},

@@ -228,11 +228,12 @@ static func coop(ui: UIRoot) -> Control:
 		if not Net.active():
 			if Net.i.steam.online:
 				buttons.add_child(UIKit.button("Host on Steam", func() -> void: Net.i.steam.host_lobby(true), 80))
+				buttons.add_child(UIKit.button("Join a friend", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
 			buttons.add_child(UIKit.button("Host (LAN / IP)", func() -> void: Net.i.host(), 80))
 			buttons.add_child(UIKit.button("Join IP", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
 		else:
 			if Net.is_host() and Net.i.steam.lobby_id != 0:
-				buttons.add_child(UIKit.button("Invite friends", func() -> void: Net.i.steam.invite(), 80))
+				buttons.add_child(UIKit.button("Invite friends", func() -> void: ui.open(Screens.steam_friends(ui)), 80))
 			buttons.add_child(UIKit.button("Leave party", func() -> void:
 				Net.i.leave()
 				Net.i._status("Left the party."), 80))
@@ -455,6 +456,42 @@ static func _shrine_panel(ui: UIRoot, spent: bool, curse_id: String, choose: Cal
 		curse.custom_minimum_size = Vector2(250, 26)
 		v.add_child(curse)
 	v.add_child(UIKit.button("Refuse", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+## Steam friends who are online: Invite them to your lobby, or Join the party
+## they are in (works without the overlay, which often does not show when the
+## game was not started by Steam).
+static func steam_friends(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(5)
+	p.add_child(v)
+	var sl: SteamLink = Net.i.steam
+	var hosting := Net.is_host() and sl.lobby_id != 0
+	v.add_child(_title("Invite Friends" if hosting else "Steam Friends"))
+	if hosting and sl.online and bool(sl.steam.call("isOverlayEnabled")):
+		v.add_child(UIKit.button("Open the Steam overlay", func() -> void: sl.invite(), 140))
+	var friends := sl.friends_online()
+	if friends.is_empty():
+		v.add_child(UIKit.para("No friends are online on Steam right now.", 220, UIKit.C_DIM))
+	var list := UIKit.vbox(2)
+	v.add_child(list)
+	for f in friends.slice(0, 12):
+		var row := UIKit.hbox(6)
+		row.add_child(UIKit.label(String(f.name) + ("  (playing)" if f.playing else ""), 8, UIKit.C_GOLD if f.playing else UIKit.C_TEXT))
+		var fill := Control.new()
+		fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(fill)
+		var fid := int(f.id)
+		var lob := int(f.get("lobby", 0))
+		if hosting:
+			row.add_child(UIKit.button("Invite", func() -> void: sl.invite_friend(fid), 50))
+		elif lob != 0 and not Net.active():
+			row.add_child(UIKit.button("Join", func() -> void:
+				ui.close_top()
+				sl.join_lobby(lob), 50))
+		list.add_child(row)
+	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
 	return _center(p)
 
 

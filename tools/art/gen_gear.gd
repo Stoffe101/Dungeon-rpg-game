@@ -6,7 +6,7 @@
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 const Sheet = preload("res://tools/art/sheet.gd")
 const GenPlayer = preload("res://tools/art/gen_player.gd")
 const Looks = preload("res://src/data/gear_looks.gd")

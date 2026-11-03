@@ -5,7 +5,7 @@
 extends RefCounted
 
 const Px = preload("res://tools/art/px.gd")
-const Pal = preload("res://tools/art/pal.gd")
+const Pal = preload("res://src/render/pal.gd")
 
 const LEATHER := [Color8(38, 20, 18), Color8(64, 36, 26), Color8(94, 56, 36), Color8(128, 82, 50), Color8(162, 112, 68), Color8(196, 146, 92)]
 const LINING := [Color8(30, 12, 22), Color8(48, 20, 32), Color8(66, 28, 42), Color8(86, 38, 54)]

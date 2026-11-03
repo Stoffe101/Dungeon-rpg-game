@@ -368,9 +368,17 @@ func _dev_net() -> void:
 	for a in Dev.args():
 		if a == "net=host" and not Net.active():
 			after(0.3, func() -> void: Net.i.host())
-		elif a.begins_with("net=join:") and not Net.active():
-			var addr := a.substr(9)
-			after(0.6, func() -> void: Net.i.join(addr))
+		elif a == "net=steamhost" and not Net.active():
+			# a private lobby (friends see nothing to join) hosted over Steam
+			after(0.5, func() -> void: Net.i.steam.host_lobby(false))
+		elif a.begins_with("net=steamjoin:") and not Net.active():
+			# straight to a host's Steam ID ("self": this account, for a second process)
+			var who := a.substr(14)
+			after(1.0, func() -> void: Net.i.steam.connect_to(Net.i.steam.my_id if who == "self" else int(who)))
+		if (a.begins_with("net=join:") or a.begins_with("net=steamjoin:")) and not Net.active():
+			if a.begins_with("net=join:"):
+				var addr := a.substr(9)
+				after(0.6, func() -> void: Net.i.join(addr))
 			# dev: a joining guest says it is ready once it is in the party
 			var ready_up := func(again: Callable) -> void:
 				if Net.is_client() and Net.i.roster.has(Net.my_id()):

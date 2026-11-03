@@ -57,10 +57,17 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `lootlab` (one drop of each grade beside the player), `omens=<id,id>` (read these Omens next run),
   `descend` (hub: walk through the gate a second after loading), `net=host|join:<ip>`, `name=`, `coop=<n>`,
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
-  `netdiag`, `steam_appid=480` (local Steam experiments). Dev args and the testing stockpile work in debug
+  `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
+  peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`. Dev args and the testing stockpile work in debug
   builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
-  steam_appid.txt in exports, dev switches gated); `tools/dev/build_windows.sh` (needs export templates). `warp=event` + the seed list printed
+  steam_appid.txt in exports, dev switches gated, game code never uses tools/ tests/ docs/ captures/ - they
+  are not exported; the palette lives in `src/render/pal.gd`). Builds: `tools/dev/build_windows.sh release|debug`
+  -> builds/windows-<mode>/ (templates in %APPDATA%/Godot/export_templates/4.7.2.stable). Run a release exe
+  with `APPDATA` pointed at a scratch folder: release builds ignore `profile=` and would use the real save.
+- GodotSteam (gitignored `addons/godotsteam/`): `python tools/steam/fetch_godotsteam.py` (pinned 4.23.2,
+  SHA-256 checked), then `--import`. Steam code reaches it only through `SteamLink` (dynamic calls); the
+  game must keep working without it. Close a SteamMultiplayerPeer before `steamShutdown` (it crashed on quit). `warp=event` + the seed list printed
   as `[dungeon] event room N: <kind>` finds a seed for a given event.
 - Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
   Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled

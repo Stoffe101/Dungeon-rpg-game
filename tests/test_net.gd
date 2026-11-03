@@ -395,3 +395,12 @@ func test_allies_particles_follow_their_own_setting() -> void:
 	check(n > 120 and n < 280, "another Kindled's burst of 4 draws about 1 (%d over 200)" % n)
 	fx.ally_k = 1.0
 	d.queue_free()
+
+
+func test_steam_invites_and_app_ids() -> void:
+	eq(SteamLink.lobby_in(PackedStringArray(["--path", ".", "+connect_lobby", "109775241022380843"])), 109775241022380843, "a launch from an invite names the lobby")
+	eq(SteamLink.lobby_in("+connect_lobby 42".split(" ", false)), 42, "so does a friend's Join game connect string")
+	eq(SteamLink.lobby_in(PackedStringArray(["--path", "."])), 0, "no invite, no lobby")
+	check(SteamLink.configured_app_id() != SteamLink.SPACEWAR or Dev.enabled(), "Spacewar only ever in a debug build")
+	if SteamLink.installed():
+		check(ClassDB.class_has_method("SteamMultiplayerPeer", "create_host") and ClassDB.class_has_method("SteamMultiplayerPeer", "create_client"), "the installed GodotSteam has the transport we use")

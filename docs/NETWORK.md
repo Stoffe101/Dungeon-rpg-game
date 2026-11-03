@@ -11,9 +11,11 @@ cross-machine test plan are in [STEAM.md](STEAM.md).
 - **Transports** (`Net.use_peer`, the same game code above either):
   - *ENet* (`ENetMultiplayerPeer`, UDP port 24565): LAN and direct IP. Over the
     internet the host forwards the port, or everyone joins one LAN-style VPN.
-  - *Steam* (`SteamMultiplayerPeer` through GodotSteam, Steam Networking
-    Sockets with Valve's relay: no ports to open). Optional: the game runs
-    without GodotSteam. See [STEAM.md](STEAM.md).
+  - *Steam* (`SteamMultiplayerPeer` through GodotSteam 4.23.2, Steam
+    Networking Sockets with Valve's relay: no ports to open). Optional: the
+    game runs without GodotSteam, without Steam running and without an App ID
+    (LAN / direct IP). Lobbies and a hosted session verified on one account;
+    joining needs a second account. See [STEAM.md](STEAM.md).
   - *Solo* has no peer at all; every co-op path checks `Net.active()`.
 - **Deterministic floors**: every peer builds the same floor from the run seed
   (`DungeonGen` uses only the passed RNG). Props built from the layout share an
@@ -201,13 +203,15 @@ already voted, distance), so a repeated request changes nothing.
   reconciliation.
 - `src/net/party.gd` (`Party`): interaction ownership, the host side of every
   guest interaction, guests' screens, votes on screen.
-- `src/net/steam_link.gd` (`SteamLink`): Steam lobbies and invites.
+- `src/net/steam_link.gd` (`SteamLink`): Steam lobbies, invites, joining,
+  link statistics; `tools/steam/fetch_godotsteam.py` installs GodotSteam.
 - `src/ui/net_diag.gd` (`NetDiag`): the overlay and `netlog`.
 - `Player.controller` is LOCAL, REMOTE (host side of a guest) or REPLICA
   (client side); `Player.predicting` marks a client's own Kindled.
 - Dev: `net=host`, `net=join:<ip>`, `name=`, `coop=<n>` (the host starts when n
   are in and ready), `coopdive` (vote down a depth, then vote a Hearthcall),
-  `netsim=`, `netlog=`, `netdiag`, `steam_appid=` (debug builds only).
+  `netsim=`, `netlog=`, `netdiag`, `steam_appid=`, `steamtest`,
+  `net=steamhost`, `net=steamjoin:<steam id>`, `localid` (debug builds only).
 
 ## Verified so far
 
@@ -222,5 +226,13 @@ All on one Windows machine, separate processes, localhost:
   back and kept playing with its run.
 - The host quitting mid-floor: the guest banked its depth checkpoint.
 
-Not verified: two machines, a real internet route, Steam (GodotSteam is not
-installed here), a human at the controls.
+- Steam on one account (Spacewar test App ID): initialisation, a private lobby
+  (data, owner), a hosted session, clean quits, the LAN fallback without Steam
+  or without an App ID - in the editor and in an exported debug build.
+- The exported release and debug builds: GodotSteam and steam_api64.dll
+  packaged and loading, no licensed sounds or steam_appid.txt, dev switches
+  ignored in release; the bot playing depth 1 in the debug build.
+
+Not verified: two machines, a real internet route, a second player joining
+over Steam (needs a second Steam account on another PC), a human at the
+controls.

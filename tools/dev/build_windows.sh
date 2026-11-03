@@ -1,29 +1,49 @@
 #!/usr/bin/env bash
-# Windows build: release check, then a release export with the "Windows Desktop"
-# preset into builds/windows/ (gitignored).
+# Windows build: release check, export with the "Windows Desktop" preset, then
+# check what came out.
 #
-#   GODOT=/path/to/godot tools/dev/build_windows.sh [debug]
+#   GODOT=/path/to/godot tools/dev/build_windows.sh [release|debug]
 #
-# Needs Godot's export templates for the same version (4.7.2): Editor > Manage
-# Export Templates > Download and Install, or install the .tpz by hand.
-# A debug export keeps dev arguments and the testing stockpile (for testers);
-# a release export drops them. Steam builds also need GodotSteam's files in the
-# project and the game's own App ID (docs/STEAM.md) - never Spacewar (480).
+# release -> builds/windows-release/, debug -> builds/windows-debug/ (gitignored).
+# Needs Godot's 4.7.2 export templates (Editor > Manage Export Templates).
+# A debug build keeps dev arguments and the testing stockpile (for testers);
+# a release build drops them. With GodotSteam installed (tools/steam/
+# fetch_godotsteam.py) its library and Valve's steam_api64.dll go beside the
+# executable; a Steam release also needs the game's own App ID (docs/STEAM.md) -
+# never Spacewar (480).
 set -eu
 cd "$(dirname "$0")/../.."
 : "${GODOT:?set GODOT to the Godot 4.7 executable}"
 MODE=${1:-release}
 TEMPLATES="${APPDATA:-$HOME/AppData/Roaming}/Godot/export_templates/4.7.2.stable"
-if [ ! -f "$TEMPLATES/windows_release_x86_64.exe" ]; then
-	echo "No export templates for 4.7.2 in $TEMPLATES."
+if [ ! -f "$TEMPLATES/windows_${MODE}_x86_64.exe" ]; then
+	echo "No $MODE export template for 4.7.2 in $TEMPLATES."
 	echo "Install them from the editor (Editor > Manage Export Templates) and run this again."
 	exit 2
 fi
-python tools/dev/release_check.py builds/windows
-mkdir -p builds/windows
-if [ "$MODE" = "debug" ]; then
-	"$GODOT" --headless --path . --export-debug "Windows Desktop" builds/windows/KindledDeep.exe
-else
-	"$GODOT" --headless --path . --export-release "Windows Desktop" builds/windows/KindledDeep.exe
+OUT="builds/windows-$MODE"
+python tools/dev/release_check.py "$OUT"
+rm -rf "$OUT"
+mkdir -p "$OUT"
+"$GODOT" --headless --path . "--export-$MODE" "Windows Desktop" "$OUT/KindledDeep.exe"
+echo "== $OUT"
+ls -la "$OUT"
+FAIL=0
+if [ -d addons/godotsteam ]; then
+	for f in "libgodotsteam.windows.template_${MODE}.x86_64.dll" steam_api64.dll; do
+		if [ ! -f "$OUT/$f" ]; then
+			echo "MISSING beside the executable: $f"
+			FAIL=1
+		fi
+	done
 fi
-ls -la builds/windows
+if [ -f "$OUT/steam_appid.txt" ]; then
+	echo "steam_appid.txt must not ship"
+	FAIL=1
+fi
+# the embedded pack lists every packed file by path: none of the licensed sounds may be there
+if grep -a -q -E "audio/licensed/[A-Za-z0-9_]+.(wav|ogg)" "$OUT/KindledDeep.exe"; then
+	echo "licensed sounds were packed into the build"
+	FAIL=1
+fi
+[ "$FAIL" = "0" ] && echo "build check passed" || { echo "BUILD CHECK FAILED"; exit 1; }

@@ -50,6 +50,7 @@ var ready_floor := {}          # host: peer -> the floor that peer has built (Ne
 var away := {}                 # host: peer -> ms until its seat is given up (it lost the link mid-run)
 var reconnecting_until := 0    # client: ms until it stops trying to reach the host again
 var _last_join := ["", 0]      # client: the address it joined (to reach it again)
+var _connect_until := 0        # client: ms until a connection attempt is given up
 var _retry_t := 0.0
 var _early: Array = []         # client: [floor, events] sent before this machine had built that floor
 
@@ -91,6 +92,12 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_deliver(Time.get_ticks_msec())
+	if _connect_until > 0 and Time.get_ticks_msec() > _connect_until and not active():
+		# the host never answered (a Steam peer can wait forever): give up on this try
+		_connect_until = 0
+		if peer:
+			peer.close()
+		_on_failed()
 	_count_t += delta
 	if _count_t >= 1.0:
 		stats = _count.duplicate()
@@ -102,6 +109,10 @@ func _process(delta: float) -> void:
 			var h := (peer as ENetMultiplayerPeer).host
 			stats["wire_out"] = h.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA)
 			stats["wire_in"] = h.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA)
+		else:
+			# Steam does not count bytes for us: the snapshots are most of it
+			stats["wire_out"] = stats.get("snap_out", 0.0)
+			stats["wire_in"] = stats.get("snap_bytes", 0.0)
 	if is_client():
 		_ping_t += delta
 		if _ping_t >= 0.5:
@@ -123,8 +134,12 @@ func _process(delta: float) -> void:
 
 # --- static helpers ---------------------------------------------------------------
 
+## In a session: hosting, or a client whose host is actually reachable (a
+## Steam peer reports "connected" before the host has answered).
 static func active() -> bool:
-	return i != null and i.peer != null and i.peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+	if i == null or i.peer == null or i.peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return false
+	return i.multiplayer.is_server() or i.multiplayer.get_peers().has(1)
 
 
 static func is_host() -> bool:
@@ -260,6 +275,8 @@ func use_peer(p: MultiplayerPeer, hosting: bool, reach := []) -> void:
 	multiplayer.multiplayer_peer = p
 	if not reach.is_empty():
 		_last_join = reach
+	if not hosting:
+		_connect_until = Time.get_ticks_msec() + 20000
 	if hosting:
 		roster = {1: {"name": _my_name(), "sheet": Profile.character_sheet(), "slot": 0, "id": identity(), "ready": true}}
 		roster_changed.emit()
@@ -349,6 +366,7 @@ func _steady(id: int) -> void:
 
 
 func _on_connected() -> void:
+	_connect_until = 0
 	_steady(1)
 	_status("Connected. Waiting for the host's word..." if reconnecting_until == 0 else "Found the host. Asking for our seat back...")
 	var info := {"proto": PROTOCOL, "ver": game_version(), "id": identity()}
@@ -359,7 +377,8 @@ func _on_connected() -> void:
 
 ## Who this player is to the host: the profile's identity (Steam: the Steam ID).
 static func identity() -> String:
-	if i and i.steam and i.steam.online:
+	# dev (debug builds): a second process on the same Steam account is its own Kindled
+	if i and i.steam and i.steam.online and not Dev.args().has("localid"):
 		return "steam:%d" % i.steam.my_id
 	return Profile.identity()
 
@@ -367,7 +386,10 @@ static func identity() -> String:
 func _on_failed() -> void:
 	if reconnecting_until > 0:
 		return     # still trying (_process reaches out again)
-	_status("Could not connect. Check the address, that the host is hosting, and their firewall.")
+	if String(_last_join[0]) == "steam":
+		_status("Could not reach the host over Steam. Check that they are still hosting.")
+	else:
+		_status("Could not connect. Check the address, that the host is hosting, and their firewall.")
 	leave()
 
 
@@ -450,10 +472,11 @@ func refresh_sheet() -> void:
 		_broadcast_roster()
 
 
-## Host: the measured link to one client (ENet's own figures).
+## Host: the measured link to one client (ENet's figures, or Steam's).
 func link_of(id: int) -> Dictionary:
 	if not (peer is ENetMultiplayerPeer):
-		return {}
+		var s: Dictionary = steam.link_stats(peer, id) if steam else {}
+		return {"rtt": int(s.get("ping", 0)), "loss": 0.0, "throttle": 0, "steam": s}
 	var p := (peer as ENetMultiplayerPeer).get_peer(id)
 	if p == null:
 		return {}
