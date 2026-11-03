@@ -22,11 +22,44 @@ static func single(dir: String, name: String, c: Px, origin: Vector2i) -> void:
 
 
 static func build(dir: String) -> void:
+	_rugs(dir)
 	_trophies(dir)
 	_rack(dir)
 	_hang_lantern(dir)
 	_stand(dir)
 	_cat(dir)
+
+
+# --- woven rugs, laid flat by the fire and the tent ------------------------------
+
+static func _rugs(dir: String) -> void:
+	var s := Sheet.new(44, 28, Vector2i(22, 14))
+	for v in 2:
+		var c := Px.new(44, 28)
+		var base: Array = Pal.BLOOD if v == 0 else Pal.CLOAK
+		var trim: Array = Pal.GOLD if v == 0 else Pal.BONE
+		for y in 28:
+			for x in 44:
+				var edge := x < 3 or x > 40 or y < 3 or y > 24
+				var col: Color = Pal.ramp(trim, 2) if edge else Pal.ramp(base, 1 + ((x + y * 2) / 2) % 2)
+				# a woven diamond down the middle and a row of stripes
+				var dx := absi(x - 22)
+				var dy := absi(y - 14)
+				if not edge and dx + dy * 2 < 14 and dx + dy * 2 > 9:
+					col = Pal.ramp(trim, 3)
+				elif not edge and dx + dy * 2 <= 5:
+					col = Pal.ramp(trim, 1)
+				elif not edge and (y == 6 or y == 21) and x % 3 != 0:
+					col = Pal.ramp(trim, 2)
+				if Px.hash01(x, y, 40 + v) > 0.93:
+					col = col.darkened(0.15)
+				c.put(x, y, col)
+		# frayed fringe
+		for y in range(3, 25, 2):
+			c.put(0, y, Color(0, 0, 0, 0))
+			c.put(43, y, Color(0, 0, 0, 0))
+		s.add("rug%d" % v, [c], 1.0)
+	s.save(dir, "rug")
 
 
 # --- trophies -----------------------------------------------------------------

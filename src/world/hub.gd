@@ -169,10 +169,13 @@ func _place() -> void:
 	_camp()
 	_keepsakes()
 	_signboards()
-	for i in 10:
+	# woven rugs where people gather: by the fire and at the tent
+	Prop.make(self, "rug", Vector2i(21, 14), {"anim": "rug0"})
+	Prop.make(self, "rug", Vector2i(30, 19), {"anim": "rug1"})
+	for i in 26:
 		var t := Vector2i(rng.randi_range(5, 37), rng.randi_range(5, 19))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and Vector2(t).distance_to(Vector2(21, 11)) > 3.0:
-			Prop.make(self, "decal", t, {"variant": rng.randi_range(4, 7)})
+			Prop.make(self, "decal", t, {"variant": rng.randi_range(0, 9), "row": "camp"})
 
 
 ## The survivors' camp around the Hearth, and the spots residents gravitate to.

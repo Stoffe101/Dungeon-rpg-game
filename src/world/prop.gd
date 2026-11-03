@@ -169,6 +169,8 @@ func _build() -> void:
 			_light(Color(0.4, 0.95, 0.85), 1.3, 5.5, Vector3(0, 1.0, 0.3))
 			interact_radius = 1.3
 			ticks = true
+		"rug":
+			_flat("rug", String(data.get("anim", "rug0")))
 		"spikes":
 			_flat("spikes", "down")
 			ticks = true
@@ -240,7 +242,7 @@ func _decal(v: int) -> void:
 	mi.mesh = q
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = Vector3(0, 0.006, 0)
-	var row := ["ossuary", "rootmire", "throne"].find(String(data.get("row", "ossuary")))
+	var row := ["ossuary", "rootmire", "throne", "camp"].find(String(data.get("row", "ossuary")))
 	mi.set_instance_shader_parameter("frame", Vector2(v % info.cols, maxi(row, 0)))
 	mi.set_instance_shader_parameter("flip", 1.0 if randf() > 0.5 else 0.0)
 	add_child(mi)

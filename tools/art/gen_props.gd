@@ -508,7 +508,7 @@ static func _decals(dir: String) -> void:
 	var s := Sheet.new(20, 20, Vector2i(10, 10))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77
-	for row in ["ossuary", "rootmire", "throne"]:
+	for row in ["ossuary", "rootmire", "throne", "camp"]:
 		var fr: Array = []
 		for v in 10:
 			var c := Px.new(20, 20)
@@ -517,6 +517,8 @@ static func _decals(dir: String) -> void:
 					_decal_ossuary(c, v, rng)
 				"rootmire":
 					_decal_rootmire(c, v, rng)
+				"camp":
+					_decal_camp(c, v, rng)
 				_:
 					_decal_throne(c, v, rng)
 			fr.append(c)
@@ -669,6 +671,67 @@ static func _decal_rootmire(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 			for k in 6:
 				c.lit(3 + k * 2, 10 + (k % 2), Pal.SOUL[3])
 				c.put(3 + k * 2, 11 + (k % 2), Pal.BONE[1])
+
+
+## The camp's floor: straw, wood chips, pebbles, spilled grain, flowers from the
+## planters, a ring of old ash, boot prints and (of course) paw prints.
+static func _decal_camp(c: Px, v: int, rng: RandomNumberGenerator) -> void:
+	match v:
+		0, 1:
+			# straw
+			for k in 7:
+				var x := rng.randi_range(2, 14)
+				var y := rng.randi_range(3, 16)
+				c.line(x, y, x + rng.randi_range(2, 4), y + rng.randi_range(-1, 1), Pal.GOLD[2] if k % 2 == 0 else Pal.GOLD[1])
+		2:
+			# wood chips from the woodpile
+			for k in 6:
+				var x := rng.randi_range(3, 15)
+				var y := rng.randi_range(3, 15)
+				c.put(x, y, Pal.WOOD[3])
+				c.put(x + 1, y, Pal.WOOD[2])
+		3:
+			for k in 6:
+				var x := rng.randi_range(3, 15)
+				var y := rng.randi_range(3, 15)
+				c.put(x, y, Pal.STONE[3])
+				c.put(x, y + 1, Pal.STONE[1])
+		4:
+			# spilled grain
+			_blob(c, 10.0, 10.0, 5.0, 2.6, Pal.BONE[3], 0.45)
+		5:
+			# fallen petals from the planters
+			for k in 5:
+				var x := rng.randi_range(3, 15)
+				var y := rng.randi_range(4, 15)
+				c.put(x, y, Pal.BLOOD[3] if k % 2 == 0 else Pal.GOLD[3])
+		6:
+			# a ring of old ash where a fire once was
+			for k in 14:
+				var a := k * TAU / 14.0
+				c.put(int(10 + cos(a) * 6.0), int(10 + sin(a) * 3.5), Pal.ASH[1])
+			_blob(c, 10.0, 10.0, 3.0, 1.6, Pal.ASH[0], 0.4)
+		7:
+			# boot prints
+			for k in 3:
+				var x := 4 + k * 5
+				var y := 12 - k * 2 + (k % 2) * 3
+				c.put(x, y, Pal.EARTH[0])
+				c.put(x + 1, y, Pal.EARTH[0])
+				c.put(x, y + 1, Pal.EARTH[0])
+		8:
+			# paw prints: the cat has been everywhere
+			for k in 4:
+				var x := 3 + k * 4
+				var y := 9 + (k % 2) * 2
+				c.put(x, y, Pal.EARTH[0])
+				c.put(x - 1, y - 1, Pal.EARTH[0])
+				c.put(x + 1, y - 1, Pal.EARTH[0])
+		_:
+			# a tuft of tough grass
+			for k in 5:
+				var x := 6 + k * 2
+				c.line(x, 15, x + rng.randi_range(-1, 1), 11 - (k % 2) * 2, Pal.MOSS[3])
 
 
 static func _decal_throne(c: Px, v: int, rng: RandomNumberGenerator) -> void:

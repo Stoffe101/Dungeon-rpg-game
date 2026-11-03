@@ -1,5 +1,11 @@
 {
 	"anims": {
+		"camp": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 3
+		},
 		"ossuary": {
 			"fps": 1.0,
 			"frames": 10,
