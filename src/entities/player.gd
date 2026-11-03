@@ -583,6 +583,8 @@ func _try_ability(slot: int) -> void:
 		return
 	if id != "gloamstep":
 		Abilities.echo(self, id, cast_at, cast_dir, aim_point)
+	if weapon and weapon.has_method("inscribe"):
+		weapon.inscribe(id)
 	if pay_hp > 0.0:
 		hp -= pay_hp
 		kindle = 0.0

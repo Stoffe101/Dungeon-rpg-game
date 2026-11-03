@@ -55,6 +55,26 @@ const WEAPONS := {
 		"damage": [15.0, 15.0, 26.0],
 		"charged": 46.0,
 	},
+	"bow": {
+		"name": "Hearthbow",
+		"desc": "Quick shots from range. Hold to draw; let go as the draw peaks for a Steady Shot that pierces three and always crits. Slow while drawing.",
+		"icon": "bow",
+		"sprite": "w_bow",
+		"script": "res://src/combat/weapons/bow.gd",
+		"unlock": {"sunshards": 2, "embers": 250, "rootwood": 6},
+		"damage": [11.0],
+		"charged": 42.0,
+	},
+	"tome": {
+		"name": "Emberwright's Tome",
+		"desc": "A spellcaster's book. Hold to read: seeking motes of script stream at your foes, and every one that lands hurries your spells. Each spell you cast writes its element into the next pages.",
+		"icon": "tome",
+		"sprite": "w_tome",
+		"script": "res://src/combat/weapons/tome.gd",
+		"unlock": {"sunshards": 2, "embers": 300, "soul_glass": 8},
+		"damage": [6.0],
+		"charged": 0.0,
+	},
 }
 
 ## Forge levels: +12% damage per level. +3 Tempers a weapon (its signature),
@@ -75,6 +95,8 @@ const FORGE_SIGNATURES := {
 	"staff": "Tempered: ember bolts pierce one extra enemy.",
 	"daggers": "Tempered: the crossing cut strikes with full force.",
 	"spear": "Tempered: thrusts slip past shields.",
+	"bow": "Tempered: quick shots pierce a foe.",
+	"tome": "Tempered: motes pierce a foe.",
 }
 const FORGE_MASTERWORK := {
 	"sword": "Masterwork: the whirling cut leaves a ring of embers that sets foes alight.",
@@ -82,6 +104,8 @@ const FORGE_MASTERWORK := {
 	"staff": "Masterwork: the fireball bursts into a ring of ember bolts.",
 	"daggers": "Masterwork: the shadow left by Shadowstep cuts again.",
 	"spear": "Masterwork: the sweep hurls a piercing lance of sunfire.",
+	"bow": "Masterwork: a Steady Shot splits in two at the first foe it meets.",
+	"tome": "Masterwork: every fifth mote is a glyph that bursts where it lands.",
 }
 
 const ABILITIES := {

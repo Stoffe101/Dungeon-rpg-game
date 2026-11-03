@@ -123,6 +123,36 @@ static func _weapons(dir: String) -> void:
 		sp.lit(x, 4, Pal.EMBER[4] if x % 2 == 0 else Pal.EMBER[3])
 	sp.outline(Pal.INK)
 	single(dir, "w_spear", sp, Vector2i(10, 4))
+	# Hearthbow: a recurve of blackened ashwood, string glowing faintly (held at the grip, x=4)
+	var bw := Px.new(12, 22)
+	var limb := bw.mask()
+	limb.line(4, 11, 6, 6).line(6, 6, 8, 2).line(8, 2, 10, 1)
+	limb.line(4, 11, 6, 16).line(6, 16, 8, 20).line(8, 20, 10, 21)
+	limb.line(5, 11, 7, 6).line(5, 11, 7, 16)
+	bw.paint(limb, Pal.WOOD, 2, false)
+	bw.paint(bw.mask().rect(3, 9, 3, 5), Pal.EARTH, 3)
+	for y in range(2, 21):
+		bw.lit(10 if y < 4 or y > 18 else 9, y, Pal.EMBER[2] if y % 3 else Pal.EMBER[3])
+	bw.put(10, 1, Pal.GOLD[3])
+	bw.put(10, 21, Pal.GOLD[3])
+	bw.outline(Pal.INK)
+	single(dir, "w_bow", bw, Vector2i(4, 11))
+	# Emberwright's Tome: an open book of hearth-script, a sigil burning on the page
+	var tm := Px.new(14, 12)
+	tm.paint(tm.mask().poly(V([[1, 3], [7, 4], [13, 3], [13, 10], [7, 11], [1, 10]])), Pal.BLOOD, 2, true)
+	tm.paint(tm.mask().poly(V([[2, 3], [7, 4], [7, 10], [2, 9]])), Pal.BONE, 3)
+	tm.paint(tm.mask().poly(V([[7, 4], [12, 3], [12, 9], [7, 10]])), Pal.BONE, 4)
+	for y in range(5, 9):
+		tm.put(3 + (y % 2), y, Pal.EARTH[2])
+		tm.put(5, y, Pal.EARTH[2])
+	tm.lit(9, 5, Pal.EMBER[4])
+	tm.lit(10, 6, Pal.EMBER[5])
+	tm.lit(9, 7, Pal.EMBER[4])
+	tm.lit(10, 8, Pal.EMBER[3])
+	tm.put(7, 4, Pal.GOLD[3])
+	tm.put(7, 10, Pal.GOLD[3])
+	tm.outline(Pal.INK)
+	single(dir, "w_tome", tm, Vector2i(3, 7))
 
 
 static func c_line(c: Px, x0: int, y0: int, x1: int, y1: int, r: Array, base: int) -> void:
@@ -146,6 +176,18 @@ static func _projectiles(dir: String) -> void:
 		fr.append(c)
 	sh.add("idle", fr, 12.0)
 	sh.save(dir, "proj_ember")
+	# a mote of hearth-script: a tiny burning glyph that seeks
+	var sm := Sheet.new(8, 8, Vector2i(4, 4))
+	fr = []
+	for i in 3:
+		var c := Px.new(8, 8)
+		c.fill_lit(c.mask().ellipse(4.0, 4.0, 2.4, 2.4), Pal.BONE[4])
+		c.lit(4, 4, Pal.WHITE)
+		c.lit(2 + i, 1, Pal.BONE[3])
+		c.lit(6 - i, 6, Pal.BONE[3])
+		fr.append(c)
+	sm.add("idle", fr, 14.0)
+	sm.save(dir, "proj_mote")
 	# fireball
 	var sf := Sheet.new(14, 14, Vector2i(7, 7))
 	fr = []

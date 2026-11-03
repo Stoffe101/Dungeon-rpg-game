@@ -654,3 +654,44 @@ func test_ember_runes() -> void:
 	old.erase("runes")
 	var m := Profile.migrate(old)
 	check(m.has("runes") and (m.runes as Dictionary).has("socketed"), "v8 saves gain runes")
+
+
+func test_bow_and_tome() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	# a Steady Shot released on the draw's peak always crits
+	pl.set_weapon("bow", 0)
+	var e := _enemy(st, "husk", Vector2(9, 7))
+	e.speed = 0.0     # a still target
+	_run(st, 0.8)
+	var crits := [0]
+	Events.damage_dealt.connect(func(_t, _a, crit) -> void:
+		if crit:
+			crits[0] += 1)
+	pl.aim = Vector2.RIGHT
+	pl.weapon.press()
+	_run(st, 0.75)        # draw peaks at 0.6 s; let go inside the window
+	pl.weapon.release()
+	_run(st, 0.5)
+	check(crits[0] >= 1, "a perfectly timed Steady Shot crits")
+	# the Tome: words that land hurry the spells; a spell writes its element
+	pl.set_weapon("tome", 0)
+	var t2 := _enemy(st, "husk", Vector2(8, 7))
+	t2.speed = 0.0
+	t2.max_hp = 900.0
+	t2.hp = 900.0
+	_run(st, 0.8)
+	pl.aim = Vector2.RIGHT
+	pl.ability_slots = ["flare", ""]
+	pl.ability_cd = [3.0, 0.0]
+	pl.weapon.press()
+	_run(st, 1.2)
+	pl.weapon.release()
+	check(pl.ability_cd[0] < 3.0 - 1.2 - 0.1, "Tome hits shorten cooldowns (%.2f)" % pl.ability_cd[0])
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl._try_ability(0)
+	eq(String(pl.weapon.inscribed), "fire", "casting Flare writes fire into the Tome")
+	check(int(pl.weapon.inscribed_n) > 0, "for the next motes")
+	st.queue_free()
