@@ -15,6 +15,7 @@ const GenRootmire = preload("res://tools/art/gen_rootmire.gd")
 const GenItems = preload("res://tools/art/gen_items.gd")
 const GenThrone = preload("res://tools/art/gen_throne.gd")
 const GenCreatures = preload("res://tools/art/gen_creatures.gd")
+const GenSatchel = preload("res://tools/art/gen_satchel.gd")
 
 
 func _init() -> void:
@@ -32,7 +33,9 @@ func _init() -> void:
 		"props": func(): GenProps.build("res://assets/sprites"),
 		"hub": func(): GenHub.build("res://assets/sprites"),
 		"icons": func(): GenIcons.build("res://assets/sprites"),
-		"ui": func(): GenUI.build("res://assets/ui"),
+		"ui": func():
+			GenUI.build("res://assets/ui")
+			GenSatchel.build("res://assets/ui"),
 		"rootmire": func(): GenRootmire.build("res://assets/sprites"),
 		"items": func(): GenItems.build("res://assets/sprites"),
 		"throne": func():

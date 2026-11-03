@@ -19,11 +19,19 @@ var wardrobe_open := false
 var body: HBoxContainer
 var _focus_uid := -1
 var _player_tex: AtlasTexture
+# the bag itself: body, the flap (closed over the front, thrown back when open)
+var _rig: Control
+var _bag: PanelContainer
+var _contents: Control
+var _flap: NinePatchRect
+var _flap_back: NinePatchRect
+var _opened := false
 
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	stats_open = bool(Profile.data.flags.get("satchel_stats", true))
 	var info := SpriteLib.get_sheet("player")
 	_player_tex = AtlasTexture.new()
@@ -52,10 +60,24 @@ func rebuild() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
+	# the bag: a plain rig (so the flaps can sit outside the leather body) holding
+	# the stitched body, with everything inside it in pockets and lining
+	_rig = Control.new()
+	center.add_child(_rig)
+	_flap_back = _nine("res://assets/ui/satchel_flap_inside.png", 10)
+	_rig.add_child(_flap_back)
+	_bag = UIKit.panel("SatchelBody")
+	_rig.add_child(_bag)
 	var outer := UIKit.vbox(4)
-	center.add_child(outer)
+	_contents = outer
+	_bag.add_child(outer)
 	# header
 	var head := UIKit.hbox(8)
+	var em := TextureRect.new()
+	em.texture = load("res://assets/ui/satchel_emblem.png")
+	em.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	em.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	head.add_child(em)
 	head.add_child(UIKit.label("SATCHEL", 16, UIKit.C_GOLD, true))
 	var fill := Control.new()
 	fill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -66,22 +88,133 @@ func rebuild() -> void:
 	head.add_child(UIKit.button("Hide stats" if stats_open else "Show stats", _toggle_stats, 60))
 	head.add_child(UIKit.button("Close", func() -> void: Game.ui.close_top(), 44))
 	outer.add_child(head)
-	body = UIKit.hbox(6)
+	body = UIKit.hbox(5)
 	outer.add_child(body)
 	body.add_child(_doll_panel())
 	body.add_child(_wardrobe_panel() if wardrobe_open else _bag_panel())
 	if stats_open:
-		body.add_child(GearUI.stats_panel())
-	var hint := UIKit.label("", 8, UIKit.C_DIM, true)
+		body.add_child(GearUI.stats_panel(140, "SatchelPocket"))
+	var hint := UIKit.label("", 8, Color(0.85, 0.74, 0.6), true)
 	hint.text = "A equip / take off   X salvage   B close" if Settings.using_pad else "Click: equip / take off    Right-click: salvage    %s: close" % Settings.describe_action("inventory")
 	outer.add_child(hint)
+	_fit_rig()
 	tip = GearUI.FloatTip.new()
 	add_child(tip)
+	if not _opened:
+		_opened = true
+		_animate_open()
 	# keep pad focus on the same item across rebuilds
 	if _focus_uid >= 0:
 		var b := find_child("uid_%d" % _focus_uid, true, false)
 		if b:
 			(b as Control).grab_focus.call_deferred()
+
+
+# --- the bag opening and closing --------------------------------------------------
+
+func _nine(path: String, m: int) -> NinePatchRect:
+	var n := NinePatchRect.new()
+	n.texture = load(path)
+	n.patch_margin_left = m
+	n.patch_margin_right = m
+	n.patch_margin_top = m
+	n.patch_margin_bottom = m
+	n.axis_stretch_horizontal = NinePatchRect.AXIS_STRETCH_MODE_TILE_FIT
+	n.axis_stretch_vertical = NinePatchRect.AXIS_STRETCH_MODE_TILE_FIT
+	n.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	n.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	return n
+
+
+## Sizes the rig to the bag and lays the flaps around it: the underside of the
+## flap thrown back above the bag, the closed flap (with its buckle and the
+## hearth emblem) over the front.
+func _fit_rig() -> void:
+	var ms := _bag.get_combined_minimum_size()
+	var lip := 16.0
+	_rig.custom_minimum_size = ms + Vector2(0, lip)
+	_bag.position = Vector2(0, lip)
+	_bag.size = ms
+	_flap_back.position = Vector2(10, 0)
+	_flap_back.size = Vector2(ms.x - 20, lip + 8)
+	_flap_back.pivot_offset = Vector2(_flap_back.size.x / 2.0, lip + 8)
+	_flap = _nine("res://assets/ui/satchel_flap.png", 16)
+	_rig.add_child(_flap)
+	_flap.position = Vector2(-2, lip - 2)
+	_flap.size = Vector2(ms.x + 4, roundf(ms.y * 0.6))
+	_flap.pivot_offset = Vector2(_flap.size.x / 2.0, 0)
+	var emblem := TextureRect.new()
+	emblem.texture = load("res://assets/ui/satchel_emblem.png")
+	emblem.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	emblem.scale = Vector2(3, 3)
+	emblem.position = Vector2(roundf(_flap.size.x / 2.0) - 27, roundf(_flap.size.y / 2.0) - 36)
+	_flap.add_child(emblem)
+	# two straps down the flap, each fastened with a brass buckle
+	for k in 2:
+		var sx := roundf(_flap.size.x * (0.22 if k == 0 else 0.78)) - 6.0
+		var strap := TextureRect.new()
+		strap.texture = load("res://assets/ui/satchel_strap.png")
+		strap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		strap.stretch_mode = TextureRect.STRETCH_TILE
+		strap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		strap.position = Vector2(sx, 0)
+		strap.size = Vector2(12, _flap.size.y + 18)
+		_flap.add_child(strap)
+		var buckle := TextureRect.new()
+		buckle.name = "Buckle%d" % k
+		buckle.texture = load("res://assets/ui/satchel_buckle.png")
+		buckle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		buckle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		buckle.position = Vector2(sx - 5, _flap.size.y - 12)
+		_flap.add_child(buckle)
+	_flap.visible = not _opened
+	_rig.pivot_offset = _rig.custom_minimum_size / 2.0
+
+
+func _tw() -> Tween:
+	var t := create_tween()
+	t.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	return t
+
+
+## The bag pops up buckled, the buckle springs, the flap swings up and over,
+## and the pockets come into the light.
+func _animate_open() -> void:
+	_rig.scale = Vector2(0.8, 0.8)
+	_rig.modulate.a = 0.0
+	_contents.modulate.a = 0.0
+	_flap_back.scale = Vector2(1, 0)
+	_flap.visible = true
+	var t := _tw()
+	t.tween_property(_rig, "modulate:a", 1.0, 0.1)
+	t.parallel().tween_property(_rig, "scale", Vector2(1.04, 1.04), 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(_rig, "scale", Vector2.ONE, 0.08)
+	for k in 2:
+		var buckle: Control = _flap.get_node("Buckle%d" % k)
+		t.parallel().tween_property(buckle, "position:y", buckle.position.y + 4.0, 0.08)
+	t.tween_property(_flap, "scale:y", 0.0, 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.tween_callback(func() -> void: _flap.visible = false)
+	t.tween_property(_flap_back, "scale:y", 1.0, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(_contents, "modulate:a", 1.0, 0.16)
+
+
+## Called by UIRoot.close_top: the flap falls shut and the bag drops away.
+func animate_close(done: Callable) -> void:
+	if tip:
+		tip.visible = false
+	if _rig == null or not is_instance_valid(_rig):
+		done.call()
+		return
+	_flap.visible = true
+	_flap.scale = Vector2(1, 0)
+	var t := _tw()
+	t.tween_property(_contents, "modulate:a", 0.0, 0.07)
+	t.parallel().tween_property(_flap_back, "scale:y", 0.0, 0.07)
+	t.tween_property(_flap, "scale:y", 1.0, 0.09).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(_rig, "scale", Vector2(0.86, 0.86), 0.09).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.parallel().tween_property(_rig, "modulate:a", 0.0, 0.09)
+	t.tween_callback(done)
 
 
 func _toggle_stats() -> void:
@@ -93,12 +226,12 @@ func _toggle_stats() -> void:
 # --- the Kindled and what they wear -----------------------------------------------
 
 func _doll_panel() -> PanelContainer:
-	var p := UIKit.panel()
+	var p := UIKit.panel("SatchelPocket")
 	var v := UIKit.vbox(2)
 	p.add_child(v)
 	v.add_child(UIKit.label("THE KINDLED   Lv %d" % Profile.level(), 8, UIKit.C_GOLD, true))
 	var doll := Control.new()
-	doll.custom_minimum_size = Vector2(158, 156)
+	doll.custom_minimum_size = Vector2(158, 170)
 	v.add_child(doll)
 	# a soft hearth glow behind the figure
 	var glow := _Glow.new()
@@ -135,6 +268,7 @@ func _doll_panel() -> PanelContainer:
 		lbl.position = DOLL[slot] + (Vector2(0, 26) if slot != "weapon" else Vector2(-4, 26))
 		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		doll.add_child(lbl)
+	_materials(v)
 	return p
 
 
@@ -169,7 +303,7 @@ func _weapon_button() -> Button:
 # --- the wardrobe (transmogrification) ---------------------------------------------------
 
 func _wardrobe_panel() -> PanelContainer:
-	var p := UIKit.panel()
+	var p := UIKit.panel("SatchelLining")
 	var v := UIKit.vbox(3)
 	p.add_child(v)
 	v.add_child(UIKit.label("WARDROBE", 8, UIKit.C_GOLD, true))
@@ -224,8 +358,26 @@ func _wear(id: String) -> void:
 
 # --- the bag ------------------------------------------------------------------------
 
+## What the Kindled has gathered for the smith, kept in the character pocket.
+func _materials(v: VBoxContainer) -> void:
+	v.add_child(UIKit.label("MATERIALS", 8, UIKit.C_GOLD, true))
+	var mg := GridContainer.new()
+	mg.columns = 4
+	mg.add_theme_constant_override("h_separation", 8)
+	for k in ItemDB.MATERIALS:
+		var h := UIKit.hbox(2)
+		var ic := UIKit.item_icon_rect(ItemDB.MATERIALS[k].icon)
+		h.add_child(ic)
+		var n := Profile.material(k)
+		h.add_child(UIKit.label(str(n), 8, UIKit.C_TEXT if n > 0 else UIKit.C_DIM))
+		h.tooltip_text = "%s - %s" % [ItemDB.MATERIALS[k].name, ItemDB.MATERIALS[k].desc]
+		h.mouse_filter = Control.MOUSE_FILTER_PASS
+		mg.add_child(h)
+	v.add_child(mg)
+
+
 func _bag_panel() -> PanelContainer:
-	var p := UIKit.panel()
+	var p := UIKit.panel("SatchelLining")
 	var v := UIKit.vbox(3)
 	p.add_child(v)
 	var bag := Profile.bag()
@@ -259,21 +411,6 @@ func _bag_panel() -> PanelContainer:
 		b.focus_entered.connect(func() -> void: _focus_uid = u)
 		_tip_on(b, func() -> Control: return _item_tip(it, worn, "Click to equip   Right-click to salvage"))
 		grid.add_child(b)
-	# materials
-	v.add_child(UIKit.label("MATERIALS", 8, UIKit.C_GOLD, true))
-	var mg := GridContainer.new()
-	mg.columns = 4
-	mg.add_theme_constant_override("h_separation", 8)
-	for k in ItemDB.MATERIALS:
-		var h := UIKit.hbox(2)
-		var ic := UIKit.item_icon_rect(ItemDB.MATERIALS[k].icon)
-		h.add_child(ic)
-		var n := Profile.material(k)
-		h.add_child(UIKit.label(str(n), 8, UIKit.C_TEXT if n > 0 else UIKit.C_DIM))
-		h.tooltip_text = "%s - %s" % [ItemDB.MATERIALS[k].name, ItemDB.MATERIALS[k].desc]
-		h.mouse_filter = Control.MOUSE_FILTER_PASS
-		mg.add_child(h)
-	v.add_child(mg)
 	# blueprints: unread scrolls to learn, and how many are known
 	var known := Profile.known_blueprints().size()
 	v.add_child(UIKit.label("BLUEPRINTS  %d/%d known" % [known, ItemDB.blueprints().size()], 8, UIKit.C_GOLD, true))

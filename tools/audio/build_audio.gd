@@ -151,6 +151,15 @@ func _sfx() -> void:
 	fx("hearthcall_break", 0.5, func(s):
 		s.noise(0.0, 0.45, 0.5, 3000.0, 300.0, 100.0, 0.005, 3.0, 25.0)
 		s.tone(0.0, 0.35, 660.0, 180.0, "sine", 0.2, 0.005, 3.0))
+	# the satchel: leather creak, the buckle's clink, the flap's swish (and back)
+	fx("satchel_open", 0.45, func(s):
+		s.noise(0.0, 0.16, 0.35, 700.0, 1200.0, 200.0, 0.02, 1.6, 26.0)
+		s.bell(0.1, 0.18, 2650.0, 0.12, [[1.0, 1.0, 22.0], [2.7, 0.5, 30.0]])
+		s.noise(0.2, 0.22, 0.45, 1800.0, 600.0, 250.0, 0.03, 2.5))
+	fx("satchel_close", 0.35, func(s):
+		s.noise(0.0, 0.1, 0.45, 600.0, 1600.0, 250.0, 0.01, 3.0)
+		s.tone(0.08, 0.1, 120.0, 70.0, "sine", 0.5, 0.002, 6.0)
+		s.bell(0.16, 0.15, 2400.0, 0.1, [[1.0, 1.0, 22.0], [2.7, 0.5, 30.0]]))
 	# drawing the bow: a low creak of sinew under strain
 	fx("bow_draw", 0.5, func(s):
 		s.noise(0.0, 0.48, 0.35, 500.0, 1300.0, 150.0, 0.2, 1.2, 28.0)

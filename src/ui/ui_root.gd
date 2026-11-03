@@ -286,7 +286,7 @@ func hide_hud() -> void:
 
 
 ## Opens a modal screen. Pauses the game while it is open (unless told not to).
-func open(screen: Control, pause := true) -> Control:
+func open(screen: Control, pause := true, sound := "ui_open") -> Control:
 	var dim := ColorRect.new()
 	dim.color = Color(0.01, 0.01, 0.03, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -301,11 +301,23 @@ func open(screen: Control, pause := true) -> Control:
 	_last_focus = null
 	if pause:
 		get_tree().paused = true
-	Audio.ui("ui_open")
+	Audio.ui(sound)
 	return dim
 
 
 func close_top() -> void:
+	if modals.is_empty():
+		return
+	# a screen may animate its own closing first (the satchel buckles shut)
+	var top: Control = modals[modals.size() - 1]
+	if top.get_child_count() > 0 and top.get_child(0).has_method("animate_close") and not top.get_meta("closing", false):
+		top.set_meta("closing", true)
+		top.get_child(0).animate_close(_close_now)
+		return
+	_close_now()
+
+
+func _close_now() -> void:
 	if modals.is_empty():
 		return
 	closed_frame = Engine.get_process_frames()
@@ -313,7 +325,7 @@ func close_top() -> void:
 	_last_focus = null
 	var m: Control = modals.pop_back()
 	m.queue_free()
-	Audio.ui("ui_close")
+	Audio.ui(String(m.get_meta("close_sound", "ui_close")))
 	if modals.is_empty() and not _menu_open:
 		get_tree().paused = false
 
@@ -428,7 +440,8 @@ func settings() -> void:
 
 
 func inventory() -> void:
-	open(InventoryUI.new())
+	var dim := open(InventoryUI.new(), true, "satchel_open")
+	dim.set_meta("close_sound", "satchel_close")
 
 
 func smithy() -> void:

@@ -48,6 +48,13 @@ static func theme() -> Theme:
 	var dark := _tex_box("res://assets/ui/ui_panel_dark.png", 4, 5)
 	t.set_type_variation("DarkPanel", "PanelContainer")
 	t.set_stylebox("panel", "DarkPanel", dark)
+	# the satchel: stitched leather, pockets, and the lining of the bag's inside
+	t.set_type_variation("SatchelBody", "PanelContainer")
+	t.set_stylebox("panel", "SatchelBody", _tex_box("res://assets/ui/ui_satchel.png", 12, 10))
+	t.set_type_variation("SatchelPocket", "PanelContainer")
+	t.set_stylebox("panel", "SatchelPocket", _tex_box("res://assets/ui/ui_pocket.png", 7, 7))
+	t.set_type_variation("SatchelLining", "PanelContainer")
+	t.set_stylebox("panel", "SatchelLining", _tex_box("res://assets/ui/ui_lining.png", 4, 6))
 	t.set_type_variation("CardPanel", "PanelContainer")
 	t.set_stylebox("panel", "CardPanel", _tex_box("res://assets/ui/ui_card.png", 6, 8))
 	t.set_stylebox("panel", "TooltipPanel", _tex_box("res://assets/ui/ui_tooltip.png", 4, 5))

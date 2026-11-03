@@ -162,8 +162,8 @@ static func stat_lines() -> Array:
 	]
 
 
-static func stats_panel(width := 140) -> PanelContainer:
-	var p := UIKit.panel("DarkPanel")
+static func stats_panel(width := 140, variation := "DarkPanel") -> PanelContainer:
+	var p := UIKit.panel(variation)
 	var v := UIKit.vbox(1)
 	p.add_child(v)
 	v.add_child(UIKit.label("CHARACTER", 8, UIKit.C_GOLD, true))
