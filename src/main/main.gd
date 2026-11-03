@@ -58,7 +58,7 @@ func _ready() -> void:
 			Looks.choose(a.substr(5))
 		elif a == "unlock=all":
 			# dev: open every region and difficulty tier
-			for k in ["warden_kills", "bloom_kills"]:
+			for k in ["warden_kills", "bloom_kills", "ashen_king_kills"]:
 				Profile.data.world[k] = maxi(1, int(Profile.data.world.get(k, 0)))
 			Difficulty._d()["unlocked"] = Difficulty.MAX_TIER
 		elif a.begins_with("kit="):
@@ -97,6 +97,10 @@ func _ready() -> void:
 			Game.stage.player.input_enabled = false
 		"dungeon":
 			Game.start_run(region)
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("depth="):
+					# dev: start deeper (the Hollow Below's Echo depths, mostly)
+					Game._enter_depth(int(a.substr(6)))
 		"boss":
 			Game.start_run(region)
 			var last := int(EnemyDB.REGIONS[region].depths)

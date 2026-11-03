@@ -156,7 +156,7 @@ func _ready() -> void:
 	team = Team.ENEMY
 	build_visual(def.sheet, "idle")
 	sprite.set_dissolve(1.0)
-	if elite or not grudge.is_empty():
+	if (elite or not grudge.is_empty()) and not def.get("boss", false):
 		_make_nameplate()
 	if _gloom_light and _gloom_light.get_parent() == null:
 		visual.add_child(_gloom_light)

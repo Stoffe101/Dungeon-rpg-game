@@ -110,8 +110,20 @@ func start_run(region := "ossuary", seed_v := -1) -> void:
 
 func _enter_depth(depth: int) -> void:
 	run.depth = depth
+	if run.delve:
+		# the Hollow Below: the region turns every three depths, a guardian's
+		# Echo every third, and each new depth reads another Omen
+		run.region = Delve.region_for(depth)
+		if depth > 1 and not Net.is_client():
+			var om := Delve.next_omen(run.rng, run.omens)
+			if om != "":
+				run.omens.append(om)
+				for cr in coop_runs.values():
+					(cr as RunState).omens.append(om)
+				get_tree().create_timer(3.2, true).timeout.connect(func() -> void:
+					Events.banner.emit("The Deep Stirs", "A new Omen: %s" % Omens.get_def(om).name))
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
-	var boss_depth := depth >= int(region.depths)
+	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth)
 	_clear_stage()
 	var d := Dungeon.new()
@@ -148,12 +160,12 @@ func descend() -> void:
 		tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.45)
 		stage.fx.motes(pl.pos, 0.2, Color(1.0, 0.75, 0.4), 10, 1.2, 0.8, 0.4)
 		Audio.play("gate_flare", -10.0, 1.3)
-	var reg: Dictionary = EnemyDB.REGIONS[run.region]
 	var next := run.depth + 1
+	var reg: Dictionary = EnemyDB.REGIONS[Delve.region_for(next) if run.delve else run.region]
 	var sub := "Depth %d" % next
-	if next >= int(reg.depths):
-		sub += "  -  %s waits below" % String(EnemyDB.get_def(String(reg.boss)).name)
-	ui.title_card(String(reg.name), sub, func() -> void:
+	if (Delve.is_boss_depth(next) if run.delve else next >= int(reg.depths)):
+		sub += "  -  %s%s waits below" % ["an Echo of " if run.delve else "", String(EnemyDB.get_def(String(reg.boss)).name)]
+	ui.title_card(Delve.NAME if run.delve else String(reg.name), sub, func() -> void:
 		transitioning = false
 		if run != null and run.result == "":
 			_enter_depth(run.depth + 1))
@@ -168,7 +180,7 @@ func begin_descent(region: String) -> void:
 	var wait := 0.0
 	if stage is Hub:
 		wait = (stage as Hub).flare_gate()
-	var reg: Dictionary = EnemyDB.REGIONS[region]
+	var reg: Dictionary = {"name": Delve.NAME} if region == "delve" else EnemyDB.REGIONS[region]
 	var omens := (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	if Net.is_host():
@@ -198,7 +210,7 @@ func run_of(peer_id: int) -> RunState:
 ## Client: the host is taking the party down.
 func begin_coop_client(params: Dictionary) -> void:
 	ui.close_all()
-	var reg: Dictionary = EnemyDB.REGIONS[String(params.region)]
+	var reg: Dictionary = {"name": Delve.NAME} if String(params.region) == "delve" else EnemyDB.REGIONS[String(params.region)]
 	var wait := 0.0
 	if stage is Hub:
 		wait = (stage as Hub).flare_gate()
@@ -215,9 +227,9 @@ func begin_coop_client(params: Dictionary) -> void:
 func descend_client(depth: int) -> void:
 	if run == null:
 		return
-	var reg: Dictionary = EnemyDB.REGIONS[run.region]
+	var reg: Dictionary = EnemyDB.REGIONS[Delve.region_for(depth) if run.delve else run.region]
 	var sub := "Depth %d" % depth
-	if depth >= int(reg.depths):
+	if (Delve.is_boss_depth(depth) if run.delve else depth >= int(reg.depths)):
 		sub += "  -  %s waits below" % String(EnemyDB.get_def(String(reg.boss)).name)
 	ui.title_card(String(reg.name), sub, func() -> void:
 		if run != null:
@@ -291,6 +303,9 @@ func end_run(outcome: String, killer_id := "") -> void:
 			Net.i.rpc_id(int(pid), "_run_end", outcome, killer_id, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
+	var delve_best := Delve.best()
+	if run.delve:
+		Profile.data.world["delve_best"] = maxi(delve_best, run.depth)
 	var s := run.settle(outcome)
 	# Omens pay on what is carried home, and on all the experience earned
 	var omen_embers := int(round(int(s.embers_kept) * Omens.bonus(run.omens, "embers")))
@@ -345,6 +360,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
 		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp, "grudges_grew": grew,
+		"delve": run.delve, "delve_best": delve_best,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

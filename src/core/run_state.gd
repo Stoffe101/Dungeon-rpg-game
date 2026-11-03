@@ -37,12 +37,17 @@ var seen_rooms := 0
 var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
 ## Omens read at the Descent (see Omens).
 var omens: Array = []
+## The Hollow Below (see Delve): the region changes as the party goes deeper.
+var delve := false
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
 	var r := RunState.new()
 	r.seed = seed_v
 	r.region = region_id
+	if region_id == "delve":
+		r.delve = true
+		r.region = Delve.region_for(1)
 	r.weapon_id = weapon
 	r.weapon_level = wlevel
 	r.abilities = slots.duplicate()
@@ -56,7 +61,7 @@ func to_dict() -> Dictionary:
 		"embers": embers, "sunshards": sunshards, "xp_gained": xp_gained, "kills": kills,
 		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
-		"loot": loot.duplicate(true), "omens": omens.duplicate()}
+		"loot": loot.duplicate(true), "omens": omens.duplicate(), "delve": delve}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -74,6 +79,7 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.elapsed = float(d.get("elapsed", 0.0))
 	r.loot = (d.get("loot", r.loot) as Dictionary).duplicate(true)
 	r.omens = (d.get("omens", []) as Array).duplicate()
+	r.delve = bool(d.get("delve", false))
 	return r
 
 

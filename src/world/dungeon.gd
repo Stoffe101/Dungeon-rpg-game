@@ -123,7 +123,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	actor_died.connect(_on_actor_died)
 	Audio.play_music(region.music)
 	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
-	var title: String = region.name
+	var title: String = Delve.NAME if run.delve else String(region.name)
 	# a title card already named the place on the way down
 	if Game.ui == null or not Game.ui.card_pending:
 		Events.banner.emit(title, "Depth %d%s" % [lay.depth, ("  -  %s waits below" % String(EnemyDB.get_def(String(region.boss)).name)) if lay.boss_depth else ""])
@@ -822,6 +822,16 @@ func _start_boss(r: Room) -> void:
 		e.pos = c + Vector2(0, -3)
 		e.room_id = r.id
 		_scale(e, 1, int(Profile.data.world.get("memory", 0)))
+		if run.delve:
+			var n := Delve.echo_n(layout.depth)
+			e.max_hp *= 1.0 + 0.35 * n
+			e.hp = e.max_hp
+			e.damage *= 1.0 + 0.1 * n
+			var a := EnemyDB.roll_affix(rng, e.id)
+			e.affix = a
+			e._apply_affix(a)
+			e.elite = true
+			e.display_name = "Echo of %s" % e.display_name
 		add_actor(e)
 		register_enemy(e)
 		boss = e
@@ -1033,6 +1043,14 @@ func _boss_defeated(e: Enemy) -> void:
 	for i in 8:
 		Pickup.spawn(self, "xp", e.pos, 20)
 	var fall := String(e.def.get("fall", "Victory"))
+	if run.delve:
+		# in the Hollow Below a fallen guardian opens the way further down
+		after(2.5, func() -> void:
+			Prop.make(self, "stairs", Vector2i(_open_spot(r.center() + Vector2(0, -2))))
+			Prop.make(self, "hearthstone", Vector2i(_open_spot(r.center() + Vector2(0, 3))))
+			Events.banner.emit("The Echo Fades", "Go deeper, or let the Hearthstone take you home"))
+		Audio.play_music("victory", 2.0)
+		return
 	after(2.5, func() -> void:
 		Prop.make(self, "hearthstone", Vector2i(r.center()) + Vector2i(0, 2), {"victory": true})
 		Events.banner.emit(fall, "Touch the Hearthstone to return in triumph"))

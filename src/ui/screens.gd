@@ -911,7 +911,7 @@ static func descent(ui: UIRoot) -> Control:
 	v.add_child(_title("The Descent"))
 	var mem := int(Profile.data.world.get("memory", 0))
 	var last := String(Profile.data.descent.get("region", "ossuary"))
-	var ctx := {"region": last if EnemyDB.REGIONS.has(last) and EnemyDB.region_unlocked(last) else "ossuary"}
+	var ctx := {"region": last if (EnemyDB.REGIONS.has(last) and EnemyDB.region_unlocked(last)) or (last == "delve" and Delve.unlocked()) else "ossuary"}
 	# one row of region tabs, the chosen (or sealed) region described below
 	var cards: Array = []
 	var tabs := UIKit.hbox(3)
@@ -920,6 +920,10 @@ static func descent(ui: UIRoot) -> Control:
 	about.custom_minimum_size = Vector2(250, 26)
 	v.add_child(about)
 	var describe := func(rid: String) -> void:
+		if rid == "delve":
+			about.text = (Delve.BLURB + ("  Deepest so far: %d." % Delve.best() if Delve.best() > 0 else "")) if Delve.unlocked() else Delve.SEALED
+			about.add_theme_color_override("font_color", UIKit.C_SOUL if Delve.unlocked() else UIKit.C_DIM)
+			return
 		var reg: Dictionary = EnemyDB.REGIONS[rid]
 		var open := EnemyDB.region_unlocked(rid)
 		about.text = String(reg.blurb) if open else String(reg.get("sealed", "Sealed."))
@@ -949,6 +953,26 @@ static func descent(ui: UIRoot) -> Control:
 		card.set_meta("rid", rid)
 		cards.append(card)
 		tabs.add_child(card)
+	# the endless descent, once the Ashen King has fallen
+	var deep := Button.new()
+	deep.toggle_mode = true
+	deep.custom_minimum_size = Vector2(80, 16)
+	deep.text = "Hollow Below"
+	deep.modulate = Color(0.75, 1.0, 0.95) if Delve.unlocked() else Color(0.45, 0.45, 0.5)
+	deep.button_pressed = ctx.region == "delve"
+	deep.set_meta("rid", "delve")
+	deep.pressed.connect(func() -> void:
+		if Delve.unlocked():
+			ctx.region = "delve"
+			Profile.data.descent.region = "delve"
+		for c in cards:
+			c.button_pressed = c == deep if Delve.unlocked() else c.get_meta("rid") == ctx.region
+		describe.call("delve")
+		Audio.ui("ui_click"))
+	deep.mouse_entered.connect(func() -> void: describe.call("delve"))
+	deep.mouse_exited.connect(func() -> void: describe.call(ctx.region))
+	cards.append(deep)
+	tabs.add_child(deep)
 	describe.call(ctx.region)
 	if mem > 0:
 		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
@@ -1256,6 +1280,9 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		sr.add_child(UIKit.label("Sunshards: %d" % int(s.sunshards), 8, UIKit.C_GOLD))
 		v.add_child(sr)
 	v.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
+	if bool(s.get("delve", false)):
+		var best := int(s.get("delve_best", 0))
+		v.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
 	if not (s.get("omens", []) as Array).is_empty():
 		v.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
 	if Profile.skill_points_free() > 0:
