@@ -16,6 +16,7 @@ var _last_play: Dictionary = {}
 var _variants: Dictionary = {}
 ## Dev `audiolog`: print every sound as it plays (and any name with no file).
 var log_sounds := "audiolog" in OS.get_cmdline_user_args()
+var in_sim := false   # the host's world is simulating (its sounds go to the clients too)
 var _music_a: AudioStreamPlayer
 var _music_b: AudioStreamPlayer
 var _music_cur: AudioStreamPlayer
@@ -106,6 +107,8 @@ func _takes(sname: String) -> int:
 ## Plays a one-shot sound, picking one of its takes at random. `gap_ms` keeps a
 ## crowd from stacking the same sound (voices use a longer gap).
 func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms := 30) -> void:
+	if Net.recording and bus == "SFX" and in_sim:
+		Net.rec(["snd", sname, null, volume_db, pitch])
 	var now := Time.get_ticks_msec()
 	if now - int(_last_play.get(sname, -100000)) < gap_ms:
 		return
@@ -132,13 +135,18 @@ func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms :=
 ## A sound from a place in the world: quieter with distance from the Kindled,
 ## silent beyond earshot.
 func play_at(sname: String, at: Vector2, volume_db := 0.0, pitch := 1.0, gap_ms := 30) -> void:
+	if Net.recording:
+		Net.rec(["snd", sname, at, volume_db, pitch])
 	var st = Game.stage
 	if st and st.player:
 		var d: float = (st.player.pos as Vector2).distance_to(at)
 		if d > 16.0:
 			return
 		volume_db -= clampf((d - 4.0) * 1.4, 0.0, 18.0)
+	var was := in_sim
+	in_sim = false
 	play(sname, volume_db, pitch, "SFX", gap_ms)
+	in_sim = was
 
 
 func ui(sname: String) -> void:

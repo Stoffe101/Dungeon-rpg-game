@@ -29,6 +29,9 @@ var hit_set := {}
 var sprite: PixelSprite
 var light: OmniLight3D
 var spin := false
+var net_id := 0
+var replica := false
+var _announced := false
 var _trail_t := 0.0
 # lobbed shots fly over walls and actors and only act where they land
 var lob_max := 0.0
@@ -71,7 +74,35 @@ func lob(flight: float, peak: float) -> Projectile:
 	return self
 
 
+## Co-op host: tell the clients once its flight is set up (callers configure a
+## projectile after create(), so the first tick is when it is complete).
+func _announce() -> void:
+	_announced = true
+	if not Net.recording or Net.i.run_sync == null:
+		return
+	net_id = Net.i.run_sync.next_proj_id()
+	Net.rec(["proj+", [net_id, sprite.sheet.name if sprite else "", pos, vel, height, team, spin, lob_max, lob_peak,
+		light.light_color if light else null, trail_color, trail_rate]])
+
+
+## Co-op client: fly where the host's shot flies (no hits here).
+func replica_step(dt: float) -> void:
+	if lob_max > 0.0:
+		_lob_t += dt
+		var k := clampf(_lob_t / lob_max, 0.0, 1.0)
+		height = lerpf(_lob_base, 0.0, k) + 4.0 * lob_peak * k * (1.0 - k)
+	pos += vel * dt
+	if trail_rate > 0.0:
+		_trail_t += dt
+		while _trail_t > 1.0 / trail_rate:
+			_trail_t -= 1.0 / trail_rate
+			stage.fx.burst(pos, height, trail_color, 1, 0.4, 0.3, 0.0, -vel, 0.6, 0.3)
+	_sync()
+
+
 func tick(dt: float) -> void:
+	if not _announced:
+		_announce()
 	life -= dt
 	if life <= 0.0:
 		_end()
@@ -120,10 +151,9 @@ func _check_hits() -> bool:
 					_end()
 					return true
 	# the player's ward / aegis can turn enemy shots around
-	if team == Actor.Team.ENEMY:
-		var pl := stage.player
-		if pl and pl.alive and pl.pos.distance_to(pos) <= radius + pl.radius + 0.15:
-			if reflectable and pl.try_reflect(self):
+	if team == Actor.Team.ENEMY and reflectable:
+		for pl in stage.players_near(pos, radius + 0.15):
+			if pl.try_reflect(self):
 				return false
 	for a in stage.hostiles(team):
 		if hit_set.has(a.get_instance_id()):
@@ -190,6 +220,8 @@ func _impact_wall() -> void:
 
 
 func _end() -> void:
+	if net_id != 0 and Net.recording:
+		Net.rec(["proj-", net_id])
 	if on_end_fn.is_valid():
 		on_end_fn.call(self, pos)
 		on_end_fn = Callable()

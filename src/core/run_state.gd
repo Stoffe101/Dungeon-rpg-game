@@ -50,6 +50,33 @@ static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, 
 	return r
 
 
+## Everything a co-op client needs to settle this run on its own machine.
+func to_dict() -> Dictionary:
+	return {"seed": seed, "region": region, "tier": tier, "depth": depth, "relics": relics.duplicate(),
+		"embers": embers, "sunshards": sunshards, "xp_gained": xp_gained, "kills": kills,
+		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
+		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
+		"loot": loot.duplicate(true), "omens": omens.duplicate()}
+
+
+static func from_dict(d: Dictionary) -> RunState:
+	var r := RunState.create(int(d.get("seed", 0)), String(d.get("region", "ossuary")), String(d.get("weapon_id", "sword")), int(d.get("weapon_level", 0)), d.get("abilities", ["flare", ""]))
+	r.tier = int(d.get("tier", 1))
+	r.depth = int(d.get("depth", 1))
+	r.relics = (d.get("relics", []) as Array).duplicate()
+	r.embers = int(d.get("embers", 0))
+	r.sunshards = int(d.get("sunshards", 0))
+	r.xp_gained = int(d.get("xp_gained", 0))
+	r.kills = int(d.get("kills", 0))
+	r.rooms_cleared = int(d.get("rooms_cleared", 0))
+	r.elites_slain = int(d.get("elites_slain", 0))
+	r.grudges_settled = (d.get("grudges_settled", []) as Array).duplicate()
+	r.elapsed = float(d.get("elapsed", 0.0))
+	r.loot = (d.get("loot", r.loot) as Dictionary).duplicate(true)
+	r.omens = (d.get("omens", []) as Array).duplicate()
+	return r
+
+
 func add_relic(id: String) -> void:
 	if not relics.has(id):
 		relics.append(id)

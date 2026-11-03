@@ -91,6 +91,7 @@ func build(v: PixelView) -> void:
 		if "descend" in OS.get_cmdline_user_args():
 			# dev: step through the gate a second after the camp loads (captures)
 			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
+		_dev_net()
 		if not Profile.data.flags.get("intro_done", false):
 			Profile.data.flags.intro_done = true
 			after(0.8, func() -> void:
@@ -348,6 +349,35 @@ func may_bark() -> bool:
 		return false
 	_last_bark = elapsed
 	return true
+
+
+## Dev: net=host | net=join:<ip>, name=<name>, coop=<n> (the host takes the
+## party down once n Kindled are in), for testing co-op with real instances.
+static var _dev_net_done := false
+
+func _dev_net() -> void:
+	if _dev_net_done:
+		return
+	_dev_net_done = true
+	var want := 0
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("name="):
+			Settings.set_value("player_name", a.substr(5), false)
+		elif a.begins_with("coop="):
+			want = int(a.substr(5))
+	for a in OS.get_cmdline_user_args():
+		if a == "net=host" and not Net.active():
+			after(0.3, func() -> void: Net.i.host())
+		elif a.begins_with("net=join:") and not Net.active():
+			var addr := a.substr(9)
+			after(0.6, func() -> void: Net.i.join(addr))
+	if want > 1:
+		var check := func(again: Callable) -> void:
+			if Net.is_host() and Net.i.roster.size() >= want:
+				after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
+			else:
+				after(0.5, again.bind(again))
+		after(0.5, check.bind(check))
 
 
 func _spawn_dummies() -> void:

@@ -29,6 +29,7 @@ var _clear_room: Room
 var _death_t := -1.0
 var _killer_id := ""
 var _enter_t := 0.0
+var built := false     # props made after this are announced to co-op clients
 
 
 func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
@@ -40,7 +41,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	var theme := LevelBuilder.LevelTheme.named(region.theme)
 	add_child(LevelBuilder.build(grid, theme))
 	_environment()
-	_pick_grudge_room()
+	if not replica:
+		_pick_grudge_room()
 	_place_props()
 	if run.has_omen("lightless"):
 		_snuff_lights()
@@ -48,12 +50,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	_place_door_icons()
 	if grudge_room >= 0:
 		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
-	# the player
+	# the player (co-op: the whole party)
 	var start := layout.room(layout.start_id)
-	player = Player.new()
-	player.pos = start.center() + Vector2(0, 2)
-	add_actor(player)
-	player.setup_from(run)
+	_spawn_party(start)
 	if "autopilot" in OS.get_cmdline_user_args():
 		player.add_child(Bot.new())
 	if "hearthcall" in OS.get_cmdline_user_args():
@@ -77,7 +76,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if view:
 		view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
-	if "hitlab" in OS.get_cmdline_user_args():
+	if "hitlab" in OS.get_cmdline_user_args() and not replica:
 		# dev: enemies right beside the player, to look at hit feedback up close
 		# (lab=<id,id:affix,...> picks who, and which are elites)
 		var ids: Array = ["husk", "husk", "guard"]
@@ -92,7 +91,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
-	if "lootlab" in OS.get_cmdline_user_args():
+	if "lootlab" in OS.get_cmdline_user_args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
 		lr.seed = 4
@@ -110,6 +109,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				print("[dungeon] event room %d: %s" % [rm.id, rm.event])
+	built = true
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
 	actor_died.connect(_on_actor_died)
@@ -302,6 +302,15 @@ func _pick_grudge_room() -> void:
 # --- per-frame -----------------------------------------------------------------------
 
 func _stage_tick(dt: float) -> void:
+	if replica:
+		if player:
+			var rt := layout.room_at_tile(Vector2i(floori(player.pos.x), floori(player.pos.y)))
+			if rt and rt != current_room:
+				current_room = rt
+				minimap_changed.emit()
+		return
+	if players.size() > 1:
+		_coop_tick(dt)
 	if player == null or not player.alive:
 		return
 	run.elapsed += dt
@@ -309,6 +318,16 @@ func _stage_tick(dt: float) -> void:
 	var r := layout.room_at_tile(t)
 	if r and r != current_room:
 		_enter_room(r)
+	# co-op: whoever steps in first starts the fight (not only this machine's Kindled)
+	for pl in active_players():
+		var pt := Vector2i(floori(pl.pos.x), floori(pl.pos.y))
+		var pr := layout.room_at_tile(pt)
+		if pl != player and pr and not pr.visited:
+			_enter_room(pr, false)
+		if pr and not pr.cleared and pr.is_combat() and active_room == null and pr.rect.grow(-1).has_point(pt):
+			if pl != player:
+				_start_encounter(pr)
+				break
 	if current_room and not current_room.cleared and current_room.is_combat() and active_room == null:
 		# start once the player is properly inside (not on the threshold)
 		var inner := current_room.rect.grow(-1)
@@ -328,6 +347,41 @@ func _stage_tick(dt: float) -> void:
 ## the Rootmire, ash (and the odd ember) falling in the Sunken Throne.
 var _air_t := 0.0
 var _rising := 0   # Restless Dead still getting up
+
+## Every Kindled on the floor. Solo: just this machine's. Co-op: one per seat,
+## the same on every machine (ids by seat); this machine's own drives the camera.
+func _spawn_party(start: Room) -> void:
+	if not Net.active():
+		player = Player.new()
+		player.pos = start.center() + Vector2(0, 2)
+		add_actor(player)
+		player.setup_from(run)
+		return
+	var seats: Array = Net.i.roster.keys()
+	seats.sort_custom(func(a, b): return int(Net.i.roster[a].slot) < int(Net.i.roster[b].slot))
+	for pid in seats:
+		var slot := int(Net.i.roster[pid].slot)
+		var pl := Player.new()
+		pl.peer_id = int(pid)
+		pl.net_id = 1000 + slot
+		var mine := int(pid) == Net.my_id()
+		if replica:
+			pl.controller = Player.Ctrl.REPLICA
+			pl.replica = true
+		elif not mine:
+			pl.controller = Player.Ctrl.REMOTE
+		if not mine:
+			pl.sheet = Net.i.roster[pid].sheet
+		pl.pos = start.center() + Vector2(-1.5 + slot, 2.0 + (slot % 2) * 0.6)
+		add_actor(pl)
+		pl.setup_from(Game.run_of(int(pid)))
+		var col := Net.color_of(int(pid))
+		pl.set_seat(col)
+		if mine:
+			player = pl
+		else:
+			fx.mark(pl, 2.5, Net.name_of(int(pid)), col, 8)
+
 
 func _ambient_air(real: float) -> void:
 	if player == null:
@@ -369,10 +423,12 @@ func _stage_process(real: float) -> void:
 			node.position = base + Vector3(0, roundf(sin(elapsed * 3.0 + base.x) * 1.5) / 16.0, 0)
 
 
-func _enter_room(r: Room) -> void:
-	current_room = r
-	_enter_t = 0.0
+func _enter_room(r: Room, mine := true) -> void:
+	if mine:
+		current_room = r
+		_enter_t = 0.0
 	if not r.visited:
+		Net.rec(["room", r.id])
 		r.visited = true
 		run.seen_rooms += 1
 		Events.room_entered.emit(r.id)
@@ -391,6 +447,8 @@ func _enter_room(r: Room) -> void:
 	if not r.is_combat():
 		r.cleared = true
 	minimap_changed.emit()
+	if not mine:
+		return
 	# only lights near the player need shadows
 	for p in props:
 		if is_instance_valid(p) and p.light and p.kind in ["brazier", "boss_brazier", "torch"]:
@@ -404,6 +462,7 @@ func _start_encounter(r: Room) -> void:
 		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
+	_pull_party_in(r)
 	_set_gates(r, true)
 	if r.type == Room.Type.BOSS:
 		_start_boss(r)
@@ -421,6 +480,12 @@ func _spawn_wave(r: Room) -> void:
 	if far.size() >= ids.size():
 		spots = far
 	var elite_done := false
+	if players.size() > 1:
+		# about 30% more foes per extra Kindled, drawn from the same fight
+		var extra := int(round(ids.size() * 0.3 * (players.size() - 1)))
+		var base_ids := ids.duplicate()
+		for k in extra:
+			ids.append(base_ids[rng.randi_range(0, base_ids.size() - 1)])
 	var tempered := run.has_omen("tempered") and r.type != Room.Type.ELITE
 	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
 	for i in ids.size():
@@ -429,6 +494,7 @@ func _spawn_wave(r: Room) -> void:
 		var e := _make_enemy(id)
 		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
 		_scale(e, layout.depth, memory)
+		_coop_scale(e)
 		var swarm := EnemyDB.get_def(id).has("pack")
 		if r.type == Room.Type.ELITE and not elite_done and not swarm:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
@@ -454,6 +520,15 @@ func _spawn_wave(r: Room) -> void:
 
 ## Depth, Undervault Memory and the difficulty tier; the Lantern of Avarice
 ## makes everything tougher in exchange for its riches.
+## Co-op: each extra Kindled makes a foe sturdier by a third (a boss by half).
+func _coop_scale(e: Enemy) -> void:
+	var extra := players.size() - 1
+	if extra <= 0:
+		return
+	e.max_hp *= 1.0 + (0.5 if e.def.get("boss", false) else 0.35) * extra
+	e.hp = e.max_hp
+
+
 func _scale(e: Enemy, depth: int, memory: int) -> void:
 	e.scale_for(depth, memory, run.tier)
 	if player and player.stats.has("avarice"):
@@ -532,6 +607,7 @@ func _room_cleared() -> void:
 	active_room = null
 	r.cleared = true
 	run.rooms_cleared += 1
+	_rekindle_fallen()
 	_clear_t = 0.6
 	_clear_room = r
 	Events.room_cleared.emit(r.id)
@@ -542,6 +618,19 @@ func _room_cleared() -> void:
 	minimap_changed.emit()
 	slow_motion(0.4, 0.25)
 	Audio.play("room_clear", 0.0)
+
+
+## Co-op: a won room brings back whoever bled out (and stands up the downed).
+func _rekindle_fallen() -> void:
+	if players.size() <= 1:
+		return
+	var leader := nearest_player(current_room.center() if current_room else Vector2.ZERO)
+	for pl in players:
+		if pl.downed:
+			pl.revive(0.4)
+		elif not pl.alive and leader:
+			pl.pos = random_floor_near(leader.pos, 1.5)
+			pl.revive(0.3)
 
 
 func _finish_clear() -> void:
@@ -600,6 +689,13 @@ func _open_spot(p: Vector2) -> Vector2:
 ## Seals (closed) or releases a room's doors. The grid, the nav grid and the
 ## seal sprites always change together, so what you see is what blocks.
 func _set_gates(r: Room, closed: bool) -> void:
+	Net.rec(["gate", r.id, closed])
+	Net.mute += 1
+	_seal(r, closed)
+	Net.mute -= 1
+
+
+func _seal(r: Room, closed: bool) -> void:
 	var soul := Color(0.45, 1.0, 0.9)
 	for g in gate_nodes.get(r.id, []):
 		var t: Vector2i = g.get_meta("tile")
@@ -627,6 +723,69 @@ func _set_gates(r: Room, closed: bool) -> void:
 			if a.alive and not a.flying and grid.box_blocked(a.pos, a.box()):
 				a.pos = _floor_inside(r, a.pos)
 	Audio.play("seal_close" if closed else "seal_open", -2.0)
+
+
+## An altar is spent when every Kindled on the floor has taken from it.
+func _relic_taken(prop: Prop, who: Player) -> void:
+	var taken: Array = prop.data.get("taken", [])
+	if not taken.has(who.peer_id):
+		taken.append(who.peer_id)
+	prop.data["taken"] = taken
+	if taken.size() >= players.size():
+		prop.used = true
+		prop.sprite.play("empty")
+		if prop.light:
+			prop.light.light_energy = 0.3
+
+
+## Co-op host: a client chose from their offer.
+func coop_relic_pick(pl: Player, idx: int, id: String) -> void:
+	for prop in props:
+		if is_instance_valid(prop) and prop.net_idx == idx and prop.kind == "relic_altar":
+			var offer: Array = prop.data.get("offer_%d" % pl.peer_id, [])
+			if not offer.has(id) or (prop.data.get("taken", []) as Array).has(pl.peer_id):
+				return
+			Game.grant_relic_to(pl, id)
+			_relic_taken(prop, pl)
+			return
+
+
+## Co-op: a room sealing never shuts a friend outside - the light draws them in.
+func _pull_party_in(r: Room) -> void:
+	var anchor := Vector2.ZERO
+	var n := 0
+	for pl in players:
+		if pl.alive and r.contains_tile(Vector2i(floori(pl.pos.x), floori(pl.pos.y))):
+			anchor += pl.pos
+			n += 1
+	if n == 0:
+		return
+	anchor /= n
+	for pl in players:
+		if not pl.alive or r.contains_tile(Vector2i(floori(pl.pos.x), floori(pl.pos.y))):
+			continue
+		fx.motes(pl.pos, 0.4, Color(0.45, 1.0, 0.9), 12, 2.0, 0.8, 0.4)
+		pl.pos = _floor_inside(r, anchor + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)))
+		fx.ring(pl.pos, 1.2, Color(0.45, 1.0, 0.9), 0.35, 0.25)
+
+
+## Co-op upkeep each tick: everyone down means the party has fallen.
+func _coop_tick(_dt: float) -> void:
+	if _death_t < 0.0 and active_players().is_empty():
+		for pl in players:
+			if pl.downed:
+				pl.downed = false
+				pl.alive = false
+		_death_t = 2.6
+		_killer_id = player.last_attacker_id if player else ""
+		Events.banner.emit("The Party Falls", "Every light below has gone out")
+
+
+## Co-op client: the host says this room was entered (map, toasts).
+func visit_room(r: Room) -> void:
+	if r == null or r.visited:
+		return
+	_enter_room(r, false)
 
 
 ## The open floor of `r` nearest to `p` (for nudging anyone out of a seal).
@@ -665,6 +824,7 @@ func _start_boss(r: Room) -> void:
 				p.data["boss"] = e
 				bz.append(p)
 		w.set("braziers", bz)
+		Net.rec(["boss", e.net_id])
 		Events.boss_started.emit(e)
 		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
 		Audio.play_music("boss", 0.5))
@@ -684,7 +844,7 @@ func _drop_loot(e: Enemy) -> void:
 		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
-			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier)})
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier))
 	if e == boss:
 		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
 		var cat: String = {"rootmire": "bloom_heart", "throne": "eclipse_shard"}.get(layout.region, "warden_sigil")
@@ -693,10 +853,21 @@ func _drop_loot(e: Enemy) -> void:
 		var flag := "legendary_" + leg
 		if not Profile.data.flags.get(flag, false) or rng.randf() < 0.35:
 			Profile.data.flags[flag] = true
-			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.make_item(leg, "legendary", 1, rng, run.tier)})
-		Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier)})
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(leg, "legendary", 1, rng, run.tier))
+		_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier))
 		if run.tier >= 2:
-			Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_set_piece(rng, layout.depth, run.tier)})
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_set_piece(rng, layout.depth, run.tier))
+
+
+## A gear drop. Co-op: one roll for each Kindled, visible to and taken by its
+## owner only (nobody walks off with a friend's find).
+func _gear_drop(p: Vector2, roll: Callable) -> void:
+	if players.size() <= 1:
+		Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
+		return
+	for pl in players:
+		var pk := Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
+		pk.owner_peer = pl.peer_id
 
 
 ## A blueprint the Kindled doesn't have yet (else a few Ember Cores).
@@ -707,8 +878,12 @@ func _maybe_blueprint(p: Vector2, chance: float) -> void:
 	var b := ItemDB.roll_blueprint(rng, have)
 	if b == "":
 		Pickup.spawn(self, "material", p, 3, {"id": "ember_core"})
-	else:
+	elif players.size() <= 1:
 		Pickup.spawn(self, "blueprint", p, 1, {"id": b})
+	else:
+		for pl in players:
+			var pk := Pickup.spawn(self, "blueprint", p, 1, {"id": b})
+			pk.owner_peer = pl.peer_id
 
 
 ## A chest's materials and its chance of gear.
@@ -720,11 +895,11 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
 	var lucky := player != null and player.stats.has("lucky")
 	if rng.randf() < 0.25 + 0.25 * tier:
-		Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier)})
+		_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier))
 	if lucky:
 		# the Four-Leaf Ring: one more treasure, every time
 		if rng.randf() < 0.5:
-			Pickup.spawn(self, "gear", prop.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier)})
+			_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier))
 		else:
 			Pickup.spawn(self, "material", prop.pos, 2, {"id": "ember_core"})
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
@@ -790,7 +965,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			Pickup.spawn(self, "sunshard", e.pos, 1)
 			if int(e.get_meta("grudge_level", 1)) >= 2:
 				# what it hoarded while it grew
-				Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier)})
+				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier))
 			run.grudges_settled.append(g.get("name", "?"))
 			Events.banner.emit("Grudge Settled", "%s returns to the dust." % g.get("name", "It"))
 		if e == boss:
@@ -823,6 +998,7 @@ func _rise_again(kind: String, at: Vector2, room: int) -> void:
 
 
 func _boss_defeated(e: Enemy) -> void:
+	Net.rec(["boss_down"])
 	var r := layout.room(layout.exit_id)
 	active_room = null
 	r.cleared = true
@@ -843,6 +1019,9 @@ func _boss_defeated(e: Enemy) -> void:
 
 
 func _on_player_died() -> void:
+	if players.size() > 1:
+		# co-op: one light out is not the end; _coop_tick decides when it is
+		return
 	_death_t = 2.6
 	# whoever dealt the last blow becomes a Grudge (bosses never do)
 	_killer_id = player.last_attacker_id
@@ -870,25 +1049,29 @@ func request(what: String, prop: Prop) -> void:
 				Game.ui.confirm("Return to the Last Hearth?", "You keep everything you carry. The descent ends here.", func() -> void:
 					Game.end_run("extracted"))
 		"relic":
+			var who: Player = interactor if interactor else player
 			var tier: int = prop.data.get("tier", 1)
-			var offer := RelicDB.roll_offer(run.rng, 6 if tier >= 3 else 3, run.relics, SkillDB.branch_counts(Profile.skills()), SkillDB.abilities(Profile.skills()), layout.depth + tier - 1, tier < 3)
+			var skills: Array = Profile.skills() if who.sheet.is_empty() else who.sheet.get("skills", ["hearth"])
+			var offer := RelicDB.roll_offer(run.rng, 6 if tier >= 3 else 3, who.run.relics, SkillDB.branch_counts(skills), SkillDB.abilities(skills), layout.depth + tier - 1, tier < 3)
 			if tier >= 3:
 				# trial prizes: no commons
 				var better := offer.filter(func(id): return RelicDB.relic(id).rarity != "common")
 				offer = (better if better.size() >= 2 else offer).slice(0, 3)
+			if who.controller == Player.Ctrl.REMOTE:
+				# their choice, on their screen
+				prop.data["offer_%d" % who.peer_id] = offer
+				Net.i.rpc_id(who.peer_id, "_offer", "relic", [prop.net_idx, offer])
+				return
 			if player.autopilot:
 				if not offer.is_empty():
 					Game.grant_relic(offer[0])
 					print("[bot] took relic ", offer[0])
-				prop.used = true
+				_relic_taken(prop, who)
 				return
 			Game.ui.relic_choice(offer, func(id: String) -> void:
 				if id != "":
 					Game.grant_relic(id)
-					prop.used = true
-					prop.sprite.play("empty")
-					if prop.light:
-						prop.light.light_energy = 0.3)
+					_relic_taken(prop, who))
 		"chest":
 			note_request("chest")
 			_chest_loot(prop, int(prop.data.get("tier", 1)))
@@ -996,7 +1179,7 @@ func _light_sconce(prop: Prop) -> void:
 				if is_instance_valid(p) and not p.used:
 					p.interact(player)
 					# the reliquary keeps something better than a chest
-					Pickup.spawn(self, "gear", p.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier)})
+					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier))
 					Pickup.spawn(self, "sunshard", p.pos, 1))
 	if OS.is_debug_build():
 		print("[dungeon] vault opened in room %d" % prop.room_id)
@@ -1015,20 +1198,22 @@ func _rekindle_camp(prop: Prop) -> void:
 	if prop.light:
 		prop.light.visible = true
 		prop.lit = true
-	player.heal(player.max_hp * 0.4)
-	player.flask = mini(player.flask + 1, int(player.stats.v("flask_charges")))
-	player.gain_kindle(player.kindle_max())
+	# a fire rests everyone who sits by it
+	for pl in players_near(prop.pos, 6.0):
+		pl.heal(pl.max_hp * 0.4)
+		pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
+		pl.gain_kindle(pl.kindle_max())
 	fx.motes(prop.pos, 0.4, Color(1.0, 0.65, 0.35), 24, 1.8, 1.2, 0.5)
 	fx.number(player.pos, 2.6, "RESTED", Color(1.0, 0.8, 0.55), true)
 	Audio.play("ignite", -2.0, 0.8)
 	Audio.play("flask", -4.0, 0.9)
 	if rng.randf() < 0.55:
-		Pickup.spawn(self, "gear", prop.pos + Vector2(1.6, -0.4), 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier)})
+		_gear_drop(prop.pos + Vector2(1.6, -0.4), func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier))
 	else:
 		for i in 6:
 			Pickup.spawn(self, "ember", prop.pos + Vector2(1.6, -0.4), 4 + layout.depth * 2)
 	_chest_loot(prop, 1)
-	if not player.autopilot:
+	if not player.autopilot and (interactor == null or interactor == player):
 		var line: Array = Lore.random_for(layout.region, rng)
 		Game.ui.dialogue("A Kindled's Last Camp", ["A note, tucked in the pack: \"%s\"" % String(line[1]), "The fire takes again. It is good to sit by a fire."])
 

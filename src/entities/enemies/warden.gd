@@ -257,7 +257,7 @@ func _quake_land() -> void:
 	var center := pos
 	var st := stage
 	var wave_dmg := damage * 0.8
-	var hit_done := [false]
+	var hit_done: Array = []
 	var ring := st.fx.shape(Fx.Shape.RING, center, Vector2.RIGHT, Vector2(2, 2), Color(0.5, 1.0, 0.9, 0.8), Color(0.85, 1.0, 0.95, 1.0), 1.0, {"inner": 0.86, "glow": 1.6})
 	var data: Dictionary = st.fx._shapes[st.fx._shapes.size() - 1]
 	var base_t := ring.transform
@@ -265,11 +265,12 @@ func _quake_land() -> void:
 		var rr := lerpf(1.0, 10.0, clampf(t / 0.95, 0.0, 1.0))
 		n.transform = Transform3D(Basis(Vector3(rr * 2.0, 0, 0), Vector3.UP, Vector3(0, 0, rr * 2.0 * Iso.SQ2)), base_t.origin)
 		n.set_instance_shader_parameter("px_size", rr * 2.0 * Iso.PPU)
-		var pl := st.player
-		if pl and pl.alive and not hit_done[0] and pl.height < 0.3:
+		for pl in st.active_players():
+			if hit_done.has(pl) or pl.height >= 0.3:
+				continue
 			var pd := pl.pos.distance_to(center)
 			if absf(pd - rr * 0.93) < 0.45:
-				hit_done[0] = true
+				hit_done.append(pl)
 				var h := Hit.make(null, wave_dmg, ["melee"])
 				h.can_crit = false
 				h.knockback = (pl.pos - center).normalized() * 8.0

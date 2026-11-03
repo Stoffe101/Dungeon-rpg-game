@@ -9,7 +9,8 @@ signal actor_died(actor: Actor, killer: Node)
 var grid: TileGrid
 var view: PixelView
 var fx: Fx
-var player: Player
+var player: Player          # the Kindled this machine controls (camera, HUD)
+var players: Array[Player] = []   # every Kindled on the stage (co-op: up to four)
 var actors: Array[Actor] = []
 var projectiles: Array = []
 var interactables: Array = []
@@ -20,6 +21,9 @@ var astar: AStarGrid2D
 var rng := RandomNumberGenerator.new()
 var elapsed := 0.0
 var paused_sim := false
+var replica := false          # co-op client: draws the host's floor, simulates nothing
+var interactor: Player        # who is using a prop right now (co-op: not always this machine's)
+var _prop_seq := 0            # the next prop's index (the same on every machine)
 
 var _timers: Array = []   # [time_left, Callable]
 var _hitstop := 0.0
@@ -94,6 +98,9 @@ func after(seconds: float, fn: Callable) -> void:
 
 
 func simulate(dt: float) -> void:
+	if replica:
+		_replica_step(dt)
+		return
 	elapsed += dt
 	if not _timers.is_empty():
 		var due: Array = []
@@ -105,6 +112,7 @@ func simulate(dt: float) -> void:
 			_timers.erase(t)
 			if t[1].is_valid():
 				t[1].call()
+	Audio.in_sim = true
 	for a in actors.duplicate():
 		if is_instance_valid(a) and a.alive:
 			a.tick(dt)
@@ -122,6 +130,31 @@ func simulate(dt: float) -> void:
 			pr.tick(dt)
 	_separate()
 	_stage_tick(dt)
+	Audio.in_sim = false
+
+
+## Co-op client: nothing is simulated here, only drawn where the host says.
+func _replica_step(dt: float) -> void:
+	elapsed += dt
+	if not _timers.is_empty():
+		var due: Array = []
+		for t in _timers:
+			t[0] -= dt
+			if t[0] <= 0.0:
+				due.append(t)
+		for t in due:
+			_timers.erase(t)
+			if t[1].is_valid():
+				t[1].call()
+	for a in actors.duplicate():
+		if is_instance_valid(a):
+			a.replica_present(dt)
+	for p in projectiles.duplicate():
+		if is_instance_valid(p):
+			p.replica_step(dt)
+	for pk in pickups.duplicate():
+		if is_instance_valid(pk):
+			pk.replica_step(dt)
 
 
 ## Override in subclasses.
@@ -168,11 +201,47 @@ func _separate() -> void:
 func add_actor(a: Actor) -> void:
 	a.stage = self
 	actors.append(a)
+	if a is Player and not players.has(a):
+		players.append(a)
 	add_child(a)
+	if Net.recording and Net.i.run_sync:
+		Net.i.run_sync.register_actor(a)
 
 
 func remove_actor(a: Actor) -> void:
 	actors.erase(a)
+	if a is Player:
+		players.erase(a)
+
+
+## Players who are up and fighting (alive, not downed).
+func active_players() -> Array[Player]:
+	var out: Array[Player] = []
+	for p in players:
+		if is_instance_valid(p) and p.alive and not p.downed:
+			out.append(p)
+	return out
+
+
+## The nearest active player to `p` (within `max_d`), or null.
+func nearest_player(p: Vector2, max_d := INF) -> Player:
+	var best: Player = null
+	var bd := max_d
+	for pl in active_players():
+		var d := pl.pos.distance_to(p)
+		if d < bd:
+			bd = d
+			best = pl
+	return best
+
+
+## Active players whose body is within `r` of `p`.
+func players_near(p: Vector2, r: float) -> Array[Player]:
+	var out: Array[Player] = []
+	for pl in active_players():
+		if pl.pos.distance_to(p) <= r + pl.radius:
+			out.append(pl)
+	return out
 
 
 func notify_death(a: Actor, killer: Node) -> void:

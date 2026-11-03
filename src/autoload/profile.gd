@@ -468,16 +468,47 @@ func upgrade_building(id: String) -> bool:
 
 ## Sanctuary bonuses applied to the player's stats.
 func apply_sanctuary(stats: Stats) -> void:
-	var h := building("hearth")
+	apply_sanctuary_data(data.sanctuary, resident_mods(), stats)
+
+
+## The sanctuary's gifts from plain data (so another player's sheet works too).
+static func apply_sanctuary_data(sanct: Dictionary, res_mods: Array, stats: Stats) -> void:
+	var h := int(sanct.get("hearth", 1))
 	stats.add_mod("max_hp", "add", 10.0 * float(h - 1))
-	var ap := building("apothecary")
+	var ap := int(sanct.get("apothecary", 0))
 	if ap >= 1:
 		stats.add_mod("flask_charges", "add", 1.0)
 	if ap >= 2:
 		stats.add_mod("flask_heal", "add", 0.1)
 	if ap >= 3:
 		stats.add_mod("flask_charges", "add", 1.0)
-	Residents.apply_rewards(stats)
+	stats.apply_mods(res_mods)
+
+
+## The stat gifts of the residents whose requests are done.
+func resident_mods() -> Array:
+	var out: Array = []
+	for r in Residents.LIST:
+		if Residents.request_state(r.id) == "rewarded":
+			out.append_array(r.request.reward)
+	return out
+
+
+## Everything another machine needs to build this Kindled exactly as this one
+## would: the same data the local Kindled's stats come from (co-op).
+func character_sheet() -> Dictionary:
+	return {
+		"name": String(Settings.get_value("player_name", "Kindled")),
+		"level": level(),
+		"skills": skills().duplicate(),
+		"equipped": equipped().duplicate(true),
+		"sanctuary": (data.sanctuary as Dictionary).duplicate(),
+		"resident_mods": resident_mods(),
+		"look": Looks.current(),
+		"weapon": equipped_weapon(),
+		"weapon_level": weapon_level(equipped_weapon()),
+		"slots": slots(),
+	}
 
 
 # --- gear and materials --------------------------------------------------------

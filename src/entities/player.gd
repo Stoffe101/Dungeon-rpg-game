@@ -49,6 +49,21 @@ var aim_point := Vector2.ZERO
 var move_in := Vector2.ZERO
 var input_enabled := true
 var autopilot := false
+## Who drives this Kindled: this machine's devices (LOCAL), a client's input
+## over the network (REMOTE, on the host), or nobody - a picture of the host's
+## simulation (REPLICA, on a client).
+enum Ctrl { LOCAL, REMOTE, REPLICA }
+var controller := Ctrl.LOCAL
+var peer_id := 1
+var downed := false          # co-op: at 0 health, waiting for an ally
+var bleed_t := 0.0
+var revive_k := 0.0
+var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
+## Press counters for every button: they only go up, so a network packet lost
+## in between can never lose a press (the host compares counts).
+var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0}
+const BLEED_TIME := 25.0
+const REVIVE_TIME := 2.5
 var last_attacker_id := ""
 var godmode := "godmode" in OS.get_cmdline_user_args()
 var lantern: OmniLight3D
@@ -122,12 +137,19 @@ func setup_from(r: RunState) -> void:
 func rebuild_stats() -> void:
 	var ratio := hp_ratio() if max_hp > 0.0 and hp > 0.0 else 1.0
 	stats = Stats.for_player()
-	SkillDB.apply(Profile.skills(), stats)
-	Profile.apply_sanctuary(stats)
-	Profile.apply_gear(stats)
+	var equipped: Dictionary = Profile.equipped()
+	if sheet.is_empty():
+		SkillDB.apply(Profile.skills(), stats)
+		Profile.apply_sanctuary(stats)
+		Profile.apply_gear(stats)
+	else:
+		SkillDB.apply(sheet.get("skills", ["hearth"]), stats)
+		Profile.apply_sanctuary_data(sheet.get("sanctuary", {}), sheet.get("resident_mods", []), stats)
+		equipped = sheet.get("equipped", {})
+		ItemDB.apply_equipped(equipped, stats)
 	aura_cols.clear()
-	for slot in Profile.equipped():
-		var it = Profile.equipped()[slot]
+	for slot in equipped:
+		var it = equipped[slot]
 		if not (it is Dictionary):
 			continue
 		var r := String(it.get("rarity", ""))
@@ -135,7 +157,7 @@ func rebuild_stats() -> void:
 			aura_cols.append(ItemDB.color(it))
 		elif ItemDB.is_unique(String(it.get("base", ""))):
 			aura_cols.append(Color(1.0, 0.82, 0.45))
-	Looks.apply_player(Looks.current())
+	apply_look()
 	if run:
 		RelicDB.apply(run.relics, stats)
 		Omens.apply(run.omens, stats)
@@ -150,6 +172,19 @@ func rebuild_stats() -> void:
 	kindle = minf(kindle, stats.v("kindle_max"))
 	dodge_charges = minf(dodge_charges, stats.v("dodge_charges"))
 	anchored = stats.has("unbreakable")
+
+
+## The Kindled's look: the shared material for this machine's own Kindled (the
+## satchel and wardrobe preview it), a private copy for anyone else's.
+func apply_look() -> void:
+	if sheet.is_empty():
+		Looks.apply_player(Looks.current())
+		return
+	if sprite == null:
+		return
+	if not (sprite.material_override is ShaderMaterial):
+		sprite.material_override = (sprite.sheet.material as ShaderMaterial).duplicate()
+	Looks.apply_to(sprite.material_override, String(sheet.get("look", "")), true)
 
 
 func set_weapon(id: String, level: int) -> void:
@@ -186,7 +221,9 @@ func aim_offset() -> Vector2:
 func _process(delta: float) -> void:
 	for k in _buf:
 		_buf[k] = maxf(0.0, _buf[k] - delta)
-	if autopilot:
+	if autopilot or controller == Ctrl.REMOTE or downed:
+		return
+	if controller == Ctrl.REPLICA and peer_id != Net.my_id():
 		return
 	if not input_enabled or not alive or get_tree().paused:
 		move_in = Vector2.ZERO
@@ -221,32 +258,53 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("interact"):
 		try_interact()
 	if Input.is_action_just_pressed("hearthcall"):
-		_buf.home = 0.2
+		press("home")
 	if Input.is_action_just_pressed("attack"):
-		_buf.attack = 0.18
+		press("attack")
 		_attack_down = true
 	if _attack_down and not Input.is_action_pressed("attack"):
 		_attack_down = false
 		_release_pending = true
 	if Input.is_action_just_pressed("dodge"):
-		_buf.dodge = 0.15
+		press("dodge")
 	if Input.is_action_just_pressed("ward"):
-		_buf.ward = 0.12
+		press("ward")
 	if Input.is_action_just_pressed("ability_1"):
-		_buf.a1 = 0.15
+		press("a1")
 	if Input.is_action_just_pressed("ability_2"):
-		_buf.a2 = 0.15
+		press("a2")
 	if Input.is_action_just_pressed("flask"):
-		_buf.flask = 0.15
+		press("flask")
+
+
+## A button press: buffered for the simulation and counted for the network.
+func press(k: String) -> void:
+	presses[k] = int(presses.get(k, 0)) + 1
+	match k:
+		"attack":
+			_buf.attack = 0.18
+		"dodge":
+			_buf.dodge = 0.15
+		"ward":
+			_buf.ward = 0.12
+		"a1", "a2", "flask":
+			_buf[k] = 0.15
+		"home":
+			_buf.home = 0.2
 
 
 ## Uses the nearest interactable prop (chest, merchant, stairs...). Returns it, or null.
 func try_interact() -> Prop:
-	if stage == null or not alive:
+	if stage == null or not alive or downed:
 		return null
 	var near := stage.nearest_interactable(pos)
 	if near:
-		near.interact(self)
+		presses.interact = int(presses.interact) + 1
+		if controller == Ctrl.REPLICA:
+			# a client asks the host, which owns every prop
+			Net.ask("interact", [near.net_idx])
+		else:
+			near.interact(self)
 	return near
 
 
@@ -274,7 +332,10 @@ func _assisted(dir: Vector2) -> Vector2:
 # --- simulation ------------------------------------------------------------------
 
 func think(dt: float) -> void:
-	if not alive:
+	if not alive or controller == Ctrl.REPLICA:
+		return
+	if downed:
+		_bleed(dt)
 		return
 	_timers(dt)
 	if dodge_t > 0.0:
@@ -990,7 +1051,11 @@ func die(killer: Node) -> void:
 			deal_hit(a, h)
 		Audio.play("explode", 2.0)
 		return
+	if stage.players.size() > 1 and not downed:
+		_go_down()
+		return
 	alive = false
+	downed = false
 	vel = Vector2.ZERO
 	if weapon:
 		weapon.cancel()
@@ -1001,6 +1066,122 @@ func die(killer: Node) -> void:
 	Audio.play("player_death", 0.0)
 	Events.player_died.emit()
 	stage.notify_death(self, killer)
+
+
+# --- co-op: downed and revived -------------------------------------------------
+
+static var _ring_tex: ImageTexture
+
+## Co-op: a ring of the seat's colour on the floor under this Kindled, so four
+## of them in one fight can always be told apart (and each finds their own).
+func set_seat(col: Color) -> void:
+	if _ring_tex == null:
+		var img := Image.create(24, 24, false, Image.FORMAT_RGBA8)
+		for y in 24:
+			for x in 24:
+				var d := Vector2(x + 0.5 - 12.0, y + 0.5 - 12.0).length()
+				if d > 9.0 and d < 11.5:
+					img.set_pixel(x, y, Color(1, 1, 1, 1.0 if d < 10.6 else 0.55))
+		_ring_tex = ImageTexture.create_from_image(img)
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(1.1, 1.1 * 0.55 * Iso.SQ2)
+	q.orientation = PlaneMesh.FACE_Y
+	mi.mesh = q
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.albedo_texture = _ring_tex
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.75)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(0, 0.02, 0)
+	add_child(mi)
+
+
+## Co-op client: the picture of a Kindled the host simulates.
+func replica_present(dt: float) -> void:
+	super.replica_present(dt)
+	_update_lantern(dt)
+	if weapon and alive and not downed:
+		weapon.update_visual(dt)
+	if downed and fmod(stage.elapsed, 0.5) < dt:
+		stage.fx.motes(pos, 0.2, Color(1.0, 0.55, 0.4), 1, 0.8, 0.8, 0.2)
+
+
+## Co-op client: the host brought this one back.
+func revive_replica() -> void:
+	alive = true
+	downed = false
+	sprite.visible = true
+	sprite.set_dissolve(0.0)
+	if weapon == null or weapon.visual == null:
+		set_weapon(run.weapon_id if run else "sword", run.weapon_level if run else 0)
+
+
+## At 0 health with friends about, the Kindled falls but its light holds for a
+## while: an ally who stands beside it long enough brings it back.
+func _go_down() -> void:
+	downed = true
+	hp = 0.0
+	bleed_t = BLEED_TIME
+	revive_k = 0.0
+	targetable = false
+	vel = Vector2.ZERO
+	move_in = Vector2.ZERO
+	if weapon:
+		weapon.cancel()
+	if hearthcall_t >= 0.0:
+		break_hearthcall()
+	sprite.play("death", true)
+	stage.fx.burst(pos, 0.5, Color(1.0, 0.6, 0.3), 20, 2.5, 0.9, -0.5)
+	stage.fx.number(pos, 2.6, "DOWN", Color(1.0, 0.55, 0.45), true)
+	Audio.play_at("player_death", pos, -4.0, 1.1)
+	stage.notify_death(self, null)
+
+
+func _bleed(dt: float) -> void:
+	vel = Vector2.ZERO
+	var helper := false
+	for pl in stage.active_players():
+		if pl != self and pl.pos.distance_to(pos) < 1.6:
+			helper = true
+	if helper:
+		revive_k += dt / REVIVE_TIME
+		if fmod(revive_k * 10.0, 1.0) < dt * 4.0:
+			stage.fx.motes(pos, 0.3, Color(1.0, 0.8, 0.45), 2, 1.4, 0.7, 0.4)
+		if revive_k >= 1.0:
+			revive(0.4)
+			return
+	else:
+		revive_k = maxf(0.0, revive_k - dt * 0.5)
+		bleed_t -= dt
+	sync_visual()
+	if bleed_t <= 0.0:
+		downed = false
+		hp = 0.0
+		alive = true      # die() expects the living
+		die(null)
+
+
+## Back on their feet (from downed, or from a spectator at a room's end).
+func revive(frac: float) -> void:
+	downed = false
+	alive = true
+	targetable = true
+	hp = maxf(1.0, max_hp * frac)
+	revive_k = 0.0
+	invuln_t = 1.5
+	if weapon == null or weapon.visual == null:
+		set_weapon(run.weapon_id if run else "sword", run.weapon_level if run else 0)
+	sprite.visible = true
+	sprite.set_dissolve(0.0)
+	sprite.play("idle_" + dir_name, true)
+	stage.fx.ring(pos, 1.6, Color(1.0, 0.8, 0.45), 0.4, 0.25)
+	stage.fx.motes(pos, 0.2, Color(1.0, 0.75, 0.4), 16, 1.8, 1.0, 0.4)
+	stage.fx.number(pos, 2.6, "REKINDLED", Color(1.0, 0.8, 0.5), true)
+	Audio.play_at("hearth_feed", pos, -4.0)
 
 
 # --- presentation --------------------------------------------------------------

@@ -338,7 +338,8 @@ func open(screen: Control, pause := true, sound := "ui_open") -> Control:
 	_focus_index = -1
 	_last_focus = null
 	if pause:
-		get_tree().paused = true
+		if not Net.active():   # a shared world never stops for one player's menu
+			get_tree().paused = true
 	Audio.ui(sound)
 	return dim
 

@@ -10,11 +10,17 @@ var stage: Stage
 var run: RunState
 var debug_seed := -1
 var transitioning := false
+## Co-op host: every other Kindled's run, by peer id (this machine's is `run`).
+var coop_runs := {}
 var _playtime_t := 0.0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# co-op lives at /root/Net on every machine (RPCs need the same path)
+	var n := Net.new()
+	n.name = "Net"
+	get_tree().root.add_child.call_deferred(n)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("seed="):
 			debug_seed = int(a.substr(5))
@@ -80,11 +86,22 @@ func goto_hub() -> void:
 		Profile.save_profile()
 
 
-func start_run(region := "ossuary") -> void:
-	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
+func start_run(region := "ossuary", seed_v := -1) -> void:
+	if seed_v < 0:
+		seed_v = debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	run = RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 	run.tier = Difficulty.selected()
 	run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	coop_runs.clear()
+	if Net.is_host():
+		# every other Kindled gets a run of their own (settled on their machine)
+		for pid in Net.i.roster:
+			if int(pid) != Net.my_id():
+				var sh: Dictionary = Net.i.roster[pid].sheet
+				var r := RunState.create(seed_v, region, String(sh.get("weapon", "sword")), int(sh.get("weapon_level", 0)), sh.get("slots", ["flare", ""]))
+				r.tier = run.tier
+				r.omens = run.omens.duplicate()
+				coop_runs[int(pid)] = r
 	Profile.data.descent.region = region
 	Profile.stat_add("runs")
 	Profile.save_profile()
@@ -98,8 +115,13 @@ func _enter_depth(depth: int) -> void:
 	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth)
 	_clear_stage()
 	var d := Dungeon.new()
+	d.replica = Net.is_client()
 	view.world.add_child(d)
 	d.build(lay, run, view)
+	if Net.active():
+		var nr := NetRun.new()
+		d.add_child(nr)
+		nr.setup(d, Net.is_host())
 	stage = d
 	ui.show_hud(true)
 	stage_changed.emit(stage)
@@ -111,6 +133,11 @@ func descend() -> void:
 	if transitioning or run == null or run.result != "":
 		return
 	transitioning = true
+	if Net.is_host():
+		for pl in stage.players:
+			if pl != stage.player and pl.run:
+				pl.store_to(pl.run)
+		Net.i.rpc("_descend", run.depth + 1)
 	if stage and stage.player:
 		stage.player.store_to(run)
 		stage.player.input_enabled = false
@@ -143,10 +170,89 @@ func begin_descent(region: String) -> void:
 		wait = (stage as Hub).flare_gate()
 	var reg: Dictionary = EnemyDB.REGIONS[region]
 	var omens := (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
+	if Net.is_host():
+		# the party goes down together: same seed, region, tier and Omens
+		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": Difficulty.selected(), "omens": omens})
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
 		ui.title_card(String(reg.name), "Depth 1", func() -> void:
 			transitioning = false
-			start_run(region), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
+			start_run(region, seed_v), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
+
+
+# --- co-op ----------------------------------------------------------------------------
+
+## A Kindled's run on this machine: its own, or (host) a party member's.
+func run_of(peer_id: int) -> RunState:
+	if peer_id == Net.my_id() or not Net.active():
+		return run
+	if not coop_runs.has(peer_id):
+		var sh: Dictionary = Net.i.roster.get(peer_id, {}).get("sheet", {})
+		var r := RunState.create(run.seed, run.region, String(sh.get("weapon", "sword")), int(sh.get("weapon_level", 0)), sh.get("slots", ["flare", ""]))
+		r.tier = run.tier
+		r.omens = run.omens.duplicate()
+		coop_runs[peer_id] = r
+	return coop_runs[peer_id]
+
+
+## Client: the host is taking the party down.
+func begin_coop_client(params: Dictionary) -> void:
+	ui.close_all()
+	var reg: Dictionary = EnemyDB.REGIONS[String(params.region)]
+	var wait := 0.0
+	if stage is Hub:
+		wait = (stage as Hub).flare_gate()
+	var omens: Array = params.get("omens", [])
+	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
+		ui.title_card(String(reg.name), "Depth 1  -  with %s" % Net.name_of(1), func() -> void:
+			run = RunState.create(int(params.seed), String(params.region), Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
+			run.tier = int(params.tier)
+			run.omens = omens.duplicate()
+			Profile.stat_add("runs")
+			_enter_depth(1), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
+
+
+func descend_client(depth: int) -> void:
+	if run == null:
+		return
+	var reg: Dictionary = EnemyDB.REGIONS[run.region]
+	var sub := "Depth %d" % depth
+	if depth >= int(reg.depths):
+		sub += "  -  %s waits below" % String(EnemyDB.get_def(String(reg.boss)).name)
+	ui.title_card(String(reg.name), sub, func() -> void:
+		if run != null:
+			_enter_depth(depth))
+
+
+## Client: the host settled the expedition; bank this Kindled's share here.
+func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
+	if run == null:
+		return
+	var r := RunState.from_dict(data)
+	r.result = ""
+	run = r
+	# memories were never banked live on this machine
+	Profile.add_xp(r.xp_gained)
+	end_run(outcome, killer)
+
+
+## Client: the host vanished mid-expedition. Nothing comes home.
+func abandon_coop_run() -> void:
+	run = null
+	ui.close_all()
+	ui.title_card("The Sanctuary", "The party's fire went out", goto_hub)
+
+
+func grant_relic_to(pl: Player, id: String) -> void:
+	if pl == stage.player:
+		grant_relic(id)
+		return
+	pl.run.add_relic(id)
+	pl.rebuild_stats()
+	var r := RelicDB.relic(id)
+	if r.get("refill_flask", false):
+		pl.flask = int(pl.stats.v("flask_charges"))
+	stage.fx.motes(pl.pos, 0.6, RelicDB.RARITY_COLOR.get("cursed" if r.get("cursed", false) else r.rarity, Color.WHITE), 16, 1.5, 1.0, 0.5)
 
 
 func grant_relic(id: String) -> void:
@@ -168,6 +274,13 @@ func grant_relic(id: String) -> void:
 func end_run(outcome: String, killer_id := "") -> void:
 	if run == null or run.result != "":
 		return
+	if Net.is_host() and stage is Dungeon:
+		# every other Kindled settles their own share on their own machine
+		for pl in stage.players:
+			if pl != stage.player and pl.run:
+				pl.store_to(pl.run)
+		for pid in coop_runs:
+			Net.i.rpc_id(int(pid), "_run_end", outcome, killer_id, (coop_runs[pid] as RunState).to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
 	var s := run.settle(outcome)
