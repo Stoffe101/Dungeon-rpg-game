@@ -18,6 +18,15 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("seed="):
 			debug_seed = int(a.substr(5))
+	Profile.changed.connect(_check_feats, CONNECT_DEFERRED)
+
+
+## Feats are granted the moment they are reached (forging, learning, building...).
+func _check_feats() -> void:
+	for id in Feats.check():
+		var f: Dictionary = Feats.FEATS[id]
+		Events.toast.emit("Feat: %s  -  %s" % [f.name, Feats.describe_reward(f.reward)], Color(1.0, 0.85, 0.45))
+		Audio.play("skill_unlock", -2.0)
 
 
 func _process(delta: float) -> void:
@@ -62,6 +71,7 @@ func goto_hub() -> void:
 	view.world.add_child(hub)
 	hub.build(view)
 	stage = hub
+	_check_feats()
 	ui.show_hud(false)
 	stage_changed.emit(stage)
 	Audio.play_music("hearth")
@@ -163,6 +173,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 	for b in spoils.get("blueprints", []):
 		if not Profile.scrolls().has(b) and not Profile.known_blueprints().has(b):
 			Profile.scrolls().append(b)
+	var feats := Feats.check()
 	Profile.save_profile()
 	var summary := {
 		"loot": spoils, "loot_found": run.loot.duplicate(true),
@@ -171,6 +182,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
+		"feats": feats,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

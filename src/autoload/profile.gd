@@ -8,7 +8,11 @@ extends Node
 
 signal changed
 
-const VERSION := 6
+const VERSION := 7
+## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
+## can ever have, so a build is a choice. Experience past the cap becomes Renown.
+const MAX_LEVEL := 60
+const PAGES := 3
 const DEFAULT_PATH := "user://profile.json"
 ## While gear and crafting are being tested, saves get a stockpile of materials,
 ## embers and a few pieces of gear (once: on upgrading to v5 or on a new save).
@@ -38,6 +42,11 @@ static func fresh() -> Dictionary:
 		"embers": 0,
 		"sunshards": 0,
 		"skills": ["hearth"],
+		"skill_pages": [["hearth"], ["hearth"], ["hearth"]],
+		"skill_page": 0,
+		"renown": 0,
+		"renown_xp": 0,
+		"feats": {},
 		"respecs": 0,
 		"weapons": {"sword": {"unlocked": true, "level": 0}, "hammer": {"unlocked": false, "level": 0}, "staff": {"unlocked": false, "level": 0}},
 		"equipped": {"weapon": "sword", "slots": ["flare", ""]},
@@ -180,6 +189,20 @@ static func migrate(d: Dictionary) -> Dictionary:
 			if lk != "" and not (inv6.looks as Array).has(lk):
 				(inv6.looks as Array).append(lk)
 		v = 6
+	if v < 7:
+		# v7: level cap (levels past it become Renown), Hearthtree pages, feats
+		var lvl := int(out.get("level", 1))
+		if lvl > MAX_LEVEL:
+			out["renown"] = lvl - MAX_LEVEL
+			out["level"] = MAX_LEVEL
+		var total := int(out.get("level", 1)) - 1 + int(out.get("unlocks", {}).get("bonus_points", 0))
+		if SkillDB.spent(out.get("skills", ["hearth"])) > total:
+			out["skills"] = ["hearth"]
+		out["skill_pages"] = [(out.get("skills", ["hearth"]) as Array).duplicate(), ["hearth"], ["hearth"]]
+		out["skill_page"] = 0
+		if not out.has("feats"):
+			out["feats"] = {}
+		v = 7
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -276,15 +299,62 @@ func spend(kind: String, amount: int) -> bool:
 ## Adds experience; returns the number of levels gained.
 func add_xp(amount: int) -> int:
 	var gained := 0
+	if level() >= MAX_LEVEL:
+		_add_renown_xp(amount)
+		_changed()
+		return 0
 	data.xp = int(data.get("xp", 0)) + amount
-	while int(data.xp) >= Combat.xp_to_next(level()):
+	while level() < MAX_LEVEL and int(data.xp) >= Combat.xp_to_next(level()):
 		data.xp = int(data.xp) - Combat.xp_to_next(level())
 		data.level = level() + 1
 		gained += 1
+	if level() >= MAX_LEVEL and int(data.xp) > 0:
+		_add_renown_xp(int(data.xp))
+		data.xp = 0
 	if gained > 0:
 		Events.level_up.emit(level())
 	_changed()
 	return gained
+
+
+func renown() -> int:
+	return int(data.get("renown", 0))
+
+
+## Experience needed for the next Renown rank (the cost of the last level).
+static func renown_step() -> int:
+	return Combat.xp_to_next(MAX_LEVEL)
+
+
+## Each Renown rank pays Embers, every fifth a Sunshard: worth playing on for,
+## without inflating power.
+func _add_renown_xp(amount: int) -> void:
+	data["renown_xp"] = int(data.get("renown_xp", 0)) + amount
+	while int(data.renown_xp) >= renown_step():
+		data.renown_xp = int(data.renown_xp) - renown_step()
+		data["renown"] = renown() + 1
+		add_currency("embers", 60)
+		if renown() % 5 == 0:
+			add_currency("sunshards", 1)
+		Events.toast.emit("Renown %d  (+60 Embers%s)" % [renown(), ", +1 Sunshard" if renown() % 5 == 0 else ""], Color(1.0, 0.85, 0.5))
+
+
+## Swaps the Hearthtree to another saved page (in the sanctuary only).
+func switch_page(i: int) -> void:
+	i = clampi(i, 0, PAGES - 1)
+	if not data.has("skill_pages"):
+		data["skill_pages"] = [skills().duplicate(), ["hearth"], ["hearth"]]
+	var pages: Array = data.skill_pages
+	pages[int(data.get("skill_page", 0))] = skills().duplicate()
+	data.skills = (pages[i] as Array).duplicate()
+	if SkillDB.spent(data.skills) > skill_points_total():
+		data.skills = ["hearth"]
+	data["skill_page"] = i
+	_changed()
+
+
+func skill_page() -> int:
+	return int(data.get("skill_page", 0))
 
 
 func weapon_level(id: String) -> int:
@@ -623,6 +693,7 @@ func settle_grudge(gid: String) -> Dictionary:
 	for g in data.grudges:
 		if g.id == gid:
 			g.settled = true
+			stat_add("grudges_settled")
 			_changed()
 			return g
 	return {}

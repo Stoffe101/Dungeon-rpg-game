@@ -32,6 +32,7 @@ var info_lbl: Label
 var find_lbl: Label
 var search_box: LineEdit
 var respec_btn: Button
+var page_btn: Button
 var hearth_btn: Button
 var close_btn: Button
 var bonus_btn: Button
@@ -131,10 +132,13 @@ func _build_header() -> void:
 	row.add_child(hearth_btn)
 	respec_btn = UIKit.button("Respec", _respec, 44)
 	row.add_child(respec_btn)
+	# three saved builds: swap freely in the sanctuary, not mid-expedition
+	page_btn = UIKit.button("Page I", _next_page, 40)
+	row.add_child(page_btn)
 	close_btn = UIKit.button("Close", func() -> void: Game.ui.close_top(), 40)
 	row.add_child(close_btn)
 	# the gamepad cursor presses these; keyboard focus would double-fire with A
-	for b in [bonus_btn, hearth_btn, respec_btn, close_btn]:
+	for b in [bonus_btn, hearth_btn, respec_btn, page_btn, close_btn]:
 		b.focus_mode = Control.FOCUS_NONE
 
 
@@ -179,7 +183,10 @@ func _refresh_header() -> void:
 	var free := Profile.skill_points_free()
 	points_lbl.text = "%d point%s" % [free, "" if free == 1 else "s"]
 	points_lbl.add_theme_color_override("font_color", UIKit.C_EMBER if free > 0 else UIKit.C_DIM)
-	info_lbl.text = "Level %d" % Profile.level()
+	info_lbl.text = "Level %d / %d%s" % [Profile.level(), Profile.MAX_LEVEL, ("   Renown %d" % Profile.renown()) if Profile.renown() > 0 else ""]
+	page_btn.text = "Page %s" % ["I", "II", "III"][Profile.skill_page()]
+	page_btn.disabled = Game.run != null
+	page_btn.tooltip_text = "Three saved builds. Switch between them in the sanctuary." if Game.run == null else "Builds can only be switched in the sanctuary."
 	var rc := Profile.respec_cost()
 	respec_btn.text = "Respec" if rc == 0 else "Respec %d" % rc
 	respec_btn.disabled = Profile.skills().size() <= 1 or Profile.currency("embers") < rc
@@ -249,6 +256,14 @@ func _feed_hearth() -> void:
 		Audio.play("hearth_feed", 0.0)
 		Game.ui.toast("The Hearth burns brighter. (+10 max health)", UIKit.C_GOLD)
 		Profile.save_profile()
+
+
+func _next_page() -> void:
+	if Game.run != null:
+		return
+	Profile.switch_page((Profile.skill_page() + 1) % Profile.PAGES)
+	Audio.play("skill_refund", -2.0, 1.2)
+	queue_redraw()
 
 
 func _respec() -> void:

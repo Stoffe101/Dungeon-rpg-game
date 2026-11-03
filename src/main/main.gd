@@ -144,6 +144,8 @@ func _open_dev_screen(what: String) -> void:
 				(tabs[0] as TabContainer).current_tab = 3
 		"pause":
 			ui.pause_menu()
+		"feats":
+			ui.open(Screens.feats(ui))
 		"inventory":
 			ui.inventory()
 		"wardrobe":

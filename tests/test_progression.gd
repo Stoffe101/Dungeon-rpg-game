@@ -387,3 +387,58 @@ func test_tier_scaling() -> void:
 	eq(f.affix2, "", "a duplicate second affix is dropped")
 	for x in [a, b, e, f]:
 		x.free()
+
+
+func test_level_cap_and_renown() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.level = Profile.MAX_LEVEL - 1
+	Profile.add_xp(Combat.xp_to_next(Profile.MAX_LEVEL - 1) + Profile.renown_step() * 2 + 5)
+	eq(Profile.level(), Profile.MAX_LEVEL, "levels stop at the cap")
+	eq(Profile.renown(), 2, "experience past the cap becomes Renown")
+	eq(Profile.skill_points_total(), Profile.MAX_LEVEL - 1, "no points past the cap")
+	check(Profile.currency("embers") >= 120, "Renown pays Embers")
+	var full := 0
+	for id in SkillDB.all_ids():
+		full += SkillDB.cost(id) * SkillDB.max_rank(id)
+	check(full > Profile.skill_points_total() * 2, "the tree (%d points) costs over twice what the cap gives: builds are choices" % full)
+
+
+func test_hearthtree_pages() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.level = 10
+	check(Profile.allocate("b1"), "allocate on page I")
+	Profile.switch_page(1)
+	eq(Profile.skills(), ["hearth"], "page II starts empty")
+	check(Profile.allocate("p1"), "allocate on page II")
+	Profile.switch_page(0)
+	check(Profile.skills().has("b1") and not Profile.skills().has("p1"), "page I kept its build")
+	Profile.switch_page(1)
+	check(Profile.skills().has("p1"), "page II kept its build")
+
+
+func test_feats() -> void:
+	Profile.data = Profile.fresh()
+	var pts := Profile.skill_points_total()
+	check(Feats.check().is_empty(), "nothing earned on a fresh save")
+	Profile.data.world["warden_kills"] = 1
+	Profile.data.stats["kills"] = 150.0
+	var got := Feats.check()
+	check(got.has("warden") and got.has("kills_100"), "reached feats are granted (%s)" % [got])
+	eq(Profile.skill_points_total(), pts + 1, "Wardenfall grants a skill point past the cap")
+	check(Feats.check().is_empty(), "each feat is granted once")
+	for id in Feats.FEATS:
+		var r: Dictionary = Feats.FEATS[id].reward
+		if r.has("look"):
+			check(Looks.LOOKS.has(r.look), "%s rewards a real look" % id)
+
+
+func test_migration_v7_caps_level() -> void:
+	var old := Profile.fresh()
+	old.version = 6
+	old.level = 70
+	old.erase("skill_pages")
+	old.erase("renown")
+	var m := Profile.migrate(old)
+	eq(int(m.level), Profile.MAX_LEVEL, "an old save over the cap is capped")
+	eq(int(m.renown), 10, "its extra levels become Renown")
+	eq((m.skill_pages as Array).size(), Profile.PAGES, "pages exist")

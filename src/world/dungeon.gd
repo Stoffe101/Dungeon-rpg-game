@@ -607,6 +607,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		Profile.stat_add("kills")
 		if e.elite:
 			run.elites_slain += 1
+			Profile.stat_add("elites")
 			note_request("elite")
 		# loot (embers are deliberately scarce: they are both shop money and progress)
 		var memory := int(Profile.data.world.get("memory", 0))

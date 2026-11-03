@@ -114,6 +114,8 @@ static func craft_tier() -> int:
 static func on_victory(region: String, t: int) -> Array:
 	var d := _d()
 	d["cleared"] = maxi(int(d.get("cleared", 0)), t)
+	if region == "throne":
+		d["throne_best"] = maxi(int(d.get("throne_best", 0)), t)
 	var opened: Array = []
 	if region == "throne" and t >= unlocked() - 1:
 		var to := mini(MAX_TIER, maxi(unlocked(), t + 2))

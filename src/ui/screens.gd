@@ -381,6 +381,7 @@ static func pause(ui: UIRoot) -> Control:
 	var resume := UIKit.button("Resume", func() -> void: ui.close_top(), 140)
 	v.add_child(resume)
 	v.add_child(UIKit.button("Satchel", func() -> void: ui.inventory(), 140))
+	v.add_child(UIKit.button("Feats  %d / %d" % [Feats.earned_count(), Feats.FEATS.size()], func() -> void: ui.open(feats(ui)), 140))
 	v.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 140))
 	if Game.stage is Dungeon:
 		v.add_child(UIKit.button("Abandon Expedition", func() -> void:
@@ -830,6 +831,40 @@ static func _tier_picker() -> VBoxContainer:
 	return v
 
 
+# --- feats ---------------------------------------------------------------------------------------
+
+## Long goals: progress toward each, and what it pays.
+static func feats(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("Feats"))
+	v.add_child(UIKit.label("%d of %d earned.  Skill points from feats: %d.  Level cap %d, Renown %d." % [Feats.earned_count(), Feats.FEATS.size(), int(Profile.data.unlocks.get("bonus_points", 0)), Profile.MAX_LEVEL, Profile.renown()], 8, UIKit.C_DIM))
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.custom_minimum_size = Vector2(330, 220)
+	v.add_child(scroll)
+	var list := UIKit.vbox(3)
+	scroll.add_child(list)
+	for id in Feats.FEATS:
+		var f: Dictionary = Feats.FEATS[id]
+		var done := Feats.earned(id)
+		var row := UIKit.hbox(6)
+		row.add_child(UIKit.icon_rect("star" if done else "lock"))
+		var tv := UIKit.vbox(0)
+		var goal := Feats.goal(id)
+		var prog := mini(Feats.progress(id), goal)
+		var name_col := UIKit.C_GOLD if done else UIKit.C_TEXT
+		tv.add_child(UIKit.label("%s%s" % [f.name, "" if done or goal <= 1 else "   %d / %d" % [prog, goal]], 8, name_col, done))
+		tv.add_child(UIKit.para("%s  Reward: %s" % [f.desc, Feats.describe_reward(f.reward)], 290, UIKit.C_DIM if done else UIKit.C_TEXT))
+		row.add_child(tv)
+		list.add_child(row)
+	var close := UIKit.button("Close", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
+
+
 # --- run summary ------------------------------------------------------------------------------
 
 static func summary(ui: UIRoot, s: Dictionary) -> Control:
@@ -843,6 +878,8 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		t = [String(EnemyDB.REGIONS.get(s.get("region", "ossuary"), {}).get("victory", t[0])), t[1]]
 	v.add_child(_title(t[0], t[1]))
 	v.add_child(UIKit.label("Depth %d   Rooms %d   Foes %d   Time %s   Tier %s" % [s.depth, s.rooms, s.kills, UIKit.fmt_time(s.time), Difficulty.roman(int(s.get("tier", 1)))], 8, UIKit.C_DIM))
+	for fid in s.get("feats", []):
+		v.add_child(UIKit.label("Feat earned: %s  -  %s" % [Feats.FEATS[fid].name, Feats.describe_reward(Feats.FEATS[fid].reward)], 8, Color(1.0, 0.85, 0.45), true))
 	for nt in s.get("tiers", []):
 		v.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
 	v.add_child(HSeparator.new())

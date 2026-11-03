@@ -285,7 +285,7 @@ func _process(_delta: float) -> void:
 	shards_lbl.text = str((pl.run.sunshards if in_dungeon and pl.run else 0) + Profile.currency("sunshards"))
 	if in_dungeon and pl.run:
 		depth_lbl.text = "Tier %s  Depth %d  %s" % [Difficulty.roman(pl.run.tier), pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
-	level_lbl.text = "LV %d" % Profile.level()
+	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
 	# abilities
 	for i in 2:
 		var id: String = pl.ability_slots[i] if i < pl.ability_slots.size() else ""
