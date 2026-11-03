@@ -41,6 +41,8 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.visual.add_child(visual)
 	visual.set_instance_shader_parameter("frame", Vector2.ZERO)
+	# forged weapons burn brighter: masterworks glow, ascended ones blaze
+	visual.set_instance_shader_parameter("glow_mult", 2.6 if lvl >= 10 else (1.7 if lvl >= 7 else 1.0))
 
 
 func free_visual() -> void:
@@ -54,6 +56,14 @@ func speed() -> float:
 
 func tempered() -> bool:
 	return level >= 3
+
+
+func masterwork() -> bool:
+	return level >= 7
+
+
+func ascended() -> bool:
+	return level >= 10
 
 
 func damage_scale() -> float:
@@ -229,6 +239,31 @@ func update_visual(_dt: float) -> void:
 
 
 # --- helpers -----------------------------------------------------------------
+
+## Hits every enemy within `width` of the segment from -> to.
+func line_hit(from: Vector2, to: Vector2, width: float, dmg: float, tags: Array, kb: float, poise: float, opts := {}) -> int:
+	var n := 0
+	var seg := to - from
+	var len2 := maxf(seg.length_squared(), 0.0001)
+	var dir := seg.normalized() if seg.length() > 0.01 else player.aim
+	for a in player.stage.hostiles(player.team):
+		if hit_ids.has(a.get_instance_id()) or not a.targetable:
+			continue
+		var t := clampf((a.pos - from).dot(seg) / len2, 0.0, 1.0)
+		if a.pos.distance_to(from + seg * t) > width + a.radius:
+			continue
+		hit_ids[a.get_instance_id()] = true
+		var h := Combat.player_hit(player, player.stats, dmg * damage_scale(), tags)
+		h.knockback = dir * kb * player.stats.v("knockback")
+		h.from_dir = dir
+		h.poise = poise * player.stats.v("poise_damage")
+		h.forced_crit = opts.get("crit", false)
+		if opts.get("unblockable", false):
+			h.unblockable = true
+		player.deal_hit(a, h, opts.get("finisher", false))
+		n += 1
+	return n
+
 
 ## Hits every enemy in an arc; returns how many were struck.
 func arc_hit(origin: Vector2, dir: Vector2, rng: float, half_angle: float, dmg: float, tags: Array, kb: float, poise: float, opts := {}) -> int:

@@ -124,3 +124,13 @@ func _explode(at: Vector2, dmg: float) -> void:
 		h.burn = 2
 		h.poise = 30.0
 		player.deal_hit(a, h)
+	if masterwork():
+		# a ring of ember bolts flies out of the burst
+		for k in 8:
+			var d := Vector2.RIGHT.rotated(k * TAU / 8.0)
+			var pr := Projectile.create(player.stage, "proj_ember", at + d * 0.4, d * 11.0, player.team)
+			pr.source = player
+			pr.damage = dmg * 0.3
+			pr.tags = ["ranged", "fire"]
+			pr.life = 0.5
+			pr.reflectable = false

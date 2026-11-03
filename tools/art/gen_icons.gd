@@ -13,6 +13,7 @@ const NAMES := [
 	"hourglass", "candle", "ring_cursed", "shield", "flare", "lance", "gloamstep", "aegis", "wisp", "skull",
 	"chest", "shrine", "merchant", "stairs", "boss", "relic", "embers", "vigor", "memory", "sunshard",
 	"ember", "xp", "flask", "dodge", "kindle", "lock", "eye", "hearth", "star", "key",
+	"daggers", "spear",
 ]
 
 const REWARD_KEYS := ["relic", "embers", "vigor", "memory", "sunshard", "chest", "shrine", "merchant", "skull", "stairs", "boss"]
@@ -78,6 +79,19 @@ static func draw(n: String) -> Px:
 			c.line(4, 14, 11, 7, Pal.WOOD[2])
 			c.paint(c.mask().poly(V([[7, 4], [11, 1], [15, 5], [11, 9]])), Pal.STEEL, 3, true)
 			c.lit(11, 5, Pal.EMBER[3])
+		"daggers":
+			for k in 2:
+				var ox := 4 * k
+				c.paint(c.mask().poly(V([[2 + ox, 12], [8 + ox, 4], [10 + ox, 2], [9 + ox, 6], [4 + ox, 13]])), Pal.STEEL, 4)
+				c.line(1 + ox, 13, 3 + ox, 11, Pal.GOLD[3])
+				c.line(0 + ox, 15, 2 + ox, 13, Pal.EARTH[3])
+			c.lit(9, 5, Pal.GLOAM[4])
+		"spear":
+			c.line(1, 15, 11, 5, Pal.WOOD[3])
+			c.line(2, 15, 12, 5, Pal.WOOD[2])
+			c.paint(c.mask().poly(V([[10, 6], [12, 1], [15, 0], [14, 3], [9, 7]])), Pal.STEEL, 4)
+			c.lit(13, 2, Pal.EMBER[4])
+			c.line(9, 7, 10, 8, Pal.GOLD[3])
 		"staff":
 			c.line(3, 14, 11, 6, Pal.WOOD[3])
 			c.line(4, 14, 12, 6, Pal.WOOD[2])

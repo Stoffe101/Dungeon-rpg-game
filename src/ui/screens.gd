@@ -572,66 +572,98 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 	v.add_child(_title("Weapon Rack" if equip_only else "The Ashen Forge"))
 	var forge_built := Profile.building("forge") > 0
 	if not forge_built:
-		v.add_child(UIKit.para("The forge lies cold. Rebuild it to temper and craft weapons.", 260, UIKit.C_DIM))
-	var list := UIKit.vbox(4)
-	v.add_child(list)
+		v.add_child(UIKit.para("The forge lies cold. Rebuild it in the sanctuary to temper and craft weapons.", 300, UIKit.C_DIM))
+	# the rack on the left, the chosen weapon on the anvil to the right
+	var cols := UIKit.hbox(8)
+	v.add_child(cols)
+	var list := UIKit.vbox(2)
+	list.custom_minimum_size = Vector2(112, 0)
+	cols.add_child(list)
+	var detail := UIKit.vbox(3)
+	detail.custom_minimum_size = Vector2(210, 196)
+	cols.add_child(detail)
 	# lambdas capture by value, so self-reference goes through a shared dict
-	var ctx := {}
+	var ctx := {"sel": Profile.equipped_weapon()}
 	ctx.rebuild = func() -> void:
 		for c in list.get_children():
 			c.queue_free()
-		for id in GearDB.WEAPONS:
-			var w: Dictionary = GearDB.WEAPONS[id]
-			var row := UIKit.hbox(6)
-			row.add_child(UIKit.icon_rect(w.icon, 2))
-			var tv := UIKit.vbox(0)
-			var unlocked: bool = Profile.weapon_unlocked(id)
-			var lvl: int = Profile.weapon_level(id)
-			var eq: bool = Profile.equipped_weapon() == id
-			tv.add_child(UIKit.label("%s%s%s" % [w.name, ("  +%d" % lvl) if lvl > 0 else "", "  (equipped)" if eq else ""], 8, UIKit.C_GOLD if unlocked else UIKit.C_DIM))
-			tv.add_child(UIKit.para(w.desc, 170))
-			if unlocked and lvl >= 3:
-				tv.add_child(UIKit.para(GearDB.FORGE_SIGNATURES[id], 170, UIKit.C_EMBER))
-			row.add_child(tv)
-			var bv := UIKit.vbox(2)
-			if unlocked:
-				var e := UIKit.button("Equip", func() -> void:
-					Profile.data.equipped.weapon = id
+		for c in detail.get_children():
+			c.queue_free()
+		for wid in GearDB.WEAPONS:
+			var w0: Dictionary = GearDB.WEAPONS[wid]
+			var lv0: int = Profile.weapon_level(wid)
+			var b := Button.new()
+			b.toggle_mode = true
+			b.button_pressed = wid == ctx.sel
+			b.custom_minimum_size = Vector2(112, 20)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			b.text = "      %s%s" % [w0.name, ("  +%d" % lv0) if lv0 > 0 else ""]
+			b.modulate = Color(1, 1, 1) if Profile.weapon_unlocked(wid) else Color(0.6, 0.56, 0.62)
+			var ic := UIKit.icon_rect(w0.icon)
+			ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			ic.position = Vector2(4, 2)
+			b.add_child(ic)
+			var pick: String = wid
+			b.pressed.connect(func() -> void:
+				ctx.sel = pick
+				Audio.ui("ui_click")
+				ctx.rebuild.call())
+			list.add_child(b)
+		var id: String = ctx.sel
+		var w: Dictionary = GearDB.WEAPONS[id]
+		var unlocked: bool = Profile.weapon_unlocked(id)
+		var lvl: int = Profile.weapon_level(id)
+		var eq: bool = Profile.equipped_weapon() == id
+		var head := UIKit.hbox(6)
+		head.add_child(UIKit.icon_rect(w.icon, 3))
+		var hv := UIKit.vbox(0)
+		hv.add_child(UIKit.label(String(w.name), 16, UIKit.C_GOLD if unlocked else UIKit.C_DIM, true))
+		var rank := "Not yet forged" if not unlocked else ("+%d / +%d%s%s" % [lvl, GearDB.FORGE_MAX, "   equipped" if eq else "", "   ASCENDED" if lvl >= GearDB.FORGE_MAX else ""])
+		hv.add_child(UIKit.label(rank, 8, Color(1.0, 0.85, 0.5) if lvl >= GearDB.FORGE_MAX else UIKit.C_DIM))
+		head.add_child(hv)
+		detail.add_child(head)
+		detail.add_child(UIKit.para(String(w.desc), 210))
+		if unlocked:
+			detail.add_child(UIKit.label("Damage +%d%%" % int(round(lvl * GearDB.FORGE_DAMAGE_PER_LEVEL * 100.0)), 8, UIKit.C_TEXT))
+		detail.add_child(UIKit.para(String(GearDB.FORGE_SIGNATURES[id]) + ("" if lvl >= 3 else "  (at +3)"), 210, UIKit.C_EMBER if unlocked and lvl >= 3 else UIKit.C_DIM))
+		detail.add_child(UIKit.para(String(GearDB.FORGE_MASTERWORK[id]) + ("" if lvl >= 7 else "  (at +7)"), 210, Color(1.0, 0.8, 0.45) if unlocked and lvl >= 7 else UIKit.C_DIM))
+		var row := UIKit.hbox(6)
+		detail.add_child(row)
+		if unlocked:
+			var e := UIKit.button("Equip", func() -> void:
+				Profile.data.equipped.weapon = id
+				Profile.save_profile()
+				if Game.stage and Game.stage.player:
+					Game.stage.player.set_weapon(id, Profile.weapon_level(id))
+				ctx.rebuild.call(), 60)
+			e.disabled = eq
+			row.add_child(e)
+			if not equip_only and forge_built:
+				var cost := Profile.forge_cost(id)
+				if not cost.is_empty():
+					var up := UIKit.button("Temper to +%d" % (lvl + 1), func() -> void:
+						if Profile.upgrade_weapon(id):
+							Audio.play("forge", 0.0)
+							Profile.save_profile()
+							if Game.stage and Game.stage.player and Profile.equipped_weapon() == id:
+								Game.stage.player.set_weapon(id, Profile.weapon_level(id))
+						ctx.rebuild.call(), 84)
+					up.disabled = not Profile.can_pay(cost)
+					row.add_child(up)
+					detail.add_child(UIKit.cost_row(cost))
+		elif not equip_only and forge_built:
+			var uc: Dictionary = w.unlock
+			var cr := UIKit.button("Forge it", func() -> void:
+				if Profile.pay(uc):
+					Profile.unlock_weapon(id)
+					Audio.play("forge", 0.0, 0.8)
 					Profile.save_profile()
-					if Game.stage and Game.stage.player:
-						Game.stage.player.set_weapon(id, Profile.weapon_level(id))
-					ctx.rebuild.call(), 60)
-				e.disabled = eq
-				bv.add_child(e)
-				if not equip_only and forge_built:
-					var cost := Profile.forge_cost(id)
-					if not cost.is_empty():
-						var up := UIKit.button("Temper +%d" % (lvl + 1), func() -> void:
-							if Profile.upgrade_weapon(id):
-								Audio.play("forge", 0.0)
-								Profile.save_profile()
-								if Game.stage and Game.stage.player and Profile.equipped_weapon() == id:
-									Game.stage.player.set_weapon(id, Profile.weapon_level(id))
-							ctx.rebuild.call(), 60)
-						up.disabled = not Profile.can_afford(cost)
-						bv.add_child(up)
-						bv.add_child(UIKit.cost_row(cost))
-			elif not equip_only and forge_built:
-				var uc: Dictionary = w.unlock
-				var cr := UIKit.button("Craft", func() -> void:
-					if Profile.pay(uc):
-						Profile.unlock_weapon(id)
-						Audio.play("forge", 0.0, 0.8)
-						Profile.save_profile()
-					ctx.rebuild.call(), 60)
-				cr.disabled = not Profile.can_afford(uc)
-				bv.add_child(cr)
-				bv.add_child(UIKit.cost_row(uc))
-			else:
-				bv.add_child(UIKit.label("Locked", 8, UIKit.C_DIM))
-			row.add_child(bv)
-			list.add_child(row)
-			list.add_child(HSeparator.new())
+				ctx.rebuild.call(), 70)
+			cr.disabled = not Profile.can_pay(uc)
+			row.add_child(cr)
+			detail.add_child(UIKit.cost_row(uc))
+		else:
+			row.add_child(UIKit.label("Forge it at the Ashen Forge.", 8, UIKit.C_DIM))
 	ctx.rebuild.call()
 	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
 	return _center(p)

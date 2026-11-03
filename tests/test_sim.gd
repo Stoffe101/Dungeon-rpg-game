@@ -269,3 +269,46 @@ func test_hearthcall_channel() -> void:
 	_run(st, Player.HEARTHCALL_TIME + 0.2)
 	check(pl.hearthcall_t < 0.0 and pl.invuln_t > 4.0, "the call completes after %.0f s" % Player.HEARTHCALL_TIME)
 	st.queue_free()
+
+
+## Every weapon's combo kills a husk, and its charged attack connects.
+func test_every_weapon_combo_and_charge() -> void:
+	for wid in GearDB.WEAPONS:
+		Profile.data = Profile.fresh()
+		var st := _stage()
+		var pl := _player(st, Vector2(5, 7))
+		pl.set_weapon(String(wid), 7)
+		var e := _enemy(st, "husk", Vector2(6.6, 7))
+		_run(st, 0.8)
+		var start_hp := e.hp
+		for k in 20:
+			pl.aim = (e.pos - pl.pos).normalized() if e.alive else Vector2.RIGHT
+			pl.weapon.press()
+			pl.weapon.release()
+			_run(st, 0.35)
+			if not e.alive:
+				break
+		check(not e.alive, "%s: combos kill a husk (hp %d/%d)" % [wid, int(e.hp), int(start_hp)])
+		# charged attack: hold past the charge time, then release toward a fresh husk
+		var e2 := _enemy(st, "husk", pl.pos + Vector2(2.2, 0))
+		_run(st, 0.8)
+		var hp2 := e2.hp
+		pl.aim = (e2.pos - pl.pos).normalized()
+		pl.weapon.press()
+		_run(st, 1.2)
+		pl.weapon.release()
+		_run(st, 1.2)
+		check(e2.hp < hp2 or not e2.alive, "%s: the charged attack connects" % wid)
+		st.queue_free()
+
+
+func test_forge_levels_and_costs() -> void:
+	Profile.data = Profile.fresh()
+	check(not Profile.forge_cost("sword").is_empty(), "the forge has a next level")
+	Profile.data.weapons.sword.level = GearDB.FORGE_MAX
+	check(Profile.forge_cost("sword").is_empty(), "nothing past +%d" % GearDB.FORGE_MAX)
+	Profile.data.weapons.sword.level = 4
+	var c := Profile.forge_cost("sword")
+	check(c.has("embers") and c.size() > 1, "higher levels ask for materials too (%s)" % c)
+	for wid in GearDB.WEAPONS:
+		check(GearDB.FORGE_SIGNATURES.has(wid) and GearDB.FORGE_MASTERWORK.has(wid), "%s has both forge upgrades" % wid)

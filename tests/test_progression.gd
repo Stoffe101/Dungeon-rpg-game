@@ -90,6 +90,8 @@ func test_profile_currency_and_levels() -> void:
 func test_forge_upgrade_costs() -> void:
 	Profile.data = Profile.fresh()
 	Profile.add_currency("embers", 10000)
+	for m in ["bone_dust", "grave_iron", "soul_glass"]:
+		Profile.add_material(m, 20)
 	for i in 2:
 		check(Profile.upgrade_weapon("sword"), "upgrade %d" % i)
 	check(not Profile.upgrade_weapon("sword"), "level 3 needs a sunshard")

@@ -306,9 +306,7 @@ func upgrade_weapon(id: String) -> bool:
 	var lvl := weapon_level(id)
 	if lvl >= GearDB.FORGE_MAX:
 		return false
-	var cost := {"embers": GearDB.FORGE_COSTS[lvl]}
-	if lvl == 2:
-		cost["sunshards"] = 1
+	var cost := forge_cost(id)
 	if not pay(cost):
 		return false
 	data.weapons[id].level = lvl + 1
@@ -321,8 +319,9 @@ func forge_cost(id: String) -> Dictionary:
 	if lvl >= GearDB.FORGE_MAX:
 		return {}
 	var cost := {"embers": GearDB.FORGE_COSTS[lvl]}
-	if lvl == 2:
-		cost["sunshards"] = 1
+	cost.merge(GearDB.FORGE_MATERIALS[lvl])
+	if lvl == 2 or lvl == 6 or lvl == 9:
+		cost["sunshards"] = 1 if lvl == 2 else 2
 	return cost
 
 

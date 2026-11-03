@@ -60,6 +60,8 @@ func on_active() -> void:
 				hits += _smash(a, dmg * 0.4, c)
 		player.stage.fx.shake(0.4)
 		player.stage.hitstop(0.09 if hits > 0 else 0.03)
+		if masterwork():
+			_burning_cracks(c)
 	else:
 		Audio.play("swing_heavy", 0.0)
 		var rev := cos(Iso.screen_angle(aim_dir)) < 0.0
@@ -69,6 +71,17 @@ func on_active() -> void:
 			player.stage.hitstop(0.07)
 			player.stage.fx.shake(0.25)
 	player.on_weapon_strike(hits, combo == 1)
+
+
+## Masterwork: the slam leaves the ground cracked and burning.
+func _burning_cracks(c: Vector2) -> void:
+	var src := player
+	player.stage.fx.splat(c, Color(0.2, 0.08, 0.04), 8.0, 1.4)
+	var hz := Hazard.spawn(player.stage, c, 1.6, 3.0, Actor.Team.PLAYER, Color(1.0, 0.5, 0.18), func(_h: Hazard, a: Actor) -> void:
+		if a.team != Actor.Team.PLAYER and is_instance_valid(src):
+			a.status.apply_burn(1, 5.0, 5, src))
+	hz.period = 0.5
+	hz.particle_rate = 16.0
 
 
 func _smash(a: Actor, dmg: float, c: Vector2) -> int:

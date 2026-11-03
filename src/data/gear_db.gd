@@ -35,16 +35,53 @@ const WEAPONS := {
 		"damage": [9.0],
 		"charged": 48.0,
 	},
+	"daggers": {
+		"name": "Twin Fangs",
+		"desc": "Two quick blades: four fast cuts and +15% crit chance. Charge to Shadowstep through your foes.",
+		"icon": "daggers",
+		"sprite": "w_daggers",
+		"script": "res://src/combat/weapons/daggers.gd",
+		"unlock": {"sunshards": 2, "embers": 250, "soul_glass": 6},
+		"damage": [8.0, 8.0, 9.0, 16.0],
+		"charged": 30.0,
+	},
+	"spear": {
+		"name": "Sunpiercer",
+		"desc": "A long glaive. Thrusts skewer a whole line, the third cut sweeps wide. Charge for a Comet Lunge.",
+		"icon": "spear",
+		"sprite": "w_spear",
+		"script": "res://src/combat/weapons/spear.gd",
+		"unlock": {"sunshards": 2, "embers": 250, "grave_iron": 8},
+		"damage": [15.0, 15.0, 26.0],
+		"charged": 46.0,
+	},
 }
 
-## Forge levels: damage bonus per level; level 3 grants the weapon's signature upgrade.
-const FORGE_MAX := 5
+## Forge levels: +12% damage per level. +3 Tempers a weapon (its signature),
+## +7 makes it a Masterwork (a second one), +10 Ascends it (it burns brighter).
+## Higher levels ask for materials from deeper regions too.
+const FORGE_MAX := 10
 const FORGE_DAMAGE_PER_LEVEL := 0.12
-const FORGE_COSTS := [60, 120, 220, 360, 540]
+const FORGE_COSTS := [60, 120, 220, 360, 540, 760, 1000, 1300, 1650, 2050]
+const FORGE_MATERIALS := [
+	{}, {"bone_dust": 4}, {"grave_iron": 4}, {"grave_iron": 6, "soul_glass": 2},
+	{"rootwood": 6, "ember_core": 1}, {"spore_silk": 6, "ember_core": 2},
+	{"grave_iron": 10, "ember_core": 3}, {"sun_gold": 6, "ember_core": 3},
+	{"sun_gold": 10, "soul_glass": 6}, {"sun_gold": 14, "eclipse_shard": 1},
+]
 const FORGE_SIGNATURES := {
 	"sword": "Tempered: the third strike sends out a cutting wave.",
 	"hammer": "Tempered: slams release a wider shockwave.",
 	"staff": "Tempered: ember bolts pierce one extra enemy.",
+	"daggers": "Tempered: the crossing cut strikes with full force.",
+	"spear": "Tempered: thrusts slip past shields.",
+}
+const FORGE_MASTERWORK := {
+	"sword": "Masterwork: the whirling cut leaves a ring of embers that sets foes alight.",
+	"hammer": "Masterwork: slams leave the ground cracked and burning.",
+	"staff": "Masterwork: the fireball bursts into a ring of ember bolts.",
+	"daggers": "Masterwork: the shadow left by Shadowstep cuts again.",
+	"spear": "Masterwork: the sweep hurls a piercing lance of sunfire.",
 }
 
 const ABILITIES := {

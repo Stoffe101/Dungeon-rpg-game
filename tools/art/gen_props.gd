@@ -99,6 +99,30 @@ static func _weapons(dir: String) -> void:
 	st.put(17, 3, Pal.GOLD[3])
 	st.outline(Pal.INK)
 	single(dir, "w_staff", st, Vector2i(5, 4))
+	# Twin Fangs: a curved fang of a blade with a wrapped grip
+	var dg := Px.new(16, 9)
+	c_line(dg, 1, 4, 4, 4, Pal.EARTH, 2)
+	dg.paint(dg.mask().rect(4, 3, 1, 4), Pal.GOLD, 3)
+	var fang := dg.mask().poly(V([[5, 3], [11, 3], [15, 1.5], [13, 5], [5, 6]]))
+	dg.paint(fang, Pal.STEEL, 4, false)
+	for x in range(6, 12):
+		dg.put(x, 4, Pal.STEEL[5])
+	dg.lit(7, 4, Pal.GLOAM[4])
+	dg.put(0, 4, Pal.GOLD[3])
+	dg.outline(Pal.INK)
+	single(dir, "w_daggers", dg, Vector2i(3, 4))
+	# Sunpiercer: a long ashwood shaft, a gold collar and a leaf head with a burning edge
+	var sp := Px.new(36, 9)
+	c_line(sp, 0, 4, 25, 4, Pal.WOOD, 2)
+	for x in [3, 9, 15]:
+		sp.put(x, 4, Pal.WOOD[4])
+	sp.paint(sp.mask().rect(25, 3, 2, 3), Pal.GOLD, 3)
+	var leaf := sp.mask().poly(V([[27, 4.5], [30, 1.5], [35.5, 4.5], [30, 7.5]]))
+	sp.paint(leaf, Pal.STEEL, 4, false)
+	for x in range(28, 35):
+		sp.lit(x, 4, Pal.EMBER[4] if x % 2 == 0 else Pal.EMBER[3])
+	sp.outline(Pal.INK)
+	single(dir, "w_spear", sp, Vector2i(10, 4))
 
 
 static func c_line(c: Px, x0: int, y0: int, x1: int, y1: int, r: Array, base: int) -> void:

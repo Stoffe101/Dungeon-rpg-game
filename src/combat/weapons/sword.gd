@@ -94,8 +94,20 @@ func release_charge() -> void:
 		player.stage.fx.shake(0.3)
 	player.stage.fx.flash_light(p, 1.0, Color(1.0, 0.7, 0.35), 2.6, r + 1.5, 0.25)
 	player.stage.fx.splat(p, Color(0.14, 0.1, 0.09), 14.0, 1.6)
+	if masterwork():
+		_ember_ring(p, r)
 	player.on_weapon_strike(hits, true)
 	combo = 0
+
+
+## Masterwork: a ring of embers where the whirl passed; foes in it catch fire.
+func _ember_ring(p: Vector2, r: float) -> void:
+	var src := player
+	var hz := Hazard.spawn(player.stage, p, r, 2.5, Actor.Team.PLAYER, Color(1.0, 0.55, 0.2), func(_h: Hazard, a: Actor) -> void:
+		if a.team != Actor.Team.PLAYER and is_instance_valid(src):
+			a.status.apply_burn(1, 4.0, 4, src))
+	hz.period = 0.5
+	hz.particle_rate = 14.0
 
 
 func base_angle() -> float:
