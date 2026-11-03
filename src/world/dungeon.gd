@@ -41,6 +41,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	add_child(LevelBuilder.build(grid, theme))
 	_environment()
 	_place_props()
+	if run.has_omen("lightless"):
+		_snuff_lights()
 	_place_gates()
 	_place_door_icons()
 	_pick_grudge_room()
@@ -100,6 +102,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
 	var title: String = region.name
 	Events.banner.emit(title, "Depth %d%s" % [lay.depth, "  -  the Warden waits below" if lay.boss_depth else ""])
+	if not run.omens.is_empty() and lay.depth == 1:
+		after(2.6, func() -> void: Events.banner.emit("Omens", Omens.names(run.omens)))
 	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
 		Game.ui.hud.show_controls.call_deferred()
 
@@ -115,6 +119,21 @@ func _dump_map() -> void:
 			print("%3d %s" % [y, line])
 	for r in layout.rooms:
 		print("room %d %s rect=%s doors=%s" % [r.id, r.type_name(), r.rect, r.doors.map(func(d): return d.to)])
+
+
+## Lightless: every torch, candle, brazier and glowcap is dark; only the
+## lantern (and what the Undervault itself gives off) remains.
+func _snuff_lights() -> void:
+	env.ambient_light_energy *= 0.62
+	for p in props:
+		if p.kind in ["torch", "candles", "brazier", "glowcap"]:
+			p.lit = false
+			if p.light:
+				p.light.visible = false
+			if p.sprite:
+				p.sprite.set_glow(0.0)
+				p.sprite.set_tint(Color(0.5, 0.5, 0.55))
+				p.sprite.playing = false
 
 
 func _environment() -> void:
@@ -241,6 +260,8 @@ func _icon_key(r: Room) -> String:
 func _pick_grudge_room() -> void:
 	# a Grudge waits on the depth where it won, or on the last one if that was deeper
 	var gs := Profile.active_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
+	if run.has_omen("hunted"):
+		gs = Profile.active_grudges()
 	if gs.is_empty():
 		return
 	var cands: Array = []
@@ -281,6 +302,7 @@ func _stage_tick(dt: float) -> void:
 ## The air of each region: soul motes rising in the Ossuary, spores drifting in
 ## the Rootmire, ash (and the odd ember) falling in the Sunken Throne.
 var _air_t := 0.0
+var _rising := 0   # Restless Dead still getting up
 
 func _ambient_air(real: float) -> void:
 	if player == null:
@@ -374,6 +396,7 @@ func _spawn_wave(r: Room) -> void:
 	if far.size() >= ids.size():
 		spots = far
 	var elite_done := false
+	var tempered := run.has_omen("tempered") and r.type != Room.Type.ELITE
 	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
 	for i in ids.size():
 		var id: String = ids[i]
@@ -389,6 +412,11 @@ func _spawn_wave(r: Room) -> void:
 		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) and not swarm:
 			var a := EnemyDB.roll_affix(rng, id)
 			e.make_elite(a, _second_affix(a, id))
+		if tempered and not swarm:
+			if not e.elite:
+				var ta := EnemyDB.roll_affix(rng, id)
+				e.make_elite(ta, _second_affix(ta, id))
+			tempered = false
 		e.room_id = r.id
 		e.spawn_t = 0.6 + i * 0.08
 		add_actor(e)
@@ -453,7 +481,7 @@ func _spawn_grudge(r: Room) -> void:
 
 func _update_encounter(_dt: float) -> void:
 	room_enemies = room_enemies.filter(func(e): return is_instance_valid(e) and e.alive)
-	if room_enemies.is_empty() and active_room.type != Room.Type.BOSS:
+	if room_enemies.is_empty() and _rising == 0 and active_room.type != Room.Type.BOSS:
 		wave += 1
 		if wave < active_room.encounter.size():
 			_spawn_wave(active_room)
@@ -682,9 +710,13 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		_drop_loot(e)
 		if rng.randf() < 0.06:
 			Pickup.spawn(self, "heal", e.pos, 10)
+		if run.has_omen("restless") and not e.summoned and not e.def.get("boss", false) and not e.has_meta("grudge_id") and e.room_id >= 0 and rng.randf() < 0.33:
+			_rise_again(e.id, e.pos, e.room_id)
 		if e.has_meta("grudge_id"):
 			var g := Profile.settle_grudge(e.get_meta("grudge_id"))
 			var back := int(e.get_meta("grudge_embers")) * (2 if Profile.building("shrine") > 0 else 1)
+			if run.has_omen("hunted"):
+				back *= 2
 			if player and player.stats.has("grudgebearer"):
 				back = int(back * 1.5)
 			for i in 10:
@@ -694,6 +726,31 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			Events.banner.emit("Grudge Settled", "%s returns to the dust." % g.get("name", "It"))
 		if e == boss:
 			_boss_defeated(e)
+
+
+## Restless Dead: the fallen climb back up once, weaker, a moment later.
+func _rise_again(kind: String, at: Vector2, room: int) -> void:
+	_rising += 1
+	fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(1.4, 1.4), Color(0.6, 0.45, 1.0, 0.35), Color(0.75, 0.6, 1.0, 1.0), 1.5, {"glow": 1.4})
+	fx.motes(at, 0.0, Omens.COLOR, 8, 1.2, 1.2, 0.5)
+	after(1.4, func() -> void:
+		_rising = maxi(0, _rising - 1)
+		if run.result != "" or player == null or not player.alive:
+			return
+		var e := _make_enemy(kind)
+		_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
+		e.max_hp *= 0.5
+		e.hp = e.max_hp
+		e.summoned = true
+		e.xp = 1
+		e.embers = 0
+		e.pos = random_floor_near(at, 0.4)
+		e.room_id = room
+		e.spawn_t = 0.45
+		add_actor(e)
+		e.sprite.set_tint(Color(0.8, 0.72, 1.0))
+		register_enemy(e)
+		Audio.play_at("spawn", at, -6.0, 0.8))
 
 
 func _boss_defeated(e: Enemy) -> void:

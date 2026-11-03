@@ -442,3 +442,42 @@ func test_migration_v7_caps_level() -> void:
 	eq(int(m.level), Profile.MAX_LEVEL, "an old save over the cap is capped")
 	eq(int(m.renown), 10, "its extra levels become Renown")
 	eq((m.skill_pages as Array).size(), Profile.PAGES, "pages exist")
+
+
+func test_omens() -> void:
+	# a v7 save gains the Descent memory
+	var old := Profile.fresh()
+	old.version = 7
+	old.erase("descent")
+	var m := Profile.migrate(old)
+	eq(String(m.descent.region), "ossuary", "an old save remembers the Ossuary")
+	eq((m.descent.omens as Array).size(), 0, "and no Omens")
+	eq(int(m.version), Profile.VERSION, "migrated to the current version")
+	Profile.data = Profile.fresh()
+	check(not Omens.any_unlocked(), "no Omens before a guardian falls")
+	Profile.data.world["warden_kills"] = 1
+	check(Omens.unlocked("lightless") and Omens.unlocked("glass") and not Omens.unlocked("tempered"), "the Warden opens the first signs")
+	check(not Omens.unlocked("hunted"), "Hunted needs a death")
+	Profile.data.stats["deaths"] = 1
+	check(Omens.unlocked("hunted"), "...and then it can be read")
+	check(absf(Omens.bonus(["lightless", "glass"], "embers") - 0.5) < 0.001, "rewards add up")
+	# Glass and Dry Flask change the Kindled's numbers
+	var s := Stats.for_player()
+	var dm := s.v("damage_more")
+	var dt := s.v("damage_taken")
+	var fl := s.v("flask_charges")
+	Omens.apply(["glass", "dry_flask"], s)
+	check(s.v("damage_more") > dm * 1.3 and s.v("damage_taken") > dt * 1.5, "Glass: more damage both ways")
+	eq(int(s.v("flask_charges")), int(fl) - 1, "Dry Flask takes a charge")
+	# the run banks the Omen bonus
+	Game.run = RunState.create(1, "ossuary", "sword", 0, ["flare", ""])
+	Game.run.omens = ["lightless"]
+	Game.run.embers = 100
+	var summary := {}
+	var grab := func(sm: Dictionary) -> void: summary.merge(sm)
+	Events.run_ended.connect(grab)
+	Game.end_run("extracted")
+	Events.run_ended.disconnect(grab)
+	eq(int(summary.get("embers_kept", 0)), 130, "Lightless pays +30% Embers on what comes home")
+	eq(int(summary.get("omen_embers", 0)), 30, "the summary shows the Omen's share")
+	Game.run = null

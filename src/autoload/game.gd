@@ -84,6 +84,8 @@ func start_run(region := "ossuary") -> void:
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	run = RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 	run.tier = Difficulty.selected()
+	run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	Profile.data.descent.region = region
 	Profile.stat_add("runs")
 	Profile.save_profile()
 	_enter_depth(1)
@@ -140,6 +142,12 @@ func end_run(outcome: String, killer_id := "") -> void:
 	run.result = outcome
 	run.killer_id = killer_id
 	var s := run.settle(outcome)
+	# Omens pay on what is carried home, and on all the experience earned
+	var omen_embers := int(round(int(s.embers_kept) * Omens.bonus(run.omens, "embers")))
+	var omen_xp := int(round(run.xp_gained * Omens.bonus(run.omens, "xp")))
+	s.embers_kept = int(s.embers_kept) + omen_embers
+	if omen_xp > 0:
+		Profile.add_xp(omen_xp)
 	Profile.add_currency("embers", int(s.embers_kept))
 	if int(s.sunshards) > 0:
 		Profile.add_currency("sunshards", int(s.sunshards))
@@ -182,8 +190,9 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
-		"feats": feats,
+		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))
-	ui.show_summary(summary)
+	if ui:
+		ui.show_summary(summary)

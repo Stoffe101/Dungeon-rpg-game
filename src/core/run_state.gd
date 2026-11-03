@@ -35,6 +35,8 @@ var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
 ## Materials and gear picked up this expedition, banked at the end.
 var loot := {"materials": {}, "gear": [], "blueprints": []}
+## Omens read at the Descent (see Omens).
+var omens: Array = []
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
@@ -55,6 +57,10 @@ func add_relic(id: String) -> void:
 
 func has_relic(id: String) -> bool:
 	return relics.has(id)
+
+
+func has_omen(id: String) -> bool:
+	return omens.has(id)
 
 
 func add_material(id: String, n: int) -> void:

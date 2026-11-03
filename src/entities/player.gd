@@ -126,6 +126,7 @@ func rebuild_stats() -> void:
 	Looks.apply_player(Looks.current())
 	if run:
 		RelicDB.apply(run.relics, stats)
+		Omens.apply(run.omens, stats)
 	var old_max := max_hp
 	max_hp = maxf(1.0, roundf(stats.v("max_hp")))
 	if old_max > 0.0 and hp > 0.0:

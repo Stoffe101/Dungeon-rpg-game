@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 7
+const VERSION := 8
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -61,6 +61,7 @@ static func fresh() -> Dictionary:
 		"inventory": {"bag": [], "equipped": {}, "materials": {}, "next_uid": 1, "known": [], "scrolls": [], "looks": ["kindled"], "look": ""},
 		"difficulty": {"unlocked": 2, "selected": 1, "cleared": 0},
 		"shop": {"stock": [], "for_run": -1},
+		"descent": {"region": "ossuary", "omens": []},
 	}
 
 
@@ -203,6 +204,11 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("feats"):
 			out["feats"] = {}
 		v = 7
+	if v < 8:
+		# v8: the Descent remembers the last region and Omens chosen
+		if not out.has("descent"):
+			out["descent"] = {"region": "ossuary", "omens": []}
+		v = 8
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:

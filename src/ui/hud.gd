@@ -10,6 +10,7 @@ var big_map: Minimap
 var embers_lbl: Label
 var shards_lbl: Label
 var depth_lbl: Label
+var omen_lbl: Label
 var level_lbl: Label
 var prompt_lbl: Label
 var relic_row: HBoxContainer
@@ -63,6 +64,9 @@ func _ready() -> void:
 	depth_lbl = UIKit.label("", 8, UIKit.C_DIM, true)
 	depth_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	cur.add_child(depth_lbl)
+	omen_lbl = UIKit.label("", 8, Omens.COLOR, true)
+	omen_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cur.add_child(omen_lbl)
 	level_lbl = UIKit.label("", 8, UIKit.C_SOUL, true)
 	add_child(level_lbl)
 	prompt_lbl = UIKit.label("", 8, UIKit.C_GOLD, true)
@@ -124,6 +128,7 @@ func set_dungeon(on: bool) -> void:
 	in_dungeon = on
 	minimap.visible = on
 	depth_lbl.visible = on
+	omen_lbl.visible = on
 	_relic_count = -1
 
 
@@ -262,8 +267,10 @@ func _process(_delta: float) -> void:
 	# layout (anchors handle most; keep explicit offsets crisp)
 	minimap.position = Vector2(vp.x - minimap.size.x - 8, 8)
 	var cur: Control = get_node("Currency")
-	cur.position = Vector2(vp.x - 70 - 8, (minimap.size.y + 12) if in_dungeon else 8)
-	cur.size.x = 70
+	# as wide as its longest line (the run clock, the Omens), right-aligned
+	var cw := maxf(70.0, cur.get_combined_minimum_size().x)
+	cur.size.x = cw
+	cur.position = Vector2(vp.x - cw - 8, (minimap.size.y + 12) if in_dungeon else 8)
 	big_map.position = (vp - big_map.size) * 0.5
 	var slot_y := vp.y - 40
 	for i in slot_nodes.size():
@@ -285,6 +292,7 @@ func _process(_delta: float) -> void:
 	shards_lbl.text = str((pl.run.sunshards if in_dungeon and pl.run else 0) + Profile.currency("sunshards"))
 	if in_dungeon and pl.run:
 		depth_lbl.text = "Tier %s  Depth %d  %s" % [Difficulty.roman(pl.run.tier), pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
+		omen_lbl.text = Omens.names(pl.run.omens)
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
 	# abilities
 	for i in 2:

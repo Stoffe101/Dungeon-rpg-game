@@ -725,7 +725,8 @@ static func descent(ui: UIRoot) -> Control:
 	p.add_child(v)
 	v.add_child(_title("The Descent"))
 	var mem := int(Profile.data.world.get("memory", 0))
-	var ctx := {"region": "ossuary"}
+	var last := String(Profile.data.descent.get("region", "ossuary"))
+	var ctx := {"region": last if EnemyDB.REGIONS.has(last) and EnemyDB.region_unlocked(last) else "ossuary"}
 	# one row of region tabs, the chosen (or sealed) region described below
 	var cards: Array = []
 	var tabs := UIKit.hbox(3)
@@ -751,6 +752,8 @@ static func descent(ui: UIRoot) -> Control:
 		card.pressed.connect(func() -> void:
 			if EnemyDB.region_unlocked(region_id):
 				ctx.region = region_id
+				Profile.data.descent.region = region_id
+				Profile.mark_changed()
 			for c in cards:
 				c.button_pressed = c == card if EnemyDB.region_unlocked(region_id) else c.get_meta("rid") == ctx.region
 			describe.call(region_id)
@@ -765,6 +768,8 @@ static func descent(ui: UIRoot) -> Control:
 	if mem > 0:
 		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
 	v.add_child(_tier_picker())
+	if Omens.any_unlocked():
+		v.add_child(_omen_picker())
 	v.add_child(UIKit.label("LOADOUT", 8, UIKit.C_GOLD, true))
 	v.add_child(UIKit.label("Weapon: %s +%d" % [GearDB.weapon(Profile.equipped_weapon()).name, Profile.weapon_level(Profile.equipped_weapon())], 8))
 	var avail := SkillDB.abilities(Profile.skills())
@@ -795,6 +800,69 @@ static func descent(ui: UIRoot) -> Control:
 	v.add_child(row2)
 	go.call_deferred("grab_focus")
 	return _center(p)
+
+
+## Omens: toggle the signs to read on this expedition. What each costs is shown
+## on hover/focus; the sum of the rewards underneath. Remembered between runs.
+static func _omen_picker() -> VBoxContainer:
+	var v := UIKit.vbox(1)
+	var chosen: Array = Profile.data.descent.omens
+	var head := UIKit.hbox(4)
+	head.add_child(UIKit.label("OMENS", 8, Omens.COLOR, true))
+	var total := UIKit.label("", 8, UIKit.C_DIM)
+	head.add_child(total)
+	v.add_child(head)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 3)
+	grid.add_theme_constant_override("v_separation", 2)
+	v.add_child(grid)
+	var about := UIKit.para("", 250, UIKit.C_DIM)
+	about.custom_minimum_size = Vector2(250, 18)
+	v.add_child(about)
+	var sum := func() -> void:
+		var live := chosen.filter(func(o): return Omens.unlocked(String(o)))
+		var e := Omens.bonus(live, "embers")
+		var x := Omens.bonus(live, "xp")
+		total.text = "none read" if live.is_empty() else "+%d%% Embers  +%d%% XP" % [int(round(e * 100.0)), int(round(x * 100.0))]
+		total.add_theme_color_override("font_color", UIKit.C_DIM if live.is_empty() else UIKit.C_GOLD)
+	var tell := func(id: String) -> void:
+		var d := Omens.get_def(id)
+		if not Omens.unlocked(id):
+			about.text = Omens.what_unlocks(id)
+			return
+		var pay: Array = []
+		if float(d.embers) > 0.0:
+			pay.append("+%d%% Embers" % int(round(float(d.embers) * 100.0)))
+		if float(d.xp) > 0.0:
+			pay.append("+%d%% XP" % int(round(float(d.xp) * 100.0)))
+		about.text = "%s  %s" % [String(d.cost), ("Pays " + ", ".join(PackedStringArray(pay)) + ".") if not pay.is_empty() else ""]
+	for id in Omens.OMENS:
+		var oid: String = id
+		var open := Omens.unlocked(oid)
+		var b := Button.new()
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(82, 14)
+		b.text = String(Omens.OMENS[oid].name) if open else "? ? ?"
+		b.button_pressed = open and chosen.has(oid)
+		b.disabled = not open
+		b.modulate = Color(1, 1, 1) if open else Color(0.55, 0.52, 0.6)
+		b.add_theme_font_size_override("font_size", 8)
+		b.toggled.connect(func(on: bool) -> void:
+			if on and not chosen.has(oid):
+				chosen.append(oid)
+			elif not on:
+				chosen.erase(oid)
+			Profile.mark_changed()
+			Audio.ui("ui_click")
+			tell.call(oid)
+			sum.call())
+		b.focus_entered.connect(func() -> void: tell.call(oid))
+		b.mouse_entered.connect(func() -> void: tell.call(oid))
+		grid.add_child(b)
+	about.text = "Optional signs: each makes the expedition harder in one way, and pays for it."
+	sum.call()
+	return v
 
 
 ## Difficulty: step through the unlocked tiers and see what each one does.
@@ -998,6 +1066,8 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		sr.add_child(UIKit.label("Sunshards: %d" % int(s.sunshards), 8, UIKit.C_GOLD))
 		v.add_child(sr)
 	v.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
+	if not (s.get("omens", []) as Array).is_empty():
+		v.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
 	if Profile.skill_points_free() > 0:
 		v.add_child(UIKit.label("%d skill point(s) await at the Hearth." % Profile.skill_points_free(), 8, UIKit.C_GOOD))
 	var g: Dictionary = s.get("grudge", {})
