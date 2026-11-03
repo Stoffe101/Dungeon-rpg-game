@@ -23,9 +23,12 @@ var _player_tex: AtlasTexture
 var _rig: Control
 var _bag: PanelContainer
 var _contents: Control
-var _flap: NinePatchRect
 var _flap_back: NinePatchRect
 var _opened := false
+# the satchel as it looks shut: shown while it opens and closes
+var _closed: Control
+var _closed_flap: TextureRect
+var _buckles: Array = []
 
 
 func _ready() -> void:
@@ -138,38 +141,40 @@ func _fit_rig() -> void:
 	_flap_back.position = Vector2(10, 0)
 	_flap_back.size = Vector2(ms.x - 20, lip + 8)
 	_flap_back.pivot_offset = Vector2(_flap_back.size.x / 2.0, lip + 8)
-	_flap = _nine("res://assets/ui/satchel_flap.png", 16)
-	_rig.add_child(_flap)
-	_flap.position = Vector2(-2, lip - 2)
-	_flap.size = Vector2(ms.x + 4, roundf(ms.y * 0.6))
-	_flap.pivot_offset = Vector2(_flap.size.x / 2.0, 0)
-	var emblem := TextureRect.new()
-	emblem.texture = load("res://assets/ui/satchel_emblem.png")
-	emblem.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	emblem.scale = Vector2(3, 3)
-	emblem.position = Vector2(roundf(_flap.size.x / 2.0) - 27, roundf(_flap.size.y / 2.0) - 36)
-	_flap.add_child(emblem)
-	# two straps down the flap, each fastened with a brass buckle
-	for k in 2:
-		var sx := roundf(_flap.size.x * (0.22 if k == 0 else 0.78)) - 6.0
-		var strap := TextureRect.new()
-		strap.texture = load("res://assets/ui/satchel_strap.png")
-		strap.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		strap.stretch_mode = TextureRect.STRETCH_TILE
-		strap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		strap.position = Vector2(sx, 0)
-		strap.size = Vector2(12, _flap.size.y + 18)
-		_flap.add_child(strap)
-		var buckle := TextureRect.new()
-		buckle.name = "Buckle%d" % k
-		buckle.texture = load("res://assets/ui/satchel_buckle.png")
-		buckle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		buckle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		buckle.position = Vector2(sx - 5, _flap.size.y - 12)
-		_flap.add_child(buckle)
-	_flap.visible = not _opened
 	_rig.pivot_offset = _rig.custom_minimum_size / 2.0
+
+
+## The shut satchel, centred on screen: body with its shoulder strap, the flap
+## (pivoting at its top edge) and the two buckles its straps run into.
+func _make_closed() -> void:
+	var holder := CenterContainer.new()
+	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(holder)
+	_closed = Control.new()
+	_closed.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_closed.custom_minimum_size = Vector2(260, 184)
+	holder.add_child(_closed)
+	var body := _pic("res://assets/ui/satchel_closed.png")
+	_closed.add_child(body)
+	_closed_flap = _pic("res://assets/ui/satchel_closed_flap.png")
+	_closed_flap.position = Vector2(14, 50)
+	_closed.add_child(_closed_flap)
+	_buckles.clear()
+	for bx in [78.0, 182.0]:
+		var b := _pic("res://assets/ui/satchel_buckle_big.png")
+		b.position = Vector2(bx - 12.0, 152.0)
+		_closed.add_child(b)
+		_buckles.append(b)
+	_closed.pivot_offset = Vector2(130, 92)
+
+
+func _pic(path: String) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = load(path)
+	t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return t
 
 
 func _tw() -> Tween:
@@ -178,25 +183,36 @@ func _tw() -> Tween:
 	return t
 
 
-## The bag pops up buckled, the buckle springs, the flap swings up and over,
-## and the pockets come into the light.
+## The shut satchel pops up, its straps slip their buckles, the flap swings up,
+## and the bag unfolds into the open satchel with its pockets in the light.
 func _animate_open() -> void:
-	_rig.scale = Vector2(0.8, 0.8)
+	_make_closed()
+	_closed.scale = Vector2(0.6, 0.6)
+	_closed.modulate.a = 0.0
 	_rig.modulate.a = 0.0
+	_rig.scale = Vector2(0.9, 0.9)
 	_contents.modulate.a = 0.0
 	_flap_back.scale = Vector2(1, 0)
-	_flap.visible = true
 	var t := _tw()
-	t.tween_property(_rig, "modulate:a", 1.0, 0.1)
-	t.parallel().tween_property(_rig, "scale", Vector2(1.04, 1.04), 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t.tween_property(_rig, "scale", Vector2.ONE, 0.08)
-	for k in 2:
-		var buckle: Control = _flap.get_node("Buckle%d" % k)
-		t.parallel().tween_property(buckle, "position:y", buckle.position.y + 4.0, 0.08)
-	t.tween_property(_flap, "scale:y", 0.0, 0.14).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	t.tween_callback(func() -> void: _flap.visible = false)
-	t.tween_property(_flap_back, "scale:y", 1.0, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	t.parallel().tween_property(_contents, "modulate:a", 1.0, 0.16)
+	t.tween_property(_closed, "modulate:a", 1.0, 0.1)
+	t.parallel().tween_property(_closed, "scale", Vector2(1.06, 1.06), 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(_closed, "scale", Vector2.ONE, 0.06)
+	# the straps slip their buckles
+	t.tween_property(_closed_flap, "position:y", 46.0, 0.07)
+	for b in _buckles:
+		t.parallel().tween_property(b, "position:y", 156.0, 0.07)
+	# the flap swings up and over
+	t.tween_property(_closed_flap, "scale:y", 0.0, 0.13).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	# the open satchel takes its place
+	t.tween_property(_closed, "scale", Vector2(1.5, 1.5), 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.parallel().tween_property(_closed, "modulate:a", 0.0, 0.16)
+	t.parallel().tween_property(_rig, "modulate:a", 1.0, 0.14)
+	t.parallel().tween_property(_rig, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(_flap_back, "scale:y", 1.0, 0.1).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(_contents, "modulate:a", 1.0, 0.14)
+	t.tween_callback(func() -> void:
+		if is_instance_valid(_closed):
+			_closed.get_parent().queue_free())
 
 
 ## Called by UIRoot.close_top: the flap falls shut and the bag drops away.
@@ -206,14 +222,29 @@ func animate_close(done: Callable) -> void:
 	if _rig == null or not is_instance_valid(_rig):
 		done.call()
 		return
-	_flap.visible = true
-	_flap.scale = Vector2(1, 0)
+	if _closed == null or not is_instance_valid(_closed):
+		_make_closed()
+	_closed.modulate.a = 0.0
+	_closed.scale = Vector2(1.4, 1.4)
+	_closed_flap.scale = Vector2(1, 0)
+	_closed_flap.position.y = 46.0
+	for b in _buckles:
+		b.position.y = 156.0
 	var t := _tw()
-	t.tween_property(_contents, "modulate:a", 0.0, 0.07)
-	t.parallel().tween_property(_flap_back, "scale:y", 0.0, 0.07)
-	t.tween_property(_flap, "scale:y", 1.0, 0.09).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	t.tween_property(_rig, "scale", Vector2(0.86, 0.86), 0.09).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	t.parallel().tween_property(_rig, "modulate:a", 0.0, 0.09)
+	# the open satchel folds back into the shut one
+	t.tween_property(_contents, "modulate:a", 0.0, 0.06)
+	t.parallel().tween_property(_flap_back, "scale:y", 0.0, 0.06)
+	t.tween_property(_rig, "modulate:a", 0.0, 0.1)
+	t.parallel().tween_property(_rig, "scale", Vector2(0.9, 0.9), 0.1)
+	t.parallel().tween_property(_closed, "modulate:a", 1.0, 0.1)
+	t.parallel().tween_property(_closed, "scale", Vector2.ONE, 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	# flap down, straps into their buckles, and away
+	t.tween_property(_closed_flap, "scale:y", 1.0, 0.09).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	t.tween_property(_closed_flap, "position:y", 50.0, 0.05)
+	for b in _buckles:
+		t.parallel().tween_property(b, "position:y", 152.0, 0.05)
+	t.tween_property(_closed, "scale", Vector2(0.7, 0.7), 0.1).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	t.parallel().tween_property(_closed, "modulate:a", 0.0, 0.1)
 	t.tween_callback(done)
 
 
