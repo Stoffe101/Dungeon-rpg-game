@@ -89,6 +89,18 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
+	if "lootlab" in OS.get_cmdline_user_args():
+		# dev: one drop of each grade near the player, to look at loot beams
+		var lr := RandomNumberGenerator.new()
+		lr.seed = 4
+		var grades := ["common", "rare", "epic", "legendary"]
+		for k in grades.size():
+			var b: String = "gloamward_lantern" if grades[k] == "legendary" else "grave_iron_helm"
+			var it := ItemDB.make_item(b, grades[k], 1, lr, 1)
+			var pk := Pickup.spawn(self, "gear", player.pos + Vector2(-3.0 + k * 2.0, -2.5), 1, {"item": it})
+			pk.vel = Vector2.ZERO
+		var bp := Pickup.spawn(self, "blueprint", player.pos + Vector2(5.0, -2.5), 1, {"id": "gamblers_coin"})
+		bp.vel = Vector2.ZERO
 	if "dumpmap" in OS.get_cmdline_user_args():
 		_dump_map()
 	if OS.is_debug_build():

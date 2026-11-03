@@ -68,13 +68,23 @@ func _ready() -> void:
 	_plane.size = Vector2(1, 1)
 	_plane.material = _ground_mat
 	intensity = float(Settings.get_value("effects_intensity", 1.0))
+	Settings.changed.connect(func(key: String) -> void:
+		if key == "effects_intensity":
+			intensity = float(Settings.get_value("effects_intensity", 1.0)))
+
+
+## Particle counts follow the Effects setting; a fractional share is rolled so
+## single motes thin out too instead of always surviving.
+func _scaled(count: int) -> int:
+	var n := count * intensity
+	return int(n) + (1 if randf() < n - floorf(n) else 0)
 
 
 # --- particles ---------------------------------------------------------------
 
 ## Emits pixel particles at plane position `p` (height in tiles).
 func burst(p: Vector2, height: float, col: Color, count: int, speed: float, life := 0.5, gravity := 6.0, dir := Vector2.ZERO, spread := PI, up := 2.0, size := 1.0, drag := 2.0) -> void:
-	count = int(ceil(count * intensity))
+	count = _scaled(count)
 	var base_ang := dir.angle() if dir != Vector2.ZERO else 0.0
 	for i in count:
 		if _p_count >= MAX_PARTICLES:
@@ -96,7 +106,7 @@ func burst(p: Vector2, height: float, col: Color, count: int, speed: float, life
 
 ## Slow rising motes (embers, souls).
 func motes(p: Vector2, height: float, col: Color, count: int, rise := 1.0, life := 1.2, jitter := 0.4) -> void:
-	for i in count:
+	for i in _scaled(count):
 		if _p_count >= MAX_PARTICLES:
 			return
 		var k := _p_count

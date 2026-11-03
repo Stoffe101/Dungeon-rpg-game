@@ -63,6 +63,8 @@ var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "fl
 const HEARTHCALL_TIME := 3.0
 var hearthcall_t := -1.0
 var gloom_t := 0.0          # inside a Gloom elite's darkness
+var aura_cols: Array = []   # one colour per equipped legendary or unique (sets have their 4-piece aura)
+var _gear_aura_t := 0.0
 var _gloom_k := 0.0
 var _hc_shapes: Array = []
 var _hc_fx_t := 0.0
@@ -123,6 +125,16 @@ func rebuild_stats() -> void:
 	SkillDB.apply(Profile.skills(), stats)
 	Profile.apply_sanctuary(stats)
 	Profile.apply_gear(stats)
+	aura_cols.clear()
+	for slot in Profile.equipped():
+		var it = Profile.equipped()[slot]
+		if not (it is Dictionary):
+			continue
+		var r := String(it.get("rarity", ""))
+		if r == "legendary":
+			aura_cols.append(ItemDB.color(it))
+		elif ItemDB.is_unique(String(it.get("base", ""))):
+			aura_cols.append(Color(1.0, 0.82, 0.45))
 	Looks.apply_player(Looks.current())
 	if run:
 		RelicDB.apply(run.relics, stats)
@@ -1005,6 +1017,13 @@ func _update_lantern(dt: float) -> void:
 		rng *= 1.4
 		en *= 1.15
 	gloom_t -= dt
+	# a faint drift of light in the colour of each great thing worn
+	if not aura_cols.is_empty() and hearthcall_t < 0.0:
+		_gear_aura_t -= dt
+		if _gear_aura_t <= 0.0:
+			_gear_aura_t = 0.42 / aura_cols.size()
+			var ac: Color = aura_cols[randi() % aura_cols.size()]
+			stage.fx.motes(pos + Vector2.from_angle(randf() * TAU) * randf_range(0.25, 0.5), randf_range(0.1, 0.9), ac, 1, 0.5, 0.9, 0.05)
 	_gloom_k = move_toward(_gloom_k, 1.0 if gloom_t > 0.0 else 0.0, dt * 2.5)
 	if _gloom_k > 0.0:
 		rng *= lerpf(1.0, 0.65, _gloom_k)

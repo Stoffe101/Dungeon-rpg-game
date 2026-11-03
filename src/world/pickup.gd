@@ -15,6 +15,10 @@ var magnet := false
 var sprite: PixelSprite
 var light: OmniLight3D
 var data: Dictionary = {}     # "material": {id}; "gear": {item}
+var beam: Node3D              # a pillar of light over notable loot
+var grade := 0                # 0 plain, 1 rare, 2 epic, 3 legendary / set / blueprint
+var _landed := false
+static var _beam_tex: GradientTexture2D
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
 	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll"}
@@ -47,6 +51,8 @@ func _ready() -> void:
 		light.omni_range = 3.0
 		light.position = Vector3(0, 0.4, 0)
 		add_child(light)
+		grade = 3
+		_loot_beam(Color(1.0, 0.75, 0.35))
 	elif kind == "gear":
 		var gc := ItemDB.color(data.get("item", {}))
 		light = OmniLight3D.new()
@@ -56,6 +62,9 @@ func _ready() -> void:
 		light.position = Vector3(0, 0.4, 0)
 		add_child(light)
 		sprite.flash(gc, 0.6)
+		grade = {"rare": 1, "epic": 2, "set": 3, "legendary": 3}.get(String(data.get("item", {}).get("rarity", "")), 0)
+		if grade > 0:
+			_loot_beam(gc)
 	elif kind == "sunshard" or kind == "heal":
 		light = OmniLight3D.new()
 		light.light_color = COLORS[kind]
@@ -66,8 +75,71 @@ func _ready() -> void:
 	_sync()
 
 
+## A pillar of the drop's colour, so a good find is seen across the room.
+func _loot_beam(col: Color) -> void:
+	if _beam_tex == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		_beam_tex = GradientTexture2D.new()
+		_beam_tex.gradient = g
+		_beam_tex.fill_from = Vector2(0.5, 1.0)
+		_beam_tex.fill_to = Vector2(0.5, 0.0)
+		_beam_tex.width = 4
+		_beam_tex.height = 64
+	beam = Node3D.new()
+	add_child(beam)
+	var tall := 2.4 + grade * 0.9
+	for k in 2:
+		var q := MeshInstance3D.new()
+		var m := QuadMesh.new()
+		m.size = Vector2((0.26 if k == 0 else 0.08) * (1.0 + 0.25 * grade), tall * Iso.SQ2)
+		q.mesh = m
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+		mat.albedo_texture = _beam_tex
+		var c := col.lerp(Color.WHITE, 0.0 if k == 0 else 0.55)
+		mat.albedo_color = Color(c.r, c.g, c.b, 0.3 if k == 0 else 0.75)
+		q.material_override = mat
+		q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		q.position = Vector3(0, m.size.y * 0.5, 0)
+		beam.add_child(q)
+	beam.visible = false   # rises once the drop has landed
+
+
+## The drop hits the floor: a chime by rarity, and its beam goes up.
+func _land() -> void:
+	_landed = true
+	if beam:
+		beam.visible = true
+		beam.scale = Vector3(1.0, 0.05, 1.0)
+		var tw := create_tween()
+		tw.tween_property(beam, "scale", Vector3.ONE, 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if grade <= 0:
+		return
+	var col: Color = light.light_color if light else Color.WHITE
+	stage.fx.ring(pos, 0.6 + 0.3 * grade, col, 0.4, 0.2)
+	match grade:
+		1:
+			Audio.play_at("wisp", pos, -10.0, 1.1, 120)
+		2:
+			Audio.play_at("wisp", pos, -6.0, 0.85, 120)
+			stage.fx.motes(pos, 0.2, col, 8, 1.4, 1.0, 0.3)
+		_:
+			Audio.play_at("learn", pos, -4.0, 1.0, 200)
+			stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.5)
+			stage.fx.motes(pos, 0.2, col, 16, 2.0, 1.4, 0.4)
+
+
 func tick(dt: float) -> void:
 	age += dt
+	if beam and beam.visible and not Settings.get_value("reduce_flashes", false):
+		var pulse := 1.0 + 0.12 * sin(age * 3.0)
+		beam.scale.x = pulse
+		beam.scale.z = pulse
 	var pl := stage.player
 	if pl == null or not pl.alive:
 		_physics(dt)
@@ -95,6 +167,8 @@ func _physics(dt: float) -> void:
 		if height <= 0.0:
 			height = 0.0
 			vz = -vz * 0.35 if absf(vz) > 1.5 else 0.0
+			if not _landed and age > 0.1:
+				_land()
 	pos = stage.grid.move_box(pos, 0.1, vel * dt, false)
 	vel *= exp(-4.0 * dt)
 	_sync()
@@ -143,6 +217,12 @@ func _collect(pl: Player) -> void:
 			var rc := ItemDB.color(it)
 			stage.fx.number(pl.pos, 2.4, ItemDB.item_name(it).to_upper(), rc, true)
 			stage.fx.ring(pl.pos, 1.2, rc, 0.3, 0.2)
+			if grade >= 2:
+				stage.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)
+				stage.fx.motes(pl.pos, 0.3, rc, 12 + 8 * grade, 1.8, 1.2, 0.5)
+				stage.fx.flash_light(pl.pos, 1.0, rc, 2.5 + grade, 6.0, 0.5)
+			if grade >= 3:
+				Events.banner.emit(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
 			Events.toast.emit("Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
 			Audio.play("relic", -4.0)
 		"sunshard":
