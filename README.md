@@ -47,8 +47,9 @@ remembers who hurts it.
   gifts - with trophies of fallen bosses, a rack of forged weapons, a lantern lit
   for every two feats and a camp cat.
 - Hearthcall: stand still for three seconds and the Hearth pulls you home.
+- A bestiary of every creature you have met, with their lore.
 - Gear and crafting: six equipment slots, rarities, levels and item tiers,
-  four colour-themed tier sets, thirteen uniques forged from rare blueprints
+  four colour-themed tier sets, twenty-four uniques forged from rare blueprints
   (some of them silly - the Squeaky Clogs make enemies trip), materials from
   enemies, chests and bosses, a smithy (craft, masterwork, temper, salvage), a
   peddler, a leather satchel that unbuckles to show the character, bag and

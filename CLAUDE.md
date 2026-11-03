@@ -45,6 +45,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `tier=N` (open and select a difficulty tier), `kit=N` (wear random epic gear of item tier N),
   `unlock=all` (open every region and tier), `wear=<set or base ids>`, `look=<look id>`,
   `hearthcall` (start a Hearthcall a second after the floor loads), `audiolog` (print every sound played),
+  `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`,
   `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
   `search=<text>`), `warp=boss|event`, `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),

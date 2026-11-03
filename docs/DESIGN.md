@@ -243,7 +243,16 @@ choice. Combat rooms seal with soul-light gates until cleared.
 
 - **Blueprints** are rare finds (elites, chests, always one from the Ashen
   King) that you learn from the satchel; each unlocks one **unique** at the
-  smithy. Thirteen uniques, deliberately not all about damage: Gambler's Coin
+  smithy. Twenty-four uniques, deliberately not all about damage. The newest
+  eleven: Crown of Embers (damage grows with the Embers you carry), Mothwing
+  Cloak (ember moths seek and ignite foes), Thornmail of the Rootmire (thorns
+  burst out when struck), Firebrand Gauntlets (fire spreads), Mirrorguard
+  Bracers (a Ward throws the blow back x3), Sandals of Still Time (perfect
+  dodges still time longer and refund the dodge), Executioner's Band (crits
+  under a quarter health), Four-Leaf Ring (extra chest treasure, rarer finds),
+  Grudgebearer's Locket (power from the Grudges hunting you), The Bottomless
+  Flask (cleared rooms refill a flask) and the Glass Lantern (close-range damage
+  for less health). The first thirteen: Gambler's Coin
   (crits sometimes spill Embers - "KA-CHING!"), Seven-League Boots, Squeaky
   Clogs (every step squeaks; enemies sometimes trip over the noise), Heart of
   the Mountain, Spellweaver Circlet, Echoing Gauntlets (every fourth hit
@@ -284,8 +293,8 @@ Ascended** makes the blade blaze.
   set pieces, looks, a restored sanctuary, the cap and Renown. Rewards are
   Embers, Sunshards, two wardrobe looks and, for the great ones, a skill point
   past the cap. Granted the moment they are reached.
-- Alongside: difficulty tiers I-VIII, gear tiers and sets, 13 blueprints, eight
-  (now ten) looks, Grudges and Memory.
+- Alongside: difficulty tiers I-VIII, gear tiers and sets, 24 blueprints for
+  uniques, ten looks, the bestiary, Grudges and Memory.
 
 ## The sanctuary keeps your story
 
@@ -302,9 +311,28 @@ after your first expedition, a cat that naps by the fire and can be petted.
   pulls you home, keeping everything (an extraction). A sigil and a closing ring
   of hearth-light, embers drawn in, the lantern swelling; any hit, step, swing,
   ward, ability or flask breaks it, and it can't be heard over a living boss.
-- **The satchel** is a leather bag that pops up buckled, springs its two buckles
-  and throws its flap back before the pockets come into the light (character
-  and materials, the gear on the bag's lining, stats); closing reverses it.
+- **The satchel**: a messenger satchel (shoulder strap on brass rings, rounded
+  flap with the pressed hearth emblem, two straps into buckles, a front pocket)
+  pops up shut, its straps slip their buckles, the flap swings up, and it
+  unfolds into the open bag (character and materials in one pocket, gear on the
+  plum lining, stats in another); closing folds it back and buckles it.
+
+## Looks of the places
+
+- **Dungeon floors** carry large, dithered patches of grime and wear (world
+  shader) so slabs never read as one tile repeated. Each region has its own
+  ten pieces of floor clutter, twice as dense as before and gathering at the
+  walls: bones, cobwebs, soul-light seeping through cracks and guttered candles
+  in the Ossuary; moss, roots, glowing caps and spore rings in the Rootmire;
+  gold coins, ash, live cinders and gold-veined cracks in the Throne.
+- **Light**: bigger rooms get candles / glowcaps / braziers along the walls; the
+  air moves (soul motes rise, spores drift, ash and embers fall).
+- **The camp** has its own clutter (straw, wood chips, petals, paw prints),
+  woven rugs by the Hearth and the tent, and a sign over each ruin saying what
+  rebuilding it costs (it fades in as you approach); the prompt says what it
+  brings back (the forge: the smith).
+- **Bestiary** (pause menu): silhouettes until met, then portrait, region,
+  slain count and lore.
 
 ## Signature: the dungeon remembers
 
