@@ -52,6 +52,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	player.setup_from(run)
 	if "autopilot" in OS.get_cmdline_user_args():
 		player.add_child(Bot.new())
+	if "hearthcall" in OS.get_cmdline_user_args():
+		# dev: start a Hearthcall once the floor is up
+		after(1.0, player.start_hearthcall)
 	if "warp=boss" in OS.get_cmdline_user_args() and layout.boss_depth:
 		# dev: start in the antechamber next to the boss arena
 		var boss_room := layout.room(layout.exit_id)

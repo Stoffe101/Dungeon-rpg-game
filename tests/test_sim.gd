@@ -250,3 +250,22 @@ func test_walking_turns_the_kindled() -> void:
 	_run(st, 0.05)
 	check(pl.facing.x > 0.7, "attacking faces the aim even while walking away (%s)" % pl.facing)
 	st.queue_free()
+
+
+func test_hearthcall_channel() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(10, 7))
+	check(pl.hearthcall_blocked() != "", "no Hearthcall outside the Undervault")
+	# a hit breaks the call
+	pl.hearthcall_t = 0.0
+	var e := _enemy(st, "husk", Vector2(10.6, 7))
+	pl.take_enemy_hit(e.make_hit(5.0, e.pos), e)
+	check(pl.hearthcall_t < 0.0, "a hit breaks the Hearthcall")
+	e.queue_free()
+	st.actors.erase(e)
+	# standing still for the whole channel completes it
+	pl.hearthcall_t = 0.0
+	_run(st, Player.HEARTHCALL_TIME + 0.2)
+	check(pl.hearthcall_t < 0.0 and pl.invuln_t > 4.0, "the call completes after %.0f s" % Player.HEARTHCALL_TIME)
+	st.queue_free()

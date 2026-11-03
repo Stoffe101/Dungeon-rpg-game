@@ -490,7 +490,7 @@ static func settings(ui: UIRoot) -> Control:
 	cv.add_child(head)
 	var actions := [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"],
 		["attack", "Attack"], ["ward", "Ward"], ["dodge", "Dodge"], ["ability_1", "Ability 1"], ["ability_2", "Ability 2"],
-		["flask", "Flask"], ["interact", "Interact"], ["map", "Map"], ["inventory", "Satchel"]]
+		["flask", "Flask"], ["interact", "Interact"], ["map", "Map"], ["inventory", "Satchel"], ["hearthcall", "Hearthcall (go home)"]]
 	for a in actions:
 		var row := UIKit.hbox(6)
 		var l := UIKit.label(a[1], 8)

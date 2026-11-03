@@ -50,6 +50,7 @@ var DEFAULT_BINDINGS := {
 	"map": [_key(KEY_TAB), _joy_button(JOY_BUTTON_BACK)],
 	"pause": [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_START)],
 	"inventory": [_key(KEY_I), _joy_button(JOY_BUTTON_RIGHT_STICK)],
+	"hearthcall": [_key(KEY_H), _joy_button(JOY_BUTTON_LEFT_STICK)],
 	"debug_menu": [_key(KEY_F1)],
 	"screenshot": [_key(KEY_F12)],
 }

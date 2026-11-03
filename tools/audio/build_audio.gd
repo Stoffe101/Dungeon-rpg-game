@@ -135,6 +135,22 @@ func _sfx() -> void:
 		s.tone(0.0, 0.07, 160.0, 90.0, "sine", 0.6, 0.001, 6.0)
 		s.noise(0.005, 0.24, 0.75, 5200.0, 1200.0, 600.0, 0.012, 2.6)
 		s.tone(0.01, 0.2, 1900.0, 1100.0, "sine", 0.12, 0.01, 3.5))
+	# Hearthcall: the hearth's chord swelling from far away, crackle and bells
+	# rising, then a rush of warm air carrying the Kindled home (or a fizzle)
+	fx("hearthcall", 3.2, func(s):
+		s.pad(0.0, 3.2, [midi(55), midi(62), midi(67), midi(71)], 0.2, 1800.0, 2.6, 0.4)
+		s.tone(0.0, 3.1, 220.0, 660.0, "sine", 0.07, 2.6, 0.6)
+		s.noise(0.0, 3.1, 0.22, 1500.0, 6000.0, 400.0, 2.4, 0.6, 30.0)
+		for k in 6:
+			s.bell(0.4 + k * 0.45, 1.2, midi(79 + [0, 2, 4, 7, 9, 12][k]), 0.05))
+	fx("hearthcall_go", 1.6, func(s):
+		s.noise(0.0, 0.9, 0.7, 800.0, 7000.0, 300.0, 0.05, 2.0)
+		s.tone(0.0, 0.6, 196.0, 784.0, "sine", 0.3, 0.01, 2.0)
+		for f in [67, 71, 74, 79]:
+			s.bell(0.05, 1.5, midi(f), 0.12))
+	fx("hearthcall_break", 0.5, func(s):
+		s.noise(0.0, 0.45, 0.5, 3000.0, 300.0, 100.0, 0.005, 3.0, 25.0)
+		s.tone(0.0, 0.35, 660.0, 180.0, "sine", 0.2, 0.005, 3.0))
 	# drawing the bow: a low creak of sinew under strain
 	fx("bow_draw", 0.5, func(s):
 		s.noise(0.0, 0.48, 0.35, 500.0, 1300.0, 150.0, 0.2, 1.2, 28.0)

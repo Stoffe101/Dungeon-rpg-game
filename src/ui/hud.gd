@@ -151,6 +151,7 @@ func refresh_controls() -> void:
 		["Flask", Settings.describe_action("flask")],
 		["Interact", Settings.describe_action("interact")],
 		["Satchel (gear)", Settings.describe_action("inventory")],
+		["Hearthcall (home)", Settings.describe_action("hearthcall")],
 		["Map", Settings.describe_action("map")],
 	]
 	for r in rows:

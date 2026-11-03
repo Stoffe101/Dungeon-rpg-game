@@ -56,7 +56,14 @@ var dir_name := "down"
 var hit_once := {}
 var dead_t := 0.0
 
-var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "flask": 0.0}
+var _buf := {"attack": 0.0, "dodge": 0.0, "ward": 0.0, "a1": 0.0, "a2": 0.0, "flask": 0.0, "home": 0.0}
+## Hearthcall: stand still for a few breaths and the Last Hearth pulls you home
+## from anywhere below (keeping everything you carry). Any hit, step or swing
+## breaks it, and no fire can be heard over a boss.
+const HEARTHCALL_TIME := 3.0
+var hearthcall_t := -1.0
+var _hc_shapes: Array = []
+var _hc_fx_t := 0.0
 var _release_pending := false
 var _attack_down := false
 var _trail_t := 0.0
@@ -188,6 +195,8 @@ func _process(delta: float) -> void:
 		return
 	if Input.is_action_just_pressed("interact"):
 		try_interact()
+	if Input.is_action_just_pressed("hearthcall"):
+		_buf.home = 0.2
 	if Input.is_action_just_pressed("attack"):
 		_buf.attack = 0.18
 		_attack_down = true
@@ -258,6 +267,9 @@ func think(dt: float) -> void:
 		if flask_t > 0.0:
 			mult *= 0.45
 		vel = move_in * spd * mult
+		if hearthcall_t >= 0.0:
+			vel = Vector2.ZERO
+			_tick_hearthcall(dt)
 	_update_look(dt)
 	facing = look
 	if stats.has("featherfall"):
@@ -301,6 +313,19 @@ func _timers(dt: float) -> void:
 
 
 func _handle_actions(_dt: float) -> void:
+	if _buf.home > 0.0:
+		_buf.home = 0.0
+		if hearthcall_t >= 0.0:
+			break_hearthcall()
+		else:
+			start_hearthcall()
+		return
+	if hearthcall_t >= 0.0:
+		# anything else the Kindled does breaks the call
+		if _buf.attack > 0.0 or _buf.dodge > 0.0 or _buf.ward > 0.0 or _buf.a1 > 0.0 or _buf.a2 > 0.0 or _buf.flask > 0.0 or move_in.length() > 0.5:
+			break_hearthcall()
+		else:
+			return
 	var leaping: bool = weapon is Weapon and weapon.has_method("is_busy") and weapon.get("leaping") == true
 	if _buf.dodge > 0.0 and dodge_charges >= 1.0 and not leaping:
 		_buf.dodge = 0.0
@@ -718,6 +743,8 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		return empty
 	if invuln_t > 0.0:
 		return empty
+	if hearthcall_t >= 0.0:
+		break_hearthcall("The call is broken!")
 	if ward_t > 0.0 and not h.has_tag("dot") and not h.unblockable:
 		_on_ward(attacker, false)
 		return empty
@@ -894,9 +921,14 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("dim_lantern"):
 		rng *= 0.55
 		en *= 0.8
+	if hearthcall_t >= 0.0:
+		# the lantern swells as the Hearth answers
+		var hk := clampf(hearthcall_t / HEARTHCALL_TIME, 0.0, 1.0)
+		en *= 1.0 + 2.2 * hk * hk
+		rng *= 1.0 + 0.35 * hk
 	lantern.omni_range = rng
 	lantern.light_energy = en
-	var side := 1.0 if aim.x >= 0.0 else -1.0
+	var side := 1.0 if look.x >= 0.0 else -1.0
 	lantern.position = Vector3(0.3 * side, (1.05 + bob) * Iso.SQ2, 0.3)
 
 
@@ -950,6 +982,94 @@ func _footsteps() -> void:
 	_last_foot = f
 
 
+# --- Hearthcall ------------------------------------------------------------------
+
+## Why the Hearth can't be called right now ("" when it can).
+func hearthcall_blocked() -> String:
+	if not (stage is Dungeon):
+		return "You are already home"
+	var d := stage as Dungeon
+	if d.run == null or d.run.result != "":
+		return "No"
+	if d.boss and is_instance_valid(d.boss) and d.boss.alive:
+		return "The Hearth can't hear you over this"
+	return ""
+
+
+func start_hearthcall() -> void:
+	var why := hearthcall_blocked()
+	if why != "":
+		stage.fx.number(pos, 2.4, why, Color(1.0, 0.6, 0.5))
+		Audio.play("deny", -4.0)
+		return
+	hearthcall_t = 0.0
+	_hc_fx_t = 0.0
+	if weapon:
+		weapon.cancel()
+	cast_t = 0.0
+	Audio.play("hearthcall", -2.0)
+	stage.fx.number(pos, 2.6, "HEARTHCALL", Color(1.0, 0.8, 0.45), true)
+	_hc_shapes.clear()
+	_hc_shapes.append(stage.fx.shape(Fx.Shape.SIGIL, pos, Vector2.RIGHT, Vector2(3.6, 3.6), Color(1.0, 0.7, 0.3, 0.35), Color(1.0, 0.86, 0.5, 1.0), HEARTHCALL_TIME + 0.1, {"glow": 1.8}))
+	# a ring of hearth-light closing on the Kindled: when it reaches them, they go
+	var ring := stage.fx.shape(Fx.Shape.RING, pos, Vector2.RIGHT, Vector2(5.2, 5.2), Color(1.0, 0.75, 0.35, 0.6), Color(1.0, 0.92, 0.65, 1.0), HEARTHCALL_TIME + 0.1, {"inner": 0.88, "glow": 2.0})
+	_hc_shapes.append(ring)
+	var data: Dictionary = stage.fx._shapes[stage.fx._shapes.size() - 1]
+	var origin := ring.transform.origin
+	data.update = func(t: float, n: MeshInstance3D) -> void:
+		var rr := lerpf(2.6, 0.45, clampf(t / HEARTHCALL_TIME, 0.0, 1.0))
+		n.transform = Transform3D(Basis(Vector3(rr * 2.0, 0, 0), Vector3.UP, Vector3(0, 0, rr * 2.0 * Iso.SQ2)), origin)
+		n.set_instance_shader_parameter("px_size", rr * 2.0 * Iso.PPU)
+
+
+func _tick_hearthcall(dt: float) -> void:
+	hearthcall_t += dt
+	var k := clampf(hearthcall_t / HEARTHCALL_TIME, 0.0, 1.0)
+	_hc_fx_t -= dt
+	while _hc_fx_t <= 0.0:
+		_hc_fx_t += lerpf(0.06, 0.02, k)
+		# embers drawn in from the dark, sparks rising off the lantern
+		var from := pos + Vector2.from_angle(randf() * TAU) * lerpf(2.8, 1.2, k)
+		stage.fx.burst(from, 0.2 + k * 0.6, Color(1.0, 0.68, 0.3), 1, 3.0 + 3.0 * k, 0.45, -1.0, (pos - from).normalized(), 0.12, 0.8)
+		stage.fx.motes(pos, 0.5 + k * 1.4, Color(1.0, 0.86, 0.55), 1, 2.0 + 3.0 * k, 0.9, 0.5)
+	if k >= 1.0:
+		_complete_hearthcall()
+
+
+func _complete_hearthcall() -> void:
+	hearthcall_t = -1.0
+	input_enabled = false
+	invuln_t = 5.0
+	Audio.play("hearthcall_go", 0.0)
+	stage.fx.flash_light(pos, 2.0, Color(1.0, 0.78, 0.45), 9.0, 14.0, 1.0)
+	for i in 3:
+		stage.fx.burst(pos, 0.4 + i * 0.9, Color(1.0, 0.8, 0.45), 26, 6.0, 0.9, -4.0, Vector2.ZERO, PI, 7.0)
+	stage.fx.ring(pos, 3.0, Color(1.0, 0.85, 0.5), 0.45, 0.3)
+	stage.fx.shake(0.3)
+	var tw := create_tween()
+	tw.tween_method(sprite.set_dissolve, 0.0, 1.0, 0.6)
+	if weapon and is_instance_valid(weapon.visual):
+		weapon.visual.visible = false
+	Events.toast.emit("The Last Hearth answers.", Color(1.0, 0.8, 0.45))
+	stage.after(0.8, func() -> void:
+		if Game.run and Game.run.result == "":
+			Game.end_run("extracted"))
+
+
+func break_hearthcall(why := "") -> void:
+	if hearthcall_t < 0.0:
+		return
+	hearthcall_t = -1.0
+	for s in _hc_shapes:
+		if is_instance_valid(s):
+			stage.fx.release(s)
+	_hc_shapes.clear()
+	Audio.play("hearthcall_break", -4.0)
+	stage.fx.burst(pos, 0.8, Color(0.6, 0.5, 0.45), 12, 2.5, 0.5, 3.0)
+	if why != "":
+		stage.fx.number(pos, 2.4, why, Color(1.0, 0.55, 0.45))
+
+
 func _update_look(dt: float) -> void:
 	_fight_look_t = maxf(0.0, _fight_look_t - dt)
 	var busy: bool = weapon != null and weapon.has_method("is_busy") and weapon.is_busy()
@@ -978,11 +1098,15 @@ func _update_anim() -> void:
 	else:
 		dir_name = "down"
 	var a := "idle_"
+	if hearthcall_t >= 0.0:
+		# the ritual faces the camera, lantern raised
+		dir_name = "down"
+		ad = Vector2.DOWN
 	if dodge_t > 0.0:
 		a = "dash_"
 	elif hurt_t > 0.0:
 		a = "hurt_"
-	elif cast_t > 0.0 or ward_t > 0.0 or flask_t > 0.0:
+	elif cast_t > 0.0 or ward_t > 0.0 or flask_t > 0.0 or hearthcall_t >= 0.0:
 		a = "cast_"
 	elif vel.length() > 0.4:
 		a = "run_"
