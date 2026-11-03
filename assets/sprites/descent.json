@@ -1,19 +1,31 @@
 {
 	"anims": {
-		"idle": {
-			"fps": 4.0,
+		"flare": {
+			"fps": 10.0,
 			"frames": 4,
+			"loop": false,
+			"row": 2
+		},
+		"idle": {
+			"fps": 6.0,
+			"frames": 8,
 			"loop": true,
 			"row": 0
+		},
+		"wake": {
+			"fps": 10.0,
+			"frames": 8,
+			"loop": true,
+			"row": 1
 		}
 	},
 	"emit": true,
 	"frame": [
-		64,
-		48
+		96,
+		72
 	],
 	"origin": [
-		32,
-		44
+		48,
+		68
 	]
 }

@@ -292,6 +292,12 @@ class Mask:
 				bits[i] = 0
 		return self
 
+	func intersect(o: Mask) -> Mask:
+		for i in bits.size():
+			if o.bits[i] == 0:
+				bits[i] = 0
+		return self
+
 	func union(o: Mask) -> Mask:
 		for i in bits.size():
 			if o.bits[i] != 0:

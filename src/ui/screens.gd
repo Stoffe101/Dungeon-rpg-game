@@ -794,7 +794,7 @@ static func descent(ui: UIRoot) -> Control:
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var go := UIKit.button("Descend", func() -> void:
 		ui.close_all()
-		ui.fade(func() -> void: Game.start_run(ctx.region)), 80)
+		Game.begin_descent(ctx.region), 80)
 	row2.add_child(go)
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)
@@ -1088,7 +1088,7 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		v.add_child(rr)
 	var b := UIKit.button("Return to the Sanctuary", func() -> void:
 		ui.close_all()
-		ui.fade(Game.goto_hub), 140)
+		ui.title_card("The Sanctuary", "The Hearth still burns.", Game.goto_hub), 140)
 	var cc := CenterContainer.new()
 	cc.add_child(b)
 	v.add_child(cc)

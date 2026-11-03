@@ -101,9 +101,11 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	Audio.play_music(region.music)
 	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
 	var title: String = region.name
-	Events.banner.emit(title, "Depth %d%s" % [lay.depth, "  -  the Warden waits below" if lay.boss_depth else ""])
-	if not run.omens.is_empty() and lay.depth == 1:
-		after(2.6, func() -> void: Events.banner.emit("Omens", Omens.names(run.omens)))
+	# a title card already named the place on the way down
+	if Game.ui == null or not Game.ui.card_pending:
+		Events.banner.emit(title, "Depth %d%s" % [lay.depth, ("  -  %s waits below" % String(EnemyDB.get_def(String(region.boss)).name)) if lay.boss_depth else ""])
+		if not run.omens.is_empty() and lay.depth == 1:
+			after(2.6, func() -> void: Events.banner.emit("Omens", Omens.names(run.omens)))
 	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
 		Game.ui.hud.show_controls.call_deferred()
 

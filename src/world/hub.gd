@@ -40,6 +40,10 @@ var _steam_t := 0.0
 var _spark_t := 0.0
 var _fly_t := 0.0
 var forge_prop: Prop
+var gate_prop: Prop
+var _gate_t := 0.0
+var _hum_t := 0.0
+var _gate_flaring := false
 var lit_lanterns: Array = []
 var _last_bark := -99.0
 
@@ -84,6 +88,9 @@ func build(v: PixelView) -> void:
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
 		_spawn_residents()
+		if "descend" in OS.get_cmdline_user_args():
+			# dev: step through the gate a second after the camp loads (captures)
+			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 		if not Profile.data.flags.get("intro_done", false):
 			Profile.data.flags.intro_done = true
 			after(0.8, func() -> void:
@@ -125,8 +132,8 @@ func _place() -> void:
 		if grid.at(t.x, t.y) == TileGrid.FLOOR:
 			grid.put(t.x, t.y, TileGrid.PROP)
 			set_tile_solid(t, true)
-	Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.0,
-		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.0})
+	gate_prop = Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.2,
+		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.4})
 	if Profile.building("forge") > 0:
 		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.5, 0.25), 1.6, 6.0], "light_h": 0.8})
@@ -368,10 +375,58 @@ func _stage_process(real: float) -> void:
 		_fly_t = 0.0
 		var lp: Prop = lit_lanterns[randi() % lit_lanterns.size()]
 		fx.motes(lp.pos + Vector2(randf_range(-0.6, 0.6), randf_range(-0.4, 0.2)), 1.4, Color(1.0, 0.9, 0.55), 1, 0.25, 2.6, 0.8)
+	_gate(real)
 	_ember_t += real
 	if _ember_t > 0.06:
 		_ember_t = 0.0
 		fx.motes(Vector2(21.0, 11.5) + Vector2(randf_range(-0.6, 0.6), 0), 1.0, Color(1.0, randf_range(0.5, 0.8), 0.3), 1, 2.2, 1.6, 0.3)
+
+
+## The Undervault Gate breathes: soul motes rise out of the veil, and its runes
+## all wake (light swelling) when the Kindled comes near. It hums, low.
+func _gate(real: float) -> void:
+	if gate_prop == null or _gate_flaring or menu_mode:
+		return
+	var mouth := gate_prop.pos + Vector2(0, -0.6)
+	var near := player != null and player.pos.distance_to(gate_prop.pos) < 4.5
+	gate_prop.sprite.play("wake" if near else "idle")
+	if gate_prop.light:
+		var want := 2.4 if near else 1.4
+		gate_prop.light.light_energy = lerpf(gate_prop.light.light_energy, want + sin(elapsed * 2.2) * 0.15, minf(1.0, real * 3.0))
+	_gate_t += real
+	if _gate_t > (0.08 if near else 0.18):
+		_gate_t = 0.0
+		fx.motes(mouth + Vector2(randf_range(-1.0, 1.0), randf_range(-0.2, 0.3)), randf_range(0.4, 1.6), Color(0.45, 1.0, 0.88), 1, 0.9, 2.2, 0.2)
+	_hum_t -= real
+	if _hum_t <= 0.0 and player and player.pos.distance_to(gate_prop.pos) < 10.0:
+		_hum_t = 2.4
+		Audio.play_at("gate_hum", gate_prop.pos, -9.0 if near else -15.0, 1.0, 500)
+
+
+## The Kindled steps through: the veil flares, they come apart into embers.
+## Returns how long it takes.
+func flare_gate() -> float:
+	if gate_prop == null or player == null:
+		return 0.0
+	_gate_flaring = true
+	player.input_enabled = false
+	player.vel = Vector2.ZERO
+	gate_prop.sprite.play("flare", true)
+	var mouth := gate_prop.pos + Vector2(0, -0.6)
+	fx.flash_light(mouth, 1.2, Color(0.5, 1.0, 0.9), 6.0, 10.0, 1.2)
+	fx.ring(mouth, 2.6, Color(0.55, 1.0, 0.9), 0.6, 0.3)
+	fx.motes(mouth, 0.6, Color(0.55, 1.0, 0.9), 30, 2.4, 1.2, 1.2)
+	fx.shake(0.2)
+	Audio.play("gate_flare", -2.0)
+	var pl := player
+	var tw := create_tween()
+	tw.tween_interval(0.25)
+	tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.75)
+	tw.tween_callback(pl.hide_gear)
+	for k in 6:
+		after(0.25 + k * 0.12, func() -> void:
+			fx.motes(pl.pos, 0.4, Color(1.0, 0.7, 0.35), 3, 1.6, 0.8, 0.3))
+	return 1.1
 
 
 func request(what: String, prop: Prop) -> void:

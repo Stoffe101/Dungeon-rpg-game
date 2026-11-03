@@ -114,10 +114,39 @@ func descend() -> void:
 	if stage and stage.player:
 		stage.player.store_to(run)
 		stage.player.input_enabled = false
-	ui.fade(func() -> void:
+		# the Kindled goes down into the dark
+		var pl := stage.player
+		var tw := pl.create_tween()
+		tw.tween_method(pl.sprite.set_dissolve, 0.0, 1.0, 0.45)
+		tw.tween_callback(pl.hide_gear)
+		stage.fx.motes(pl.pos, 0.2, Color(1.0, 0.75, 0.4), 10, 1.2, 0.8, 0.4)
+		Audio.play("gate_flare", -10.0, 1.3)
+	var reg: Dictionary = EnemyDB.REGIONS[run.region]
+	var next := run.depth + 1
+	var sub := "Depth %d" % next
+	if next >= int(reg.depths):
+		sub += "  -  %s waits below" % String(EnemyDB.get_def(String(reg.boss)).name)
+	ui.title_card(String(reg.name), sub, func() -> void:
 		transitioning = false
 		if run != null and run.result == "":
 			_enter_depth(run.depth + 1))
+
+
+## From the Descent screen: the gate flares, the Kindled steps into the light,
+## and a title card covers the walk down.
+func begin_descent(region: String) -> void:
+	if transitioning:
+		return
+	transitioning = true
+	var wait := 0.0
+	if stage is Hub:
+		wait = (stage as Hub).flare_gate()
+	var reg: Dictionary = EnemyDB.REGIONS[region]
+	var omens := (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
+		ui.title_card(String(reg.name), "Depth 1", func() -> void:
+			transitioning = false
+			start_run(region), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 
 
 func grant_relic(id: String) -> void:

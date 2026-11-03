@@ -247,6 +247,17 @@ func _sfx() -> void:
 		for k in 5:
 			s.bell(k * 0.09, 1.0, midi(72 + [0, 4, 7, 11, 14][k]), 0.18)
 		s.pad(0.0, 1.1, [midi(60), midi(67), midi(72)], 0.12, 1400.0, 0.05, 0.6))
+	# the Undervault Gate: a slow breathing drone, and the flare as the veil opens
+	fx("gate_hum", 2.6, func(s):
+		s.pad(0.0, 2.5, [55.0, 82.6, 110.3], 0.2, 420.0, 0.9, 1.2)
+		s.tone(0.2, 2.2, 165.0, 164.0, "sine", 0.05, 0.8, 1.2, 0.015, 0.7)
+		s.bell(0.9, 1.4, midi(91), 0.025))
+	fx("gate_flare", 1.8, func(s):
+		s.tone(0.0, 1.2, 70.0, 220.0, "saw", 0.3, 0.3, 1.0, 0.0, 6.0, 900.0)
+		s.noise(0.0, 1.4, 0.35, 600.0, 5000.0, 200.0, 0.6, 1.6)
+		s.pad(0.5, 1.25, [midi(62), midi(69), midi(74), midi(81)], 0.12, 2600.0, 0.05, 0.9)
+		for k in 4:
+			s.bell(0.55 + k * 0.07, 1.0, midi(86 + [0, 5, 7, 12][k]), 0.06))
 	fx("heartbeat", 0.5, func(s):
 		s.tone(0.0, 0.14, 70.0, 42.0, "sine", 0.8, 0.004, 5.0)
 		s.tone(0.17, 0.16, 62.0, 38.0, "sine", 0.6, 0.004, 5.0))

@@ -149,6 +149,15 @@ func set_weapon(id: String, level: int) -> void:
 	weapon.setup(self, id, level)
 
 
+## Hides what the Kindled carries (the blade drawn beside the sprite), for
+## when they dissolve into light.
+func hide_gear() -> void:
+	if weapon and weapon.visual:
+		weapon.visual.visible = false
+	if shadow:
+		shadow.visible = false
+
+
 func kindle_max() -> float:
 	return stats.v("kindle_max")
 

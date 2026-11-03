@@ -75,33 +75,109 @@ static func _hearth(dir: String) -> void:
 	s.save(dir, "hearth")
 
 
+## The Undervault Gate: a rune-carved arch between two soul-fire braziers, a
+## veil of soul-light turning in the dark where the stair goes down. Its runes
+## wake one by one; when the Kindled comes close they all burn ("wake"), and it
+## flares as they step through ("flare").
 static func _descent(dir: String) -> void:
-	var s := Sheet.new(64, 48, Vector2i(32, 44))
-	var fr: Array = []
+	var s := Sheet.new(96, 72, Vector2i(48, 68))
+	var idle: Array = []
+	for i in 8:
+		idle.append(_gate(i, 0))
+	s.add("idle", idle, 6.0)
+	var wake: Array = []
+	for i in 8:
+		wake.append(_gate(i, 1))
+	s.add("wake", wake, 10.0)
+	var flare: Array = []
 	for i in 4:
-		var c := Px.new(64, 48)
-		# stone archway over a stair into darkness
-		var arch := c.mask().rect(6, 8, 52, 38)
-		arch.subtract(c.mask().ellipse(32.0, 26.0, 18.0, 22.0).rect(14, 26, 36, 20))
-		c.paint(arch, Pal.STONE, 3, true)
-		for y in range(10, 46, 6):
-			c.line(6, y, 14, y, Pal.STONE[1])
-			c.line(50, y, 58, y, Pal.STONE[1])
-		var hole := c.mask().ellipse(32.0, 26.0, 18.0, 22.0).rect(14, 26, 36, 20)
-		c.fill(hole, Pal.INK)
-		for k in 5:
-			var y := 30 + k * 3
-			c.rect(18 + k * 2, y, 28 - k * 4, 2, Pal.ramp(Pal.STONE, 3 - k / 2))
-		# keystone rune breathing soul-light
-		c.paint(c.mask().rect(28, 2, 8, 9), Pal.STONE, 4, true)
-		c.lit(31 + i % 2, 5, Pal.SOUL[4 + (i % 2)])
-		c.lit(32, 6, Pal.SOUL[3])
-		for k in 3:
-			c.lit(24 + (i * 5 + k * 7) % 16, 14 + (k * 9 + i * 3) % 18, Pal.SOUL[3])
-		c.outline(Pal.INK)
-		fr.append(c)
-	s.add("idle", fr, 4.0)
+		flare.append(_gate(i, 2 + i))
+	s.add("flare", flare, 10.0, false)
 	s.save(dir, "descent")
+
+
+const GATE_RUNES := [
+	[[0, 0], [1, 1], [2, 0], [1, 2]], [[0, 0], [0, 1], [0, 2], [1, 1], [2, 2]], [[1, 0], [0, 1], [2, 1], [1, 2]],
+	[[0, 0], [2, 0], [1, 1], [1, 2]], [[0, 2], [1, 1], [2, 2], [1, 0]], [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]],
+	[[0, 0], [1, 0], [2, 1], [1, 2], [0, 2]],
+]
+
+
+## mode 0 idle, 1 awake, 2.. flaring (2 = start, 5 = white-out)
+static func _gate(i: int, mode: int) -> Px:
+	var c := Px.new(96, 72)
+	var flare := maxi(0, mode - 1)   # 1..4 while flaring
+	# the threshold: three broad steps
+	for k in 3:
+		var w := 82 - k * 8
+		c.paint(c.mask().rect(48 - w / 2, 62 - k * 3, w, 4), Pal.STONE, 2 + k % 2, true)
+	# pillars with capitals
+	for px in [8, 76]:
+		var pil := c.mask().rect(px + 1, 20, 10, 42)
+		c.paint(pil, Pal.STONE, 3, true)
+		for y in range(24, 60, 7):
+			c.line(px + 1, y, px + 10, y, Pal.STONE[1])
+		c.paint(c.mask().rect(px - 1, 15, 14, 6), Pal.STONE, 4, true)
+		c.paint(c.mask().rect(px, 58, 12, 4), Pal.STONE, 2, true)
+		# brazier bowl and its soul-fire
+		c.paint(c.mask().ellipse(px + 6.0, 13.0, 6.0, 2.6), Pal.STONE, 2, true)
+		var tall := 10.0 + float((i + px) % 3) + (4.0 if mode >= 1 else 0.0)
+		_flame(c, px + 6.0 + ((i + px / 8) % 3 - 1) * 0.4, 12.0, 4.4, tall, i + px, Pal.SOUL)
+	# the arch: a ring of voussoirs
+	var outer := c.mask().ellipse(48.0, 40.0, 30.0, 34.0).rect(18, 40, 60, 22)
+	var inner := c.mask().ellipse(48.0, 40.0, 21.0, 26.0).rect(27, 40, 42, 22)
+	var ring := c.mask().ellipse(48.0, 40.0, 30.0, 34.0).rect(18, 40, 60, 22)
+	ring.subtract(inner)
+	c.paint(ring, Pal.STONE, 3, true)
+	for k in 9:
+		var a := PI + PI * (k + 0.5) / 9.0
+		c.line(48 + int(cos(a) * 21.0), 40 + int(sin(a) * 26.0), 48 + int(cos(a) * 30.0), 40 + int(sin(a) * 34.0), Pal.STONE[1])
+	# the dark beyond, and the stair going down into it
+	c.fill(inner, Pal.INK)
+	for k in 5:
+		var w2 := 34 - k * 6
+		c.rect(48 - w2 / 2, 58 - k * 3, w2, 2, Pal.ramp(Pal.STONE, 2 - k / 2))
+	# the veil: a slow spiral of soul-light
+	var turn := i * 0.55 * (1.6 if mode >= 1 else 1.0)
+	var pts := 46 if mode >= 1 else 34
+	for k in pts:
+		var a2 := k * 0.42 + turn
+		var r := 1.5 + k * 0.42
+		var x := 48 + int(round(cos(a2) * r * 0.85))
+		var y := 38 + int(round(sin(a2) * r * 0.75))
+		if not inner.has(x, y):
+			continue
+		var b := clampi(4 - k / 10 + (1 if mode >= 1 else 0), 1, 5)
+		c.lit(x, y, Pal.SOUL[b])
+	c.lit(48, 38, Pal.SOUL[5])
+	if flare > 0:
+		# the veil opens into light
+		var fr2 := 4.0 + flare * 5.0
+		c.fill_lit(c.mask().ellipse(48.0, 40.0, minf(21.0, fr2), minf(26.0, fr2 * 1.2)).intersect(inner), Pal.SOUL[3 + mini(2, flare / 2)])
+		c.fill_lit(c.mask().ellipse(48.0, 40.0, fr2 * 0.5, fr2 * 0.6).intersect(inner), Pal.WHITE)
+	# runes around the arch wake one after another
+	for k in GATE_RUNES.size():
+		var a3 := PI + PI * (k + 1.0) / (GATE_RUNES.size() + 1.0)
+		var rx := 48 + int(round(cos(a3) * 25.5)) - 1
+		var ry := 40 + int(round(sin(a3) * 30.0)) - 1
+		var on := mode >= 1 or k <= i % 8
+		var hot := (mode >= 1 and k == i % GATE_RUNES.size()) or (mode == 0 and k == i % 8)
+		for p in GATE_RUNES[k]:
+			if on:
+				c.lit(rx + p[0], ry + p[1], Pal.SOUL[5] if hot or flare > 0 else Pal.SOUL[3])
+			else:
+				c.put(rx + p[0], ry + p[1], Pal.STONE[1])
+	# keystone: the old sun, carved and dead - its eye lit by the soul below
+	c.paint(c.mask().rect(43, 1, 10, 11), Pal.STONE, 4, true)
+	c.ellipse(48.0, 6.0, 2.5, 2.5, Pal.STONE[2])
+	c.lit(48, 6, Pal.SOUL[5] if mode >= 1 else Pal.SOUL[3 + i % 2])
+	# chains from the capitals into the dark
+	for side in [-1, 1]:
+		for k in 6:
+			c.put(48 + side * (34 - k * 2), 21 + k * 3, Pal.STONE[4] if k % 2 == 0 else Pal.STONE[2])
+	c.outline(Pal.INK)
+	return c
+
 
 
 static func _forge(dir: String) -> void:

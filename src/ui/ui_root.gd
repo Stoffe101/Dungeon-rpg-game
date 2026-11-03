@@ -20,6 +20,7 @@ var _hurt_k := 0.0         # damage flash on the vignette
 var _beat_t := 0.0
 var _focus_index := -1     # position of the focused control among the top modal's focusables
 var _last_focus: Control
+var card_pending := false   # a title card is covering a scene change
 
 
 func _ready() -> void:
@@ -262,6 +263,43 @@ func _low_health(delta: float) -> void:
 	else:
 		_beat_t = 0.0
 	m.set_shader_parameter("hurt", maxf(_hurt_k, low))
+
+
+## A title card on black: covers a scene change (the walk down the stair, the
+## road home) and names where the Kindled arrives. `mid` runs behind it.
+func title_card(title: String, sub: String, mid: Callable, extra := "") -> void:
+	card_pending = true
+	var box := UIKit.vbox(3)
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t := UIKit.label(title.to_upper(), 16, UIKit.C_GOLD, true)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(t)
+	var line := ColorRect.new()
+	line.color = Color(0.45, 1.0, 0.88, 0.85)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(line)
+	var s := UIKit.label(sub, 8, UIKit.C_TEXT, true)
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(s)
+	if extra != "":
+		var e := UIKit.label(extra, 8, Omens.COLOR, true)
+		e.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		box.add_child(e)
+	box.modulate.a = 0.0
+	root.add_child(box)
+	var tw := create_tween()
+	tw.tween_property(fader, "color:a", 1.0, 0.45)
+	tw.tween_callback(mid)
+	tw.tween_property(box, "modulate:a", 1.0, 0.35)
+	tw.parallel().tween_property(line, "custom_minimum_size:x", 140.0, 0.7).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(1.05)
+	tw.tween_property(box, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(func() -> void: card_pending = false)
+	tw.tween_property(fader, "color:a", 0.0, 0.6)
+	tw.tween_callback(box.queue_free)
 
 
 func fade(mid: Callable, t := 0.35) -> void:
