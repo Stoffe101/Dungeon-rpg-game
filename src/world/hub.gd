@@ -37,6 +37,10 @@ var residents: Array = []
 var spots: Array = []        # where residents like to stand or sit (see _camp)
 var _ember_t := 0.0
 var _steam_t := 0.0
+var _spark_t := 0.0
+var _fly_t := 0.0
+var forge_prop: Prop
+var lit_lanterns: Array = []
 var _last_bark := -99.0
 
 
@@ -108,8 +112,10 @@ func _environment() -> void:
 func _place() -> void:
 	var lvl := Profile.building("hearth")
 	var warm := Color(1.0, 0.62, 0.32)
+	# the Hearth burns a little brighter with every level the Kindled gains
+	var grow := float(Profile.level())
 	hearth_prop = Prop.make(self, "hearth", Vector2i(21, 11), {"sheet": "hearth", "anim": "burn", "prompt": "Commune with the Hearth", "radius": 1.8, "solid": true,
-		"light": [warm, 2.2 + 0.4 * lvl, 11.0 + 1.5 * lvl], "light_h": 1.6})
+		"light": [warm, 2.2 + 0.4 * lvl + 0.012 * grow, 11.0 + 1.5 * lvl + 0.05 * grow], "light_h": 1.6})
 	for t in [Vector2i(20, 11), Vector2i(22, 11), Vector2i(21, 12), Vector2i(20, 12), Vector2i(22, 12)]:
 		if grid.at(t.x, t.y) == TileGrid.FLOOR:
 			grid.put(t.x, t.y, TileGrid.PROP)
@@ -117,12 +123,17 @@ func _place() -> void:
 	Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.0,
 		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.0})
 	if Profile.building("forge") > 0:
-		Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge", "radius": 1.6, "solid": true,
+		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.6, "solid": true,
 			"light": [Color(1.0, 0.5, 0.25), 1.6, 6.0], "light_h": 0.8})
 		Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
 	else:
 		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
-	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack", "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
+	# the rack fills as weapons are forged
+	var forged := 0
+	for wid in GearDB.WEAPONS:
+		if Profile.weapon_unlocked(wid):
+			forged += 1
+	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack_display", "anim": "n%d" % mini(forged, 5), "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
 	# the peddler's stall: gear for Embers, restocked after every descent
 	Prop.make(self, "peddler", Vector2i(14, 15), {"sheet": "merchant", "anim": "idle", "prompt": "Browse the Peddler's wares", "radius": 1.4, "solid": true,
 		"light": [Color(1.0, 0.75, 0.4), 0.9, 3.5], "light_h": 1.0})
@@ -151,6 +162,7 @@ func _place() -> void:
 	for x in [7, 13, 29, 35]:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
 	_camp()
+	_keepsakes()
 	for i in 10:
 		var t := Vector2i(rng.randi_range(5, 37), rng.randi_range(5, 19))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and Vector2(t).distance_to(Vector2(21, 11)) > 3.0:
@@ -190,6 +202,52 @@ func _camp() -> void:
 		_spot(Vector2(11.6, 10.6), "idle", "forge")
 	if Profile.building("shrine") > 0:
 		_spot(Vector2(31.8, 15.3), "idle", "memorial")
+
+
+## What the camp keeps of the Kindled's story: trophies of fallen bosses, a
+## lantern lit for every two feats, a stand wearing the chosen look, and (once
+## the Kindled has come home once) a cat who has decided this is its fire now.
+func _keepsakes() -> void:
+	var trophies := [
+		["warden", "trophy_warden", "The Gloam Warden's helm", Color(0.35, 0.95, 0.85), [
+			"Its visor still glows when the Hearth gutters. The residents swear it watches the dark for you."]],
+		["bloom", "trophy_bloom", "A dried Hollow Bloom", Color(1.0, 0.8, 0.45), [
+			"Even dried and potted, it leans toward the Hearth. Hollis waters it anyway. 'Old habits,' she says."]],
+		["ashen_king", "trophy_king", "The Ashen King's crown", Color(1.0, 0.75, 0.35), [
+			"The last crown of the day. It is cold to the touch, and the black sun behind it never quite stops burning."]],
+	]
+	for i in trophies.size():
+		var t: Array = trophies[i]
+		if int(Profile.data.world.get("%s_kills" % t[0], 0)) > 0:
+			Prop.make(self, "trophy", Vector2i(30 + i * 2, 4), {"sheet": t[1], "prompt": t[2], "radius": 1.1, "solid": true,
+				"lines": t[4], "light": [t[3], 0.7, 2.6], "light_h": 1.0})
+	# feat lanterns along the south wall
+	var xs := [5, 7, 9, 11, 13, 15, 27, 29, 32, 34, 36]
+	var lit := int(ceil(Feats.earned_count() * xs.size() / float(Feats.FEATS.size())))
+	for i in xs.size():
+		var on: bool = i < lit
+		var lp := Prop.make(self, "feat_lantern", Vector2i(xs[i], 19), {"sheet": "hang_lantern", "anim": "lit" if on else "unlit", "solid": true,
+			"light": [Color(1.0, 0.7, 0.35), 0.55, 2.8] if on else [], "light_h": 1.6})
+		if on:
+			lit_lanterns.append(lp)
+	# the wardrobe stand wears whatever look the Kindled has chosen
+	Prop.make(self, "stand", Vector2i(6, 10), {"sheet": "stand_base"})
+	var m := Prop.make(self, "wardrobe", Vector2i(6, 10), {"sheet": "player", "anim": "idle_down", "prompt": "Wardrobe: change your look", "radius": 1.2, "solid": true,
+		"light": [Color(1.0, 0.8, 0.55), 0.6, 2.6], "light_h": 1.4})
+	if m.sprite:
+		m.sprite.speed_scale = 0.0
+		m.sprite.set_tint(Color(0.8, 0.78, 0.76))
+	if int(Profile.data.stats.get("runs", 0)) > 0:
+		var cat := CampCat.new()
+		cat.stage = self
+		cat.kind = "cat"
+		cat.tile = Vector2i(23, 13)
+		cat.pos = Vector2(23.5, 13.6)
+		cat.data = {"sheet": "cat", "anim": "sleep", "prompt": "Pet the cat", "radius": 0.9}
+		add_child(cat)
+		props.append(cat)
+		cat._build()
+		cat.ticks = true
 
 
 func _spot(p: Vector2, pose: String, tag: String) -> void:
@@ -268,6 +326,19 @@ func _stage_process(real: float) -> void:
 	if cookpot and _steam_t > 0.22:
 		_steam_t = 0.0
 		fx.motes(cookpot.pos + Vector2(randf_range(-0.2, 0.2), 0), 1.0, Color(0.7, 0.68, 0.72), 1, 0.4, 1.8, 0.15)
+	# the forge is never quite quiet while the smith is about
+	_spark_t += real
+	if forge_prop and _spark_t > 1.7:
+		_spark_t = randf_range(-0.6, 0.0)
+		var anvil := forge_prop.pos + Vector2(0.9, 0.4)
+		fx.burst(anvil, 0.5, Color(1.0, 0.7, 0.3), 8, 3.5, 0.35, 6.0, Vector2.UP, 1.2)
+		Audio.play_at("clank", anvil, -14.0, randf_range(1.1, 1.3), 300)
+	# moths and fireflies drift around the lit lanterns
+	_fly_t += real
+	if _fly_t > 0.5 and not lit_lanterns.is_empty():
+		_fly_t = 0.0
+		var lp: Prop = lit_lanterns[randi() % lit_lanterns.size()]
+		fx.motes(lp.pos + Vector2(randf_range(-0.6, 0.6), randf_range(-0.4, 0.2)), 1.4, Color(1.0, 0.9, 0.55), 1, 0.25, 2.6, 0.8)
 	_ember_t += real
 	if _ember_t > 0.06:
 		_ember_t = 0.0
@@ -302,7 +373,52 @@ func request(what: String, prop: Prop) -> void:
 					prop.sprite.play("idle"))
 		"resident":
 			_talk_to(prop as Wanderer)
+		"trophy":
+			Game.ui.dialogue(String(prop.data.prompt), prop.data.get("lines", []))
+		"wardrobe":
+			Game.ui.wardrobe()
+		"cat":
+			(prop as CampCat).pet()
 	prop.set_meta("last_used", elapsed)
+
+
+## The camp cat: wanders between warm places, naps by the Hearth, and does
+## not mind being petted. Moves itself (a Prop that ticks), so it can still be
+## interacted with wherever it ends up.
+class CampCat:
+	extends Prop
+
+	const SPOTS := [Vector2(23.5, 13.6), Vector2(19.0, 13.2), Vector2(17.6, 12.9), Vector2(25.6, 11.9), Vector2(18.2, 10.2), Vector2(30.2, 18.6)]
+	var mode := "sleep"
+	var mode_t := 6.0
+	var target := Vector2.ZERO
+
+	func tick(dt: float) -> void:
+		mode_t -= dt
+		match mode:
+			"walk":
+				var d := target - pos
+				if d.length() < 0.15:
+					mode = "sleep" if randf() < 0.5 else "idle"
+					mode_t = randf_range(6.0, 14.0) if mode == "sleep" else randf_range(2.0, 4.0)
+					sprite.play(mode)
+				else:
+					pos += d.normalized() * minf(1.1 * dt, d.length())
+					sprite.flip_h = d.x < 0.0
+					position = Iso.to_world(pos, 0.0)
+			_:
+				if mode_t <= 0.0:
+					target = SPOTS[randi() % SPOTS.size()]
+					mode = "walk"
+					sprite.play("walk")
+
+	func pet() -> void:
+		mode = "idle"
+		mode_t = 3.0
+		sprite.play("idle")
+		stage.fx.burst(pos, 0.6, Color(1.0, 0.55, 0.6), 6, 1.5, 0.6, -1.0)
+		stage.fx.number(pos, 1.4, "purr", Color(1.0, 0.8, 0.75))
+		Audio.play("pickup_heal", -8.0, 1.6)
 
 
 class TrainingDummy:

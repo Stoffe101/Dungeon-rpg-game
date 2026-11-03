@@ -439,6 +439,13 @@ func settings() -> void:
 	open(Screens.settings(self))
 
 
+func wardrobe() -> void:
+	var inv := InventoryUI.new()
+	inv.wardrobe_open = true
+	var dim := open(inv, true, "satchel_open")
+	dim.set_meta("close_sound", "satchel_close")
+
+
 func inventory() -> void:
 	var dim := open(InventoryUI.new(), true, "satchel_open")
 	dim.set_meta("close_sound", "satchel_close")

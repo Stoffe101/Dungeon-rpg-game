@@ -16,6 +16,7 @@ const GenItems = preload("res://tools/art/gen_items.gd")
 const GenThrone = preload("res://tools/art/gen_throne.gd")
 const GenCreatures = preload("res://tools/art/gen_creatures.gd")
 const GenSatchel = preload("res://tools/art/gen_satchel.gd")
+const GenCampLife = preload("res://tools/art/gen_camp_life.gd")
 
 
 func _init() -> void:
@@ -31,7 +32,9 @@ func _init() -> void:
 		"enemies": func(): GenEnemies.build("res://assets/sprites"),
 		"boss": func(): GenBoss.build("res://assets/sprites"),
 		"props": func(): GenProps.build("res://assets/sprites"),
-		"hub": func(): GenHub.build("res://assets/sprites"),
+		"hub": func():
+			GenHub.build("res://assets/sprites")
+			GenCampLife.build("res://assets/sprites"),
 		"icons": func(): GenIcons.build("res://assets/sprites"),
 		"ui": func():
 			GenUI.build("res://assets/ui")

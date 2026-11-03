@@ -10,6 +10,7 @@ func _init() -> void:
 	var crop := Vector2i(640, 400)
 	var cols := 6
 	var scale := 0.5
+	var at := Vector2i(-1, -1)   # top-left of the crop (default: centred)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("out="):
 			out = "res://" + a.substr(4)
@@ -20,6 +21,9 @@ func _init() -> void:
 			cols = int(a.substr(5))
 		elif a.begins_with("scale="):
 			scale = float(a.substr(6))
+		elif a.begins_with("at="):
+			var q := a.substr(3).split(",")
+			at = Vector2i(int(q[0]), int(q[1]))
 		else:
 			files.append(a)
 	var cell := Vector2i(int(crop.x * scale), int(crop.y * scale))
@@ -29,7 +33,7 @@ func _init() -> void:
 		var img := Image.load_from_file(ProjectSettings.globalize_path("res://" + files[i]))
 		if img == null:
 			continue
-		var c := (img.get_size() - crop) / 2
+		var c := (img.get_size() - crop) / 2 if at.x < 0 else at
 		img.convert(Image.FORMAT_RGBA8)
 		var part := img.get_region(Rect2i(c, crop))
 		part.resize(cell.x, cell.y, Image.INTERPOLATE_NEAREST)
