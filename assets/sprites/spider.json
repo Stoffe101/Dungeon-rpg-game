@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"idle": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"lunge": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"spit": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"walk": {
+			"fps": 12.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		26,
+		16
+	],
+	"origin": [
+		13,
+		14
+	]
+}

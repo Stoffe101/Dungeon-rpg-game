@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"s0": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"s1": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"s2": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"s3": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		18,
+		20
+	],
+	"origin": [
+		9,
+		18
+	]
+}

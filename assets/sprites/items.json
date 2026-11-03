@@ -1,0 +1,397 @@
+{
+	"cell": 16,
+	"icons": {
+		"anvil": [
+			6,
+			9
+		],
+		"avarice_lantern": [
+			7,
+			6
+		],
+		"bag": [
+			5,
+			9
+		],
+		"band": [
+			7,
+			2
+		],
+		"battery": [
+			2,
+			7
+		],
+		"berserk_mantle": [
+			1,
+			7
+		],
+		"bloom_crown": [
+			8,
+			0
+		],
+		"bloom_heart": [
+			3,
+			9
+		],
+		"bone_dust": [
+			5,
+			8
+		],
+		"boots": [
+			1,
+			2
+		],
+		"bracers": [
+			0,
+			2
+		],
+		"brooch": [
+			8,
+			3
+		],
+		"circlet": [
+			2,
+			0
+		],
+		"cloak": [
+			2,
+			1
+		],
+		"clogs": [
+			2,
+			6
+		],
+		"clover4": [
+			1,
+			8
+		],
+		"clover_ring": [
+			0,
+			3
+		],
+		"coat": [
+			1,
+			1
+		],
+		"coin": [
+			0,
+			6
+		],
+		"cowl": [
+			3,
+			0
+		],
+		"duelist": [
+			8,
+			1
+		],
+		"echo_gauntlets": [
+			5,
+			6
+		],
+		"eclipse_shard": [
+			4,
+			9
+		],
+		"ember_core": [
+			1,
+			9
+		],
+		"ember_crown": [
+			4,
+			7
+		],
+		"ew_gauntlets": [
+			2,
+			4
+		],
+		"ew_greaves": [
+			3,
+			4
+		],
+		"ew_helm": [
+			0,
+			4
+		],
+		"ew_plate": [
+			1,
+			4
+		],
+		"ew_signet": [
+			4,
+			4
+		],
+		"exec_ring": [
+			0,
+			8
+		],
+		"feather_hood": [
+			0,
+			7
+		],
+		"firebrand": [
+			7,
+			7
+		],
+		"flask_charm": [
+			3,
+			8
+		],
+		"focus_band": [
+			2,
+			3
+		],
+		"fools_cap": [
+			7,
+			0
+		],
+		"gauntlets": [
+			5,
+			1
+		],
+		"glass_lantern": [
+			4,
+			8
+		],
+		"gloves": [
+			6,
+			1
+		],
+		"grave_iron": [
+			6,
+			8
+		],
+		"greaves": [
+			2,
+			2
+		],
+		"grudge_locket": [
+			2,
+			8
+		],
+		"gw_cloak": [
+			1,
+			5
+		],
+		"gw_hood": [
+			0,
+			5
+		],
+		"gw_locket": [
+			4,
+			5
+		],
+		"gw_treads": [
+			3,
+			5
+		],
+		"gw_wraps": [
+			2,
+			5
+		],
+		"haste_mitts": [
+			9,
+			1
+		],
+		"helm": [
+			1,
+			0
+		],
+		"hood": [
+			0,
+			0
+		],
+		"horned": [
+			6,
+			0
+		],
+		"hourglass_charm": [
+			6,
+			3
+		],
+		"idol": [
+			7,
+			3
+		],
+		"lampcap": [
+			4,
+			0
+		],
+		"lantern_charm": [
+			9,
+			3
+		],
+		"last_ember": [
+			6,
+			6
+		],
+		"league_boots": [
+			1,
+			6
+		],
+		"locket": [
+			4,
+			3
+		],
+		"loop": [
+			9,
+			2
+		],
+		"mail": [
+			0,
+			1
+		],
+		"mirror_bracers": [
+			8,
+			7
+		],
+		"moth_cloak": [
+			5,
+			7
+		],
+		"mountain_plate": [
+			3,
+			6
+		],
+		"plague_mask": [
+			5,
+			0
+		],
+		"rabbit_foot": [
+			5,
+			3
+		],
+		"rg_band": [
+			9,
+			4
+		],
+		"rg_boots": [
+			8,
+			4
+		],
+		"rg_gauntlets": [
+			7,
+			4
+		],
+		"rg_helm": [
+			5,
+			4
+		],
+		"rg_mail": [
+			6,
+			4
+		],
+		"robe": [
+			9,
+			0
+		],
+		"rootwood": [
+			8,
+			8
+		],
+		"sandals": [
+			4,
+			2
+		],
+		"scale": [
+			4,
+			1
+		],
+		"scroll": [
+			7,
+			9
+		],
+		"signet": [
+			8,
+			2
+		],
+		"slippers": [
+			6,
+			2
+		],
+		"soul_glass": [
+			7,
+			8
+		],
+		"spell_circlet": [
+			4,
+			6
+		],
+		"spore_silk": [
+			9,
+			8
+		],
+		"still_sandals": [
+			9,
+			7
+		],
+		"storm_signet": [
+			8,
+			6
+		],
+		"sun_gold": [
+			0,
+			9
+		],
+		"sunfall_mantle": [
+			3,
+			7
+		],
+		"thorn_ring": [
+			1,
+			3
+		],
+		"thornmail": [
+			6,
+			7
+		],
+		"totem": [
+			3,
+			3
+		],
+		"treads": [
+			3,
+			2
+		],
+		"vamp_ring": [
+			9,
+			6
+		],
+		"vd_boots": [
+			8,
+			5
+		],
+		"vd_cowl": [
+			5,
+			5
+		],
+		"vd_gloves": [
+			7,
+			5
+		],
+		"vd_robe": [
+			6,
+			5
+		],
+		"vd_totem": [
+			9,
+			5
+		],
+		"vestments": [
+			3,
+			1
+		],
+		"waders": [
+			5,
+			2
+		],
+		"warden_sigil": [
+			2,
+			9
+		],
+		"wraps": [
+			7,
+			1
+		]
+	}
+}

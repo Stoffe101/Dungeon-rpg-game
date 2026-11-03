@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"idle": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"lunge": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"riposte": {
+			"fps": 14.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"stance": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		30
+	],
+	"origin": [
+		12,
+		28
+	]
+}

@@ -1,0 +1,19 @@
+{
+	"anims": {
+		"burn": {
+			"fps": 9.0,
+			"frames": 6,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		48,
+		44
+	],
+	"origin": [
+		24,
+		38
+	]
+}

@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"attack": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 6,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		24
+	],
+	"origin": [
+		12,
+		22
+	]
+}

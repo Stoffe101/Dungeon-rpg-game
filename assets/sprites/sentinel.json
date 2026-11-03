@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"bash": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"idle": {
+			"fps": 2.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"walk": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 5.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		32,
+		32
+	],
+	"origin": [
+		16,
+		30
+	]
+}

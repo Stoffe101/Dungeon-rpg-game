@@ -1,0 +1,79 @@
+{
+	"anims": {
+		"boss": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 10
+		},
+		"chest": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 5
+		},
+		"embers": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"memory": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		},
+		"merchant": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 7
+		},
+		"relic": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"shrine": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 6
+		},
+		"skull": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 8
+		},
+		"stairs": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 9
+		},
+		"sunshard": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 4
+		},
+		"vigor": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		20,
+		20
+	],
+	"origin": [
+		10,
+		19
+	]
+}

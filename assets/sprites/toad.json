@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"crouch": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": false,
+			"row": 1
+		},
+		"hop": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		},
+		"idle": {
+			"fps": 2.5,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"tongue": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		26,
+		22
+	],
+	"origin": [
+		13,
+		20
+	]
+}

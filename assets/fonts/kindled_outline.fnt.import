@@ -1,0 +1,17 @@
+[remap]
+
+importer="font_data_bmfont"
+type="FontFile"
+uid="uid://dc7dq8csgf56b"
+path="res://.godot/imported/kindled_outline.fnt-4b0858934ce10374c055bfd92781d134.fontdata"
+
+[deps]
+
+source_file="res://assets/fonts/kindled_outline.fnt"
+dest_files=["res://.godot/imported/kindled_outline.fnt-4b0858934ce10374c055bfd92781d134.fontdata"]
+
+[params]
+
+fallbacks=[]
+compress=true
+scaling_mode=2

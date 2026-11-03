@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"burrow": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		},
+		"emerge": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": false,
+			"row": 1
+		},
+		"idle": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"mound": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": true,
+			"row": 3
+		},
+		"swipe": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		}
+	},
+	"emit": true,
+	"frame": [
+		28,
+		22
+	],
+	"origin": [
+		14,
+		20
+	]
+}

@@ -1,0 +1,19 @@
+{
+	"anims": {
+		"pop": {
+			"fps": 26.0,
+			"frames": 4,
+			"loop": false,
+			"row": 0
+		}
+	},
+	"emit": false,
+	"frame": [
+		24,
+		24
+	],
+	"origin": [
+		12,
+		12
+	]
+}

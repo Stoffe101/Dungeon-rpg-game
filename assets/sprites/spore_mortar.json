@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"charge": {
+			"fps": 6.0,
+			"frames": 2,
+			"loop": false,
+			"row": 1
+		},
+		"fire": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		},
+		"idle": {
+			"fps": 2.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		26,
+		26
+	],
+	"origin": [
+		13,
+		24
+	]
+}

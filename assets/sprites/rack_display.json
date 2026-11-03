@@ -1,0 +1,49 @@
+{
+	"anims": {
+		"n0": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"n1": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"n2": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"n3": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		},
+		"n4": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 4
+		},
+		"n5": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 5
+		}
+	},
+	"emit": true,
+	"frame": [
+		32,
+		24
+	],
+	"origin": [
+		16,
+		22
+	]
+}

@@ -16,3 +16,6 @@ Thumbs.db
 *.tmp
 .vscode/
 .idea/
+
+# licensed third-party sound packs: usable in the game, not redistributable (see tools/audio/import_licensed.py)
+assets/audio/licensed/

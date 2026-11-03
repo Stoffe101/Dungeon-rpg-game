@@ -1,0 +1,25 @@
+{
+	"anims": {
+		"dive": {
+			"fps": 20.0,
+			"frames": 2,
+			"loop": true,
+			"row": 1
+		},
+		"idle": {
+			"fps": 14.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		22
+	],
+	"origin": [
+		12,
+		21
+	]
+}

@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"camp": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 3
+		},
+		"ossuary": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 0
+		},
+		"rootmire": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 1
+		},
+		"throne": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		20,
+		20
+	],
+	"origin": [
+		10,
+		10
+	]
+}
