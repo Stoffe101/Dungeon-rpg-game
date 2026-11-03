@@ -61,8 +61,7 @@ func _volley() -> void:
 
 
 static func _burst(st: Stage, at: Vector2, dmg: float, me: WeakRef) -> void:
-	var pl := st.player
-	if pl and pl.alive and pl.pos.distance_to(at) <= BLAST_R + pl.radius:
+	for pl in st.players_near(at, BLAST_R):
 		var h := Hit.make(me.get_ref() as Node, dmg, ["ranged"])
 		h.can_crit = false
 		h.knockback = (pl.pos - at).normalized() * 4.0

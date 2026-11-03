@@ -72,12 +72,12 @@ static func _blast(st: Stage, p: Vector2, dmg: float, self_ref: Node) -> void:
 	st.fx.shake(0.35)
 	Audio.play("explode", -2.0, 0.85)
 	var pl := st.player
-	if pl and pl.alive and pl.pos.distance_to(p) <= BLAST_R + pl.radius:
+	for vp in st.players_near(p, BLAST_R):
 		var h := Hit.make(self_ref, dmg, ["fire"])
 		h.can_crit = false
-		h.knockback = (pl.pos - p).normalized() * 8.0
-		h.from_dir = (pl.pos - p).normalized()
-		pl.take_enemy_hit(h, null)
+		h.knockback = (vp.pos - p).normalized() * 8.0
+		h.from_dir = (vp.pos - p).normalized()
+		vp.take_enemy_hit(h, null)
 	for a in st.in_circle(Actor.Team.PLAYER, p, BLAST_R):
 		if a == self_ref:
 			continue

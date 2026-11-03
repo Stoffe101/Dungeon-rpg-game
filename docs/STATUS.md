@@ -4,6 +4,23 @@ Last updated: 2026-11-03.
 
 ## Implemented
 
+- **Buildcraft & co-op pass (branch feature/buildcraft-coop):**
+  - *Co-op for up to four* (host-authoritative ENet, LAN/direct IP): party
+    screen, character sheets, replicated floors (snapshots + events), shared
+    currency and instanced gear/blueprints/runes, per-player relic picks, foes
+    choosing among players, co-op scaling, downed/revive, party-wide descend,
+    Hearthcall and settlement into each player's own profile, seat colours and
+    a HUD party panel. See docs/NETWORK.md.
+  - *Room seals* redesigned (woven soul-light, region plates, staged forming
+    and release, new sounds); anyone in a closing door is stepped inside.
+  - *Visible armour*: 57 armour bases drawn on the Kindled from the body's own
+    poses; satchel figure; per-slot appearance in the wardrobe; replicated in co-op.
+  - *Ember Runes*: ten runes, one/two sockets per spell, drops and carving, a
+    rune screen; each rune behaves differently per spell. Save v9.
+  - *Weapons*: Hearthbow (draw and Steady Shot) and Emberwright's Tome (seeking
+    motes that hurry spells, inscriptions).
+  - *Hearthtree outer ring*: six transformative keystones.
+  - *The Hollow Below*: endless descent with guardian Echoes and an Omen per depth.
 - **Major evolution pass (this round):** six new enemies filling missing roles
   (Gravemole, Lampwight, Spore Mortar, Bramblewright, Gilded Duelist,
   Sunwatcher) with art, voices and sim tests; lobbed projectiles; every enemy
@@ -100,6 +117,7 @@ Last updated: 2026-11-03.
 | Latest round (satchel exterior, uniques, dungeon/camp visuals, bestiary) | Captured and viewed: the satchel opening (shut satchel, flap up, unfolding), every region before/after the visual pass (grime, decals, room lights), decal rows per region (a bug passed the Ossuary row to every region - fixed and re-checked), the camp centre with trophies, rugs and camp clutter, the forge-ruin sign near and far, the title screen, the Bestiary empty and after a Warden kill, the new item icons. The smoke test caught the cat stealing a resident's conversation (moved). |
 | Earlier round (playtest fixes, satchel, forge, progression, camp, audio) | Captured and viewed: the satchel opening sequence and the open bag, the new forge, Hearthcall from start to departure, the Feats screen and pause menu, the sanctuary with feat lanterns, wardrobe stand and the cat. Audio checked with `audiolog` bot runs: every played name resolves, voices fire on telegraphs/hits/deaths, spike traps only within earshot (was 176 plays across the map per run). UI smoke 34/34, seed-7 autopilot run clean. Not checked: the sounds themselves by ear. |
 | Tiers, Throne, gear | Bots with tier-matched epic gear (`kit=N`), Ossuary seed 11: Tier I/kit I and Tier IV/kit IV reach depth 2 alive (98 and 84 kills); Tier IV with Tier I gear dies at depth 2; fresh, ungeared characters died early on Tiers IV and VI (measured before the final curve tune). Tier VI with Tier VI gear reaches depth 2 and dies there after 90 kills (the bot never uses the Hearthtree or sanctuary, so it is weaker than a real Kindled at that point); one earlier Tier VI bot got stuck beside a foe it could not reach (bot pathing; foe diagnostics added to the bot log). Sunken Throne on Tier IV with Tier IV gear: clears depths 1-2 and dies in the first room of depth 3 (115 kills). A second god-mode King kill (seed 3, Tier I) after the poise change: Eclipse at 49%, victory opens Tier III. God-mode bot kills the Ashen King: Eclipse at 49%, victory banks the Sunfall Mantle, a set piece and a blueprint, and Tier II opens Tiers III-IV. Throne floors and the Rootmire/Ossuary at depth 3 run without script errors. Balance numbers from `tools/dev/power_report.tscn` (see DESIGN). |
+| Buildcraft & co-op pass | 84 tests (new: seals blocking/nudging/release on a real headless Dungeon, co-op downed/revive/wipe and shared vs instanced pickups, every armour base has a sheet following every body animation and the wardrobe override, all runes in a headless fight and the v8->v9 migration, Bow steady shot and Tome cooldowns/inscription, outer keystones, the Hollow Below). UI smoke 34/34. **Co-op with real separate instances on one machine (localhost)**: 2 players (descend together, Hearthcall ends the run for both, the client banks its own share, a client leaving mid-fight, the host leaving, Tome host + Bow guest fighting together, remote armour and weapon visible) and 4 players (host + 3 clients on the same floor, 16 actors everywhere, no script errors). Found and fixed by these runs: snapshots above the MTU (now compressed chunks), freed replicas assigned to typed variables, a co-op spawn inside a pillar, a virtual adapter shown as the LAN address. Captured and viewed: seals in all three regions, armour outfits across poses and in play (found and fixed dithered/see-through layers and the silhouette pass mistaking armour for a wall), the co-op party screen, the rune screen, Bow and Tome fights, the outer keystones in the tree, an Echo of the Gloam Warden in the Hollow Below. Bots: Bow (Rootmire Tier II) and Tome (Throne Tier II) runs without script errors. 3440x1440 (real `--resolution`): 165 fps throughout. Not verified: co-op across two machines or the internet; human play of any of it. |
 | Evolution pass (enemies, squads, Omens, gate, loot, Grudges, events) | 76 tests (new: each of the six enemies in a headless sim, squad role caps and determinism, Molten/Splitting/Gloom, Omens unlock/bonus/apply/migration/end-of-run payout, Grudge traits/aging/cap, vault and camp generation on open floor). UI smoke 34/34. Captured and viewed: the six enemies in their regions (`hitlab lab=`), Lampwight before/after its light, Gloom before/after the toned-down darkness, Molten trail, the Bestiary, the Descent with Omens, Lightless vs lit, the HUD corner (run clock was being clipped - fixed), the new gate sprite sheet and the full flare-to-title-card sequence (found the sword floating after the Kindled dissolved - fixed), loot beams per grade, the vault opening and the camp. Autopilot: all three regions on fresh profiles (no script errors; the bot killed Mortars and Duelists, including through the riposte stance), the vault solved and the camp rekindled by the bot. Validation runs with tier-matched gear, all without script errors and alive at depth 2 at the frame limit: Ossuary Tier I with Restless Dead + Tempered (an elite in every fight, risers counted in 65 kills), Rootmire Tier II with Glass Kindled, Throne Tier III with Lightless + Dry Flask. Restless rising sigils captured. Ultrawide 3440x1421: Descent screen and a Throne fight captured (layout and HUD corner fine); no ultrawide performance run yet. Not verified visually: a Grudge room's red fires. |
 | Visual inspection (screenshots actually viewed) | This round: wardrobe portraits and all eight looks in-game, Descent tier picker, Throne floor (redone once: the first gold-flecked slabs read as rust), Ashen King fight (sweep, corona, stagger), Throne foes (Eclipse Acolyte with orbs, hounds), sprite sheets for the King, Sentinel, Hound, Acolyte, Wraith, Spider and Toad. Earlier: dungeon at 1080p, 720p and 3440x1421 (ultrawide), combat with HUD/gates/traps/telegraphs, boss arena phase 1 and Gloamfall, Rootmire rooms and the Hollow Bloom arena, event rooms (Echo, Trial), main menu, sanctuary + dialogue (early and progressed: residents, barks, garden), gamepad menus (focus ring, pad prompts, rebinding columns, skill tree hints), redrawn sanctuary NPCs (sprite sheets and in the hub), the new Hearthtree (empty, partly allocated, route preview affordable/unaffordable, search, masteries, branch focus, 1080p and ultrawide), request markers and the pause-menu journal, occlusion silhouette, relic choice, forge, settings, run summary. Sprite sheets for all characters, boss, icons. See `docs/screenshots/`. |
 | UI smoke test | `-- uismoke`: opens every screen and presses its buttons (sanctuary building, forge craft/temper, weapon rack, skill allocate/refund/respec, memorial, settings tabs, merchant purchases, blood pact, chest, lore, Hearthstone confirm, extraction), kindles a distant Hearthtree node (checks exactly the previewed path is bought), moves the mouse around the player (aim, facing, swing direction), equips from the satchel, forges, masterworks, tempers, salvages, buys and sells, searches and focuses branches, ranks up a mastery and reads its tooltip, plays a resident's request conversation through to the gift, then drives menus with synthetic gamepad events (B interacts/backs out, A confirms, RB switches tabs, focus follows). Found and fixed the shop/forge refresh bug, a late-descend race, and (in the input audit) a missing Interact input path: until this fix a human could not open chests, trade or take the stairs - the bot and smoke test had been calling `interact()` directly. |
@@ -109,6 +127,15 @@ Last updated: 2026-11-03.
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
+
+- Co-op: only verified on one machine (localhost); no client-side prediction
+  (the client's own Kindled lags by a round trip); merchant/shrine/well/trial/
+  echo/Hearthstone are host-only; growing boss shapes show at their start size
+  on clients; kills, Grudges and world records go to the host's profile. See
+  docs/NETWORK.md.
+- Armour overlays are drawn per style at 32x32; tiny pieces (gloves, boots) read
+  as colour more than shape. Death frames show the Kindled without armour.
+- The Tome and Bow, runes and outer keystones are tuned by tests and bots only.
 
 - **TEST_STOCKPILE is on** (profile.gd): every save gets 60 of each material,
   6 catalysts, 1500 Embers and three starter pieces once (on upgrading to v5 or
@@ -143,7 +170,10 @@ Last updated: 2026-11-03.
 
 ## Next priorities
 
-1. Human playtest pass on combat feel (timings, hitstop, telegraph lengths),
+1. Human co-op session over a real LAN (and over the internet with a port
+   forward), then client-side prediction for the local Kindled if it feels laggy.
+2. Playtest the Bow, the Tome, runes and the outer keystones; tune numbers.
+3. Human playtest pass on combat feel (timings, hitstop, telegraph lengths),
    the Ashen King's Eclipse, and how tiers II-IV feel with crafted gear.
 2. Install Godot export templates and produce a Windows build (preset is ready).
 3. Test with a physical controller (navigation, rebinding, aim assist feel).

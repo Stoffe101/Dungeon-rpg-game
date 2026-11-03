@@ -50,6 +50,7 @@ static func main_menu(ui: UIRoot) -> Control:
 				Profile.reset_profile()
 				ui.leave_main_menu()
 				ui.fade(Game.goto_hub)), 110))
+	buttons.add_child(UIKit.button("Co-op Party", func() -> void: ui.open(Screens.coop(ui)), 110))
 	buttons.add_child(UIKit.button("Settings", func() -> void: ui.settings(), 110))
 	buttons.add_child(UIKit.button("Quit", func() -> void: ui.get_tree().quit(), 110))
 	var runs := int(Profile.data.stats.get("runs", 0))
@@ -60,6 +61,185 @@ static func main_menu(ui: UIRoot) -> Control:
 	root.add_child(ver)
 	start.call_deferred("grab_focus")
 	return root
+
+
+# --- Ember Runes ---------------------------------------------------------------------
+
+## Set runes in your spells' sockets, and carve new ones. Each rune shows what
+## it would do in the spell you are looking at.
+static func runes(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("Ember Runes"))
+	var n_sockets := Runes.sockets(Profile.level())
+	var intro := "Set a rune in a spell to change how it behaves."
+	if n_sockets < 2:
+		intro += " A second socket opens at level %d." % Runes.SECOND_SOCKET_LEVEL
+	v.add_child(UIKit.para(intro, 260, UIKit.C_DIM))
+	var body := UIKit.vbox(3)
+	v.add_child(body)
+	var picker := UIKit.vbox(2)
+	var state := {"ability": "", "socket": -1}
+	var rebuild := func(again: Callable) -> void:
+		for c in body.get_children():
+			c.queue_free()
+		for c in picker.get_children():
+			c.queue_free()
+		for ab in SkillDB.abilities(Profile.skills()):
+			var d := GearDB.ability(String(ab))
+			var row := UIKit.hbox(4)
+			row.add_child(UIKit.icon_rect(String(d.get("icon", "flare"))))
+			var nm := UIKit.label(String(d.name), 8, UIKit.C_TEXT)
+			nm.custom_minimum_size = Vector2(70, 0)
+			row.add_child(nm)
+			var set: Array = Profile.runes().socketed.get(ab, [])
+			for s in n_sockets:
+				var rid := String(set[s]) if s < set.size() else ""
+				var b := Button.new()
+				b.custom_minimum_size = Vector2(80, 18)
+				b.text = String(Runes.get_def(rid).get("name", "")) .trim_prefix("Rune of ") if rid != "" else "- empty -"
+				if rid != "":
+					b.icon = UIKit.item_icon(String(Runes.get_def(rid).icon))
+					b.add_theme_color_override("font_color", Runes.get_def(rid).color)
+				var abid: String = ab
+				var sock: int = s
+				b.pressed.connect(func() -> void:
+					state.ability = abid
+					state.socket = sock
+					Audio.ui("ui_click")
+					again.call(again))
+				if state.ability == ab and state.socket == s:
+					b.modulate = Color(1.2, 1.1, 0.8)
+				row.add_child(b)
+			body.add_child(row)
+		# the picker for the chosen socket
+		if state.ability != "":
+			var abn: String = state.ability
+			picker.add_child(UIKit.label("FOR %s, SOCKET %d" % [String(GearDB.ability(abn).name).to_upper(), int(state.socket) + 1], 8, UIKit.C_GOLD, true))
+			for rid in Runes.RUNES:
+				var have := Profile.runes_free(rid)
+				var cur: Array = Profile.runes().socketed.get(abn, [])
+				var here: bool = int(state.socket) < cur.size() and String(cur[state.socket]) == rid
+				if have <= 0 and not here:
+					continue
+				var r: Dictionary = Runes.RUNES[rid]
+				var line := UIKit.hbox(3)
+				var pick := UIKit.button(String(r.name).trim_prefix("Rune of ") + ("  (x%d)" % have if not here else "  (set)"), func() -> void:
+					if Profile.set_rune(abn, int(state.socket), rid):
+						Audio.play("clank", -6.0, 1.4)
+						if Game.stage and Game.stage.player:
+							Game.stage.player.rebuild_stats()
+					again.call(again), 96)
+				pick.icon = UIKit.item_icon(String(r.icon))
+				line.add_child(pick)
+				line.add_child(UIKit.para(Runes.describe(rid, abn), 170, r.color))
+				picker.add_child(line)
+			picker.add_child(UIKit.button("Clear socket", func() -> void:
+				Profile.set_rune(abn, int(state.socket), "")
+				again.call(again), 90))
+		# carving: a sure way to the rune you want
+		var owned := UIKit.hbox(3)
+		owned.add_child(UIKit.label("CARVE (%s)" % _cost_text(Runes.CARVE), 8, UIKit.C_GOLD, true))
+		picker.add_child(owned)
+		var grid := GridContainer.new()
+		grid.columns = 5
+		grid.add_theme_constant_override("h_separation", 3)
+		for rid in Runes.RUNES:
+			var r: Dictionary = Runes.RUNES[rid]
+			var cb := Button.new()
+			cb.custom_minimum_size = Vector2(50, 18)
+			cb.icon = UIKit.item_icon(String(r.icon))
+			cb.text = "%d" % int(Profile.runes().owned.get(rid, 0))
+			cb.tooltip_text = "%s - %s" % [r.name, r.desc]
+			cb.disabled = not Profile.can_pay(Runes.CARVE)
+			var id: String = rid
+			cb.pressed.connect(func() -> void:
+				if Profile.pay(Runes.CARVE):
+					Profile.add_rune(id)
+					Audio.play("forge", -4.0, 1.2)
+				again.call(again))
+			grid.add_child(cb)
+		picker.add_child(grid)
+	v.add_child(picker)
+	rebuild.call(rebuild)
+	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
+	return _center(p)
+
+
+static func _cost_text(cost: Dictionary) -> String:
+	var parts: Array = []
+	for k in cost:
+		var nm := "Embers" if k == "embers" else (String(ItemDB.MATERIALS[k].name) if ItemDB.MATERIALS.has(k) else String(k))
+		parts.append("%d %s" % [int(cost[k]), nm])
+	return ", ".join(PackedStringArray(parts))
+
+
+# --- co-op party -------------------------------------------------------------------
+
+## Host or join a party of up to four. The host leads the descent from the
+## Undervault Gate; everyone keeps their own Kindled, gear and progress.
+static func coop(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(5)
+	p.add_child(v)
+	v.add_child(_title("Co-op Party"))
+	v.add_child(UIKit.para("Up to four Kindled share one expedition. Each keeps their own gear, Hearthtree and rewards; Embers and materials found are shared, gear drops for each of you. The host leads the descent from the Undervault Gate.", 250, UIKit.C_DIM))
+	var row := UIKit.hbox(4)
+	row.add_child(UIKit.label("Name", 8, UIKit.C_TEXT))
+	var name_in := LineEdit.new()
+	name_in.text = String(Settings.get_value("player_name", "Kindled"))
+	name_in.max_length = 16
+	name_in.custom_minimum_size = Vector2(110, 14)
+	name_in.text_changed.connect(func(t: String) -> void: Settings.set_value("player_name", t.strip_edges() if t.strip_edges() != "" else "Kindled"))
+	row.add_child(name_in)
+	v.add_child(row)
+	var row2 := UIKit.hbox(4)
+	row2.add_child(UIKit.label("Address", 8, UIKit.C_TEXT))
+	var addr := LineEdit.new()
+	addr.text = String(Settings.get_value("coop_address", "127.0.0.1"))
+	addr.custom_minimum_size = Vector2(110, 14)
+	addr.text_changed.connect(func(t: String) -> void: Settings.set_value("coop_address", t.strip_edges()))
+	row2.add_child(addr)
+	v.add_child(row2)
+	var status := UIKit.para(Net.i.status if Net.i.status != "" else "Not in a party.", 250, UIKit.C_SOUL)
+	v.add_child(status)
+	var party := UIKit.vbox(2)
+	v.add_child(party)
+	var buttons := UIKit.hbox(5)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.add_child(buttons)
+	var refresh := func() -> void:
+		status.text = Net.i.status if Net.i.status != "" else "Not in a party."
+		for c in party.get_children():
+			c.queue_free()
+		if Net.active():
+			var seats: Array = Net.i.roster.keys()
+			seats.sort_custom(func(a, b): return int(Net.i.roster[a].slot) < int(Net.i.roster[b].slot))
+			for pid in seats:
+				var r: Dictionary = Net.i.roster[pid]
+				var sh: Dictionary = r.get("sheet", {})
+				var w := GearDB.weapon(String(sh.get("weapon", "sword")))
+				var line := "%s%s   Lv %d   %s" % [String(r.name), "  (host)" if int(pid) == 1 else "", int(sh.get("level", 1)), String(w.get("name", "?"))]
+				party.add_child(UIKit.label(line, 8, Net.color_of(int(pid)), true))
+		for c in buttons.get_children():
+			c.queue_free()
+		if not Net.active():
+			buttons.add_child(UIKit.button("Host", func() -> void: Net.i.host(), 60))
+			buttons.add_child(UIKit.button("Join", func() -> void: Net.i.join(addr.text.strip_edges()), 60))
+		else:
+			buttons.add_child(UIKit.button("Leave party", func() -> void:
+				Net.i.leave()
+				Net.i._status("Left the party."), 80))
+		buttons.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 60))
+	Net.i.roster_changed.connect(refresh)
+	Net.i.status_changed.connect(func(_t): refresh.call())
+	p.tree_exiting.connect(func() -> void:
+		if Net.i.roster_changed.is_connected(refresh):
+			Net.i.roster_changed.disconnect(refresh))
+	refresh.call()
+	v.add_child(UIKit.para("Internet play: the host forwards UDP port %d on their router, or everyone joins the same LAN-style VPN (e.g. ZeroTier, Tailscale). LAN play needs nothing extra." % Net.PORT, 250, UIKit.C_DIM))
+	return _center(p)
 
 
 # --- relic choice ------------------------------------------------------------------
@@ -731,7 +911,7 @@ static func descent(ui: UIRoot) -> Control:
 	v.add_child(_title("The Descent"))
 	var mem := int(Profile.data.world.get("memory", 0))
 	var last := String(Profile.data.descent.get("region", "ossuary"))
-	var ctx := {"region": last if EnemyDB.REGIONS.has(last) and EnemyDB.region_unlocked(last) else "ossuary"}
+	var ctx := {"region": last if (EnemyDB.REGIONS.has(last) and EnemyDB.region_unlocked(last)) or (last == "delve" and Delve.unlocked()) else "ossuary"}
 	# one row of region tabs, the chosen (or sealed) region described below
 	var cards: Array = []
 	var tabs := UIKit.hbox(3)
@@ -740,6 +920,10 @@ static func descent(ui: UIRoot) -> Control:
 	about.custom_minimum_size = Vector2(250, 26)
 	v.add_child(about)
 	var describe := func(rid: String) -> void:
+		if rid == "delve":
+			about.text = (Delve.BLURB + ("  Deepest so far: %d." % Delve.best() if Delve.best() > 0 else "")) if Delve.unlocked() else Delve.SEALED
+			about.add_theme_color_override("font_color", UIKit.C_SOUL if Delve.unlocked() else UIKit.C_DIM)
+			return
 		var reg: Dictionary = EnemyDB.REGIONS[rid]
 		var open := EnemyDB.region_unlocked(rid)
 		about.text = String(reg.blurb) if open else String(reg.get("sealed", "Sealed."))
@@ -769,6 +953,26 @@ static func descent(ui: UIRoot) -> Control:
 		card.set_meta("rid", rid)
 		cards.append(card)
 		tabs.add_child(card)
+	# the endless descent, once the Ashen King has fallen
+	var deep := Button.new()
+	deep.toggle_mode = true
+	deep.custom_minimum_size = Vector2(80, 16)
+	deep.text = "Hollow Below"
+	deep.modulate = Color(0.75, 1.0, 0.95) if Delve.unlocked() else Color(0.45, 0.45, 0.5)
+	deep.button_pressed = ctx.region == "delve"
+	deep.set_meta("rid", "delve")
+	deep.pressed.connect(func() -> void:
+		if Delve.unlocked():
+			ctx.region = "delve"
+			Profile.data.descent.region = "delve"
+		for c in cards:
+			c.button_pressed = c == deep if Delve.unlocked() else c.get_meta("rid") == ctx.region
+		describe.call("delve")
+		Audio.ui("ui_click"))
+	deep.mouse_entered.connect(func() -> void: describe.call("delve"))
+	deep.mouse_exited.connect(func() -> void: describe.call(ctx.region))
+	cards.append(deep)
+	tabs.add_child(deep)
 	describe.call(ctx.region)
 	if mem > 0:
 		v.add_child(UIKit.para("The Undervault remembers you (Memory %d): foes are stronger, rewards richer." % mem, 250, UIKit.C_SOUL))
@@ -797,10 +1001,15 @@ static func descent(ui: UIRoot) -> Control:
 		row.add_child(ob)
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
-	var go := UIKit.button("Descend", func() -> void:
+	var go := UIKit.button("Descend" if not Net.active() else "Descend together", func() -> void:
 		ui.close_all()
 		Game.begin_descent(ctx.region), 80)
+	if Net.is_client():
+		go.disabled = true
+		go.text = "%s leads the way" % Net.name_of(1)
 	row2.add_child(go)
+	row2.add_child(UIKit.button("Runes", func() -> void: ui.open(Screens.runes(ui)), 50))
+	row2.add_child(UIKit.button("Party (%d)" % Net.party_size() if Net.active() else "Co-op", func() -> void: ui.open(Screens.coop(ui)), 60))
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)
 	go.call_deferred("grab_focus")
@@ -1071,6 +1280,9 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		sr.add_child(UIKit.label("Sunshards: %d" % int(s.sunshards), 8, UIKit.C_GOLD))
 		v.add_child(sr)
 	v.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
+	if bool(s.get("delve", false)):
+		var best := int(s.get("delve_best", 0))
+		v.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
 	if not (s.get("omens", []) as Array).is_empty():
 		v.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
 	if Profile.skill_points_free() > 0:

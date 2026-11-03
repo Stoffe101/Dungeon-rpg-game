@@ -34,19 +34,52 @@ var killer_id := ""
 var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
 ## Materials and gear picked up this expedition, banked at the end.
-var loot := {"materials": {}, "gear": [], "blueprints": []}
+var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
 ## Omens read at the Descent (see Omens).
 var omens: Array = []
+## The Hollow Below (see Delve): the region changes as the party goes deeper.
+var delve := false
 
 
 static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, slots: Array) -> RunState:
 	var r := RunState.new()
 	r.seed = seed_v
 	r.region = region_id
+	if region_id == "delve":
+		r.delve = true
+		r.region = Delve.region_for(1)
 	r.weapon_id = weapon
 	r.weapon_level = wlevel
 	r.abilities = slots.duplicate()
 	r.rng.seed = seed_v * 7919 + 13
+	return r
+
+
+## Everything a co-op client needs to settle this run on its own machine.
+func to_dict() -> Dictionary:
+	return {"seed": seed, "region": region, "tier": tier, "depth": depth, "relics": relics.duplicate(),
+		"embers": embers, "sunshards": sunshards, "xp_gained": xp_gained, "kills": kills,
+		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
+		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
+		"loot": loot.duplicate(true), "omens": omens.duplicate(), "delve": delve}
+
+
+static func from_dict(d: Dictionary) -> RunState:
+	var r := RunState.create(int(d.get("seed", 0)), String(d.get("region", "ossuary")), String(d.get("weapon_id", "sword")), int(d.get("weapon_level", 0)), d.get("abilities", ["flare", ""]))
+	r.tier = int(d.get("tier", 1))
+	r.depth = int(d.get("depth", 1))
+	r.relics = (d.get("relics", []) as Array).duplicate()
+	r.embers = int(d.get("embers", 0))
+	r.sunshards = int(d.get("sunshards", 0))
+	r.xp_gained = int(d.get("xp_gained", 0))
+	r.kills = int(d.get("kills", 0))
+	r.rooms_cleared = int(d.get("rooms_cleared", 0))
+	r.elites_slain = int(d.get("elites_slain", 0))
+	r.grudges_settled = (d.get("grudges_settled", []) as Array).duplicate()
+	r.elapsed = float(d.get("elapsed", 0.0))
+	r.loot = (d.get("loot", r.loot) as Dictionary).duplicate(true)
+	r.omens = (d.get("omens", []) as Array).duplicate()
+	r.delve = bool(d.get("delve", false))
 	return r
 
 
@@ -74,7 +107,8 @@ func settle_loot(outcome: String) -> Dictionary:
 	for k in loot.materials:
 		var n := int(loot.materials[k])
 		mats[k] = int(floor(n * DEATH_KEEP)) if outcome == "died" else n
-	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate()}
+	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate(),
+		"runes": (loot.get("runes", []) as Array).duplicate()}
 
 
 ## Works out what the profile keeps from this run. Pure so it can be tested.

@@ -84,6 +84,8 @@ func _scaled(count: int) -> int:
 
 ## Emits pixel particles at plane position `p` (height in tiles).
 func burst(p: Vector2, height: float, col: Color, count: int, speed: float, life := 0.5, gravity := 6.0, dir := Vector2.ZERO, spread := PI, up := 2.0, size := 1.0, drag := 2.0) -> void:
+	if Net.recording:
+		Net.rec(["fx", "burst", p, height, col, count, speed, life, gravity, dir, spread, up, size, drag])
 	count = _scaled(count)
 	var base_ang := dir.angle() if dir != Vector2.ZERO else 0.0
 	for i in count:
@@ -106,6 +108,8 @@ func burst(p: Vector2, height: float, col: Color, count: int, speed: float, life
 
 ## Slow rising motes (embers, souls).
 func motes(p: Vector2, height: float, col: Color, count: int, rise := 1.0, life := 1.2, jitter := 0.4) -> void:
+	if Net.recording and (count > 1 or randf() < 0.33):
+		Net.rec(["fx", "motes", p, height, col, count, rise, life, jitter])
 	for i in _scaled(count):
 		if _p_count >= MAX_PARTICLES:
 			return
@@ -169,6 +173,8 @@ func _update_particles(dt: float) -> void:
 ## Creates a floor shape. `size` is in tiles (x = length/forward, y = width).
 ## For RECT the shape starts at `p` and extends along `dir`; others centre on `p`.
 func shape(kind: int, p: Vector2, dir: Vector2, size: Vector2, col: Color, edge: Color, life: float, params := {}) -> MeshInstance3D:
+	if Net.recording:
+		Net.rec(["fx", "shape", kind, p, dir, size, col, edge, life, params])
 	var mi := MeshInstance3D.new()
 	mi.mesh = _plane
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -191,6 +197,8 @@ func shape(kind: int, p: Vector2, dir: Vector2, size: Vector2, col: Color, edge:
 
 ## A sweeping slash arc on the floor around `p`.
 func swipe(p: Vector2, dir: Vector2, radius: float, half_angle: float, col: Color, duration := 0.16, inner := 0.45, reverse := false) -> void:
+	if Net.recording:
+		Net.rec(["fx", "swipe", p, dir, radius, half_angle, col, duration, inner, reverse])
 	var mi := shape(Shape.SWIPE, p, dir, Vector2(radius * 2.0, radius * 2.0), col, Color(1, 1, 0.9, 1), duration + 0.12, {"half_angle": half_angle, "inner": inner, "glow": 1.6})
 	if reverse:
 		# mirror the sweep direction by flipping the side axis
@@ -204,6 +212,8 @@ func swipe(p: Vector2, dir: Vector2, radius: float, half_angle: float, col: Colo
 
 ## Expanding ring (shockwaves, nova outlines).
 func ring(p: Vector2, radius: float, col: Color, duration := 0.3, thickness := 0.25) -> void:
+	if Net.recording:
+		Net.rec(["fx", "ring", p, radius, col, duration, thickness])
 	var mi := shape(Shape.RING, p, Vector2.RIGHT, Vector2(radius * 2, radius * 2), col, col.lightened(0.4), duration, {"inner": 1.0 - thickness, "glow": 1.5})
 	var data: Dictionary = _shapes[_shapes.size() - 1]
 	var base_t := mi.transform
@@ -230,6 +240,8 @@ func _update_shapes(dt: float) -> void:
 
 
 func release(node: MeshInstance3D) -> void:
+	if Net.recording and is_instance_valid(node) and node.has_meta("tid"):
+		Net.rec(["tele-", int(node.get_meta("tid"))])
 	for s in _shapes:
 		if s.node == node:
 			s.life = 0.0
@@ -238,6 +250,8 @@ func release(node: MeshInstance3D) -> void:
 # --- lights ------------------------------------------------------------------
 
 func flash_light(p: Vector2, height: float, col: Color, energy: float, rng: float, life: float) -> void:
+	if Net.recording:
+		Net.rec(["fx", "flash_light", p, height, col, energy, rng, life])
 	if Settings.get_value("reduce_flashes", false):
 		energy *= 0.45
 	var l := OmniLight3D.new()
@@ -306,6 +320,8 @@ func _update_ghosts(dt: float) -> void:
 # --- numbers -----------------------------------------------------------------
 
 func number(p: Vector2, height: float, text: String, col: Color, big := false) -> void:
+	if Net.recording:
+		Net.rec(["fx", "number", p, height, text, col, big])
 	if not Settings.get_value("damage_numbers", true) or view == null:
 		return
 	var l := Label.new()
@@ -351,14 +367,14 @@ func say(who: Node, height: float, text: String, life := 3.6) -> void:
 
 
 ## A persistent marker over someone's head ("!" = has a request, "?" = ready to hand in).
-func mark(who: Node, height: float, text: String, col: Color) -> void:
+func mark(who: Node, height: float, text: String, col: Color, size := 16) -> void:
 	unmark(who)
 	if view == null or text == "":
 		return
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_override("font", FONT_OUTLINE)
-	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", col)
 	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	view.overlay.add_child(l)
@@ -497,6 +513,8 @@ func _update_shake(dt: float) -> void:
 
 ## A mark on the floor (death splat, scorch) that lingers, then dithers away.
 func splat(p: Vector2, col: Color, life := 24.0, scale_k := 1.0) -> void:
+	if Net.recording:
+		Net.rec(["fx", "splat", p, col, life, scale_k])
 	var info := SpriteLib.get_sheet("splat")
 	var mi := MeshInstance3D.new()
 	var q := QuadMesh.new()
@@ -536,6 +554,8 @@ func _update_splats(dt: float) -> void:
 ## A starburst at the point of contact, tinted by what landed. Animates in real
 ## time, so it plays out during the hitstop freeze.
 func impact(p: Vector2, height: float, col: Color, big := false, dir := Vector2.ZERO) -> void:
+	if Net.recording:
+		Net.rec(["fx", "impact", p, height, col, big, dir])
 	var s := PixelSprite.new()
 	add_child(s)
 	s.setup("impact", "pop")

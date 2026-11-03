@@ -18,6 +18,7 @@ var lit := true
 var ticks := false
 var data: Dictionary = {}
 var room_id := -1
+var net_idx := -1             # the same on every machine (co-op)
 var _t := 0.0
 var _base_energy := 1.0
 var _flame_col := Color(0.35, 0.95, 0.85)
@@ -31,9 +32,13 @@ static func make(st: Stage, k: String, t: Vector2i, extra := {}) -> Prop:
 	p.tile = t
 	p.pos = Vector2(t) + Vector2(0.5, 0.5)
 	p.data = extra
+	p.net_idx = st._prop_seq
+	st._prop_seq += 1
 	st.add_child(p)
 	st.props.append(p)
 	p._build()
+	if Net.recording and st.get("built"):
+		Net.rec(["prop+", k, t, extra, p.room_id])
 	return p
 
 

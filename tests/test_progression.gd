@@ -507,3 +507,52 @@ func test_grudges_grow() -> void:
 	eq(int(g.level), Profile.GRUDGE_MAX_LEVEL, "it stops at the cap")
 	Profile.settle_grudge(g.id)
 	check(Profile.age_grudges(rng).is_empty(), "settled Grudges do not grow")
+
+
+func test_armour_is_drawn_on_the_kindled() -> void:
+	var body := SpriteLib.get_sheet("player")
+	for base in ItemDB.BASES:
+		var slot := String(ItemDB.base(base).get("slot", ""))
+		if not slot in ["head", "chest", "hands", "feet"]:
+			continue
+		check(GearLooks.VIS.has(base), "%s has a look on the body" % base)
+		var sh := SpriteLib.get_sheet(GearLooks.sheet_for(base))
+		check(sh != null, "%s has an overlay sheet" % base)
+		if sh:
+			for a in body.anims:
+				check(sh.anims.has(a) and int(sh.anims[a].frames) == int(body.anims[a].frames), "%s follows the body's %s" % [base, a])
+	# the wardrobe can hide a piece or show another
+	var eq := {"head": {"base": "grave_iron_helm"}, "chest": {"base": "gravecloth_robe"}}
+	var doll := GearLooks.paperdoll(eq, {})
+	eq(String(doll.head), "gear_grave_iron_helm", "the helm shows")
+	doll = GearLooks.paperdoll(eq, {"head": "none", "chest": "sunfall_mantle"})
+	check(not doll.has("head"), "a hidden slot shows nothing")
+	eq(String(doll.chest), "gear_sunfall_mantle", "a chosen look overrides the worn piece")
+
+
+func test_the_hollow_below() -> void:
+	Profile.data = Profile.fresh()
+	check(not Delve.unlocked(), "the Hollow Below is sealed at first")
+	Profile.data.world["ashen_king_kills"] = 1
+	check(Delve.unlocked(), "the Ashen King opens it")
+	eq(Delve.region_for(1), "ossuary", "it begins in the Ossuary")
+	eq(Delve.region_for(4), "rootmire", "then the Rootmire")
+	eq(Delve.region_for(7), "throne", "then the Throne")
+	eq(Delve.region_for(10), "ossuary", "and round again")
+	check(Delve.is_boss_depth(3) and Delve.is_boss_depth(6) and not Delve.is_boss_depth(4), "an Echo every third depth")
+	var r := RunState.create(5, "delve", "sword", 0, ["flare", ""])
+	check(r.delve and r.region == "ossuary", "a delve run starts in its first region")
+	var back := RunState.from_dict(r.to_dict())
+	check(back.delve, "and stays a delve over the wire (co-op)")
+	# each depth reads one Omen more, never twice the same
+	Profile.data.world["warden_kills"] = 1
+	Profile.data.world["bloom_kills"] = 1
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var active: Array = []
+	for i in 10:
+		var o := Delve.next_omen(rng, active)
+		if o != "":
+			check(not active.has(o), "a new Omen each time")
+			active.append(o)
+	check(active.size() >= 5, "the Omens run out after a while (%d)" % active.size())

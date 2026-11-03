@@ -72,7 +72,7 @@ func _process(delta: float) -> void:
 						pl.move_in = (pl.stage.path_step(pl.pos, b.pos) - pl.pos).normalized()
 					else:
 						pl.move_in = Vector2.ZERO
-						pl._buf.attack = 0.1
+						pl.press("attack")
 						pl._release_pending = true
 					return
 	if target:
@@ -97,7 +97,7 @@ func _process(delta: float) -> void:
 		pl.move_in = (pl.move_in + _jitter).normalized()
 		_jitter = _jitter * 0.9 if _jitter.length() > 0.1 else Vector2.ZERO
 	if pl.hp_ratio() < 0.4 and pl.flask > 0:
-		pl._buf.flask = 0.1
+		pl.press("flask")
 
 
 func _pick_target() -> Actor:
@@ -132,7 +132,7 @@ func _fight(t: Actor, _delta: float) -> void:
 		if randf() < 0.01:
 			_strafe = -_strafe
 	if d < want + 0.6:
-		pl._buf.attack = 0.1
+		pl.press("attack")
 		pl._release_pending = true
 	# dodge threats: enemies winding up close by, or projectiles inbound
 	if _dodge_cd <= 0.0:
@@ -141,16 +141,16 @@ func _fight(t: Actor, _delta: float) -> void:
 				var e := a as Enemy
 				if e.state_t > 0.25:
 					pl.move_in = (pl.pos - a.pos).normalized().rotated(randf_range(-1.0, 1.0))
-					pl._buf.dodge = 0.1
+					pl.press("dodge")
 					_dodge_cd = 0.7
 					break
 		for p in st.projectiles:
 			if is_instance_valid(p) and p.team != pl.team and p.pos.distance_to(pl.pos) < 2.2:
 				if randf() < 0.5 and pl.ward_cd <= 0.0:
-					pl._buf.ward = 0.1
+					pl.press("ward")
 				else:
 					pl.move_in = p.vel.normalized().orthogonal()
-					pl._buf.dodge = 0.1
+					pl.press("dodge")
 				_dodge_cd = 0.6
 				break
 	# abilities
@@ -160,7 +160,7 @@ func _fight(t: Actor, _delta: float) -> void:
 			continue
 		var cost: float = GearDB.ability(id).cost * pl.stats.v("ability_cost")
 		if pl.kindle >= cost and d < 3.5:
-			pl._buf["a1" if i == 0 else "a2"] = 0.1
+			pl.press("a1" if i == 0 else "a2")
 
 
 func _explore(_delta: float) -> void:
@@ -177,7 +177,7 @@ func _explore(_delta: float) -> void:
 			if is_instance_valid(p) and p.room_id == (d.current_room.id if d.current_room else -2) and p.interactable() and not p.data.get("sealed", false) and p.kind in ["relic_altar", "chest", "spring", "ember_pile", "fountain", "ember_well", "trial_altar", "echo", "sconce", "lost_camp"]:
 				best_p = p.pos
 				if p.pos.distance_to(pl.pos) < p.interact_radius + 0.6:
-					p.interact(pl)
+					_use(p, pl)
 				break
 	if best_p == Vector2.INF and d:
 		best_p = _next_room_point(d)
@@ -208,7 +208,7 @@ func _next_room_point(d: Dungeon) -> Vector2:
 				if p.room_id == cur.id or p.kind == "hearthstone":
 					if p.pos.distance_to(pl.pos) < p.interact_radius + 0.8:
 						if p.kind == "stairs" or p.data.get("victory", false):
-							p.interact(pl)
+							_use(p, pl)
 					return p.pos
 	# go through a door toward the nearest unvisited room (BFS over doors)
 	var dist := {cur.id: 0}
@@ -238,3 +238,11 @@ func _next_room_point(d: Dungeon) -> Vector2:
 	# everything visited: head for the exit room
 	var ex := d.layout.room(d.layout.exit_id)
 	return ex.center()
+
+
+## Co-op client: props belong to the host, so the bot asks like a player would.
+func _use(p: Prop, pl: Player) -> void:
+	if pl.controller == Player.Ctrl.REPLICA:
+		pl.try_interact()
+	else:
+		p.interact(pl)

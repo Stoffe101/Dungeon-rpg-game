@@ -28,6 +28,7 @@ remembers who hurts it.
   abilities, status effects and elemental reactions.
 - Procedural floors with branching routes, reward previews on doors, secret
   rooms, merchants, shrines of pacts, traps and extraction points.
+- Room seals of woven soul-light, region by region.
 - Twenty-two creatures with roles and readable telegraphs - burrowing
   Gravemoles, shield-binding Lampwights, Spore Mortars, wall-growing
   Bramblewrights, riposting Duelists, beam-sweeping Sunwatchers and more - built
@@ -46,6 +47,17 @@ remembers who hurts it.
 - Room events: Ember Wells, Trials of the Undervault, echoes of fallen Kindled,
   Sconce Vaults (light every sconce before one burns out) and lost camps.
 - Loot beams by rarity, and the light of what you wear.
+- **Co-op for up to four** over LAN or direct IP: each Kindled keeps their own
+  gear, tree and rewards; currency is shared, gear drops for each of you; downed
+  friends can be revived.
+- **Ember Runes**: set runes in your spells to make them split, arc, echo, turn
+  to frost or shadow, burst, siphon or pull - each rune reads differently in each spell.
+- Seven weapons, including the Hearthbow (timed Steady Shots) and the
+  Emberwright's Tome (a spellcaster's book that hurries your spells).
+- **Armour you can see**: every helm, chest, glove and boot is drawn on the
+  Kindled; the wardrobe can show any piece you own, or hide it.
+- **The Hollow Below**: an endless descent with an Echo of a guardian every
+  third depth and one more Omen at every depth.
 - The Hearthtree: a 74-node constellation skill tree with keystones, hybrids and
   ranked masteries, route preview (click any node to kindle the path to it),
   search, a bonuses panel and three saved pages. Levels cap at 60 - about half

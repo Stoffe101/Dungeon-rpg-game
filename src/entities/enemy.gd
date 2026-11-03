@@ -156,7 +156,7 @@ func _ready() -> void:
 	team = Team.ENEMY
 	build_visual(def.sheet, "idle")
 	sprite.set_dissolve(1.0)
-	if elite or not grudge.is_empty():
+	if (elite or not grudge.is_empty()) and not def.get("boss", false):
 		_make_nameplate()
 	if _gloom_light and _gloom_light.get_parent() == null:
 		visual.add_child(_gloom_light)
@@ -168,8 +168,19 @@ func hit_color() -> Color:
 	return Color(0.88, 0.84, 0.74)
 
 
+var _tgt: Player
+var _tgt_t := 0.0
+var last_player: Player     # who hit it last (on-kill credit, aggro)
+
+
+## The Kindled this foe is after: the nearest one, kept for a while so it does
+## not flicker between players, and turned on whoever hits it hard.
 func target() -> Player:
-	return stage.player if stage.player and stage.player.alive else null
+	if _tgt and is_instance_valid(_tgt) and _tgt.alive and not _tgt.downed and _tgt_t > 0.0:
+		return _tgt
+	_tgt = stage.nearest_player(pos)
+	_tgt_t = 1.2
+	return _tgt
 
 
 func set_state(s: String) -> void:
@@ -181,12 +192,13 @@ func set_state(s: String) -> void:
 
 
 func tick(dt: float) -> void:
+	_tgt_t -= dt
 	_voice_t -= dt
 	_attack_voice_t -= dt
 	_idle_voice_t -= dt
 	if _idle_voice_t <= 0.0:
 		_idle_voice_t = randf_range(5.0, 11.0)
-		if state != "spawn" and alive and stage.player and pos.distance_to(stage.player.pos) < 11.0:
+		if state != "spawn" and alive and stage.nearest_player(pos, 11.0) != null:
 			voice("idle", -15.0)
 	if state == "spawn":
 		state_t += dt
@@ -219,8 +231,7 @@ func _affix_tick(dt: float) -> void:
 			_trail_t = 0.3
 			_molten_patch(stage, pos, damage * 0.2)
 	if has_affix("gloom"):
-		var pl := stage.player
-		if pl and pl.alive and pl.pos.distance_to(pos) < GLOOM_R:
+		for pl in stage.players_near(pos, GLOOM_R):
 			pl.gloom_t = 0.25
 		_aura_t -= dt
 		if _aura_t <= 0.0:
@@ -246,8 +257,11 @@ func _wildfire(dt: float) -> void:
 	if not alive or not status.burning():
 		_wildfire_t = 0.0
 		return
-	var pl := stage.player
-	if pl == null or not pl.stats.has("wildfire"):
+	var pl: Player = null
+	for p in stage.players:
+		if p.alive and p.stats.has("wildfire"):
+			pl = p
+	if pl == null:
 		return
 	_wildfire_t += dt
 	if _wildfire_t < 1.5:
@@ -355,7 +369,13 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 		voice("attack", -7.0)
 	var p := params.duplicate()
 	p["progress"] = 0.0
+	Net.mute += 1
 	tele = stage.fx.shape(kind, center, dir, size, TELE_COLOR, TELE_EDGE, duration + 0.05, p)
+	Net.mute -= 1
+	if Net.recording:
+		var tid := Net.i.run_sync.next_proj_id()
+		tele.set_meta("tid", tid)
+		Net.rec(["tele", tid, kind, center, dir, size, duration, params])
 	var dur := duration
 	var start := stage.elapsed
 	var st := stage
@@ -368,7 +388,8 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
 	var h := Hit.make(self, amount, ["melee"])
 	h.can_crit = false
-	var d := (stage.player.pos - from).normalized() if stage.player else Vector2.RIGHT
+	var t := target()
+	var d := (t.pos - from).normalized() if t else Vector2.RIGHT
 	h.knockback = d * kb
 	h.from_dir = d
 	return h
@@ -442,6 +463,13 @@ func block_mult(h: Hit) -> float:
 
 func on_damaged(hit: Hit, res: Combat.Result) -> void:
 	super.on_damaged(hit, res)
+	var src: Variant = hit.source
+	if src is Player:
+		last_player = src
+		# a heavy blow from someone else turns it on them
+		if _tgt != src and res.amount > max_hp * 0.08:
+			_tgt = src
+			_tgt_t = 2.5
 	_hb_show_t = 3.0
 	if alive and _voice_t <= 0.0 and res.amount > 0.0:
 		_voice_t = 0.45
@@ -455,7 +483,8 @@ func die(killer: Node) -> void:
 		return
 	if tele and is_instance_valid(tele):
 		stage.fx.release(tele)
-	var pl := stage.player
+	# on-kill effects belong to whoever landed it (co-op: not always this machine's Kindled)
+	var pl: Player = killer as Player if killer is Player else (last_player if is_instance_valid(last_player) else stage.player)
 	var by_player := killer is Player or (killer is Actor and (killer as Actor).team == Team.PLAYER) or hit_by_player
 	super.die(killer)
 	if bar:
@@ -577,8 +606,7 @@ static func _volatile_later(st: Stage, p: Vector2, dmg: float) -> void:
 		st.fx.ring(p, 2.5, Color(1.0, 0.5, 0.2), 0.3, 0.35)
 		st.fx.burst(p, 0.5, Color(1.0, 0.55, 0.2), 24, 6.0, 0.45, 2.0)
 		Audio.play("explode", -2.0)
-		var pl := st.player
-		if pl and pl.alive and pl.pos.distance_to(p) < 2.5 + pl.radius:
+		for pl in st.players_near(p, 2.5):
 			var h := Hit.make(null, dmg, ["fire"])
 			h.can_crit = false
 			h.knockback = (pl.pos - p).normalized() * 7.0

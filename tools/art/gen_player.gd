@@ -14,13 +14,16 @@ static func V(pts: Array) -> PackedVector2Array:
 	return out
 
 
-static func build(out_dir: String) -> void:
-	var s := Sheet.new(32, 32, Vector2i(16, 30))
+## Every animation of the Kindled as [name, [[dir, params]...], fps, loop]: the
+## one source of poses for the body and for each piece of gear drawn over it
+## (tools/art/gen_gear.gd), so armour never drifts from the body it sits on.
+static func anim_table() -> Array:
+	var out: Array = []
 	for dir in ["down", "up", "side"]:
 		var idle: Array = []
 		for i in 4:
-			idle.append(frame(dir, {"by": 1 if i >= 2 else 0, "sway": [0, 1, 1, 0][i], "glow": 4 if i % 2 == 0 else 5}))
-		s.add("idle_" + dir, idle, 5.0)
+			idle.append([dir, {"by": 1 if i >= 2 else 0, "sway": [0, 1, 1, 0][i], "glow": 4 if i % 2 == 0 else 5}])
+		out.append(["idle_" + dir, idle, 5.0, true])
 	# run: [legA dx, liftA, legB dx, liftB, bob]
 	var cycle_side := [[3, 0, -3, 0, 0], [1, 0, -1, 1, 1], [-1, 0, 1, 2, 0], [-3, 0, 3, 0, 0], [-1, 1, 1, 0, 1], [1, 2, -1, 0, 0]]
 	var cycle_front := [[0, 0, 0, 0, 0], [0, 1, 0, 0, 1], [0, 2, 0, 0, 0], [0, 0, 0, 0, 0], [0, 0, 0, 1, 1], [0, 0, 0, 2, 0]]
@@ -29,18 +32,28 @@ static func build(out_dir: String) -> void:
 		var cyc: Array = cycle_side if dir == "side" else cycle_front
 		for i in 6:
 			var k: Array = cyc[i]
-			run.append(frame(dir, {"legs": k, "by": k[4], "sway": [1, 2, 1, 1, 2, 1][i], "flare": 2, "glow": 4 + (i % 2)}))
-		s.add("run_" + dir, run, 12.0)
+			run.append([dir, {"legs": k, "by": k[4], "sway": [1, 2, 1, 1, 2, 1][i], "flare": 2, "glow": 4 + (i % 2)}])
+		out.append(["run_" + dir, run, 12.0, true])
 	for dir in ["down", "up", "side"]:
-		s.add("dash_" + dir, [frame(dir, {"dash": true, "flare": 4, "glow": 5, "legs": [2, 1, -2, 1, 0]})], 1.0, false)
+		out.append(["dash_" + dir, [[dir, {"dash": true, "flare": 4, "glow": 5, "legs": [2, 1, -2, 1, 0]}]], 1.0, false])
 	for dir in ["down", "up", "side"]:
-		s.add("hurt_" + dir, [frame(dir, {"hurt": true, "by": 1, "glow": 3})], 1.0, false)
+		out.append(["hurt_" + dir, [[dir, {"hurt": true, "by": 1, "glow": 3}]], 1.0, false])
 	for dir in ["down", "up", "side"]:
-		s.add("cast_" + dir, [frame(dir, {"cast": 1, "glow": 5}), frame(dir, {"cast": 2, "glow": 5, "by": -1})], 10.0, false)
+		out.append(["cast_" + dir, [[dir, {"cast": 1, "glow": 5}], [dir, {"cast": 2, "glow": 5, "by": -1}]], 10.0, false])
 	var death: Array = []
 	for i in 5:
-		death.append(frame("down", {"kneel": i + 1, "glow": maxi(1, 4 - i)}))
-	s.add("death", death, 8.0, false)
+		death.append(["down", {"kneel": i + 1, "glow": maxi(1, 4 - i)}])
+	out.append(["death", death, 8.0, false])
+	return out
+
+
+static func build(out_dir: String) -> void:
+	var s := Sheet.new(32, 32, Vector2i(16, 30))
+	for a in anim_table():
+		var frames: Array = []
+		for f in a[1]:
+			frames.append(frame(String(f[0]), f[1]))
+		s.add(String(a[0]), frames, float(a[2]), bool(a[3]))
 	s.save(out_dir, "player")
 
 

@@ -151,6 +151,26 @@ const NODES := [
 	{"id": "k_m", "name": "Kindle Mastery", "branch": "kindle", "kind": "mastery", "ranks": 5, "at": [6, 1.5], "links": ["k5l"],
 		"mods": [["kindle_max", "add", 5.0], ["ability_damage", "add", 0.04]]},
 
+	# ---------------- the outer ring: keystones that change how you fight ----------------
+	# reached through each branch's Mastery; each turns a mechanic and asks a price
+	{"id": "b7", "name": "Counterweight", "branch": "blade", "kind": "keystone", "at": [7, -1.4], "links": ["b_m"], "flags": {"counterweight": 1},
+		"mods": [["parry_window", "more", -0.3]],
+		"desc": "A successful Ward unleashes your weapon's charged attack at once (the Tome reads a burst of five words). Your Ward window is 30% shorter."},
+	{"id": "p7", "name": "Ashbringer", "branch": "pyre", "kind": "keystone", "at": [7, 1.5], "links": ["p_m"], "flags": {"ashbringer": 1},
+		"mods": [["ability_cost", "more", 0.25]],
+		"desc": "Fire from your spells leaves burning ground under what it hits; foes standing in it take 25% more damage from you. Spells cost 25% more Kindle."},
+	{"id": "r7", "name": "Stillness", "branch": "rime", "kind": "keystone", "at": [7, -1.5], "links": ["r_m"], "flags": {"stillness": 1},
+		"mods": [["move_speed", "more", -0.1]],
+		"desc": "Stand still for a breath and you are Still: your hits deal 40% more damage and always chill, until you move. You move 10% slower."},
+	{"id": "g7", "name": "Shadowdancer", "branch": "gloam", "kind": "keystone", "at": [7, 1.4], "links": ["g_m"], "flags": {"shadowdancer": 1},
+		"mods": [["max_hp", "more", -0.15]],
+		"desc": "Every dodge leaves a shade where you stood that detonates a moment later. 15% less maximum health."},
+	{"id": "w7", "name": "Bastion", "branch": "bulwark", "kind": "keystone", "at": [7, -1.4], "links": ["w_m"], "flags": {"bastion": 1},
+		"desc": "Your Ward also turns blows aimed at allies near you, and every Ward answers with a shockwave. After a Ward you wait 50% longer to raise it again."},
+	{"id": "k7", "name": "Runebound", "branch": "kindle", "kind": "keystone", "at": [7, 1.5], "links": ["k_m"], "flags": {"runebound": 1},
+		"mods": [["cooldown", "more", 0.25]],
+		"desc": "Your spells deal 8% more damage for every Ember Rune set in your spells. Spell cooldowns are 25% longer."},
+
 	# ---------------- Hybrids (between branches) ----------------
 	{"id": "x_bp", "name": "Searing Edge", "branch": "blade|pyre", "kind": "hybrid", "links": [], "mods": [["fire_damage", "add", 0.1]], "flags": {"searing_edge": 1},
 		"desc": "Melee hits have a 20% chance to Burn. +10% fire damage."},
@@ -176,6 +196,7 @@ const ICONS := {
 	"k3": "wisp", "k3l": "skull", "k5": "sun", "k5l": "wisp", "k6": "sun",
 	"x_bp": "flame", "x_pr": "prism", "x_rg": "snow", "x_gw": "dodge", "x_wk": "kindle", "x_kb": "sword",
 	"b_m": "sword", "p_m": "flame", "r_m": "snow", "g_m": "feather", "w_m": "shield", "k_m": "wick",
+	"b7": "hammer", "p7": "coal", "r7": "hourglass", "g7": "gloamstep", "w7": "shield", "k7": "sigil",
 }
 const STAT_ICONS := {
 	"melee_damage": "sword", "attack_speed": "hourglass", "crit_chance": "eye", "crit_mult": "gem_red", "poise_damage": "hammer",

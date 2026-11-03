@@ -123,6 +123,36 @@ static func _weapons(dir: String) -> void:
 		sp.lit(x, 4, Pal.EMBER[4] if x % 2 == 0 else Pal.EMBER[3])
 	sp.outline(Pal.INK)
 	single(dir, "w_spear", sp, Vector2i(10, 4))
+	# Hearthbow: a recurve of blackened ashwood, string glowing faintly (held at the grip, x=4)
+	var bw := Px.new(12, 22)
+	var limb := bw.mask()
+	limb.line(4, 11, 6, 6).line(6, 6, 8, 2).line(8, 2, 10, 1)
+	limb.line(4, 11, 6, 16).line(6, 16, 8, 20).line(8, 20, 10, 21)
+	limb.line(5, 11, 7, 6).line(5, 11, 7, 16)
+	bw.paint(limb, Pal.WOOD, 2, false)
+	bw.paint(bw.mask().rect(3, 9, 3, 5), Pal.EARTH, 3)
+	for y in range(2, 21):
+		bw.lit(10 if y < 4 or y > 18 else 9, y, Pal.EMBER[2] if y % 3 else Pal.EMBER[3])
+	bw.put(10, 1, Pal.GOLD[3])
+	bw.put(10, 21, Pal.GOLD[3])
+	bw.outline(Pal.INK)
+	single(dir, "w_bow", bw, Vector2i(4, 11))
+	# Emberwright's Tome: an open book of hearth-script, a sigil burning on the page
+	var tm := Px.new(14, 12)
+	tm.paint(tm.mask().poly(V([[1, 3], [7, 4], [13, 3], [13, 10], [7, 11], [1, 10]])), Pal.BLOOD, 2, true)
+	tm.paint(tm.mask().poly(V([[2, 3], [7, 4], [7, 10], [2, 9]])), Pal.BONE, 3)
+	tm.paint(tm.mask().poly(V([[7, 4], [12, 3], [12, 9], [7, 10]])), Pal.BONE, 4)
+	for y in range(5, 9):
+		tm.put(3 + (y % 2), y, Pal.EARTH[2])
+		tm.put(5, y, Pal.EARTH[2])
+	tm.lit(9, 5, Pal.EMBER[4])
+	tm.lit(10, 6, Pal.EMBER[5])
+	tm.lit(9, 7, Pal.EMBER[4])
+	tm.lit(10, 8, Pal.EMBER[3])
+	tm.put(7, 4, Pal.GOLD[3])
+	tm.put(7, 10, Pal.GOLD[3])
+	tm.outline(Pal.INK)
+	single(dir, "w_tome", tm, Vector2i(3, 7))
 
 
 static func c_line(c: Px, x0: int, y0: int, x1: int, y1: int, r: Array, base: int) -> void:
@@ -146,6 +176,18 @@ static func _projectiles(dir: String) -> void:
 		fr.append(c)
 	sh.add("idle", fr, 12.0)
 	sh.save(dir, "proj_ember")
+	# a mote of hearth-script: a tiny burning glyph that seeks
+	var sm := Sheet.new(8, 8, Vector2i(4, 4))
+	fr = []
+	for i in 3:
+		var c := Px.new(8, 8)
+		c.fill_lit(c.mask().ellipse(4.0, 4.0, 2.4, 2.4), Pal.BONE[4])
+		c.lit(4, 4, Pal.WHITE)
+		c.lit(2 + i, 1, Pal.BONE[3])
+		c.lit(6 - i, 6, Pal.BONE[3])
+		fr.append(c)
+	sm.add("idle", fr, 14.0)
+	sm.save(dir, "proj_mote")
 	# fireball
 	var sf := Sheet.new(14, 14, Vector2i(7, 7))
 	fr = []
@@ -457,35 +499,77 @@ static func _spring_frame(i: int, full: bool) -> Px:
 	return c
 
 
+## Soul-light seals across a fighting room's doors: a woven lattice of the
+## Undervault's teal light with a column of runes climbing through it, standing
+## on a rune plate set in the floor. They form in stages, shimmer while the room
+## holds, and break into rising motes when it is won. The lattice tiles
+## seamlessly across wide doors; the plate is each region's material.
+const SEAL_RUNES := [[[0, 0], [1, 1], [2, 0]], [[1, 0], [0, 1], [2, 1], [1, 2]], [[0, 0], [0, 1], [1, 2], [2, 2]], [[2, 0], [1, 1], [0, 2]]]
+
+
 static func _gate(dir: String) -> void:
-	var s := Sheet.new(16, 34, Vector2i(8, 33))
-	s.add("closed", [_gate_frame(1.0, 0)], 1.0)
-	var rise: Array = []
-	for i in 4:
-		rise.append(_gate_frame((i + 1) / 4.0, i))
-	s.add("rise", rise, 16.0, false)
-	var fall: Array = []
-	for i in 4:
-		fall.append(_gate_frame(1.0 - (i + 1) / 4.0, i))
-	s.add("fall", fall, 16.0, false)
-	s.save(dir, "gate")
+	for v in [["gate", Pal.BONE, Pal.STONE], ["gate_root", Pal.WOOD, Pal.MOSS], ["gate_throne", Pal.GOLD, Pal.STONE]]:
+		var s := Sheet.new(16, 36, Vector2i(8, 35))
+		var idle: Array = []
+		for i in 6:
+			idle.append(_seal(1.0, i, v[1], v[2], 0.0))
+		s.add("closed", idle, 8.0)
+		var rise: Array = []
+		for i in 6:
+			rise.append(_seal(float(i + 1) / 6.0, i, v[1], v[2], 0.0))
+		s.add("rise", rise, 18.0, false)
+		var fall: Array = []
+		for i in 6:
+			fall.append(_seal(1.0, i, v[1], v[2], float(i + 1) / 6.0))
+		s.add("fall", fall, 16.0, false)
+		s.save(dir, String(v[0]))
 
 
-static func _gate_frame(k: float, ph: int) -> Px:
-	var c := Px.new(16, 34)
-	var h := int(round(30.0 * k))
+## k: how far the seal has formed (0..1); ph: animation phase; gone: how far
+## it has broken apart (0..1).
+static func _seal(k: float, ph: int, plate: Array, trim: Array, gone: float) -> Px:
+	var c := Px.new(16, 36)
+	# the plate in the floor: the region's material with a seal glyph
+	var pk := clampf(k * 3.0, 0.0, 1.0)
+	if pk > 0.0:
+		c.paint(c.mask().rect(0, 32, 16, 4), plate, 2, true)
+		c.line(0, 32, 15, 32, plate[3])
+		c.put(3, 34, trim[1])
+		c.put(12, 34, trim[1])
+		var glow := Pal.SOUL[5] if gone <= 0.0 else Pal.SOUL[3]
+		for p in [[6, 33], [7, 34], [8, 34], [9, 33], [7, 33], [8, 33]]:
+			if pk >= 1.0:
+				c.lit(p[0], p[1], glow if (p[0] + ph) % 3 == 0 else Pal.SOUL[3])
+	# the lattice rises out of the plate after it lights
+	var lk := clampf((k - 0.25) / 0.75, 0.0, 1.0)
+	var h := int(round(30.0 * lk))
 	if h <= 0:
 		return c
-	for x: int in [2, 7, 12]:
-		for y in range(33 - h, 33):
-			var v: int = (y + ph * 2 + x) % 6
-			c.lit(x, y, Pal.SOUL[4] if v < 2 else Pal.SOUL[3])
-			c.lit(x + 1, y, Pal.SOUL[2])
-	for y in range(33 - h, 33, 7):
-		c.line(1, y, 14, y, Pal.SOUL[2])
-	c.lit(2, 33 - h, Pal.SOUL[5])
-	c.lit(7, 33 - h, Pal.SOUL[5])
-	c.lit(12, 33 - h, Pal.SOUL[5])
+	var top := 32 - h
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 91 + ph * 7
+	for y in range(top, 32):
+		for x in 16:
+			var a := (x + y + ph) % 8 == 0
+			var b := (x - y + 64 - ph) % 8 == 0
+			if not (a or b):
+				continue
+			# breaking apart: the lattice comes undone from the top down, in flecks
+			if gone > 0.0 and (float(32 - y) / 30.0 > 1.0 - gone or rng.randf() < gone * 0.8):
+				continue
+			c.lit(x, y, Pal.SOUL[4] if a and b else Pal.SOUL[2 + (y + ph) % 2])
+	# the rune column climbing through the middle
+	if gone < 0.5:
+		for k2 in 4:
+			var ry := 32 - ((ph * 2 + k2 * 8) % 32) - 3
+			if ry < top or ry > 29:
+				continue
+			for p in SEAL_RUNES[(k2 + ph / 3) % SEAL_RUNES.size()]:
+				c.lit(6 + p[0], ry + p[1], Pal.SOUL[5] if k2 % 2 == 0 else Pal.SOUL[4])
+	# a bright crest where it is still growing (or where it stands)
+	if gone <= 0.0:
+		for x in range(0, 16, 2):
+			c.lit(x + (ph % 2), top, Pal.SOUL[5] if lk < 1.0 or (x / 2 + ph) % 3 == 0 else Pal.SOUL[3])
 	return c
 
 

@@ -49,6 +49,23 @@ var aim_point := Vector2.ZERO
 var move_in := Vector2.ZERO
 var input_enabled := true
 var autopilot := false
+## Who drives this Kindled: this machine's devices (LOCAL), a client's input
+## over the network (REMOTE, on the host), or nobody - a picture of the host's
+## simulation (REPLICA, on a client).
+enum Ctrl { LOCAL, REMOTE, REPLICA }
+var controller := Ctrl.LOCAL
+var peer_id := 1
+var downed := false          # co-op: at 0 health, waiting for an ally
+var bleed_t := 0.0
+var revive_k := 0.0
+var aegis_echo := false       # Rune of Echoes: the ward forms once more when it breaks
+var still_t := 0.0            # Stillness keystone: how long the Kindled has stood still
+var sheet: Dictionary = {}   # co-op: another player's character sheet (empty: this profile)
+## Press counters for every button: they only go up, so a network packet lost
+## in between can never lose a press (the host compares counts).
+var presses := {"attack": 0, "dodge": 0, "ward": 0, "a1": 0, "a2": 0, "flask": 0, "home": 0, "interact": 0}
+const BLEED_TIME := 25.0
+const REVIVE_TIME := 2.5
 var last_attacker_id := ""
 var godmode := "godmode" in OS.get_cmdline_user_args()
 var lantern: OmniLight3D
@@ -122,12 +139,19 @@ func setup_from(r: RunState) -> void:
 func rebuild_stats() -> void:
 	var ratio := hp_ratio() if max_hp > 0.0 and hp > 0.0 else 1.0
 	stats = Stats.for_player()
-	SkillDB.apply(Profile.skills(), stats)
-	Profile.apply_sanctuary(stats)
-	Profile.apply_gear(stats)
+	var equipped: Dictionary = Profile.equipped()
+	if sheet.is_empty():
+		SkillDB.apply(Profile.skills(), stats)
+		Profile.apply_sanctuary(stats)
+		Profile.apply_gear(stats)
+	else:
+		SkillDB.apply(sheet.get("skills", ["hearth"]), stats)
+		Profile.apply_sanctuary_data(sheet.get("sanctuary", {}), sheet.get("resident_mods", []), stats)
+		equipped = sheet.get("equipped", {})
+		ItemDB.apply_equipped(equipped, stats)
 	aura_cols.clear()
-	for slot in Profile.equipped():
-		var it = Profile.equipped()[slot]
+	for slot in equipped:
+		var it = equipped[slot]
 		if not (it is Dictionary):
 			continue
 		var r := String(it.get("rarity", ""))
@@ -135,7 +159,8 @@ func rebuild_stats() -> void:
 			aura_cols.append(ItemDB.color(it))
 		elif ItemDB.is_unique(String(it.get("base", ""))):
 			aura_cols.append(Color(1.0, 0.82, 0.45))
-	Looks.apply_player(Looks.current())
+	apply_look()
+	refresh_paperdoll()
 	if run:
 		RelicDB.apply(run.relics, stats)
 		Omens.apply(run.omens, stats)
@@ -150,6 +175,65 @@ func rebuild_stats() -> void:
 	kindle = minf(kindle, stats.v("kindle_max"))
 	dodge_charges = minf(dodge_charges, stats.v("dodge_charges"))
 	anchored = stats.has("unbreakable")
+
+
+## The Kindled's look: the shared material for this machine's own Kindled (the
+## satchel and wardrobe preview it), a private copy for anyone else's.
+func apply_look() -> void:
+	if sheet.is_empty():
+		Looks.apply_player(Looks.current())
+		return
+	if sprite == null:
+		return
+	if not (sprite.material_override is ShaderMaterial):
+		sprite.material_override = (sprite.sheet.material as ShaderMaterial).duplicate()
+	Looks.apply_to(sprite.material_override, String(sheet.get("look", "")), true)
+
+
+var gear_layers := {}    # slot -> PixelSprite drawn over the body
+
+
+## The armour this Kindled wears, drawn over the body (see GearLooks): one layer
+## per slot, kept on the body's exact animation frame.
+func refresh_paperdoll() -> void:
+	if sprite == null or visual == null:
+		return
+	var eq: Dictionary = Profile.equipped() if sheet.is_empty() else sheet.get("equipped", {})
+	var shown: Dictionary = Profile.inv().get("shown", {}) if sheet.is_empty() else sheet.get("shown", {})
+	var want := GearLooks.paperdoll(eq, shown)
+	for slot in gear_layers.keys():
+		var l: PixelSprite = gear_layers[slot]
+		if not want.has(slot) or l.sheet.name != String(want[slot]):
+			l.queue_free()
+			gear_layers.erase(slot)
+	for i in GearLooks.LAYERS.size():
+		var slot: String = GearLooks.LAYERS[i]
+		if not want.has(slot) or gear_layers.has(slot):
+			continue
+		var l := PixelSprite.new()
+		visual.add_child(l)
+		l.setup(String(want[slot]), sprite.anim)
+		l.playing = false
+		l.set_meta("z", 0.004 * (i + 1))
+		gear_layers[slot] = l
+	_sync_paperdoll()
+
+
+func _sync_paperdoll() -> void:
+	for l: PixelSprite in gear_layers.values():
+		if l.anim != sprite.anim and l.has_anim(sprite.anim):
+			l.play(sprite.anim, true)
+		l.playing = false
+		if l.frame_i != sprite.frame_i:
+			l.set_frame(sprite.frame_i)
+		l.flip_h = sprite.flip_h
+		l.visible = sprite.visible
+		l.scale = sprite.scale
+		l.position = sprite.position + Vector3(0, 0, float(l.get_meta("z", 0.004)))
+		for k in ["dissolve", "flash", "tint"]:
+			var v: Variant = sprite.get_instance_shader_parameter(k)
+			if v != null:
+				l.set_instance_shader_parameter(k, v)
 
 
 func set_weapon(id: String, level: int) -> void:
@@ -186,7 +270,9 @@ func aim_offset() -> Vector2:
 func _process(delta: float) -> void:
 	for k in _buf:
 		_buf[k] = maxf(0.0, _buf[k] - delta)
-	if autopilot:
+	if autopilot or controller == Ctrl.REMOTE or downed:
+		return
+	if controller == Ctrl.REPLICA and peer_id != Net.my_id():
 		return
 	if not input_enabled or not alive or get_tree().paused:
 		move_in = Vector2.ZERO
@@ -221,32 +307,53 @@ func _process(delta: float) -> void:
 	if Input.is_action_just_pressed("interact"):
 		try_interact()
 	if Input.is_action_just_pressed("hearthcall"):
-		_buf.home = 0.2
+		press("home")
 	if Input.is_action_just_pressed("attack"):
-		_buf.attack = 0.18
+		press("attack")
 		_attack_down = true
 	if _attack_down and not Input.is_action_pressed("attack"):
 		_attack_down = false
 		_release_pending = true
 	if Input.is_action_just_pressed("dodge"):
-		_buf.dodge = 0.15
+		press("dodge")
 	if Input.is_action_just_pressed("ward"):
-		_buf.ward = 0.12
+		press("ward")
 	if Input.is_action_just_pressed("ability_1"):
-		_buf.a1 = 0.15
+		press("a1")
 	if Input.is_action_just_pressed("ability_2"):
-		_buf.a2 = 0.15
+		press("a2")
 	if Input.is_action_just_pressed("flask"):
-		_buf.flask = 0.15
+		press("flask")
+
+
+## A button press: buffered for the simulation and counted for the network.
+func press(k: String) -> void:
+	presses[k] = int(presses.get(k, 0)) + 1
+	match k:
+		"attack":
+			_buf.attack = 0.18
+		"dodge":
+			_buf.dodge = 0.15
+		"ward":
+			_buf.ward = 0.12
+		"a1", "a2", "flask":
+			_buf[k] = 0.15
+		"home":
+			_buf.home = 0.2
 
 
 ## Uses the nearest interactable prop (chest, merchant, stairs...). Returns it, or null.
 func try_interact() -> Prop:
-	if stage == null or not alive:
+	if stage == null or not alive or downed:
 		return null
 	var near := stage.nearest_interactable(pos)
 	if near:
-		near.interact(self)
+		presses.interact = int(presses.interact) + 1
+		if controller == Ctrl.REPLICA:
+			# a client asks the host, which owns every prop
+			Net.ask("interact", [near.net_idx])
+		else:
+			near.interact(self)
 	return near
 
 
@@ -274,7 +381,10 @@ func _assisted(dir: Vector2) -> Vector2:
 # --- simulation ------------------------------------------------------------------
 
 func think(dt: float) -> void:
-	if not alive:
+	if not alive or controller == Ctrl.REPLICA:
+		return
+	if downed:
+		_bleed(dt)
 		return
 	_timers(dt)
 	if dodge_t > 0.0:
@@ -295,6 +405,13 @@ func think(dt: float) -> void:
 		if hearthcall_t >= 0.0:
 			vel = Vector2.ZERO
 			_tick_hearthcall(dt)
+	if stats.has("stillness"):
+		var was := still_t >= 0.6
+		still_t = still_t + dt if move_in.length() < 0.1 and dodge_t <= 0.0 else 0.0
+		if still_t >= 0.6 and not was:
+			stage.fx.ring(pos, 0.9, Color(0.65, 0.88, 1.0), 0.3, 0.15)
+		if still_t >= 0.6 and fmod(stage.elapsed, 0.25) < dt:
+			stage.fx.motes(pos, 0.2, Color(0.65, 0.88, 1.0), 1, 0.4, 0.8, 0.5)
 	_update_look(dt)
 	facing = look
 	if stats.has("featherfall"):
@@ -336,7 +453,7 @@ func _timers(dt: float) -> void:
 		ward_t -= dt
 		if ward_t <= 0.0:
 			ward_recover = 0.28
-			ward_cd = 0.35
+			ward_cd = 0.35 * (1.5 if stats.has("bastion") else 1.0)
 	var maxc := stats.v("dodge_charges")
 	if dodge_charges < maxc:
 		dodge_charges = minf(maxc, dodge_charges + dt / maxf(0.2, stats.v("dodge_recharge")))
@@ -386,6 +503,8 @@ func _handle_actions(_dt: float) -> void:
 
 
 func _start_dodge() -> void:
+	if stats.has("shadowdancer"):
+		Abilities.shade(self, pos, 14.0 * stats.damage_mult(["shadow"]), 0.4)
 	var d := move_in if move_in.length() > 0.2 else aim
 	dodge_dir = d.normalized()
 	var dist := stats.v("dodge_distance")
@@ -453,7 +572,7 @@ func _try_ability(slot: int) -> void:
 	var d := GearDB.ability(id)
 	if d.is_empty():
 		return
-	var cost: float = d.cost * stats.v("ability_cost")
+	var cost: float = d.cost * stats.v("ability_cost") * Runes.cost_mult(self, id)
 	if id == "gloamstep" and stats.has("twin_shade"):
 		cost *= 0.6
 	var pay_hp := 0.0
@@ -468,8 +587,14 @@ func _try_ability(slot: int) -> void:
 			return
 	if weapon:
 		weapon.cancel()
+	var cast_at := pos
+	var cast_dir := aim
 	if not Abilities.cast(self, id):
 		return
+	if id != "gloamstep":
+		Abilities.echo(self, id, cast_at, cast_dir, aim_point)
+	if weapon and weapon.has_method("inscribe"):
+		weapon.inscribe(id)
 	if pay_hp > 0.0:
 		hp -= pay_hp
 		kindle = 0.0
@@ -478,7 +603,7 @@ func _try_ability(slot: int) -> void:
 		kindle -= cost
 	if stats.has("blood_price"):
 		hp = maxf(1.0, hp - max_hp * 0.04)
-	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown")
+	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown") * Runes.cooldown_mult(self, id)
 	cast_t = 0.2
 
 
@@ -587,6 +712,11 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 		mult *= 1.0 + minf(0.2, 0.04 * Profile.active_grudges().size())
 	if stats.has("glass_lantern") and t.pos.distance_to(pos) < 4.0:
 		mult *= 1.35
+	if stats.has("stillness") and still_t >= 0.6:
+		mult *= 1.4
+		h.chill = maxf(h.chill, 0.2)
+	if stats.has("ashbringer") and float(t.get_meta("ashen_until", -1.0)) > stage.elapsed:
+		mult *= 1.25
 	if direct and stats.has("headsman") and t.hp_ratio() < 0.25:
 		h.forced_crit = true
 	if stats.has("ember_set4") and t.status.burning():
@@ -624,11 +754,36 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 			counter_ready = false
 	if stats.has("living_pyre"):
 		h.chill = 0.0
+	var ab := String(h.get_meta("ab", ""))
+	var runes: Array = Runes.of(self, ab) if ab != "" else []
+	if runes.has("rime"):
+		# the spell turned to frost: it chills rather than burns
+		for k in ["fire", "shadow"]:
+			h.tags.erase(k)
+		if not h.tags.has("frost"):
+			h.tags.append("frost")
+		h.burn = 0
+		h.chill = maxf(h.chill, 0.35)
+		if t.status.is_frozen():
+			h.amount *= 1.5
+	elif runes.has("gloam"):
+		for k in ["fire", "frost"]:
+			h.tags.erase(k)
+		if not h.tags.has("shadow"):
+			h.tags.append("shadow")
+		h.burn = 0
+		h.chill = 0.0
+		h.expose = maxf(h.expose, 2.0)
 	var was_chilled := t.status.chill > 0.0 or t.status.is_frozen()
 	var was_burning := t.status.burning()
 	var res := t.take_hit(h)
 	if res.amount <= 0.0:
 		return res
+	if not runes.is_empty() and h.proc:
+		_rune_on_hit(t, h, res, runes)
+	if stats.has("ashbringer") and h.has_tag("ability") and h.has_tag("fire") and float(t.get_meta("ash_cd", -1.0)) < stage.elapsed:
+		t.set_meta("ash_cd", stage.elapsed + 0.8)
+		_ash_ground(t.pos)
 	Events.damage_dealt.emit(t, res.amount, res.crit)
 	if res.crit and stats.has("pyre_brand") and t.alive:
 		t.status.apply_burn(3, 3.0 * (1.0 + stats.v("burn_damage")), int(stats.v("burn_stacks")), self)
@@ -711,6 +866,67 @@ static func _echo_later(st: Stage, pref: WeakRef, tref: WeakRef, amount: float, 
 
 
 ## Stormcaller Signet: lightning on a nearby enemy (not the one just hit if others are near).
+## Ashbringer: a patch of burning ground; foes in it are marked to take more.
+func _ash_ground(at: Vector2) -> void:
+	var me := self
+	var hz := Hazard.spawn(stage, at, 1.2, 3.0, team, Color(1.0, 0.45, 0.15), func(_hz: Hazard, a: Actor) -> void:
+		a.set_meta("ashen_until", me.stage.elapsed + 0.6)
+		var dh := Combat.player_hit(me, me.stats, 3.0, ["fire", "dot"])
+		dh.can_crit = false
+		dh.silent = true
+		dh.proc = false
+		me.deal_hit(a, dh))
+	hz.period = 0.4
+	hz.particle_rate = 8.0
+
+
+## Runes that act on each spell hit: Arcing, Ruin and Kindling.
+func _rune_on_hit(t: Actor, h: Hit, res: Combat.Result, runes: Array) -> void:
+	if runes.has("siphon"):
+		gain_kindle(4.0 / maxf(stats.v("kindle_gain"), 0.01))
+		heal(max_hp * 0.01)
+	if runes.has("chain"):
+		var done := [t]
+		var from := t
+		for k in 2:
+			var best: Actor = null
+			var bd := 4.0
+			for a in stage.hostiles(team):
+				if done.has(a):
+					continue
+				var dd := a.pos.distance_to(from.pos)
+				if dd < bd:
+					bd = dd
+					best = a
+			if best == null:
+				break
+			done.append(best)
+			var col := Color(0.6, 0.9, 1.0)
+			var seg := best.pos - from.pos
+			stage.fx.shape(Fx.Shape.RECT, from.pos, seg.normalized(), Vector2(seg.length(), 0.18), Color(col.r, col.g, col.b, 0.6), col.lightened(0.4), 0.14, {"progress": 1.0, "glow": 2.0})
+			stage.fx.burst(best.pos, 0.6, col, 6, 3.0, 0.2, 0.0)
+			var ch := Combat.player_hit(self, stats, 1.0, h.tags.duplicate())
+			ch.amount = res.amount * 0.5
+			ch.proc = false
+			ch.can_crit = false
+			ch.from_dir = seg.normalized()
+			deal_hit(best, ch)
+			from = best
+		Audio.play_at("bolt", t.pos, -6.0, 1.4, 80)
+	if runes.has("volatile") and not t.alive:
+		var p := t.pos
+		var dmg := t.max_hp * 0.4
+		stage.fx.ring(p, 2.2, Color(1.0, 0.5, 0.25), 0.25, 0.3)
+		stage.fx.burst(p, 0.5, Color(1.0, 0.55, 0.25), 18, 5.0, 0.4, 2.0)
+		Audio.play_at("explode", p, -4.0, 1.2)
+		for a in stage.in_circle(team, p, 2.2):
+			var vh := Combat.player_hit(self, stats, 1.0, ["fire", "ability"])
+			vh.amount = dmg
+			vh.proc = false
+			vh.knockback = (a.pos - p).normalized() * 6.0
+			deal_hit(a, vh)
+
+
 func _call_lightning(from: Actor, amount: float) -> void:
 	var best: Actor = null
 	var bd := 5.0
@@ -788,6 +1004,12 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if ward_t > 0.0 and not h.has_tag("dot") and not h.unblockable:
 		_on_ward(attacker, false)
 		return empty
+	if not h.has_tag("dot") and not h.unblockable and stage.players.size() > 1:
+		for ally in stage.players_near(pos, 4.0):
+			if ally != self and ally.ward_t > 0.0 and ally.stats.has("bastion"):
+				ally._on_ward(attacker, false)
+				stage.fx.ring(pos, 1.2, Color(1.0, 0.85, 0.45), 0.25, 0.25)
+				return empty
 	if stats.has("hearthguard") and kindle >= stats.v("kindle_max") - 0.01:
 		h.amount *= 0.85
 	if stats.has("rime_set4") and attacker is Actor and is_instance_valid(attacker) and ((attacker as Actor).status.chill > 0.0 or (attacker as Actor).status.is_frozen()):
@@ -800,6 +1022,7 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		if aegis_hp <= 0.0:
 			aegis_t = 0.0
 			stage.fx.ring(pos, 1.5, Color(1.0, 0.8, 0.4), 0.25, 0.3)
+			_aegis_broken()
 	if barrier > 0.0 and h.amount > 0.0:
 		var ab2 := minf(barrier, h.amount)
 		barrier -= ab2
@@ -842,6 +1065,26 @@ func take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 
 
 ## Thornmail: thorns burst out at everything within reach.
+## Runes on the Aegis: the Well pulls foes in as it breaks; Echoes re-form it once.
+func _aegis_broken() -> void:
+	if Runes.has(self, "aegis", "gravity"):
+		stage.fx.ring(pos, 3.5, Color(0.5, 0.95, 0.9), 0.35, 0.3)
+		for a in stage.in_circle(team, pos, 3.5):
+			var h := Combat.player_hit(self, stats, 8.0, ["ability"])
+			h.knockback = (pos - a.pos).normalized() * 9.0
+			h.poise = 40.0
+			deal_hit(a, h)
+	if aegis_echo:
+		aegis_echo = false
+		var me := self
+		stage.after(0.3, func() -> void:
+			if is_instance_valid(me) and me.alive:
+				me.aegis_hp = GearDB.ability("aegis").absorb * 0.5
+				me.aegis_t = 3.0
+				me.stage.fx.ring(me.pos, 1.4, Color(0.45, 1.0, 0.85), 0.3, 0.3)
+				Audio.play_at("aegis", me.pos, -4.0, 1.2))
+
+
 func _bramble_burst(taken: float) -> void:
 	stage.fx.burst(pos, 0.6, Color(0.5, 0.75, 0.3), 16, 5.0, 0.3, 3.0)
 	stage.fx.ring(pos, 2.6, Color(0.55, 0.8, 0.35), 0.2, 0.2)
@@ -913,6 +1156,27 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	stage.fx.burst(pos + aim * 0.5, 0.8, Color(1.0, 0.9, 0.6), 14, 6.0, 0.3, 4.0)
 	stage.fx.flash_light(pos, 1.0, Color(1.0, 0.8, 0.45), 3.0, 4.0, 0.2)
 	stage.fx.number(pos, 2.4, "WARD", Color(1.0, 0.9, 0.55))
+	if stats.has("counterweight") and weapon:
+		# the blow you turned becomes the one you strike
+		weapon.cancel()
+		if weapon.has_method("inscribe"):
+			for k in 5:
+				stage.after(k * 0.06, func() -> void:
+					if alive and weapon and weapon.has_method("_mote"):
+						weapon._mote())
+		else:
+			weapon.aim_dir = aim
+			weapon.charged = true
+			weapon.release_charge()
+	if stats.has("bastion"):
+		ward_cd = 0.6
+		stage.fx.ring(pos, 3.0, Color(1.0, 0.85, 0.45), 0.3, 0.3)
+		for a in stage.in_circle(team, pos, 3.0):
+			var bh := Combat.player_hit(self, stats, 12.0, ["melee"])
+			bh.knockback = (a.pos - pos).normalized() * 9.0
+			bh.poise = 35.0
+			bh.proc = false
+			deal_hit(a, bh)
 	if stats.has("mirror_ward") and not projectile and attacker is Enemy and is_instance_valid(attacker) and (attacker as Enemy).alive:
 		var en := attacker as Enemy
 		var mh := Hit.make(self, en.damage * 3.0, ["melee"])
@@ -990,7 +1254,11 @@ func die(killer: Node) -> void:
 			deal_hit(a, h)
 		Audio.play("explode", 2.0)
 		return
+	if stage.players.size() > 1 and not downed:
+		_go_down()
+		return
 	alive = false
+	downed = false
 	vel = Vector2.ZERO
 	if weapon:
 		weapon.cancel()
@@ -1001,6 +1269,122 @@ func die(killer: Node) -> void:
 	Audio.play("player_death", 0.0)
 	Events.player_died.emit()
 	stage.notify_death(self, killer)
+
+
+# --- co-op: downed and revived -------------------------------------------------
+
+static var _ring_tex: ImageTexture
+
+## Co-op: a ring of the seat's colour on the floor under this Kindled, so four
+## of them in one fight can always be told apart (and each finds their own).
+func set_seat(col: Color) -> void:
+	if _ring_tex == null:
+		var img := Image.create(24, 24, false, Image.FORMAT_RGBA8)
+		for y in 24:
+			for x in 24:
+				var d := Vector2(x + 0.5 - 12.0, y + 0.5 - 12.0).length()
+				if d > 9.0 and d < 11.5:
+					img.set_pixel(x, y, Color(1, 1, 1, 1.0 if d < 10.6 else 0.55))
+		_ring_tex = ImageTexture.create_from_image(img)
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(1.1, 1.1 * 0.55 * Iso.SQ2)
+	q.orientation = PlaneMesh.FACE_Y
+	mi.mesh = q
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.albedo_texture = _ring_tex
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.75)
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(0, 0.02, 0)
+	add_child(mi)
+
+
+## Co-op client: the picture of a Kindled the host simulates.
+func replica_present(dt: float) -> void:
+	super.replica_present(dt)
+	_update_lantern(dt)
+	if weapon and alive and not downed:
+		weapon.update_visual(dt)
+	if downed and fmod(stage.elapsed, 0.5) < dt:
+		stage.fx.motes(pos, 0.2, Color(1.0, 0.55, 0.4), 1, 0.8, 0.8, 0.2)
+
+
+## Co-op client: the host brought this one back.
+func revive_replica() -> void:
+	alive = true
+	downed = false
+	sprite.visible = true
+	sprite.set_dissolve(0.0)
+	if weapon == null or weapon.visual == null:
+		set_weapon(run.weapon_id if run else "sword", run.weapon_level if run else 0)
+
+
+## At 0 health with friends about, the Kindled falls but its light holds for a
+## while: an ally who stands beside it long enough brings it back.
+func _go_down() -> void:
+	downed = true
+	hp = 0.0
+	bleed_t = BLEED_TIME
+	revive_k = 0.0
+	targetable = false
+	vel = Vector2.ZERO
+	move_in = Vector2.ZERO
+	if weapon:
+		weapon.cancel()
+	if hearthcall_t >= 0.0:
+		break_hearthcall()
+	sprite.play("death", true)
+	stage.fx.burst(pos, 0.5, Color(1.0, 0.6, 0.3), 20, 2.5, 0.9, -0.5)
+	stage.fx.number(pos, 2.6, "DOWN", Color(1.0, 0.55, 0.45), true)
+	Audio.play_at("player_death", pos, -4.0, 1.1)
+	stage.notify_death(self, null)
+
+
+func _bleed(dt: float) -> void:
+	vel = Vector2.ZERO
+	var helper := false
+	for pl in stage.active_players():
+		if pl != self and pl.pos.distance_to(pos) < 1.6:
+			helper = true
+	if helper:
+		revive_k += dt / REVIVE_TIME
+		if fmod(revive_k * 10.0, 1.0) < dt * 4.0:
+			stage.fx.motes(pos, 0.3, Color(1.0, 0.8, 0.45), 2, 1.4, 0.7, 0.4)
+		if revive_k >= 1.0:
+			revive(0.4)
+			return
+	else:
+		revive_k = maxf(0.0, revive_k - dt * 0.5)
+		bleed_t -= dt
+	sync_visual()
+	if bleed_t <= 0.0:
+		downed = false
+		hp = 0.0
+		alive = true      # die() expects the living
+		die(null)
+
+
+## Back on their feet (from downed, or from a spectator at a room's end).
+func revive(frac: float) -> void:
+	downed = false
+	alive = true
+	targetable = true
+	hp = maxf(1.0, max_hp * frac)
+	revive_k = 0.0
+	invuln_t = 1.5
+	if weapon == null or weapon.visual == null:
+		set_weapon(run.weapon_id if run else "sword", run.weapon_level if run else 0)
+	sprite.visible = true
+	sprite.set_dissolve(0.0)
+	sprite.play("idle_" + dir_name, true)
+	stage.fx.ring(pos, 1.6, Color(1.0, 0.8, 0.45), 0.4, 0.25)
+	stage.fx.motes(pos, 0.2, Color(1.0, 0.75, 0.4), 16, 1.8, 1.0, 0.4)
+	stage.fx.number(pos, 2.6, "REKINDLED", Color(1.0, 0.8, 0.5), true)
+	Audio.play_at("hearth_feed", pos, -4.0)
 
 
 # --- presentation --------------------------------------------------------------
@@ -1234,6 +1618,8 @@ func sync_visual() -> void:
 	super.sync_visual()
 	if sprite and alive:
 		sprite.flip_h = dir_name == "side" and aim.x < 0.0
+	if not gear_layers.is_empty():
+		_sync_paperdoll()
 
 
 func _update_aegis_fx() -> void:

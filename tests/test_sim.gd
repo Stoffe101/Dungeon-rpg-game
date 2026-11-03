@@ -477,3 +477,261 @@ func test_behavioural_affixes() -> void:
 	check(gloomed > 0.0 and absf(gloomed * 2.0 - pl.kindle) < 0.01, "Gloom halves Kindle gain (%.1f vs %.1f)" % [gloomed, pl.kindle])
 	check(not EnemyDB.affix_ok("spore_mortar", "molten") and not EnemyDB.affix_ok("gravemole", "phasing"), "affixes only go where they work")
 	st.queue_free()
+
+
+## A real Dungeon floor, simulated without a view (for whole-floor tests).
+func _dungeon(seed_v: int, region := "ossuary") -> Dungeon:
+	var lay := DungeonGen.generate(seed_v, 1, region, false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(seed_v, region, "sword", 0, ["flare", ""]), null)
+	return d
+
+
+func test_room_seals_block_and_release() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var room: Room = null
+	for r in d.layout.rooms:
+		if r.is_combat() and r.type != Room.Type.BOSS and not d.gate_nodes.get(r.id, []).is_empty():
+			room = r
+			break
+	check(room != null, "a combat room with seals")
+	var g: Node = d.gate_nodes[room.id][0]
+	var t: Vector2i = g.get_meta("tile")
+	# someone standing in the doorway when it seals
+	var e := d._make_enemy("husk")
+	e.pos = Vector2(t) + Vector2(0.5, 0.5)
+	d.add_actor(e)
+	d.player.pos = Vector2(t) + Vector2(0.5, 0.5)
+	d._set_gates(room, true)
+	eq(d.grid.at(t.x, t.y), TileGrid.GATE, "the seal's tile is a gate")
+	check(d.grid.blocks_shot(t.x, t.y), "shots stop at the seal")
+	check(g.visible, "the seal shows")
+	check(not d.grid.box_blocked(d.player.pos, d.player.box()) and room.contains_tile(Vector2i(floori(d.player.pos.x), floori(d.player.pos.y))), "the Kindled is stepped into the room, not trapped")
+	check(not d.grid.box_blocked(e.pos, e.box()), "so is a foe in the doorway")
+	for i in 20:
+		g._process(0.05)   # sprites animate on the frame clock, not the stage's
+	eq(String(g.anim), "closed", "it settles into its shimmer")
+	d._set_gates(room, false)
+	eq(d.grid.at(t.x, t.y), TileGrid.FLOOR, "released, the doorway is floor again")
+	for i in 20:
+		g._process(0.05)
+	check(not g.visible, "and the seal is gone")
+	d.queue_free()
+
+
+func test_coop_downed_revive_and_wipe() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := Player.new()
+	p2.peer_id = 2
+	p2.pos = p1.pos + Vector2(1.0, 0)
+	d.add_actor(p2)
+	p2.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", ""]))
+	eq(d.players.size(), 2, "two Kindled on the floor")
+	# a husk picks the nearest Kindled
+	var e := d._make_enemy("husk")
+	e.pos = p2.pos + Vector2(2.0, 0)
+	d.add_actor(e)
+	check(e.target() == p2, "foes go for the nearest Kindled")
+	# p2 falls: downed, not dead, and no longer a target
+	var h := Hit.make(e, 9999.0, ["melee"])
+	h.can_crit = false
+	p2.take_enemy_hit(h, e)
+	check(p2.downed and p2.alive, "at 0 health with a friend near, a Kindled is downed")
+	check(not d.active_players().has(p2), "the downed are not targets")
+	check(e.target() == p1 or e._tgt_t > 0.0, "the foe turns elsewhere")
+	# p1 stands beside them: revived after the revive time
+	p1.pos = p2.pos + Vector2(0.6, 0)
+	e.alive = false
+	_run(d, Player.REVIVE_TIME + 0.4)
+	check(not p2.downed and p2.alive and p2.hp > 0.0, "standing beside them brings them back (hp %d)" % int(p2.hp))
+	# both down: the party has fallen
+	p1.take_enemy_hit(h, null)
+	p1.invuln_t = 0.0
+	p2.invuln_t = 0.0
+	p2.take_enemy_hit(h, null)
+	_run(d, 0.2)
+	check(d._death_t > 0.0, "everyone down ends the run")
+	d.queue_free()
+
+
+func test_coop_shared_pickups() -> void:
+	Profile.data = Profile.fresh()
+	var d := _dungeon(7)
+	var p1 := d.player
+	var p2 := Player.new()
+	p2.peer_id = 2
+	p2.controller = Player.Ctrl.REMOTE
+	p2.pos = p1.pos + Vector2(3.0, 0)
+	d.add_actor(p2)
+	p2.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", ""]))
+	var e1 := p1.run.embers
+	var e2 := p2.run.embers
+	var pk := Pickup.spawn(d, "ember", p1.pos, 10)
+	pk._collect(p1)
+	check(p1.run.embers > e1 and p2.run.embers > e2, "Embers picked up by one Kindled are credited to both")
+	var g := Pickup.spawn(d, "gear", p1.pos, 1, {"item": ItemDB.make_item("grave_iron_helm", "rare", 1, RandomNumberGenerator.new(), 1)})
+	g.owner_peer = 2
+	check(g._owner() == p2, "an instanced find knows its owner")
+	g._collect(p2)
+	eq((p2.run.loot.gear as Array).size(), 1, "the owner gets their gear")
+	eq((p1.run.loot.gear as Array).size(), 0, "and nobody else does")
+	d.queue_free()
+
+
+func test_ember_runes() -> void:
+	Profile.data = Profile.fresh()
+	for r in Runes.RUNES:
+		Profile.add_rune(r)
+	# sockets: one, a second at level 20; a rune sits in one place at a time
+	check(Profile.set_rune("cinder_lance", 0, "split"), "a rune goes into a socket")
+	check(not Profile.set_rune("cinder_lance", 1, "chain"), "no second socket before level %d" % Runes.SECOND_SOCKET_LEVEL)
+	check(not Profile.set_rune("flare", 0, "split"), "one Rune of Many cannot sit in two spells")
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	pl.ability_slots = ["cinder_lance", "flare"]
+	pl.kindle = 100.0
+	var before := st.projectiles.size()
+	pl._try_ability(0)
+	eq(st.projectiles.size() - before, 3, "a Lance with the Rune of Many fans into three")
+	_run(st, 1.0)    # let the lances finish their flight
+	# Arcing: a spell hit leaps to the next foe
+	Profile.set_rune("flare", 0, "chain")
+	var a := _enemy(st, "husk", Vector2(6.5, 7))
+	var b := _enemy(st, "husk", Vector2(9.0, 7))
+	_run(st, 0.8)
+	var hp_b := b.hp
+	pl.kindle = 100.0
+	pl._try_ability(1)
+	check(b.hp < hp_b, "the Rune of Arcing reaches a foe outside the flare (%d -> %d)" % [int(hp_b), int(b.hp)])
+	# Rime: the flare chills instead of burning
+	Profile.set_rune("flare", 0, "rime")
+	var g := _enemy(st, "guard", Vector2(4.0, 6.0))
+	_run(st, 0.8)
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl._try_ability(1)
+	check(g.status.chill > 0.0 and not g.status.burning(), "a Rime Flare chills, not burns")
+	g.alive = false
+	st.remove_actor(g)
+	# Ruin: a spell kill bursts onto its neighbours
+	Profile.set_rune("flare", 0, "volatile")
+	var c := _enemy(st, "husk", Vector2(5.6, 8.6))
+	var d := _enemy(st, "husk", Vector2(6.4, 9.6))
+	_run(st, 0.8)
+	c.hp = 1.0
+	var hp_d := d.hp
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl.pos = Vector2(5, 8.5)
+	pl._try_ability(1)
+	check(not c.alive and d.hp < hp_d, "the Rune of Ruin's burst hits the next foe")
+	# Haste and Might trade cooldown, damage and cost
+	Profile.set_rune("flare", 0, "haste")
+	check(Runes.cooldown_mult(pl, "flare") < 1.0 and Runes.damage_mult(pl, "flare") < 1.0, "Haste: shorter cooldown, less damage")
+	Profile.set_rune("flare", 0, "might")
+	check(Runes.cost_mult(pl, "flare") > 1.0 and Runes.damage_mult(pl, "flare") > 1.0, "Might: more damage, more Kindle")
+	# Echoes: the flare happens again
+	Profile.set_rune("flare", 0, "echo")
+	var e := _enemy(st, "guard", Vector2(6.0, 7.0))
+	_run(st, 0.8)
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl.pos = Vector2(5, 7)
+	var hp0 := e.hp
+	pl._try_ability(1)
+	var hp1 := e.hp
+	_run(st, 0.8)
+	check(e.hp < hp1 and hp1 < hp0, "the Rune of Echoes flares a second time")
+	st.queue_free()
+	# an old save gains its rune pouch
+	var old := Profile.fresh()
+	old.version = 8
+	old.erase("runes")
+	var m := Profile.migrate(old)
+	check(m.has("runes") and (m.runes as Dictionary).has("socketed"), "v8 saves gain runes")
+
+
+func test_bow_and_tome() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	# a Steady Shot released on the draw's peak always crits
+	pl.set_weapon("bow", 0)
+	var e := _enemy(st, "husk", Vector2(9, 7))
+	e.speed = 0.0     # a still target
+	_run(st, 0.8)
+	var crits := [0]
+	Events.damage_dealt.connect(func(_t, _a, crit) -> void:
+		if crit:
+			crits[0] += 1)
+	pl.aim = Vector2.RIGHT
+	pl.weapon.press()
+	_run(st, 0.75)        # draw peaks at 0.6 s; let go inside the window
+	pl.weapon.release()
+	_run(st, 0.5)
+	check(crits[0] >= 1, "a perfectly timed Steady Shot crits")
+	# the Tome: words that land hurry the spells; a spell writes its element
+	pl.set_weapon("tome", 0)
+	var t2 := _enemy(st, "husk", Vector2(8, 7))
+	t2.speed = 0.0
+	t2.max_hp = 900.0
+	t2.hp = 900.0
+	_run(st, 0.8)
+	pl.aim = Vector2.RIGHT
+	pl.ability_slots = ["flare", ""]
+	pl.ability_cd = [3.0, 0.0]
+	pl.weapon.press()
+	_run(st, 1.2)
+	pl.weapon.release()
+	check(pl.ability_cd[0] < 3.0 - 1.2 - 0.1, "Tome hits shorten cooldowns (%.2f)" % pl.ability_cd[0])
+	pl.ability_cd = [0.0, 0.0]
+	pl.kindle = 100.0
+	pl._try_ability(0)
+	eq(String(pl.weapon.inscribed), "fire", "casting Flare writes fire into the Tome")
+	check(int(pl.weapon.inscribed_n) > 0, "for the next motes")
+	st.queue_free()
+
+
+func test_outer_keystones() -> void:
+	Profile.data = Profile.fresh()
+	var st := _stage()
+	var pl := _player(st, Vector2(5, 7))
+	# Stillness: standing still for a breath makes hits land harder
+	pl.stats.add_flag("stillness")
+	var e := _enemy(st, "husk", Vector2(6.2, 7))
+	e.speed = 0.0
+	e.max_hp = 999.0
+	e.hp = 999.0
+	_run(st, 0.8)
+	pl.still_t = 0.0
+	var h1 := Hit.make(pl, 10.0, ["melee"])
+	h1.can_crit = false
+	var moving := pl.deal_hit(e, h1).amount
+	pl.still_t = 1.0
+	var h2 := Hit.make(pl, 10.0, ["melee"])
+	h2.can_crit = false
+	var still := pl.deal_hit(e, h2).amount
+	check(still > moving * 1.3, "Still hits land harder (%.1f vs %.1f)" % [still, moving])
+	# Shadowdancer: a dodge leaves a shade that detonates
+	pl.stats.add_flag("shadowdancer")
+	var hp0 := e.hp
+	pl.pos = e.pos + Vector2(-0.5, 0)
+	pl.move_in = Vector2.LEFT
+	pl.press("dodge")
+	_run(st, 0.9)
+	check(e.hp < hp0, "the shade a dodge leaves behind hurts (%d -> %d)" % [int(hp0), int(e.hp)])
+	# Runebound: more runes set, stronger spells
+	for r in ["chain", "siphon"]:
+		Profile.add_rune(r)
+	Profile.set_rune("flare", 0, "chain")
+	eq(Runes.total(pl), 1, "runes are counted across the spells")
+	st.queue_free()
+	# the outer keystones are reachable from their masteries
+	for k in ["b7", "p7", "r7", "g7", "w7", "k7"]:
+		check(SkillDB.node(k).get("kind", "") == "keystone", "%s is a keystone" % k)
+		check(not SkillDB.path_to(k, ["hearth"]).is_empty(), "%s can be reached from the Hearth" % k)

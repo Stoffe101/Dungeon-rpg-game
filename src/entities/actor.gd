@@ -11,6 +11,8 @@ const SHADOW_TEX := preload("res://assets/sprites/shadow.png")
 static var _shadow_mat: StandardMaterial3D
 
 var stage: Stage
+var net_id := 0              # co-op: the same actor's id on every machine
+var replica := false         # co-op client: drawn from the host's word, never simulated
 var team := Team.ENEMY
 var display_name := ""
 var pos := Vector2.ZERO
@@ -149,6 +151,12 @@ func _fall_into_pit() -> void:
 	die(stage.player)
 
 
+## Co-op client: keep the picture moving (no simulation).
+func replica_present(_dt: float) -> void:
+	_react = move_toward(_react, 0.0, _dt * 6.0)
+	sync_visual()
+
+
 func sync_visual() -> void:
 	if visual == null:
 		return
@@ -172,6 +180,8 @@ func sync_visual() -> void:
 
 ## Visual reaction to a landed blow: recoil in `dir` and a short squash.
 func hit_react(dir: Vector2, power := 1.0) -> void:
+	if Net.recording and net_id != 0:
+		Net.rec(["react", net_id, dir, power])
 	_react = 1.0
 	_react_dir = dir.normalized() if dir != Vector2.ZERO else Vector2.ZERO
 	_react_power = clampf(power / maxf(sqrt(mass), 1.0), 0.15, 1.5)
@@ -284,11 +294,21 @@ func heal(amount: float) -> void:
 func die(_killer: Node) -> void:
 	if not alive:
 		return
+	if Net.recording and net_id != 0:
+		Net.rec(["die", net_id])
 	alive = false
 	vel = Vector2.ZERO
 	if stage:
 		stage.remove_actor(self)
 		stage.notify_death(self, _killer)
+	_death_effect()
+
+
+## Co-op client: the host says this one fell. Only the picture of it.
+func replica_die() -> void:
+	alive = false
+	if stage:
+		stage.remove_actor(self)
 	_death_effect()
 
 

@@ -58,7 +58,7 @@ func _ready() -> void:
 			Looks.choose(a.substr(5))
 		elif a == "unlock=all":
 			# dev: open every region and difficulty tier
-			for k in ["warden_kills", "bloom_kills"]:
+			for k in ["warden_kills", "bloom_kills", "ashen_king_kills"]:
 				Profile.data.world[k] = maxi(1, int(Profile.data.world.get(k, 0)))
 			Difficulty._d()["unlocked"] = Difficulty.MAX_TIER
 		elif a.begins_with("kit="):
@@ -97,6 +97,10 @@ func _ready() -> void:
 			Game.stage.player.input_enabled = false
 		"dungeon":
 			Game.start_run(region)
+			for a in OS.get_cmdline_user_args():
+				if a.begins_with("depth="):
+					# dev: start deeper (the Hollow Below's Echo depths, mostly)
+					Game._enter_depth(int(a.substr(6)))
 		"boss":
 			Game.start_run(region)
 			var last := int(EnemyDB.REGIONS[region].depths)
@@ -166,6 +170,10 @@ func _open_dev_screen(what: String) -> void:
 		"relic":
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)
+		"coop":
+			ui.open(Screens.coop(ui))
+		"runes":
+			ui.open(Screens.runes(ui))
 		"summary":
 			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
 				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": "",

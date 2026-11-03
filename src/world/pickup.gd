@@ -17,11 +17,15 @@ var light: OmniLight3D
 var data: Dictionary = {}     # "material": {id}; "gear": {item}
 var beam: Node3D              # a pillar of light over notable loot
 var grade := 0                # 0 plain, 1 rare, 2 epic, 3 legendary / set / blueprint
+var owner_peer := 0           # co-op: 0 shared, else the one player who may take it
+var net_id := 0
+var replica := false
+var _announced := false
 var _landed := false
 static var _beam_tex: GradientTexture2D
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
-	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll"}
+	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll", "rune": "pickup_scroll"}
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
@@ -44,7 +48,18 @@ func _ready() -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(SHEETS.get(kind, "pickup_ember"))
-	if kind == "blueprint":
+	if kind == "rune":
+		var rc: Color = Runes.get_def(String(data.get("id", ""))).get("color", Color.WHITE)
+		light = OmniLight3D.new()
+		light.light_color = rc
+		light.light_energy = 1.6
+		light.omni_range = 3.0
+		light.position = Vector3(0, 0.4, 0)
+		add_child(light)
+		sprite.set_tint(rc.lightened(0.3))
+		grade = 2
+		_loot_beam(rc)
+	elif kind == "blueprint":
 		light = OmniLight3D.new()
 		light.light_color = Color(1.0, 0.75, 0.35)
 		light.light_energy = 1.6
@@ -113,6 +128,12 @@ func _loot_beam(col: Color) -> void:
 ## The drop hits the floor: a chime by rarity, and its beam goes up.
 func _land() -> void:
 	_landed = true
+	Net.mute += 1    # every machine plays its own landing
+	_land_fx()
+	Net.mute -= 1
+
+
+func _land_fx() -> void:
 	if beam:
 		beam.visible = true
 		beam.scale = Vector3(1.0, 0.05, 1.0)
@@ -134,13 +155,51 @@ func _land() -> void:
 			stage.fx.motes(pos, 0.2, col, 16, 2.0, 1.4, 0.4)
 
 
-func tick(dt: float) -> void:
+## A find is news for its finder only (co-op: on their machine).
+func _tell(pl: Player, text: String, col: Color) -> void:
+	Net.mute += 1
+	if Net.recording and Net.i.run_sync and pl != stage.player:
+		Net.i.run_sync.tell(pl, text, col)
+	else:
+		Events.toast.emit(text, col)
+	Net.mute -= 1
+
+
+func _owner() -> Player:
+	for p in stage.players:
+		if p.peer_id == owner_peer:
+			return p
+	return null
+
+
+func _announce() -> void:
+	_announced = true
+	if not Net.recording or Net.i.run_sync == null:
+		return
+	net_id = Net.i.run_sync.next_proj_id()
+	Net.rec(["pick+", [net_id, kind, pos, height, Vector2.ZERO, amount, data, owner_peer]])
+
+
+## Co-op client: sits where the host says (positions arrive in snapshots).
+func replica_step(dt: float) -> void:
 	age += dt
 	if beam and beam.visible and not Settings.get_value("reduce_flashes", false):
 		var pulse := 1.0 + 0.12 * sin(age * 3.0)
 		beam.scale.x = pulse
 		beam.scale.z = pulse
-	var pl := stage.player
+	_sync()
+
+
+func tick(dt: float) -> void:
+	if not _announced:
+		_announce()
+	age += dt
+	if beam and beam.visible and not Settings.get_value("reduce_flashes", false):
+		var pulse := 1.0 + 0.12 * sin(age * 3.0)
+		beam.scale.x = pulse
+		beam.scale.z = pulse
+	# drawn to the nearest Kindled (co-op: anyone, unless it is someone's own find)
+	var pl: Player = stage.nearest_player(pos) if owner_peer == 0 else _owner()
 	if pl == null or not pl.alive:
 		_physics(dt)
 		return
@@ -182,34 +241,53 @@ func _sync() -> void:
 
 func _collect(pl: Player) -> void:
 	stage.pickups.erase(self)
+	if net_id != 0 and Net.recording:
+		Net.rec(["pick-", net_id])
 	var col: Color = COLORS.get(kind, Color.WHITE)
 	stage.fx.burst(pl.pos, 0.8, col, 4, 2.0, 0.25, 0.0)
+	# co-op: currency, memories, materials and Sunshards are shared - whoever
+	# picks them up, every Kindled's run is credited (each with their own bonuses)
+	var party: Array = stage.players if kind in ["ember", "xp", "material", "sunshard"] and owner_peer == 0 else [pl]
 	match kind:
 		"ember":
-			var n := int(round(amount * pl.stats.v("ember_gain")))
-			pl.run.embers += n
+			for p in party:
+				p.run.embers += int(round(amount * p.stats.v("ember_gain")))
 			Audio.play("pickup_ember", -8.0, randf_range(1.0, 1.25))
 			Events.currency_changed.emit()
 		"xp":
-			var n2 := int(round(amount * pl.stats.v("xp_gain")))
-			pl.run.xp_gained += n2
-			Profile.add_xp(n2)
+			for p in party:
+				var n2 := int(round(amount * p.stats.v("xp_gain")))
+				p.run.xp_gained += n2
+				if p.controller == Player.Ctrl.LOCAL:
+					Profile.add_xp(n2)
 			Audio.play("pickup_xp", -8.0, randf_range(0.95, 1.15))
 		"heal":
 			pl.heal(amount * pl.stats.v("heal_mult"))
 			Audio.play("pickup_heal", -4.0)
 		"material":
 			var mid := String(data.get("id", "bone_dust"))
-			pl.run.add_material(mid, amount)
+			for p in party:
+				p.run.add_material(mid, amount)
 			stage.fx.number(pl.pos, 2.0, "+%d %s" % [amount, ItemDB.MATERIALS[mid].name], Color(0.85, 0.82, 0.7))
 			Audio.play("pickup_xp", -6.0, 0.8)
+		"rune":
+			var rid := String(data.get("id", ""))
+			(pl.run.loot.get("runes", []) as Array).append(rid)
+			if not pl.run.loot.has("runes"):
+				pl.run.loot["runes"] = [rid]
+			var rd := Runes.get_def(rid)
+			var rc2: Color = rd.get("color", Color.WHITE)
+			stage.fx.number(pl.pos, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2, true)
+			stage.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
+			_tell(pl, "Rune found: %s - set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
+			Audio.play("learn", -4.0, 1.2)
 		"blueprint":
 			var bid := String(data.get("id", ""))
 			(pl.run.loot.blueprints as Array).append(bid)
 			stage.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)
 			stage.fx.ring(pl.pos, 1.6, Color(1.0, 0.75, 0.35), 0.4, 0.25)
 			stage.fx.flash_light(pl.pos, 1.0, Color(1.0, 0.75, 0.35), 3.0, 5.0, 0.4)
-			Events.toast.emit("Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
+			_tell(pl, "Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
 			Audio.play("learn", -2.0)
 		"gear":
 			var it: Dictionary = data.get("item", {})
@@ -221,12 +299,13 @@ func _collect(pl: Player) -> void:
 				stage.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)
 				stage.fx.motes(pl.pos, 0.3, rc, 12 + 8 * grade, 1.8, 1.2, 0.5)
 				stage.fx.flash_light(pl.pos, 1.0, rc, 2.5 + grade, 6.0, 0.5)
-			if grade >= 3:
+			if grade >= 3 and pl == stage.player:
 				Events.banner.emit(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
-			Events.toast.emit("Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
+			_tell(pl, "Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
 			Audio.play("relic", -4.0)
 		"sunshard":
-			pl.run.sunshards += amount
+			for p in party:
+				p.run.sunshards += amount
 			stage.fx.number(pl.pos, 2.4, "SUNSHARD", Color(1.0, 0.9, 0.5), true)
 			if stage is Dungeon:
 				(stage as Dungeon).note_request("sunshard", amount)
