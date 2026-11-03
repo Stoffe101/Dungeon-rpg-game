@@ -671,9 +671,11 @@ func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNu
 		return {}
 	for g in data.grudges:
 		if g.enemy == enemy_id and not g.get("settled", false):
-			g.level = int(g.level) + 1
+			g.level = mini(GRUDGE_MAX_LEVEL, int(g.level) + 1)
 			g.embers = int(g.embers) + lost_embers
 			g.depth = depth
+			g["runs"] = 0
+			_grudge_traits(g, rng)
 			_changed()
 			return g
 	var g := {
@@ -689,6 +691,40 @@ func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNu
 	data.grudges.append(g)
 	_changed()
 	return g
+
+
+const GRUDGE_MAX_LEVEL := 5
+## What a Grudge learns as it grows: a second affix, kin that follow it, and
+## at the last a hunger fed by the Embers it carries.
+const GRUDGE_TRAITS := {2: "twinned", 3: "escorted", 4: "ember_fed"}
+const GRUDGE_TRAIT_TEXT := {"twinned": "a second affix", "escorted": "kin at its side", "ember_fed": "fed on your Embers"}
+
+
+func _grudge_traits(g: Dictionary, rng: RandomNumberGenerator) -> void:
+	var traits: Array = g.get("traits", [])
+	for lv in GRUDGE_TRAITS:
+		var t: String = GRUDGE_TRAITS[lv]
+		if int(g.level) >= int(lv) and not traits.has(t):
+			traits.append(t)
+			if t == "twinned":
+				g["affix2"] = EnemyDB.roll_affix(rng, String(g.enemy), String(g.get("affix", "")))
+	g["traits"] = traits
+
+
+## Grudges left alone grow in the dark: every third expedition that does not
+## settle one, it gains a level and its hoard grows. Returns the names that grew.
+func age_grudges(rng: RandomNumberGenerator) -> Array:
+	var grew: Array = []
+	for g in active_grudges():
+		g["runs"] = int(g.get("runs", 0)) + 1
+		if int(g.runs) % 3 == 0 and int(g.level) < GRUDGE_MAX_LEVEL:
+			g.level = int(g.level) + 1
+			g.embers = int(round(int(g.embers) * 1.15))
+			_grudge_traits(g, rng)
+			grew.append(String(g.name))
+	if not grew.is_empty():
+		_changed()
+	return grew
 
 
 func active_grudges() -> Array:

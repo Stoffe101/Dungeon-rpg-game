@@ -147,6 +147,21 @@ func _build() -> void:
 			strike_radius = 1.6
 			data["hp"] = 4
 			ticks = true
+		"sconce":
+			_sprite(String(data.get("sheet", "brazier")), 0.0, 0.0, "unlit")
+			_light(flame, 1.4, 6.0, Vector3(0, 1.5 * Iso.SQ2, 0.2))
+			light.visible = false
+			lit = false
+			interact_radius = 1.2
+			ticks = true
+			_solid([tile])
+		"lost_camp":
+			_sprite("lost_camp", 0.0, 0.0, "cold")
+			_light(Color(1.0, 0.55, 0.25), 1.8, 7.0, Vector3(0, 0.6, 0.3))
+			light.visible = false
+			lit = false
+			interact_radius = 1.8
+			ticks = true
 		"ember_well":
 			_sprite("ember_well", 0.0, 0.0, "idle")
 			_light(Color(1.0, 0.55, 0.25), 1.4, 5.0, Vector3(0, 0.6, 0.3))
@@ -272,9 +287,19 @@ func tick(dt: float) -> void:
 	if data.get("burning", 0.0) > 0.0:
 		_burn_tick(dt)
 		return
+	if kind == "sconce" and lit:
+		# a lit sconce burns down unless its fellows are lit in time
+		data["left"] = float(data.get("left", INF)) - dt
+		if float(data.left) < 3.0 and fmod(_t, 0.5) < dt:
+			stage.fx.motes(pos, 1.4, Color(0.6, 0.6, 0.65), 2, 0.8, 0.6, 0.15)
+		if float(data.left) <= 0.0:
+			set_lit(false)
+			stage.fx.burst(pos, 1.4, Color(0.55, 0.55, 0.6), 8, 1.5, 0.6, -1.5)
+			Audio.play_at("steam", pos, -6.0, 1.2)
 	if light and lit:
 		var fl := 0.85 + 0.15 * sin(_t * 11.0 + pos.x) * sin(_t * 4.3 + pos.y * 2.0)
-		light.light_energy = _base_energy * fl
+		var dying := clampf(float(data.get("left", INF)) / 3.0, 0.25, 1.0) if kind == "sconce" else 1.0
+		light.light_energy = _base_energy * fl * dying
 	if kind == "torch" and randf() < dt * 3.0:
 		stage.fx.motes(pos + Vector2(0, -0.05), 1.75, _flame_col.lightened(0.2), 1, 0.8, 0.6, 0.06)
 	elif (kind == "brazier" or kind == "boss_brazier") and lit and randf() < dt * 8.0:
@@ -328,8 +353,10 @@ func _spike_tick() -> void:
 
 func interactable() -> bool:
 	match kind:
-		"chest", "ember_pile", "relic_altar", "spring", "fountain", "ember_well", "trial_altar":
+		"chest", "ember_pile", "relic_altar", "spring", "fountain", "ember_well", "trial_altar", "lost_camp":
 			return not used
+		"sconce":
+			return not lit
 		"echo":
 			return not used
 		"shrine", "merchant", "stairs", "hearthstone", "lore":
@@ -340,7 +367,7 @@ func interactable() -> bool:
 func prompt() -> String:
 	match kind:
 		"chest":
-			return "Open"
+			return "Sealed reliquary" if data.get("sealed", false) else "Open"
 		"ember_pile":
 			return "Gather Embers"
 		"relic_altar":
@@ -363,12 +390,19 @@ func prompt() -> String:
 			return "Begin the Trial"
 		"echo":
 			return "Speak with the Echo"
+		"sconce":
+			return "Light the sconce"
+		"lost_camp":
+			return "Rekindle the fire"
 	return String(data.get("prompt", ""))
 
 
 func interact(pl: Player) -> void:
 	match kind:
 		"chest":
+			if data.get("sealed", false):
+				stage.request("sealed", self)
+				return
 			used = true
 			sprite.play("open")
 			Audio.play("chest", 0.0)

@@ -149,9 +149,14 @@ func test_event_rooms() -> void:
 					continue
 				check(r.event in Room.EVENTS, "event kind '%s'" % r.event)
 				seen[r.event] = true
+				var taken := {}
 				for p in r.props:
-					if p.kind in ["ember_well", "trial_altar", "echo"]:
-						eq(lay.grid.at(p.tile.x, p.tile.y), TileGrid.FLOOR, "seed %d %s centrepiece on floor" % [s, r.event])
+					if p.kind in ["ember_well", "trial_altar", "echo", "sconce", "lost_camp", "chest"]:
+						eq(lay.grid.at(p.tile.x, p.tile.y), TileGrid.FLOOR, "seed %d %s: %s on floor" % [s, r.event, p.kind])
+						check(not taken.has(p.tile), "seed %d %s: %s does not share a tile" % [s, r.event, p.kind])
+						taken[p.tile] = true
+				if r.event == "vault":
+					check(r.props.filter(func(p): return p.kind == "sconce").size() >= 3, "a vault has its sconces")
 				if r.event == "trial":
 					eq(r.encounter.size(), 3, "trial has three waves")
 					check(not r.spawns.is_empty(), "trial room has spawn points")

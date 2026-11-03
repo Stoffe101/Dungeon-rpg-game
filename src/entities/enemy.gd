@@ -141,11 +141,14 @@ func _apply_affix(a: String) -> void:
 func make_grudge(g: Dictionary) -> void:
 	grudge = g
 	if not elite:
-		make_elite(String(g.get("affix", "hasted")))
+		make_elite(String(g.get("affix", "hasted")), String(g.get("affix2", "")))
 	var lvl := int(g.get("level", 1))
 	max_hp *= 1.0 + 0.3 * lvl
 	hp = max_hp
 	damage *= 1.0 + 0.12 * lvl
+	if (g.get("traits", []) as Array).has("ember_fed"):
+		# every 50 Embers it carries makes it hit a little harder
+		damage *= 1.0 + minf(0.5, 0.05 * floorf(int(g.get("embers", 0)) / 50.0))
 	display_name = String(g.get("name", display_name))
 
 

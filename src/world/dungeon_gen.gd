@@ -728,6 +728,23 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 					r.props.append({"kind": "echo", "tile": c})
 					r.props.append({"kind": "candles", "tile": c + Vector2i(-2, 1)})
 					r.props.append({"kind": "candles", "tile": c + Vector2i(2, 1)})
+				"vault":
+					# four sconces in the corners, a sealed reliquary between them
+					r.props.append({"kind": "chest", "tile": c, "tier": 3, "sealed": true})
+					var hx := maxi(3, mini(6, r.rect.size.x / 2 - 2))
+					var hy := maxi(2, mini(4, r.rect.size.y / 2 - 2))
+					for s in [Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]:
+						# from the corner inward until there is open floor (pillars stand in some rooms)
+						var t := c + Vector2i(s.x * hx, s.y * hy)
+						for k in hx + hy:
+							if lay.grid.at(t.x, t.y) == TileGrid.FLOOR:
+								break
+							t -= Vector2i(s.x if absi(t.x - c.x) > 1 else 0, s.y if absi(t.y - c.y) > 1 else 0)
+						if lay.grid.at(t.x, t.y) == TileGrid.FLOOR and t != c:
+							r.props.append({"kind": "sconce", "tile": t})
+				"camp":
+					r.props.append({"kind": "lost_camp", "tile": c})
+					r.props.append({"kind": "lore", "tile": c + Vector2i(3, -2)})
 		Room.Type.STAIRS:
 			r.props.append({"kind": "stairs", "tile": c + Vector2i(0, -2)})
 			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})

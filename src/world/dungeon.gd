@@ -40,12 +40,14 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	var theme := LevelBuilder.LevelTheme.named(region.theme)
 	add_child(LevelBuilder.build(grid, theme))
 	_environment()
+	_pick_grudge_room()
 	_place_props()
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
 	_place_door_icons()
-	_pick_grudge_room()
+	if grudge_room >= 0:
+		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
 	# the player
 	var start := layout.room(layout.start_id)
 	player = Player.new()
@@ -184,6 +186,13 @@ func _place_props() -> void:
 				extra["solid"] = true
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
+				if pd.get("sealed", false):
+					extra["sealed"] = true
+			if pd.kind == "sconce" and region.has("brazier"):
+				extra["sheet"] = String(region.brazier)
+			if r.id == grudge_room and pd.kind in ["torch", "candles", "brazier"]:
+				# something that remembers you is in here: its fires burn red
+				extra["flame"] = Color(1.0, 0.32, 0.25)
 			if pd.has("phase"):
 				extra["phase"] = pd.phase
 			if pd.kind == "torch":
@@ -267,7 +276,7 @@ func _icon_key(r: Room) -> String:
 		Room.Type.BOSS:
 			return "boss"
 		Room.Type.EVENT:
-			return {"well": "embers", "trial": "skull", "echo": "relic"}.get(r.event, "")
+			return {"well": "embers", "trial": "skull", "echo": "relic", "vault": "chest", "camp": "vigor"}.get(r.event, "")
 	return ""
 
 
@@ -374,7 +383,8 @@ func _enter_room(r: Room) -> void:
 		elif r.type == Room.Type.STAIRS:
 			Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
 		elif r.type == Room.Type.EVENT:
-			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once."}
+			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
+				"vault": "A sealed reliquary, and cold sconces around it. Light them together.", "camp": "A camp. Its fire went out long ago."}
 			Events.toast.emit(msg.get(r.event, ""), Color(1.0, 0.8, 0.55))
 	if not r.is_combat():
 		r.cleared = true
@@ -486,8 +496,19 @@ func _spawn_grudge(r: Room) -> void:
 	e.spawn_t = 1.2
 	e.set_meta("grudge_id", g.id)
 	e.set_meta("grudge_embers", int(g.embers))
+	e.set_meta("grudge_level", int(g.level))
 	add_actor(e)
 	register_enemy(e)
+	if (g.get("traits", []) as Array).has("escorted"):
+		# it does not come alone any more
+		for k in 2:
+			var kin := _make_enemy(EnemyDB._filler(layout.region))
+			kin.pos = random_floor_near(e.pos + Vector2.from_angle(TAU * k / 2.0) * 1.5, 0.6)
+			_scale(kin, layout.depth, int(Profile.data.world.get("memory", 0)))
+			kin.room_id = r.id
+			kin.spawn_t = 1.2
+			add_actor(kin)
+			register_enemy(kin)
 	Events.banner.emit(String(g.name), "Your Grudge has found you. It carries %d of your Embers." % int(g.embers))
 	print("[dungeon] grudge %s (%s Lv%d) spawned in room %d" % [g.name, g.enemy, int(g.level), r.id])
 	Audio.play("boss_roar", -6.0, 1.3)
@@ -736,6 +757,9 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
 			Pickup.spawn(self, "sunshard", e.pos, 1)
+			if int(e.get_meta("grudge_level", 1)) >= 2:
+				# what it hoarded while it grew
+				Pickup.spawn(self, "gear", e.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier)})
 			run.grudges_settled.append(g.get("name", "?"))
 			Events.banner.emit("Grudge Settled", "%s returns to the dust." % g.get("name", "It"))
 		if e == boss:
@@ -860,6 +884,13 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.shop(prop)
 		"lore":
 			Game.ui.lore(Lore.random_for(layout.region, rng))
+		"sconce":
+			_light_sconce(prop)
+		"sealed":
+			Events.toast.emit("Sealed. The sconces, burning together, will open it.", Color(1.0, 0.8, 0.55))
+			Audio.play("deny", -6.0)
+		"lost_camp":
+			_rekindle_camp(prop)
 		"secret":
 			_open_secret(prop)
 		"well":
@@ -903,6 +934,73 @@ func request(what: String, prop: Prop) -> void:
 			else:
 				Game.ui.dialogue("Echo of a Fallen Kindled", ["I came down with a lantern like yours. %s" % line[1], "Leave a little light for me - thirty Embers - and take what I no longer need."], offer_fn)
 
+
+
+## Sconce Vault: a sconce burns for a while once lit; when all four burn at
+## once the reliquary unseals.
+const SCONCE_BURN := 9.0
+
+func _light_sconce(prop: Prop) -> void:
+	if prop.lit:
+		return
+	prop.set_lit(true, region.flame)
+	prop.data["left"] = SCONCE_BURN
+	fx.burst(prop.pos, 1.4, region.flame, 10, 3.0, 0.4, -1.0)
+	Audio.play_at("ignite", prop.pos, -2.0)
+	var group := props.filter(func(p): return is_instance_valid(p) and p.kind == "sconce" and p.room_id == prop.room_id)
+	var burning := group.filter(func(p): return p.lit).size()
+	fx.number(prop.pos, 2.6, "%d / %d" % [burning, group.size()], region.flame.lightened(0.3))
+	if OS.is_debug_build():
+		print("[dungeon] sconce lit %d/%d" % [burning, group.size()])
+	if burning < group.size():
+		return
+	for p in group:
+		p.data["left"] = INF
+		fx.ring(p.pos, 1.4, region.flame, 0.4, 0.25)
+	for p in props:
+		if is_instance_valid(p) and p.kind == "chest" and p.room_id == prop.room_id and p.data.get("sealed", false):
+			p.data.erase("sealed")
+			fx.flash_light(p.pos, 1.0, region.flame, 4.0, 8.0, 0.8)
+			fx.motes(p.pos, 0.4, region.flame, 24, 2.0, 1.2, 0.6)
+			after(0.6, func() -> void:
+				if is_instance_valid(p) and not p.used:
+					p.interact(player)
+					# the reliquary keeps something better than a chest
+					Pickup.spawn(self, "gear", p.pos, 1, {"item": ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier)})
+					Pickup.spawn(self, "sunshard", p.pos, 1))
+	if OS.is_debug_build():
+		print("[dungeon] vault opened in room %d" % prop.room_id)
+	Events.banner.emit("The Vault Opens", "The flames burn together")
+	Audio.play("gate_open", -2.0, 1.2)
+
+
+## A dead Kindled's camp: rekindling it rests you, and their pack is yours.
+func _rekindle_camp(prop: Prop) -> void:
+	if prop.used:
+		return
+	prop.used = true
+	if OS.is_debug_build():
+		print("[dungeon] camp rekindled in room %d" % prop.room_id)
+	prop.sprite.play("lit")
+	if prop.light:
+		prop.light.visible = true
+		prop.lit = true
+	player.heal(player.max_hp * 0.4)
+	player.flask = mini(player.flask + 1, int(player.stats.v("flask_charges")))
+	player.gain_kindle(player.kindle_max())
+	fx.motes(prop.pos, 0.4, Color(1.0, 0.65, 0.35), 24, 1.8, 1.2, 0.5)
+	fx.number(player.pos, 2.6, "RESTED", Color(1.0, 0.8, 0.55), true)
+	Audio.play("ignite", -2.0, 0.8)
+	Audio.play("flask", -4.0, 0.9)
+	if rng.randf() < 0.55:
+		Pickup.spawn(self, "gear", prop.pos + Vector2(1.6, -0.4), 1, {"item": ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier)})
+	else:
+		for i in 6:
+			Pickup.spawn(self, "ember", prop.pos + Vector2(1.6, -0.4), 4 + layout.depth * 2)
+	_chest_loot(prop, 1)
+	if not player.autopilot:
+		var line: Array = Lore.random_for(layout.region, rng)
+		Game.ui.dialogue("A Kindled's Last Camp", ["A note, tucked in the pack: \"%s\"" % String(line[1]), "The fire takes again. It is good to sit by a fire."])
 
 
 func _open_secret(prop: Prop) -> void:

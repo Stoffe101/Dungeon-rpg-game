@@ -180,6 +180,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 	Profile.add_currency("embers", int(s.embers_kept))
 	if int(s.sunshards) > 0:
 		Profile.add_currency("sunshards", int(s.sunshards))
+	# Grudges not settled this time grow in the dark (before a new one is made)
+	var grew := Profile.age_grudges(run.rng)
 	match outcome:
 		"died":
 			Profile.stat_add("deaths")
@@ -219,7 +221,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
-		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp,
+		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp, "grudges_grew": grew,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

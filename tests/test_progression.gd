@@ -481,3 +481,29 @@ func test_omens() -> void:
 	eq(int(summary.get("embers_kept", 0)), 130, "Lightless pays +30% Embers on what comes home")
 	eq(int(summary.get("omen_embers", 0)), 30, "the summary shows the Omen's share")
 	Game.run = null
+
+
+func test_grudges_grow() -> void:
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var g := Profile.record_grudge("husk", 100, 2, rng)
+	eq(int(g.level), 1, "a new Grudge starts at level 1")
+	check((g.get("traits", []) as Array).is_empty(), "with no traits yet")
+	# killed by it again: it levels and learns a second affix
+	Profile.record_grudge("husk", 20, 2, rng)
+	eq(int(g.level), 2, "it grows when it kills you again")
+	check((g.traits as Array).has("twinned") and String(g.get("affix2", "")) != "" and g.affix2 != g.affix, "level 2: a second, different affix")
+	# left alone it grows every third expedition, and so does its hoard
+	var grew: Array = []
+	for i in 3:
+		grew = Profile.age_grudges(rng)
+	eq(int(g.level), 3, "three runs unsettled: a level")
+	check(grew.has(g.name), "the summary is told")
+	check((g.traits as Array).has("escorted"), "level 3: it brings kin")
+	check(int(g.embers) > 120, "its hoard grew (%d)" % int(g.embers))
+	for i in 30:
+		Profile.age_grudges(rng)
+	eq(int(g.level), Profile.GRUDGE_MAX_LEVEL, "it stops at the cap")
+	Profile.settle_grudge(g.id)
+	check(Profile.age_grudges(rng).is_empty(), "settled Grudges do not grow")

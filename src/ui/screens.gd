@@ -710,6 +710,11 @@ static func memorial(ui: UIRoot) -> Control:
 	for g in gs:
 		var t := "%s  (%s, Lv%d)  -  %s" % [g.name, EnemyDB.get_def(g.enemy).get("name", g.enemy), int(g.level), "settled" if g.get("settled", false) else "carries %d Embers" % int(g.embers)]
 		v.add_child(UIKit.label(t, 8, UIKit.C_DIM if g.get("settled", false) else UIKit.C_TEXT))
+		var traits: Array = g.get("traits", [])
+		if not g.get("settled", false) and not traits.is_empty():
+			v.add_child(UIKit.label("    has grown: " + ", ".join(PackedStringArray(traits.map(func(x): return String(Profile.GRUDGE_TRAIT_TEXT.get(x, x))))), 8, Color(1.0, 0.55, 0.45)))
+	if not Profile.active_grudges().is_empty():
+		v.add_child(UIKit.para("Unsettled Grudges grow in the dark: every third expedition, stronger, and their hoard with them.", 240, UIKit.C_DIM))
 	v.add_child(HSeparator.new())
 	var st: Dictionary = Profile.data.stats
 	v.add_child(UIKit.label("Expeditions %d   Deaths %d   Returns %d   Victories %d" % [int(st.get("runs", 0)), int(st.get("deaths", 0)), int(st.get("extractions", 0)), int(st.get("victories", 0))], 8))
@@ -1075,6 +1080,8 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		v.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
 	for n in s.get("settled", []):
 		v.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
+	for n in s.get("grudges_grew", []):
+		v.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
 	if String(s.get("unlocked", "")) != "":
 		v.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
 	var rl: Array = s.get("relics", [])

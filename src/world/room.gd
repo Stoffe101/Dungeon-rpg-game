@@ -10,7 +10,7 @@ const TYPE_NAMES := {
 	Type.STAIRS: "stairs", Type.BOSS: "boss", Type.EVENT: "event",
 }
 
-const EVENTS := ["well", "trial", "echo"]
+const EVENTS := ["well", "trial", "echo", "vault", "camp"]
 
 var id := 0
 var type := Type.COMBAT

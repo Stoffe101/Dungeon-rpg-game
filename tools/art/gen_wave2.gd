@@ -36,6 +36,59 @@ static func build(dir: String) -> void:
 	_bramblewright(dir)
 	_duelist(dir)
 	_sunwatcher(dir)
+	_lost_camp(dir)
+
+
+# --- a Kindled's last camp: a ring of stones, a bedroll, a pack left behind ----
+
+static func _lost_camp(dir: String) -> void:
+	var s := Sheet.new(44, 30, Vector2i(22, 24))
+	s.add("cold", [_camp(0, false), _camp(1, false)], 1.5)
+	var lit: Array = []
+	for i in 4:
+		lit.append(_camp(i, true))
+	s.add("lit", lit, 8.0)
+	s.save(dir, "lost_camp")
+
+
+static func _camp(i: int, burning: bool) -> Px:
+	var c := Px.new(44, 30)
+	# the bedroll, unrolled to the left, and the pack against it
+	c.paint(c.mask().poly(V([[1, 20], [14, 16], [19, 22], [6, 27]])), Pal.BLOOD, 1, true)
+	c.line(4, 22, 15, 19, Pal.BLOOD[3])
+	c.paint(c.mask().ellipse(5.0, 17.0, 3.5, 2.5), Pal.WOOD, 3, true)
+	c.paint(c.mask().rect(34, 12, 7, 8), Pal.WOOD, 2, true)
+	c.paint(c.mask().rect(35, 10, 5, 3), Pal.WOOD, 3, true)
+	c.line(34, 15, 40, 15, Pal.WOOD[0])
+	# a cold lantern, long out, beside the pack
+	c.paint(c.mask().rect(37, 21, 4, 5), Pal.ASH, 2, true)
+	c.put(38, 20, Pal.ASH[3])
+	if burning:
+		c.lit(38, 23, Pal.EMBER[4])
+	# the ring of stones
+	for k in 9:
+		var a := TAU * k / 9.0
+		var x := 22 + int(round(cos(a) * 8.0))
+		var y := 21 + int(round(sin(a) * 3.6))
+		c.paint(c.mask().ellipse(x + 0.5, y + 0.5, 2.0, 1.4), Pal.STONE, 3, true)
+	c.fill(c.mask().ellipse(22.0, 21.0, 6.0, 2.4), Pal.ASH[1])
+	# charred sticks
+	c.line(18, 21, 26, 20, Pal.WOOD[0])
+	c.line(19, 19, 25, 22, Pal.WOOD[1])
+	if burning:
+		var sway: int = [0, 1, 0, -1][i]
+		var outer := c.mask().ellipse(22.0 + sway * 0.5, 15.0, 4.0, 6.0)
+		outer.poly(V([[19, 13], [22 + sway, 4 + (i % 2)], [25, 13]]))
+		c.fill_lit(outer, Pal.EMBER[2])
+		c.fill_lit(c.mask().ellipse(22.0, 16.5, 2.6, 4.0), Pal.EMBER[3])
+		c.fill_lit(c.mask().ellipse(22.0, 18.0, 1.4, 2.0), Pal.EMBER[5])
+		for k in 3:
+			c.lit(18 + (i * 3 + k * 4) % 9, 20 + k % 2, Pal.EMBER[4])
+	else:
+		# a last breath of warmth in the ash
+		c.put(21 + i, 21, Pal.EMBER[1])
+	c.outline(Pal.INK)
+	return c
 
 
 # --- Gravemole: a skeletal digger with shovel claws ---------------------------
