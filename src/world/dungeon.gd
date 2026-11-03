@@ -114,7 +114,7 @@ func _environment() -> void:
 	env.background_color = Color(0.016, 0.014, 0.028)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = region.ambient
-	env.ambient_light_energy = 0.62
+	env.ambient_light_energy = 0.78
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -135,6 +135,8 @@ func _place_props() -> void:
 			var extra := {"flame": flame}
 			if pd.has("variant"):
 				extra["variant"] = pd.variant
+			if pd.has("row"):
+				extra["row"] = pd.row
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
 			if pd.has("phase"):
@@ -262,7 +264,34 @@ func _stage_tick(dt: float) -> void:
 			_finish_clear()
 
 
+## The air of each region: soul motes rising in the Ossuary, spores drifting in
+## the Rootmire, ash (and the odd ember) falling in the Sunken Throne.
+var _air_t := 0.0
+
+func _ambient_air(real: float) -> void:
+	if player == null:
+		return
+	_air_t += real
+	while _air_t > 0.07:
+		_air_t -= 0.07
+		var p := player.pos + Vector2(randf_range(-11.0, 11.0), randf_range(-7.0, 7.0))
+		var ti := Vector2i(floori(p.x), floori(p.y))
+		if grid.at(ti.x, ti.y) != TileGrid.FLOOR:
+			continue
+		match layout.region:
+			"rootmire":
+				fx.motes(p, randf_range(0.3, 1.6), Color(0.7, 0.9, 0.45, 1.0) if randf() < 0.7 else Color(0.5, 1.0, 0.85), 1, 0.15, 3.5, 0.2)
+			"throne":
+				if randf() < 0.12:
+					fx.motes(p, randf_range(1.0, 2.5), Color(1.0, 0.6, 0.25), 1, -0.25, 3.0, 0.2)
+				else:
+					fx.motes(p, randf_range(1.5, 3.0), Color(0.55, 0.52, 0.5), 1, -0.35, 4.0, 0.2)
+			_:
+				fx.motes(p, randf_range(0.1, 1.0), Color(0.45, 0.95, 0.85), 1, 0.3, 3.0, 0.2)
+
+
 func _stage_process(real: float) -> void:
+	_ambient_air(real)
 	if _death_t >= 0.0:
 		_death_t -= real
 		if _death_t < 0.0:

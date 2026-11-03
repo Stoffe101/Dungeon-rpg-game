@@ -503,59 +503,228 @@ static func _cracks(dir: String) -> void:
 
 
 static func _decals(dir: String) -> void:
-	var s := Sheet.new(16, 16, Vector2i(8, 8))
-	var fr: Array = []
+	# one row of floor clutter per region (ossuary, rootmire, throne), ten each;
+	# a few carry faint light (soul seeps, glowing caps, cinders, gold veins)
+	var s := Sheet.new(20, 20, Vector2i(10, 10))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 77
-	for v in 8:
-		var c := Px.new(16, 16)
-		match v:
-			0, 1:
-				# scattered bones
-				for k in 3:
-					var x := rng.randi_range(2, 11)
-					var y := rng.randi_range(3, 12)
-					var l := rng.randi_range(3, 5)
-					c.line(x, y, x + l, y + rng.randi_range(-2, 2), Pal.BONE[2])
-					c.put(x, y, Pal.BONE[3])
-					c.put(x + l, y, Pal.BONE[3])
-				if v == 1:
-					c.paint(c.mask().ellipse(9.0, 9.0, 2.4, 2.0), Pal.BONE, 2)
-					c.put(9, 9, Pal.INK)
-			2:
-				# floor cracks
-				var x := 3
-				var y := 4
-				for k in 14:
-					c.put(x, y, Pal.STONE[0])
-					x += 1
-					y += rng.randi_range(0, 1)
-			3:
-				# old blood
-				var m := c.mask().ellipse(8.0, 8.0, 5.0, 3.0)
-				for y in 16:
-					for x in 16:
-						if m.has(x, y) and Px.hash01(x, y, 3) > 0.35:
-							c.put(x, y, Pal.BLOOD[0])
-			4, 5:
-				# rubble
-				for k in 6:
-					var x := rng.randi_range(2, 13)
-					var y := rng.randi_range(2, 13)
-					c.put(x, y, Pal.STONE[3])
-					c.put(x + 1, y, Pal.STONE[2])
-					c.put(x, y + 1, Pal.STONE[1])
-			6, 7:
-				# moss / grass tufts
-				for k in 7:
-					var x := rng.randi_range(2, 13)
-					var y := rng.randi_range(3, 13)
-					c.put(x, y, Pal.MOSS[3])
-					c.put(x, y - 1, Pal.MOSS[4])
-					c.put(x + 1, y, Pal.MOSS[2])
-		fr.append(c)
-	s.add("idle", fr, 1.0)
+	for row in ["ossuary", "rootmire", "throne"]:
+		var fr: Array = []
+		for v in 10:
+			var c := Px.new(20, 20)
+			match row:
+				"ossuary":
+					_decal_ossuary(c, v, rng)
+				"rootmire":
+					_decal_rootmire(c, v, rng)
+				_:
+					_decal_throne(c, v, rng)
+			fr.append(c)
+		s.add(row, fr, 1.0)
 	s.save(dir, "decals")
+
+
+static func _bones(c: Px, rng: RandomNumberGenerator, n: int, r: Array) -> void:
+	for k in n:
+		var x := rng.randi_range(3, 13)
+		var y := rng.randi_range(4, 15)
+		var l := rng.randi_range(3, 6)
+		var dy := rng.randi_range(-2, 2)
+		c.line(x, y, x + l, y + dy, r[2])
+		c.put(x, y, r[3])
+		c.put(x + l, y + dy, r[3])
+		c.put(x, y + 1, r[1])
+
+
+static func _crack(c: Px, rng: RandomNumberGenerator, col: Color, glow: Color = Color(0, 0, 0, 0)) -> void:
+	var x := 2
+	var y := rng.randi_range(5, 12)
+	for k in 17:
+		if glow.a > 0.0 and k % 3 != 0:
+			c.lit(x, y, glow)
+		else:
+			c.put(x, y, col)
+		x += 1
+		y = clampi(y + rng.randi_range(-1, 1), 2, 17)
+		if rng.randf() < 0.2:
+			c.put(x, y + 1, col)
+
+
+static func _blob(c: Px, cx: float, cy: float, rx: float, ry: float, col: Color, density := 0.4, seed_v := 3) -> void:
+	var m := c.mask().ellipse(cx, cy, rx, ry)
+	for y in 20:
+		for x in 20:
+			if m.has(x, y) and Px.hash01(x, y, seed_v) > density:
+				c.put(x, y, col)
+
+
+static func _decal_ossuary(c: Px, v: int, rng: RandomNumberGenerator) -> void:
+	match v:
+		0:
+			_bones(c, rng, 3, Pal.BONE)
+		1:
+			_bones(c, rng, 2, Pal.BONE)
+			c.paint(c.mask().ellipse(11.0, 10.0, 2.6, 2.2), Pal.BONE, 2)
+			c.put(10, 10, Pal.INK)
+			c.put(12, 10, Pal.INK)
+			c.put(11, 12, Pal.BONE[1])
+		2:
+			_crack(c, rng, Pal.STONE[0])
+		3:
+			_blob(c, 10.0, 10.0, 6.0, 3.5, Pal.BLOOD[0], 0.35)
+		4:
+			for k in 7:
+				var x := rng.randi_range(2, 16)
+				var y := rng.randi_range(2, 16)
+				c.put(x, y, Pal.STONE[3])
+				c.put(x + 1, y, Pal.STONE[2])
+				c.put(x, y + 1, Pal.STONE[1])
+		5:
+			# a cobweb, strung between nothing in particular
+			var o := Vector2(3, 3)
+			for k in 5:
+				var a := k * 0.35
+				var e := o + Vector2(cos(a), sin(a)) * 15.0
+				c.line(int(o.x), int(o.y), int(e.x), int(e.y), Color(0.75, 0.75, 0.8, 0.55))
+			for rr: float in [6.0, 10.0, 14.0]:
+				for k in 12:
+					var a := k * 0.15
+					var p := o + Vector2(cos(a), sin(a)) * rr
+					c.put(int(p.x), int(p.y), Color(0.7, 0.7, 0.75, 0.45))
+		6:
+			# soul-light seeping through a crack
+			_crack(c, rng, Pal.STONE[0], Pal.SOUL[3])
+		7:
+			# a guttered candle in its wax
+			_blob(c, 10.0, 12.0, 4.0, 2.2, Pal.BONE[3], 0.15)
+			c.paint(c.mask().rect(9, 7, 2, 5), Pal.BONE, 3)
+			c.lit(9, 6, Pal.EMBER[4])
+			c.lit(10, 5, Pal.EMBER[3])
+		8:
+			# lost coins
+			for k in 4:
+				var x := rng.randi_range(4, 15)
+				var y := rng.randi_range(5, 15)
+				c.put(x, y, Pal.GOLD[3])
+				c.put(x + 1, y, Pal.GOLD[2])
+		_:
+			# shards of a burial urn
+			for k in 5:
+				var x := rng.randi_range(3, 14)
+				var y := rng.randi_range(4, 15)
+				c.paint(c.mask().poly(PackedVector2Array([Vector2(x, y), Vector2(x + 3, y), Vector2(x + 1, y + 2)])), Pal.EARTH, 3)
+
+
+static func _decal_rootmire(c: Px, v: int, rng: RandomNumberGenerator) -> void:
+	match v:
+		0:
+			_blob(c, 10.0, 10.0, 7.0, 4.0, Pal.MOSS[2], 0.3, 5)
+			_blob(c, 9.0, 9.0, 4.0, 2.4, Pal.MOSS[3], 0.45, 6)
+		1:
+			# a root crossing the floor
+			var y := rng.randi_range(6, 12)
+			for x in range(1, 19):
+				y = clampi(y + rng.randi_range(-1, 1), 3, 16)
+				c.put(x, y, Pal.WOOD[2])
+				c.put(x, y + 1, Pal.WOOD[1])
+		2:
+			# glowing caps
+			for k in 4:
+				var x := rng.randi_range(4, 15)
+				var y := rng.randi_range(6, 15)
+				c.put(x, y + 1, Pal.BONE[2])
+				var col: Color = Pal.SOUL[4] if k % 2 == 0 else Pal.GLOAM[4]
+				c.lit(x, y, col)
+				c.lit(x + 1, y, col)
+		3:
+			# a still puddle
+			_blob(c, 10.0, 10.0, 6.0, 3.0, Color8(18, 28, 30), 0.0)
+			c.put(7, 9, Pal.SOUL[2])
+			c.put(8, 9, Pal.SOUL[1])
+			c.put(12, 11, Pal.SOUL[1])
+		4:
+			for k in 9:
+				var x := rng.randi_range(2, 17)
+				var y := rng.randi_range(2, 17)
+				c.put(x, y, Pal.MOSS[3] if k % 2 == 0 else Pal.EARTH[2])
+				c.put(x + 1, y, Pal.MOSS[2])
+		5:
+			# a ring of spores
+			for k in 10:
+				var a := k * TAU / 10.0
+				c.lit(int(10 + cos(a) * 6.0), int(10 + sin(a) * 3.5), Pal.MOSS[5])
+		6:
+			_bones(c, rng, 2, Pal.BONE)
+			_blob(c, 10.0, 11.0, 5.0, 2.5, Pal.MOSS[2], 0.55)
+		7:
+			_crack(c, rng, Pal.EARTH[0])
+			_blob(c, 8.0, 10.0, 3.0, 2.0, Pal.MOSS[3], 0.5)
+		8:
+			# a fern
+			for k in 5:
+				var a := -PI * 0.5 + (k - 2) * 0.45
+				var e := Vector2(10, 15) + Vector2(cos(a), sin(a)) * 7.0
+				c.line(10, 15, int(e.x), int(e.y), Pal.MOSS[3])
+		_:
+			for k in 6:
+				c.lit(3 + k * 2, 10 + (k % 2), Pal.SOUL[3])
+				c.put(3 + k * 2, 11 + (k % 2), Pal.BONE[1])
+
+
+static func _decal_throne(c: Px, v: int, rng: RandomNumberGenerator) -> void:
+	match v:
+		0:
+			for k in 5:
+				var x := rng.randi_range(3, 15)
+				var y := rng.randi_range(4, 15)
+				c.put(x, y, Pal.GOLD[3])
+				c.put(x + 1, y, Pal.GOLD[4] if k == 0 else Pal.GOLD[2])
+		1:
+			_blob(c, 10.0, 11.0, 6.0, 3.0, Pal.ASH[2], 0.25)
+			_blob(c, 10.0, 10.0, 3.5, 2.0, Pal.ASH[3], 0.4)
+		2:
+			# a scorch mark
+			_blob(c, 10.0, 10.0, 7.0, 4.0, Color8(20, 14, 14), 0.3)
+			_blob(c, 10.0, 10.0, 3.0, 1.8, Color8(10, 8, 10), 0.1)
+		3:
+			# a broken gilded pot
+			for k in 4:
+				var x := rng.randi_range(4, 14)
+				var y := rng.randi_range(5, 14)
+				c.paint(c.mask().poly(PackedVector2Array([Vector2(x, y), Vector2(x + 4, y), Vector2(x + 2, y + 3)])), Pal.EARTH, 2)
+				c.put(x + 1, y, Pal.GOLD[3])
+		4:
+			# glass shards catching the light
+			for k in 5:
+				var x := rng.randi_range(3, 16)
+				var y := rng.randi_range(3, 16)
+				c.put(x, y, Pal.FROST[4])
+				c.put(x + 1, y + 1, Pal.FROST[2])
+		5:
+			# cinders that have not gone out
+			for k in 6:
+				var x := rng.randi_range(4, 15)
+				var y := rng.randi_range(5, 15)
+				c.put(x, y, Pal.ASH[1])
+				if k % 2 == 0:
+					c.lit(x + 1, y, Pal.EMBER[3])
+		6:
+			# a fallen gilt tile
+			c.paint(c.mask().poly(PackedVector2Array([Vector2(5, 8), Vector2(13, 6), Vector2(15, 12), Vector2(7, 14)])), Pal.GOLD, 2)
+			c.put(10, 10, Pal.INK)
+		7:
+			_blob(c, 10.0, 10.0, 5.0, 3.0, Pal.BLOOD[0], 0.35)
+		8:
+			_crack(c, rng, Pal.OBSIDIAN[0], Pal.GOLD[3])
+		_:
+			# a torn strip of royal cloth
+			var y := 9
+			for x in range(3, 17):
+				y = clampi(y + rng.randi_range(-1, 1), 6, 13)
+				c.put(x, y, Pal.BLOOD[2])
+				c.put(x, y + 1, Pal.BLOOD[1])
+				if x % 3 == 0:
+					c.put(x, y - 1, Pal.GOLD[2])
 
 
 static func _stairs(dir: String) -> void:

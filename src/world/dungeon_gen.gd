@@ -643,10 +643,17 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 		for x in range(r.rect.position.x, r.rect.end.x):
 			if g.at(x, y) == TileGrid.FLOOR:
 				floor_tiles.append(Vector2i(x, y))
-	var n_decal := int(floor_tiles.size() / 28)
+	# clutter gathers where feet don't go: half of it hugs the walls
+	var edge_tiles: Array[Vector2i] = []
+	for t in floor_tiles:
+		if g.at(t.x, t.y - 1) == TileGrid.WALL or g.at(t.x - 1, t.y) == TileGrid.WALL or g.at(t.x + 1, t.y) == TileGrid.WALL or g.at(t.x, t.y + 1) == TileGrid.WALL:
+			edge_tiles.append(t)
+	var row := lay.region if lay.region in ["rootmire", "throne"] else "ossuary"
+	var n_decal := int(floor_tiles.size() / 11)
 	for i in n_decal:
-		var t: Vector2i = floor_tiles[rng.randi_range(0, floor_tiles.size() - 1)]
-		r.props.append({"kind": "decal", "tile": t, "variant": rng.randi_range(0, 7)})
+		var pool: Array[Vector2i] = edge_tiles if (not edge_tiles.is_empty() and rng.randf() < 0.5) else floor_tiles
+		var t: Vector2i = pool[rng.randi_range(0, pool.size() - 1)]
+		r.props.append({"kind": "decal", "tile": t, "variant": rng.randi_range(0, 9), "row": row})
 	# urns hug the walls
 	var wall_adj: Array[Vector2i] = []
 	for t in floor_tiles:
@@ -664,6 +671,16 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			break
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 		r.props.append({"kind": "urn", "tile": t})
+	# pools of light along the walls of bigger rooms, so a fight can be read
+	# beyond the lantern: candles in the Ossuary, glowcaps in the Rootmire,
+	# braziers in the Throne
+	if r.type in [Room.Type.COMBAT, Room.Type.ELITE] and floor_tiles.size() > 70:
+		var lamp: String = {"rootmire": "glowcap", "throne": "brazier"}.get(lay.region, "candles")
+		for i in 1 + int(floor_tiles.size() > 150):
+			if wall_adj.is_empty():
+				break
+			var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
+			r.props.append({"kind": lamp, "tile": t})
 	var c := Vector2i(r.center())
 	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
 		_trap_line(lay, r, rng)

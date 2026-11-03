@@ -1,19 +1,31 @@
 {
 	"anims": {
-		"idle": {
+		"ossuary": {
 			"fps": 1.0,
-			"frames": 8,
+			"frames": 10,
 			"loop": true,
 			"row": 0
+		},
+		"rootmire": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 1
+		},
+		"throne": {
+			"fps": 1.0,
+			"frames": 10,
+			"loop": true,
+			"row": 2
 		}
 	},
-	"emit": false,
+	"emit": true,
 	"frame": [
-		16,
-		16
+		20,
+		20
 	],
 	"origin": [
-		8,
-		8
+		10,
+		10
 	]
 }

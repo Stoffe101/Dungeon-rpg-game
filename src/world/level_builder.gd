@@ -19,6 +19,8 @@ class LevelTheme:
 	var pillar_tex: Texture2D
 	var floor_tint := Color.WHITE
 	var wall_tint := Color.WHITE
+	var grime := 0.0
+	var grime_color := Color(0.35, 0.3, 0.32)
 
 	static func named(n: String) -> LevelTheme:
 		var t := LevelTheme.new()
@@ -28,6 +30,19 @@ class LevelTheme:
 		t.ledge_tex = load("res://assets/textures/%s_ledge.png" % n)
 		t.pit_tex = load("res://assets/textures/pit.png")
 		t.pillar_tex = load("res://assets/textures/%s_pillar.png" % n)
+		match n:
+			"crypt":
+				t.grime = 0.55
+				t.grime_color = Color(0.45, 0.42, 0.5)
+			"root":
+				t.grime = 0.5
+				t.grime_color = Color(0.5, 0.6, 0.42)
+			"throne":
+				t.grime = 0.45
+				t.grime_color = Color(0.55, 0.5, 0.48)
+			"hearth":
+				t.grime = 0.4
+				t.grime_color = Color(0.6, 0.48, 0.42)
 		return t
 
 
@@ -56,6 +71,8 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 		"pit": material(theme.pit_tex),
 		"pillar": material(theme.pillar_tex, theme.wall_tint),
 	}
+	(mats.floor as ShaderMaterial).set_shader_parameter("grime", theme.grime)
+	(mats.floor as ShaderMaterial).set_shader_parameter("grime_color", theme.grime_color)
 	var tex_sizes := {
 		"floor": theme.floor_tex.get_size(),
 		"wall": theme.wall_tex.get_size(),
