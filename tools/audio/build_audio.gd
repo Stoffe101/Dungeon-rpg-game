@@ -336,6 +336,23 @@ func _sfx() -> void:
 			var nm: String = base if take == 0 else "%s_%d" % [base, take + 1]
 			var m: String = mat
 			fx(nm, 0.62, func(s): _shatter(s, m), 11 + take * 17 + mat.length() * 5)
+	# the smith at the anvil: the hammer's bite on hot iron, the anvil's long
+	# inharmonic ring, the hammer bouncing once - three takes (each a little
+	# different strike) - and the bellows breathing on the fire
+	for take in 3:
+		var nm2: String = "anvil" if take == 0 else "anvil_%d" % (take + 1)
+		var base_f: float = [1040.0, 980.0, 1110.0][take]
+		var bounce: float = [0.11, 0.13, 0.095][take]
+		fx(nm2, 1.1, func(s):
+			s.noise(0.0, 0.025, 0.9, 12000.0, 7000.0, 2500.0, 0.0003, 9.0)
+			s.tone(0.0, 0.05, 420.0, 260.0, "sine", 0.25, 0.0005, 8.0)
+			s.bell(0.0, 1.0, base_f, 0.2, [[1.0, 1.0, 3.5], [2.76, 0.55, 5.0], [5.4, 0.3, 7.0], [8.1, 0.15, 10.0]])
+			s.noise(bounce, 0.015, 0.35, 11000.0, 7000.0, 3000.0, 0.0003, 9.0)
+			s.bell(bounce, 0.5, base_f * 1.003, 0.07, [[1.0, 1.0, 6.0], [2.76, 0.5, 8.0]]), 41 + take * 13)
+	fx("bellows", 1.4, func(s):
+		s.noise(0.0, 0.7, 0.5, 700.0, 1400.0, 120.0, 0.25, 1.4)
+		s.noise(0.7, 0.6, 0.3, 1200.0, 500.0, 100.0, 0.05, 2.5)
+		s.noise(0.45, 0.8, 0.25, 4000.0, 2500.0, 1500.0, 0.2, 2.0, 22.0))
 	fx("ignite", 0.6, func(s):
 		s.noise(0.0, 0.5, 0.8, 600.0, 3000.0, 200.0, 0.02, 2.0)
 		s.tone(0.0, 0.4, 180.0, 90.0, "sine", 0.4, 0.01, 3.0))

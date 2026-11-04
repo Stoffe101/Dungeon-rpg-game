@@ -44,6 +44,8 @@ var anvil_prop: Prop        # the smith's anvil: sparks when the hammer lands
 var smith_prop: Prop
 var quench_prop: Prop
 var _smith_frame := -1
+var _bellows_t := 3.0
+var _flare_t := 0.0
 var _strikes := 0
 var _smoke_t := 0.0
 var gate_prop: Prop
@@ -551,8 +553,12 @@ func _workshop(real: float) -> void:
 				fx.burst(at, 0.55, Color(1.0, 0.72, 0.32), 6 + (_strikes % 3) * 2, 3.2, 0.3, 7.0, Vector2.UP, 1.3)
 				if anvil_prop.sprite:
 					anvil_prop.sprite.play("struck", true)
-				if _strikes % 2 == 0:
-					Audio.play_at("clank", at, -16.0, randf_range(1.1, 1.3), 300)
+				# every blow rings (its own anvil, three takes); every fourth one
+				# lands harder, the fire answering it
+				var hard := _strikes % 4 == 0
+				Audio.play_at("anvil", at, -9.0 if hard else -13.0, randf_range(0.97, 1.03), 200)
+				if hard:
+					fx.flash_light(at, 0.6, Color(1.0, 0.65, 0.3), 1.6, 4.0, 0.2)
 			elif f == 5 and anvil_prop.sprite and anvil_prop.sprite.anim == "struck":
 				anvil_prop.sprite.play("idle")
 	# chimney smoke, thicker for a master's workshop
@@ -561,10 +567,19 @@ func _workshop(real: float) -> void:
 	if _smoke_t > every:
 		_smoke_t = 0.0
 		fx.motes(forge_prop.pos + Vector2(randf_range(-0.15, 0.15), -0.2), 2.6, Color(0.42, 0.4, 0.44), 1, 0.25, 2.4, 0.2)
+	# the bellows now and then, and the fire flares with them
+	_bellows_t -= real
+	if _bellows_t <= 0.0:
+		_bellows_t = randf_range(5.0, 8.0)
+		_flare_t = 1.2
+		Audio.play_at("bellows", forge_prop.pos, -12.0, randf_range(0.95, 1.05), 300)
+		fx.motes(forge_prop.pos + Vector2(0, -0.1), 1.0, Color(1.0, 0.6, 0.25), 6, 1.2, 0.8, 0.25)
+	_flare_t = maxf(0.0, _flare_t - real)
 	# the fire breathes
 	if forge_prop.light:
 		var t := Time.get_ticks_msec() / 1000.0
-		forge_prop.light.light_energy = 1.7 + 0.22 * sin(t * 6.3) + 0.12 * sin(t * 15.7)
+		var flare := sin(clampf(_flare_t / 1.2, 0.0, 1.0) * PI) * 0.8
+		forge_prop.light.light_energy = 1.7 + 0.22 * sin(t * 6.3) + 0.12 * sin(t * 15.7) + flare
 
 
 ## Crafting feedback in the world: the smith's anvil flares and the quench
