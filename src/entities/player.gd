@@ -85,6 +85,9 @@ var last_attacker_id := ""
 var godmode := "godmode" in Dev.args()
 var lantern: OmniLight3D
 var dir_name := "down"
+var remote_look := Vector2.ZERO    # host: the facing a guest's own machine chose (sent with its input)
+var _mouse_moved := false          # the pointer itself moved this frame (not the camera under it)
+var _last_mp := Vector2(-1, -1)
 var hit_once := {}
 var dead_t := 0.0
 
@@ -355,6 +358,12 @@ func _process(delta: float) -> void:
 		# root-window UI coordinates: get_viewport() here is the world SubViewport,
 		# whose mouse position never updates
 		var mp := Dev.mouse_at(stage.view)
+		# turning toward the pointer is for when the hand moves it: the aim also
+		# shifts while the camera settles after a walk, which used to spin a
+		# Kindled that had just stopped toward the mouse
+		if _last_mp.x >= 0.0 and mp.distance_to(_last_mp) > 1.5:
+			_mouse_moved = true
+		_last_mp = mp
 		aim_point = stage.view.screen_to_plane(mp, 0.6)
 		var d := aim_point - pos
 		if d.length() > 0.05:
@@ -2035,15 +2044,22 @@ func _update_look(dt: float) -> void:
 	var busy: bool = weapon != null and weapon.has_method("is_busy") and weapon.is_busy()
 	if _attack_down or busy or cast_t > 0.0 or ward_t > 0.0 or _buf.attack > 0.0:
 		_fight_look_t = 0.45
+	# priority: a dodge > fighting (attack, charge, cast, Ward: toward the aim)
+	# > walking (toward the walk) > a pointer the hand moved > the last facing
 	if _fight_look_t > 0.0 or _pad_aim:
 		# the pad's aim already follows the left stick when the right one rests
 		look = aim
 	elif move_in.length() > 0.2:
 		look = move_in.normalized()
-	elif absf(aim.angle_to(_last_aim)) > 0.05:
+	elif _mouse_moved:
 		look = aim
 	if dodge_t > 0.0 and dodge_dir.length() > 0.1:
 		look = dodge_dir
+	if controller == Ctrl.REMOTE and remote_look.length() > 0.1:
+		# a guest's Kindled faces where its owner's machine has it facing, so
+		# every screen draws the same Kindled the same way
+		look = remote_look
+	_mouse_moved = false
 	_last_aim = aim
 
 
@@ -2051,7 +2067,11 @@ func _update_anim() -> void:
 	if not alive:
 		return
 	var ad := look
-	if absf(ad.x) > absf(ad.y) * 0.85:
+	# three drawn directions; a diagonal keeps the one already shown (a little
+	# hysteresis), so W+D after W stays "up" and after D stays "side"
+	var side_now := dir_name == "side"
+	var side := absf(ad.x) > absf(ad.y) * (0.7 if side_now else 1.15)
+	if side:
 		dir_name = "side"
 	elif ad.y < 0.0:
 		dir_name = "up"
@@ -2085,7 +2105,15 @@ func _update_anim() -> void:
 func sync_visual() -> void:
 	super.sync_visual()
 	if sprite and alive:
-		sprite.flip_h = dir_name == "side" and aim.x < 0.0
+		# the side frames mirror toward where the Kindled looks (its walk, or
+		# its aim while fighting) - from the animation playing, so a replica
+		# drawn from a snapshot mirrors exactly as its owner's does. (This used
+		# the bare aim: a Kindled walking left faced a mouse on the right.)
+		var side := sprite.anim.ends_with("_side")
+		if side and absf(look.x) > 0.05:
+			sprite.flip_h = look.x < 0.0
+		elif not side:
+			sprite.flip_h = false
 	if not gear_layers.is_empty():
 		_sync_paperdoll()
 

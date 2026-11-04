@@ -63,6 +63,8 @@ func _run() -> void:
 			await bestiary()
 		"partyhud":
 			await party_hud()
+		"facing":
+			await facing()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -496,6 +498,97 @@ func party_hud() -> void:
 		var host_lv := int(Net.i.roster.get(1, {}).get("sheet", {}).get("level", 0))
 		expect(host_lv >= 2, "the host's new level reached my screen (Lv %d)" % host_lv)
 	await wait(2.0)
+
+
+## WASD turns the Kindled: real key presses with the pointer parked to the
+## right, each direction checked on this machine (frames and mirror) and
+## captured; stopping keeps the facing; an attack while walking away faces the
+## aim; a dodge faces its way. In a party (DEVNET) every machine then walks a
+## direction of its own and checks the others are drawn facing theirs - in
+## the sanctuary and below.
+func facing() -> void:
+	# (a party is made by the dev flow's net= switch; Net starts a moment later)
+	var party: bool = Array(Dev.args()).any(func(a): return String(a).begins_with("net="))
+	if party:
+		await until(func() -> bool: return hub() != null and hub().sync != null and hub().sync.others.size() >= (guests if role == "host" else 1), 40.0, "the party gathered")
+		await _skip_intro()
+		_park_pointer(Vector2(1, 0))
+		await _others_face("sanctuary")
+		# the dev host proposes the expedition as soon as everyone is in: below
+		if not await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending, 60.0, "below together"):
+			return
+	else:
+		await until(func() -> bool: return Game.stage != null and Game.stage.player != null, 20.0, "a Kindled")
+		await _skip_intro()
+	await wait(1.0)
+	var st := Game.stage
+	var pl: Player = st.player
+	_park_pointer(Vector2(1, 0))
+	for k in [[Vector2.UP, "up", false, "w"], [Vector2.DOWN, "down", false, "s"], [Vector2.LEFT, "side", true, "a"], [Vector2.RIGHT, "side", false, "d"],
+			[Vector2(-1, -1), "side", true, "wa_after_a"], [Vector2(0, -1), "up", false, "w2"], [Vector2(-1, -1), "up", false, "wa_after_w"]]:
+		steer(k[0])
+		await wait(0.45)
+		expect(pl.sprite.anim == "run_" + String(k[1]) and pl.sprite.flip_h == bool(k[2]),
+			"%s walks %s (%s, mirrored %s)" % [k[3], k[1], pl.sprite.anim, pl.sprite.flip_h])
+		_shot("facing/%s_%s" % [role, k[3]])
+	steer(Vector2.LEFT)
+	await wait(0.4)
+	steer(Vector2.ZERO)
+	await wait(0.6)
+	expect(pl.sprite.anim == "idle_side" and pl.sprite.flip_h, "stopping after A keeps facing left with the pointer on the right (%s, %s)" % [pl.sprite.anim, pl.sprite.flip_h])
+	_shot("facing/%s_stop_left" % role)
+	# fighting faces the aim, even walking away from it
+	steer(Vector2.LEFT)
+	await wait(0.25)
+	tap("attack")
+	await wait(0.12)
+	expect(pl.look.x > 0.5 and not pl.sprite.flip_h, "attacking while walking left faces the pointer on the right (look %s)" % pl.look)
+	_shot("facing/%s_attack_back" % role)
+	await wait(0.6)
+	steer(Vector2.ZERO)
+	await wait(0.3)
+	# a dodge faces where it goes
+	steer(Vector2.LEFT)
+	await wait(0.05)
+	tap("dodge")
+	await wait(0.06)
+	expect(pl.sprite.anim == "dash_side" and pl.sprite.flip_h, "a dodge to the left faces left (%s, %s)" % [pl.sprite.anim, pl.sprite.flip_h])
+	steer(Vector2.ZERO)
+	await wait(0.6)
+	if party:
+		await _others_face("below")
+
+
+## Every machine walks its own way (host left, guests right) for two seconds;
+## half-way, each checks every other Kindled is drawn facing its walk.
+func _others_face(where: String) -> void:
+	var mine := Vector2.LEFT if role == "host" else Vector2.RIGHT
+	steer(mine)
+	await wait(1.4)
+	for o: Player in Game.stage.players if Game.stage is Dungeon else hub().sync.others.values():
+		if not is_instance_valid(o) or o.peer_id == Net.my_id():
+			continue
+		var theirs_left := o.peer_id == 1     # the host walks left, guests right
+		var ok := o.sprite.anim.ends_with("_side") and o.sprite.flip_h == theirs_left
+		expect(ok, "%s: %s is drawn walking %s (%s, mirrored %s)" % [where, Net.name_of(o.peer_id), "left" if theirs_left else "right", o.sprite.anim, o.sprite.flip_h])
+	if role == "host":
+		Net.i.dev_shot("facing/%s_apart" % where)
+	await wait(0.8)
+	steer(Vector2.ZERO)
+	await wait(0.8)
+
+
+## The pointer held still at one side of the screen centre (the camera follows
+## the Kindled, so it stays on that side of it).
+func _park_pointer(side: Vector2) -> void:
+	var vp := get_viewport().get_visible_rect().size
+	Dev.mouse = vp * 0.5 + side * vp.x * 0.3
+
+
+func _shot(name: String) -> void:
+	if Net.active() and Net.i:
+		return     # parties take matched shots with Net.dev_shot
+	Capture.save_now(name)
 
 
 ## Every foe there is, beside the party: the host raises them a few at a

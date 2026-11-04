@@ -258,7 +258,14 @@ func can_charge() -> bool:
 
 ## Angle (screen space) the weapon points at, before swing offsets.
 func base_angle() -> float:
-	return Iso.screen_angle(player.aim if phase == Phase.IDLE or phase == Phase.CHARGE else aim_dir)
+	# carried, the weapon goes where the Kindled faces; drawn back or swung, it
+	# points where the blow goes
+	match phase:
+		Phase.IDLE:
+			return Iso.screen_angle(player.look)
+		Phase.CHARGE:
+			return Iso.screen_angle(player.aim)
+	return Iso.screen_angle(aim_dir)
 
 
 func hit_flash() -> void:
