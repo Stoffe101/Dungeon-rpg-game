@@ -358,7 +358,7 @@ func live_xp(run_id: String, total: int) -> void:
 	if total > had:
 		book[run_id] = total
 		data["coop_xp"] = book
-		add_xp(total - had)
+		add_xp(total - had, "live")
 
 
 ## What the settlement of `run_id` still owes in experience (and forget the run).
@@ -370,7 +370,17 @@ func xp_still_owed(run_id: String, total: int) -> int:
 	return maxi(0, total - had)
 
 
-func add_xp(amount: int) -> int:
+## Everything this Kindled has ever earned in experience (levels and the
+## current bar), for comparing two Kindled's gains (Ledger).
+func total_xp() -> int:
+	var t := int(data.get("xp", 0))
+	for l in range(1, level()):
+		t += Combat.xp_to_next(l)
+	return t + int(data.get("renown_xp", 0))
+
+
+func add_xp(amount: int, source := "") -> int:
+	Ledger.xp(source if source != "" else "other", amount)
 	var gained := 0
 	if level() >= MAX_LEVEL:
 		_add_renown_xp(amount)
@@ -744,6 +754,9 @@ func character_sheet() -> Dictionary:
 		"runes": (runes().get("socketed", {}) as Dictionary).duplicate(true),
 		"weapon": equipped_weapon(),
 		"weapon_level": weapon_level(equipped_weapon()),
+		# a host rolls this Kindled's blueprints against what it knows
+		"known": known_blueprints().duplicate(),
+		"scrolls": scrolls().duplicate(),
 		"slots": slots(),
 		# a co-op host lets this Kindled's own Grudges hunt the party
 		"grudges": active_grudges().map(func(g): return {"id": g.id, "enemy": g.enemy, "name": g.get("name", ""),
@@ -857,6 +870,36 @@ func pay(cost: Dictionary) -> bool:
 			data[k] = currency(k) - int(cost[k])
 	_changed()
 	Events.currency_changed.emit()
+	return true
+
+
+## A find of one's own banked as it is taken below (gear into the bag, a rune
+## among the runes, a blueprint among the scrolls), once per drop id: a find
+## delivered twice (a lost acknowledgement, a rejoin) is banked once. Returns
+## whether it was banked now.
+func bank_find(kind: String, what: Variant, drop: String) -> bool:
+	if drop != "":
+		var book: Dictionary = data.get("delivered", {})
+		var run := drop.get_slice("/", 0)
+		var got: Array = book.get(run, [])
+		if got.has(drop):
+			return false
+		got.append(drop)
+		book[run] = got
+		while book.size() > 12:
+			book.erase(book.keys()[0])
+		data["delivered"] = book
+	match kind:
+		"gear":
+			add_item(what as Dictionary)
+		"rune":
+			add_rune(String(what))
+		"blueprint":
+			var b := String(what)
+			if not scrolls().has(b) and not known_blueprints().has(b):
+				scrolls().append(b)
+	_changed()
+	save_profile()
 	return true
 
 

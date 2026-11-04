@@ -45,6 +45,59 @@ static func wave_share(own: float, all: float, n: int) -> float:
 	return clampf(own * (1.0 + BONUS_PER_EXTRA * (n - 1)) / all, 0.1, 1.0)
 
 
+## Shared income. Every Kindled of the party is credited the same amount from
+## every shared source (foes' memories and Embers, a room won, a boss, a
+## spring of memories), whoever felled the foe or walked over the find, and
+## whether they stand, lie downed or wait to be rekindled. Gain bonuses (the
+## Four-Leaf Ring, the Lantern of Avarice, an affix, a relic, a resident's
+## gift) are the party's: the best among the party lifts everyone's share. So
+## two Kindled who start an expedition equal finish it equal (the second
+## playtest ended Lv 12 against Lv 10: the room-clear experience went to the
+## host alone, and each Kindled's own bonus scaled shared orbs).
+static func gain(st: Stage, stat: String) -> float:
+	var best := 0.0
+	for p in st.players:
+		if is_instance_valid(p) and p.stats:
+			best = maxf(best, p.stats.v(stat))
+	return best if best > 0.0 else 1.0
+
+
+## Experience for the whole party (see `gain`); returns what each got.
+static func award_xp(st: Stage, base: int, source: String) -> int:
+	var mult := gain(st, "xp_gain")
+	var n := int(round(base * mult))
+	if n <= 0:
+		return 0
+	var to: Array = []
+	for p in st.players:
+		if not is_instance_valid(p) or p.run == null:
+			continue
+		p.run.xp_gained += n
+		to.append(p.peer_id)
+		if p.controller == Player.Ctrl.LOCAL:
+			Profile.add_xp(n, source)
+	Ledger.award("xp", source, base, mult, n, to)
+	return n
+
+
+## Embers for the whole party (see `gain`); returns what each got.
+static func award_embers(st: Stage, base: int, source: String) -> int:
+	var mult := gain(st, "ember_gain")
+	var n := int(round(base * mult))
+	if n <= 0:
+		return 0
+	var to: Array = []
+	for p in st.players:
+		if not is_instance_valid(p) or p.run == null:
+			continue
+		p.run.embers += n
+		to.append(p.peer_id)
+	if st.players.size() > 1:
+		Ledger.award("embers", source, base, mult, n, to)
+	Events.currency_changed.emit()
+	return n
+
+
 ## A big party's extra closing wave (Dungeon._start_encounter) is there for the
 ## fight, not the spoils: no Embers or experience, and a twentieth of the
 ## materials (src/dev/economy_audit.gd measured the floor without it).

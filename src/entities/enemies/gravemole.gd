@@ -26,7 +26,7 @@ func behave(dt: float) -> void:
 				stage.fx.burst(pos, 0.1, Color(0.45, 0.38, 0.32), 2, 2.0, 0.35, 6.0, Vector2.ZERO, PI, 2.0)
 			if dist_to_player() < 1.3 or state_t > 3.2:
 				vel = Vector2.ZERO
-				pos = stage.random_floor_near(t.pos, 0.2)
+				pos = stage.foe_spot(t.pos, 0.2)
 				erupt_at = pos
 				set_state("rising")
 				telegraph(Fx.Shape.DISC, erupt_at, Vector2.RIGHT, Vector2(ERUPT_R * 2.0, ERUPT_R * 2.0), 0.75 / attack_rate)

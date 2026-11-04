@@ -31,6 +31,7 @@ const DEFAULTS := {
 	"world_names": "all",        # names over things and finds: all nearby | nearest | off (the prompt below instead)
 	"show_fps": false,
 	"aim_assist": 0.5,
+	"steer": "on",               # pointer steering: off | on (W follows a moved mouse) | always
 	"rumble": 1.0,
 	"net_overlay": false,        # co-op: the network overlay (F3 toggles it too)
 }

@@ -211,7 +211,7 @@ func _brood() -> void:
 	if n >= 5:
 		return
 	for i in 3:
-		var p := stage.random_floor_near(pos + Vector2.from_angle(randf() * PI) * 4.0 + Vector2(0, 3), 2.0)
+		var p := stage.foe_spot(pos + Vector2.from_angle(randf() * PI) * 4.0 + Vector2(0, 3), 2.0)
 		var s := preload("res://src/entities/enemies/sporeling.gd").new()
 		s.configure("sporeling")
 		s.xp = 1

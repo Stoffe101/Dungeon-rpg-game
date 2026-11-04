@@ -593,26 +593,41 @@ func _input(event: InputEvent) -> void:
 
 # --- actions ---------------------------------------------------------------------
 
+## Below as at home, what is found can be worn: armour at once, and a weapon
+## - another variant or another kind - taken up on the spot (its form, its
+## moves; the host swings it for a guest from the new sheet). Only while a room
+## is sealed around you does the Satchel hold your gear as it is.
 func _equip(uid: int) -> void:
 	_focus_uid = uid
-	# below, the weapon in hand is the expedition's: another variant of it can
-	# be taken up, another kind of weapon waits for the Hearth
-	var arch := ItemDB.arch_of(Profile.find_item(uid))
 	var st := Game.stage
-	if arch != "" and st is Dungeon and st.player and st.player.weapon and st.player.weapon.id != arch:
+	if st is Dungeon and (st as Dungeon).fight_on():
 		Audio.ui("deny")
-		Game.ui.toast("A different kind of weapon is taken up at the Hearth, not below.", UIKit.C_DIM)
+		Game.ui.toast("Not mid-fight: change gear once the seals fall.", UIKit.C_DIM)
 		return
+	var arch := ItemDB.arch_of(Profile.find_item(uid))
 	if Profile.equip(uid):
 		Audio.play("clank", -4.0, 1.1)
-		if arch != "" and st and st.player and st.player.weapon and st.player.weapon.id == arch:
-			st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
+		if st and st.player and is_instance_valid(st.player):
+			st.player.rebuild_stats()
+			if arch != "" and not (st is Hub):
+				st.player.take_up_weapon()
+			elif arch != "" and st.player.weapon and st.player.weapon.id == arch:
+				st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
 
 
 func _unequip(slot: String, uid: int) -> void:
 	_focus_uid = uid
+	var st := Game.stage
+	if st is Dungeon and (st as Dungeon).fight_on():
+		Audio.ui("deny")
+		Game.ui.toast("Not mid-fight: change gear once the seals fall.", UIKit.C_DIM)
+		return
 	if Profile.unequip(slot):
 		Audio.play("clank", -6.0, 0.9)
+		if st and st.player and is_instance_valid(st.player):
+			st.player.rebuild_stats()
+			if slot == "weapon" and not (st is Hub):
+				st.player.take_up_weapon()
 
 
 func _salvage(uid: int) -> void:

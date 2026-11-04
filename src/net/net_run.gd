@@ -24,6 +24,9 @@ var stage: Dungeon
 var host := false
 var floor_id := 0             # the depth: every message names the floor it belongs to
 var events: Array = []
+## Host: finds delivered to a guest and not yet acknowledged, by peer:
+## {drop: [kind, what, grade]} - sent again after a rejoin and before the end.
+var gifts := {}
 var _waiting := false         # host: holding the floor until every guest has built it
 var _prop_made: Array = []    # host: props made since the floor was built (for a returning guest)
 var _wait_t := 0.0
@@ -180,10 +183,24 @@ func _process(delta: float) -> void:
 		if not events.is_empty():
 			var evs := events
 			events = []
+			var shared: Array = []
+			var own := {}      # one guest's alone (their own finds): sent to them only
 			for ev in evs:
 				if String(ev[0]) == "prop+":
 					_prop_made.append(ev)     # a returning guest gets these again
-			Net.i.rpc("_events", floor_id, evs)
+				if String(ev[0]) == "own":
+					var who := int(ev[1])
+					if who != Net.my_id():
+						if not own.has(who):
+							own[who] = []
+						(own[who] as Array).append(ev)
+					continue
+				shared.append(ev)
+			if not shared.is_empty():
+				Net.i.rpc("_events", floor_id, shared)
+			for who in own:
+				if Net.i.present().has(who):
+					Net.i.rpc_id(int(who), "_events", floor_id, own[who])
 		_snap_t += delta
 		if _snap_t >= 1.0 / SNAP_HZ:
 			_snap_t = 0.0
@@ -382,6 +399,9 @@ func on_ask(peer: int, kind: String, args: Array) -> void:
 				Party.draw_well(stage, pl, p0)
 		"vote":
 			cast_vote(peer, int(args[0]), bool(args[1]))
+		"gift_ok":
+			if gifts.has(peer):
+				(gifts[peer] as Dictionary).erase(String(args[0]))
 		"interact":
 			var p := _prop(int(args[0]))
 			if p == null or not p.interactable() or pl.downed or not pl.alive:
@@ -433,6 +453,10 @@ func on_rejoin(old: int, new: int) -> void:
 	if Game.coop_runs.has(old):
 		Game.coop_runs[new] = Game.coop_runs[old]
 		Game.coop_runs.erase(old)
+	if gifts.has(old):
+		gifts[new] = gifts[old]
+		gifts.erase(old)
+		resend_gifts.call_deferred(new)
 	for pk in stage.pickups:
 		if is_instance_valid(pk) and pk.owner_peer == old:
 			pk.owner_peer = new
@@ -453,7 +477,7 @@ func on_rejoin(old: int, new: int) -> void:
 
 ## Everything a client needs to draw this floor as it is now (a guest who
 ## rebuilt it after losing the link): what was made, what changed, who is here.
-func world_dump() -> Array:
+func world_dump(for_peer := 0) -> Array:
 	var out: Array = []
 	out.append_array(_prop_made)
 	for idx in _prop_state:
@@ -473,7 +497,7 @@ func world_dump() -> Array:
 	if stage.boss and is_instance_valid(stage.boss) and stage.boss.alive:
 		out.append(["boss", stage.boss.net_id])
 	for pk in stage.pickups:
-		if is_instance_valid(pk) and pk.net_id != 0:
+		if is_instance_valid(pk) and pk.net_id != 0 and (pk.owner_peer == 0 or pk.owner_peer == for_peer):
 			out.append(["pick+", [pk.net_id, pk.kind, pk.pos, pk.height, Vector2.ZERO, pk.amount, pk.data, pk.owner_peer]])
 	return out
 
@@ -566,6 +590,24 @@ func _prop(idx: int) -> Prop:
 
 
 ## A line for one player only: on this machine, or sent to theirs.
+## Host: a guest took a find of their own - it goes to their machine, which
+## banks it in their Satchel (once per drop id) and answers "gift_ok".
+func give(pl: Player, kind: String, what: Variant, drop: String, grade: int) -> void:
+	var peer := pl.peer_id
+	if not gifts.has(peer):
+		gifts[peer] = {}
+	gifts[peer][drop] = [kind, what, grade]
+	if Net.i.present().has(peer):
+		Net.i.rpc_id(peer, "_gift", floor_id, drop, kind, what, grade)
+
+
+## Host: every find a guest has not yet acknowledged, again (a rejoin, the end).
+func resend_gifts(peer: int) -> void:
+	for drop in gifts.get(peer, {}):
+		var g: Array = gifts[peer][drop]
+		Net.i.rpc_id(peer, "_gift", floor_id, drop, g[0], g[1], g[2])
+
+
 func tell(pl: Player, text: String, col: Color) -> void:
 	if pl.peer_id == Net.my_id():
 		# straight to this screen (Events.toast would be recorded for everyone)
@@ -854,12 +896,11 @@ func _spawn_pick(d: Array) -> void:
 	var owner := int(d[7])
 	if owner != 0 and owner != Net.my_id():
 		return    # someone else's find: not on this machine's floor
-	var pk := Pickup.spawn(stage, String(d[1]), d[2], int(d[5]), d[6])
+	var pk := Pickup.spawn(stage, String(d[1]), d[2], int(d[5]), d[6], owner)
 	pk.net_id = int(d[0])
 	pk.vel = Vector2.ZERO
 	pk.vz = 0.0
 	pk.height = float(d[3])
-	pk.owner_peer = owner
 	pk.replica = true
 	picks[pk.net_id] = pk
 

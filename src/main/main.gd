@@ -172,6 +172,19 @@ func _open_dev_screen(what: String) -> void:
 			ui.open(Screens.feats(ui))
 		"bestiary":
 			ui.open(Screens.bestiary(ui))
+		"map":
+			# the full map (with `explored`: every room walked, to see a whole floor)
+			await get_tree().create_timer(1.2).timeout
+			if Game.stage is Dungeon:
+				if Dev.args().has("explored"):
+					for r in (Game.stage as Dungeon).layout.rooms:
+						r.visited = true
+				ui.hud.toggle_big_map()
+		"minimap":
+			await get_tree().create_timer(1.2).timeout
+			if Game.stage is Dungeon and Dev.args().has("explored"):
+				for r in (Game.stage as Dungeon).layout.rooms:
+					r.visited = true
 		"inventory":
 			ui.inventory()
 		"wardrobe":

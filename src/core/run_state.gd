@@ -33,8 +33,13 @@ var result := ""            # "", "extracted", "died", "victory"
 var killer_id := ""
 var rng := RandomNumberGenerator.new()
 var seen_rooms := 0
-## Materials and gear picked up this expedition, banked at the end.
+## Materials picked up this expedition, banked at the end (half on a death).
+## (Gear, runes and blueprints go into the Satchel when found - see `found` -
+## and only a run saved before that change still carries them here.)
 var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
+## Everything of one's own found this expedition: [{kind, what, drop}] (the
+## summary's list; each was banked the moment it was taken).
+var found: Array = []
 ## Omens read at the Descent (see Omens).
 var omens: Array = []
 ## The Hollow Below (see Delve): the region changes as the party goes deeper.
@@ -68,7 +73,7 @@ func to_dict() -> Dictionary:
 		"embers": embers, "sunshards": sunshards, "xp_gained": xp_gained, "kills": kills,
 		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
-		"loot": loot.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
+		"loot": loot.duplicate(true), "found": found.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
 		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate()}
 
 
@@ -86,6 +91,7 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.grudges_settled = (d.get("grudges_settled", []) as Array).duplicate()
 	r.elapsed = float(d.get("elapsed", 0.0))
 	r.loot = (d.get("loot", r.loot) as Dictionary).duplicate(true)
+	r.found = (d.get("found", []) as Array).duplicate(true)
 	r.omens = (d.get("omens", []) as Array).duplicate()
 	r.delve = bool(d.get("delve", false))
 	r.run_id = String(d.get("run_id", ""))
@@ -106,6 +112,22 @@ func has_relic(id: String) -> bool:
 
 func has_omen(id: String) -> bool:
 	return omens.has(id)
+
+
+## What was found, in the summary's shape: {gear, runes, blueprints, materials}.
+func found_summary() -> Dictionary:
+	var out := {"materials": (loot.materials as Dictionary).duplicate(), "gear": [], "runes": [], "blueprints": []}
+	for f in found:
+		match String(f.get("kind", "")):
+			"gear":
+				(out.gear as Array).append(f.what)
+			"rune":
+				(out.runes as Array).append(f.what)
+			"blueprint":
+				(out.blueprints as Array).append(f.what)
+	for k in ["gear", "runes", "blueprints"]:
+		(out[k] as Array).append_array(loot.get(k, []))
+	return out
 
 
 func add_material(id: String, n: int) -> void:

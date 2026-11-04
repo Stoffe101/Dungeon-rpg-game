@@ -373,7 +373,7 @@ func _call_hounds() -> void:
 	if alive_n >= 4:
 		return
 	for i in 2:
-		var p := stage.random_floor_near(arena_center + Vector2.from_angle(randf() * TAU) * 6.0, 2.0)
+		var p := stage.foe_spot(arena_center + Vector2.from_angle(randf() * TAU) * 6.0, 2.0)
 		var h := preload("res://src/entities/enemies/skitter.gd").new()
 		h.configure("hound")
 		h.xp = 1

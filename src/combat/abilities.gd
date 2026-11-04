@@ -803,10 +803,15 @@ static func _rimewall(pl: Player, power: float) -> bool:
 		var t := Vector2i(floori(c.x + across.x * (k - (n - 1) * 0.5)), floori(c.y + across.y * (k - (n - 1) * 0.5)))
 		if taken.has(t) or st.grid.at(t.x, t.y) != TileGrid.FLOOR:
 			continue
+		# never in a doorway: a seal closing over the ice (or the ice melting
+		# under a closed seal) used to leave a hole in the room's gates
+		if st.has_method("is_door_tile") and st.is_door_tile(t):
+			continue
 		var blocked := false
+		var cell := Rect2(Vector2(t), Vector2.ONE)
 		for a in st.actors:
-			if a.alive and Vector2i(floori(a.pos.x), floori(a.pos.y)) == t:
-				blocked = true     # never wall anyone in
+			if a.alive and cell.grow(a.box() * 0.9).has_point(a.pos):
+				blocked = true     # never wall anyone in, nor half into ice
 				break
 		if blocked:
 			continue

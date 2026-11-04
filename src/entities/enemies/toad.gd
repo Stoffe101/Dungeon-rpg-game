@@ -28,7 +28,7 @@ func behave(dt: float) -> void:
 				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(TONGUE, 0.7), 0.6 / attack_rate)
 				Audio.play("chant", -10.0, 1.8)
 			else:
-				hop_to = stage.random_floor_near(pos + aim_dir * minf(d, 4.0), 0.4)
+				hop_to = stage.foe_spot(pos + aim_dir * minf(d, 4.0), 0.4)
 				set_state("hop_windup")
 				sprite.play("crouch")
 				telegraph(Fx.Shape.DISC, hop_to, Vector2.RIGHT, Vector2(3.2, 3.2), (0.35 + 0.55) / attack_rate)

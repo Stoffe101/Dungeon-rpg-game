@@ -595,6 +595,7 @@ func test_coop_shared_pickups() -> void:
 	var pk := Pickup.spawn(d, "ember", p1.pos, 10)
 	pk._collect(p1)
 	check(p1.run.embers > e1 and p2.run.embers > e2, "Embers picked up by one Kindled are credited to both")
+	eq(p1.run.embers - e1, p2.run.embers - e2, "the same amount to each")
 	var g := Pickup.spawn(d, "gear", p1.pos, 1, {"item": ItemDB.make_item("grave_iron_helm", "rare", 1, RandomNumberGenerator.new(), 1)})
 	g.owner_peer = 2
 	check(g._owner() == p2, "an instanced find knows its owner")

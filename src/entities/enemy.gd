@@ -725,6 +725,8 @@ func _split() -> void:
 	var side := last_hit_from.orthogonal() if last_hit_from != Vector2.ZERO else Vector2.UP
 	st.fx.burst(at, 0.6, Color(0.6, 0.95, 0.5), 16, 4.0, 0.5, 6.0)
 	st.fx.number(at, 2.4, "SPLIT", Color(0.6, 0.95, 0.5))
+	if st.has_method("hold_clear"):
+		st.hold_clear(0.4)
 	st.after(0.15, func() -> void:
 		for k in 2:
 			var e: Enemy = load(EnemyDB.get_def(kind).script).new()
@@ -736,7 +738,7 @@ func _split() -> void:
 			e.xp = 2
 			e.embers = 1
 			e.spawn_t = 0.3
-			e.pos = st.random_floor_near(at + side * (0.7 if k == 0 else -0.7), 0.4)
+			e.pos = st.foe_spot(at + side * (0.7 if k == 0 else -0.7), 0.4)
 			e.room_id = room
 			st.add_actor(e)
 			if e.visual:

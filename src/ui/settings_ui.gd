@@ -142,6 +142,8 @@ func _open_page(id: String) -> void:
 			_switch("V-Sync", "vsync", "Waits for the monitor: no tearing, a little more input delay.")
 			_switch("Show frame rate", "show_fps", "A frame counter in the corner.")
 		"gameplay":
+			_stepper("Pointer steering", "steer", ["on", "always", "off"], ["W follows the mouse", "Always", "Off"],
+				"On: hold W and move the mouse, and you walk toward the pointer until you let go of W. Always: every key walks relative to the pointer. Off: keys walk the screen's way.")
 			_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05, "With a pad, aim bends toward the foe nearest your stick.")
 			_slider("Rumble (pad)", "rumble", 0.0, 1.0, 0.05, "Pad vibration on hits, dodges and heartbeats.")
 			_switch("Hit-stop", "hitstop", "The world holds for a breath when a heavy blow lands (never in co-op).")

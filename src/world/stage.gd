@@ -470,6 +470,12 @@ func request(_what: String, _prop: Prop) -> void:
 	pass
 
 
+## Where a foe may appear near `p` (summons, splits, adds, hops): open floor
+## near it. A Dungeon in a sealed fight keeps it inside the room (Dungeon.foe_spot).
+func foe_spot(p: Vector2, r: float, _room_id := -1) -> Vector2:
+	return random_floor_near(p, r)
+
+
 func random_floor_near(p: Vector2, r: float, tries := 20) -> Vector2:
 	for i in tries:
 		var q := p + Vector2(randf_range(-r, r), randf_range(-r, r))
