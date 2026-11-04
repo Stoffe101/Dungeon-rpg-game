@@ -436,7 +436,7 @@ func _spawn_party(start: Room) -> void:
 		add_actor(pl)
 		pl.setup_from(Game.run_of(int(pid)))
 		var col := Net.color_of(int(pid))
-		pl.set_seat(col)
+		pl.set_seat(col, mine)
 		if mine:
 			player = pl
 		else:
@@ -593,6 +593,11 @@ func _coop_scale(e: Enemy) -> void:
 		return
 	e.max_hp *= 1.0 + (0.5 if e.def.get("boss", false) else 0.35) * extra
 	e.hp = e.max_hp
+	# a party splits the blows and raises its fallen: each foe hits a little
+	# harder so each Kindled is pressed about as hard as alone (measured with
+	# src/dev/scaling_eval.gd: without this a party member took about half
+	# the damage per room a solo Kindled did)
+	e.damage *= 1.0 + 0.1 * extra
 
 
 func _scale(e: Enemy, depth: int, memory: int) -> void:

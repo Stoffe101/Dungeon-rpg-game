@@ -151,6 +151,9 @@ func _on_roster() -> void:
 	for pid in others.keys():
 		if not Net.active() or not Net.i.roster.has(pid):
 			_leave(int(pid))
+	# once there is a party, this machine's Kindled wears its own seat's ring
+	if Net.active() and Net.party_size() > 1 and hub.player and is_instance_valid(hub.player):
+		hub.player.set_seat(Net.color_of(Net.my_id()), true)
 	for pid in _latest.keys():
 		if not Net.i.roster.has(pid):
 			_latest.erase(pid)

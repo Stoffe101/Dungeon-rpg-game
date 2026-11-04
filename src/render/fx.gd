@@ -460,6 +460,32 @@ func _update_marks() -> void:
 				var d: float = (st.player.pos as Vector2).distance_to(who.get("pos"))
 				l.modulate.a = clampf((8.0 - d) / 2.5, 0.0, 1.0)
 		l.visible = not _speaking(who)
+	_unstack_names()
+
+
+## In a crowd, names never sit on top of each other: the one nearest the
+## camera keeps its place and the others step up above it.
+func _unstack_names() -> void:
+	var names: Array = []
+	for m in _marks.values():
+		if not m.get("still", false) and is_instance_valid(m.label) and (m.label as Control).visible:
+			names.append(m.label)
+	if names.size() < 2:
+		return
+	names.sort_custom(func(a, b): return (a as Control).position.y > (b as Control).position.y)
+	var placed: Array = []
+	for l: Control in names:
+		var r := Rect2(l.position, l.get_minimum_size())
+		for guard in 6:
+			var hit := false
+			for o: Rect2 in placed:
+				if r.grow(1.0).intersects(o):
+					r.position.y = o.position.y - r.size.y - 1.0
+					hit = true
+			if not hit:
+				break
+		l.position = r.position
+		placed.append(r)
 
 
 func _speaking(who: Node) -> bool:

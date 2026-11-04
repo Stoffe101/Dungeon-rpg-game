@@ -130,6 +130,8 @@ func build(v: PixelView, at := Vector2(-1, -1)) -> void:
 		var r := RunState.create(0, "ossuary", Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 		player.setup_from(r)
 		player.kindle = player.kindle_max()
+		if Net.active() and Net.party_size() > 1:
+			player.set_seat(Net.color_of(Net.my_id()), true)     # find yourself among the party
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
 		_spawn_residents()

@@ -1714,7 +1714,11 @@ static var _ring_tex: ImageTexture
 
 ## Co-op: a ring of the seat's colour on the floor under this Kindled, so four
 ## of them in one fight can always be told apart (and each finds their own).
-func set_seat(col: Color) -> void:
+## Co-op: a ring in the seat's colour under this Kindled. Your own is
+## brighter, doubled and breathing, so you can find yourself in a crowd.
+func set_seat(col: Color, mine := false) -> void:
+	if has_node("SeatRing"):
+		return     # a seat is worn once
 	if _ring_tex == null:
 		var img := Image.create(24, 24, false, Image.FORMAT_RGBA8)
 		for y in 24:
@@ -1733,11 +1737,29 @@ func set_seat(col: Color) -> void:
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	mat.albedo_texture = _ring_tex
-	mat.albedo_color = Color(col.r, col.g, col.b, 0.75)
+	mat.albedo_color = Color(col.r, col.g, col.b, 0.75 if not mine else 1.0)
+	mi.name = "SeatRing"
 	mi.material_override = mat
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = Vector3(0, 0.02, 0)
 	add_child(mi)
+	if mine:
+		q.size *= 1.15
+		# a second, inner ring of warm light that breathes
+		var inner := MeshInstance3D.new()
+		var q2 := QuadMesh.new()
+		q2.size = q.size * 0.72
+		q2.orientation = PlaneMesh.FACE_Y
+		inner.mesh = q2
+		var m2 := mat.duplicate() as StandardMaterial3D
+		m2.albedo_color = Color(1.0, 0.85, 0.55, 0.8)
+		inner.material_override = m2
+		inner.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		inner.position = Vector3(0, 0.025, 0)
+		add_child(inner)
+		var tw := inner.create_tween().set_loops()
+		tw.tween_property(m2, "albedo_color:a", 0.25, 0.9).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(m2, "albedo_color:a", 0.8, 0.9).set_trans(Tween.TRANS_SINE)
 
 
 ## Co-op client: the picture of a Kindled the host simulates.
