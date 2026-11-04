@@ -206,7 +206,7 @@ func _line_jab() -> void:
 
 ## The lunge is movement: a predicting client makes it too (the host strikes).
 func predict_charge() -> void:
-	if form != "":
+	if form in ["root", "partisan"]:
 		charged = false
 		aim_dir = player.aim
 		strike = {"windup": 0.0, "active": 0.14, "recover": 0.32}
@@ -270,5 +270,33 @@ func release_charge() -> void:
 	if hits > 0:
 		player.stage.hitstop(0.08)
 		player.stage.fx.shake(0.35)
+	if form == "sunfall":
+		_sunfall(to)
 	player.on_weapon_strike(hits, true)
 	combo = 0
+
+
+## Sunfall Glaive: where the Comet Lunge lands, a falling sun follows it down.
+func _sunfall(at: Vector2) -> void:
+	var st := player.stage
+	var col := Color(1.0, 0.8, 0.4)
+	var r := 3.2 * player.stats.v("area")
+	st.fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), Color(1.0, 0.7, 0.3, 0.25), Color(1.0, 0.9, 0.55, 1.0), 0.45, {"glow": 1.8})
+	var pl := player
+	var dmg: float = def.charged * 0.9 * damage_scale()
+	st.after(0.4, func() -> void:
+		if not is_instance_valid(pl):
+			return
+		st.fx.ring(at, r, col, 0.4, 0.45)
+		st.fx.ring(at, r * 0.5, Color(1.0, 0.95, 0.75), 0.25, 0.3)
+		st.fx.burst(at, 0.3, col, 46, 9.0, 0.6, 3.0)
+		st.fx.flash_light(at, 1.2, col, 6.0, 10.0, 0.6)
+		st.fx.shake(0.5)
+		Audio.play("boss_arrive", -4.0, 1.4)
+		st.strike_props_circle(at, r, pl, true)
+		for a in st.in_circle(pl.team, at, r):
+			var h := Combat.player_hit(pl, pl.stats, dmg, ["melee", "fire"])
+			h.burn = 2
+			h.knockback = (a.pos - at).normalized() * 10.0
+			h.poise = 50.0
+			pl.deal_hit(a, h, true))

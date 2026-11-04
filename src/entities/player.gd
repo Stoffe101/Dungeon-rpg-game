@@ -1173,9 +1173,40 @@ func _flow(t: Actor, finisher: bool) -> void:
 	cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
 		spectral_knife(t)
+	if weapon and weapon.form == "thousandth":
+		form_meter = float(cuts % THOUSANDTH) / THOUSANDTH
+		if cuts % THOUSANDTH == 0:
+			_thousandth_cut()
 	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
 		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
 		_combo_wave_at(aim)
+
+
+const THOUSANDTH := 30
+
+
+## The Thousandth Cut (the unique blade): the thirtieth blow in a row is eight
+## phantom cuts, one after another, through everything around the Kindled.
+func _thousandth_cut() -> void:
+	var col := Color(0.85, 0.65, 1.0)
+	stage.fx.number(pos, 2.8, "THE THOUSANDTH CUT", col, true)
+	stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.4)
+	Audio.play("riposte", 0.0, 0.8)
+	for k in 8:
+		var a := k * TAU / 8.0 + randf() * 0.3
+		stage.after(0.05 * k, func() -> void:
+			if not alive:
+				return
+			var d := Vector2.from_angle(a)
+			stage.fx.swipe(pos, d, 3.0, deg_to_rad(50.0), Color(col.r, col.g, col.b, 0.9), 0.08, 0.45, k % 2 == 0)
+			Audio.play("swing", -6.0, 1.3 + 0.03 * k)
+			for f in stage.in_arc(team, pos, d, 3.0, deg_to_rad(28.0)):
+				var h := Combat.player_hit(self, stats, 14.0, ["melee", "shadow"])
+				h.proc = false
+				h.from_dir = d
+				h.knockback = d * 3.0
+				h.poise = 10.0
+				deal_hit(f, h))
 
 
 ## A spectral knife at another foe near `t` (or `t` itself): Thousand Cuts,

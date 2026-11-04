@@ -450,6 +450,8 @@ const FORM_GAUGES := {
 	"echo": ["GLYPHS", Color(0.6, 1.0, 0.92)],
 	"kris": ["MARKS", Color(0.75, 0.5, 1.0)],
 	"duelist": ["RIPOSTE", Color(1.0, 0.95, 0.7)],
+	"thousandth": ["CUTS", Color(0.85, 0.65, 1.0)],
+	"hundred": ["EMBERS", Color(1.0, 0.6, 0.25)],
 }
 
 

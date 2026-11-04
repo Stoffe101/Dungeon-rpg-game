@@ -9,6 +9,7 @@
 extends Weapon
 
 var _cool := 0.0
+var _embers := 0              # the Wand of a Hundred Embers counts every one
 
 
 func _init() -> void:
@@ -61,8 +62,40 @@ func on_active() -> void:
 	player.on_weapon_strike(0, false)
 
 
+## The Hundredth Ember: a great one falls at the cursor and bursts.
+func _hundredth() -> void:
+	var st := player.stage
+	var at := player.pos + (player.aim_point - player.pos).limit_length(8.0)
+	var col := Color(1.0, 0.6, 0.22)
+	st.fx.number(at, 2.8, "THE HUNDREDTH EMBER", Color(1.0, 0.85, 0.5), true)
+	st.fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(5.6, 5.6), Color(1.0, 0.5, 0.2, 0.25), Color(1.0, 0.75, 0.4, 1.0), 0.6, {"glow": 1.6})
+	var pr := shoot("proj_fireball", at + Vector2(0, -0.1), Vector2.ZERO, 0.0, def.charged * 1.4, ["ranged", "fire"], 0.55)
+	pr.height = 6.0
+	pr.lob(0.55, 0.0)
+	pr.with_light(col, 2.0, 5.0)
+	pr.on_end_fn = func(proj: Projectile, p: Vector2) -> void:
+		var r := 2.8 * player.stats.v("area")
+		st.fx.ring(p, r, col, 0.35, 0.45)
+		st.fx.burst(p, 0.4, col, 40, 8.0, 0.55, 3.0)
+		st.fx.flash_light(p, 0.8, col, 5.0, 9.0, 0.5)
+		st.fx.shake(0.45)
+		Audio.play("explode", 2.0, 0.75)
+		st.strike_props_circle(p, r, player, true)
+		for a in st.in_circle(player.team, p, r):
+			var h := Combat.player_hit(player, player.stats, proj.damage, ["ranged", "fire"])
+			h.burn = 3
+			h.knockback = (a.pos - p).normalized() * 9.0
+			h.poise = 45.0
+			player.deal_hit(a, h, true)
+
+
 ## One ember bolt of a volley.
 func _bolt(d: Vector2, group: Dictionary) -> void:
+	if form == "hundred":
+		_embers += 1
+		player.form_meter = float(_embers % 100) / 100.0
+		if _embers % 100 == 0:
+			_hundredth()
 	if form == "rime":
 		_shard(d, group)
 		return

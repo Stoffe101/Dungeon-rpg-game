@@ -298,3 +298,42 @@ func test_tome_forms() -> void:
 	check(e.hp < hp, "reading breathes fire on what stands before it")
 	check(e.status.burning(), "and it burns")
 	st2.queue_free()
+
+
+func test_uniques_are_themselves() -> void:
+	# each unique and legendary weapon is drawn as itself
+	for id in ["thousandth_cut", "quakeheart", "hundred_embers", "gloamfang", "searing_pike", "windreturn", "hollow_index", "wardenfang", "bloomstring", "sunfall_glaive"]:
+		var spr := String(ItemDB.base(id).get("sprite", ""))
+		check(spr != "" and ResourceLoader.exists("res://assets/sprites/%s.png" % spr), "%s has its own sprite (%s)" % [id, spr])
+	# the Thousandth Cut: the thirtieth blow in a row is a flurry all around
+	var st := _stage()
+	var pl := _player(st, "thousandth_cut")
+	eq(pl.weapon.form, "thousandth", "the Thousandth Cut counts its blows")
+	var e := _foe(st, Vector2(7.5, 7))
+	_run(st, 0.5)
+	pl.cuts = 29
+	var hp := e.hp
+	pl._flow(e, false)
+	_run(st, 0.6)
+	check(e.hp < hp, "the thirtieth cut is a flurry that reaches it (%.0f -> %.0f)" % [hp, e.hp])
+	st.queue_free()
+	# the Wand of a Hundred Embers: the hundredth calls down a great one
+	var st2 := _stage()
+	var pw := _player(st2, "hundred_embers")
+	_run(st2, 0.5)
+	pw.weapon._embers = 99
+	pw.aim_point = pw.pos + Vector2(4, 0)
+	_tap(st2, pw, 1, 0.05)
+	eq(_shots(st2, "proj_fireball"), 1, "the hundredth ember is a great one")
+	st2.queue_free()
+	# the Sunfall Glaive: a falling sun where the Comet Lunge lands
+	var st3 := _stage()
+	var pg := _player(st3, "sunfall_glaive")
+	var f := _foe(st3, Vector2(11.5, 7), 2000.0)
+	_run(st3, 0.5)
+	pg.aim_point = Vector2(15, 7)
+	_hold(st3, pg, 1.2)
+	var after_lunge := f.hp
+	_run(st3, 0.6)
+	check(f.hp < after_lunge, "and the sun falls after it (%.0f -> %.0f)" % [after_lunge, f.hp])
+	st3.queue_free()

@@ -43,7 +43,12 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	id = weapon_id
 	def = GearDB.weapon(weapon_id)
 	level = lvl
-	var sheet := SpriteLib.get_sheet(def.sprite)
+	# a unique or legendary weapon item is drawn as itself
+	var held := String(def.sprite)
+	var it0 := p.weapon_item()
+	if ItemDB.arch_of(it0) == weapon_id and ItemDB.base(String(it0.base)).has("sprite"):
+		held = String(ItemDB.base(String(it0.base)).sprite)
+	var sheet := SpriteLib.get_sheet(held)
 	visual = MeshInstance3D.new()
 	visual.mesh = sheet.mesh
 	visual.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -55,7 +60,7 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	var it := p.weapon_item()
 	if ItemDB.arch_of(it) == weapon_id:
 		var b := ItemDB.base(String(it.base))
-		if b.has("tint"):
+		if b.has("tint") and not b.has("sprite"):
 			visual.set_instance_shader_parameter("tint", b.tint)
 		glow = maxf(glow, float(b.get("glow", 1.0)))
 		form = String(b.get("form", ""))
