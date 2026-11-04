@@ -123,6 +123,8 @@ func _ready() -> void:
 			add_child(preload("res://src/dev/ui_smoke.gd").new())
 		elif a == "scaling":
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
+		elif a == "economy":
+			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 

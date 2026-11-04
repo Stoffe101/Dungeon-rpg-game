@@ -45,9 +45,10 @@ static func wave_share(own: float, all: float, n: int) -> float:
 	return clampf(own * (1.0 + BONUS_PER_EXTRA * (n - 1)) / all, 0.1, 1.0)
 
 
-## A big party's extra closing wave (Dungeon._start_encounter) pays little:
-## it is there for the fight, not the spoils.
-const PARTY_WAVE_SHARE := 0.25
+## A big party's extra closing wave (Dungeon._start_encounter) is there for the
+## fight, not the spoils: no Embers or experience, and a twentieth of the
+## materials (src/dev/economy_audit.gd measured the floor without it).
+const PARTY_WAVE_SHARE := 0.05
 
 
 ## A friend found something worth hearing about: the rest of the party is told
