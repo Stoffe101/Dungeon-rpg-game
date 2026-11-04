@@ -420,3 +420,64 @@ func test_wide_dressing_blocks_what_it_covers() -> void:
 		if checked >= 3:
 			break
 	check(checked >= 1, "sarcophagi were placed (%d)" % checked)
+
+
+# --- a crowd takes turns -----------------------------------------------------------------
+
+func test_a_crowd_takes_turns_winding_up() -> void:
+	var st := _stage(30, 20)
+	var pl := _player(st)
+	pl.godmode = true
+	pl.pos = Vector2(14, 10)
+	var foes: Array = []
+	for k in 6:
+		var e: Enemy = load(EnemyDB.get_def("husk").script).new()
+		e.configure("husk")
+		e.pos = pl.pos + Vector2.from_angle(TAU * k / 6.0) * 1.4
+		st.add_actor(e)
+		e.spawn_t = 0.0
+		foes.append(e)
+	var most := 0
+	var any := 0
+	for f in 300:
+		st.simulate(1.0 / 60.0)
+		var n := 0
+		for e in foes:
+			if e.alive and e.state == "windup":
+				n += 1
+		most = maxi(most, n)
+		any += n
+	check(any > 0, "the husks do attack")
+	check(most <= Enemy.STRIKERS, "never more than %d winding up on one Kindled at once (saw %d)" % [Enemy.STRIKERS, most])
+	st.queue_free()
+
+
+# --- loadouts that never half-change without saying so --------------------------------
+
+func test_a_loadout_is_checked_before_it_is_worn() -> void:
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var helm := Profile.add_item(ItemDB.make_item("grave_iron_helm", "rare", 1, rng, 1))
+	var ring := Profile.add_item(ItemDB.make_item("clover_ring", "rare", 1, rng, 1))
+	Profile.equip(int(helm.uid))
+	Profile.equip(int(ring.uid))
+	Profile.data.skills = BuildPresets.nodes_of("knives")
+	Profile.data.equipped.slots = ["flare", "knives", ""]
+	Profile.save_loadout(1)
+	check(String(Profile.loadout(1).get("name", "")) != "", "a saved build is named for its weapon")
+	eq(Profile.loadouts_using(int(helm.uid)), ["II"], "the helm is known to be part of loadout II")
+	# since then: the helm salvaged, another helm worn, Knives unlearned (a respec)
+	Profile.unequip("head")
+	Profile.salvage(int(helm.uid))
+	var other := Profile.add_item(ItemDB.make_item("grave_iron_helm", "rare", 1, rng, 1))
+	Profile.equip(int(other.uid))
+	Profile.data.skills = ["hearth"]
+	var c := Profile.loadout_check(1)
+	eq(c.missing, ["head"], "the check names the piece that is gone")
+	eq(c.spells_lost, ["knives"], "and the spell no longer taught")
+	var rep := Profile.wear_loadout_report(1)
+	eq(int(Profile.equipped().get("head", {}).get("uid", -1)), int(other.uid), "the helm worn now stays on (nothing left bare)")
+	eq(int(Profile.equipped().get("ring", {}).get("uid", -1)), int(ring.uid), "the rest of the build goes on")
+	eq(String(Profile.data.equipped.slots[1]), "", "an untaught spell leaves its slot empty")
+	eq((rep.missing as Array).size(), 1, "and the report says what could not be put back")

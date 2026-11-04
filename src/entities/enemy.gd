@@ -501,6 +501,43 @@ var _tell_dur := 0.0
 ## Its body tells the blow coming, not only the ground: it glows ever redder
 ## through the wind-up and flashes pale as the blow lands - in a crowd, the
 ## one about to strike stands out. (Co-op guests: NetRun._tele starts it.)
+# --- attack tokens ----------------------------------------------------------------
+# A crowd takes turns: at most STRIKERS foes wind up a melee blow on one
+# Kindled at once (and SHOOTERS a shot), so four claws never close at the same
+# instant with no way out. A foe refused a turn keeps closing in and asks
+# again; an elite always takes a turn (it still counts, so the rank and file
+# wait on it); a guardian has its own patterns and is not counted.
+
+const STRIKERS := 2
+const SHOOTERS := 2
+const TURN := 1.1                  # how long a turn lasts (a wind-up and its blow)
+var _turn_target: Actor = null
+var _turn_kind := ""
+var _turn_until := -1.0
+
+
+## May this foe begin an attack of `kind` ("melee" or "ranged") on its target
+## now? Takes the turn if so.
+func may_strike(kind := "melee") -> bool:
+	var t := target()
+	if t == null or def.get("boss", false):
+		return true
+	if not elite:
+		var n := 0
+		for a in stage.actors:
+			if a == self or not (a is Enemy) or not a.alive:
+				continue
+			var o := a as Enemy
+			if o._turn_target == t and o._turn_kind == kind and stage.elapsed < o._turn_until:
+				n += 1
+		if n >= (STRIKERS if kind == "melee" else SHOOTERS):
+			return false
+	_turn_target = t
+	_turn_kind = kind
+	_turn_until = stage.elapsed + TURN / maxf(0.5, attack_rate)
+	return true
+
+
 func begin_tell(duration: float) -> void:
 	_tell_start = stage.elapsed
 	_tell_dur = maxf(duration, 0.05)

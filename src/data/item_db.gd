@@ -348,7 +348,7 @@ const BASES := {
 	"thousandth_cut": {"name": "The Thousandth Cut", "sprite": "w_thousandth", "form": "thousandth", "slot": "weapon", "arch": "sword", "icon": "wpn_thousandth", "unique": true,
 		"tint": Color(0.85, 0.7, 1.0), "glow": 1.8, "flags": {"thousand_cuts": 1},
 		"mods": [["attack_speed", "add", 0.25], ["crit_chance", "add", 0.04]],
-		"desc": "Every third blow in a row flings a spectral knife at another foe; the thirtieth unleashes the Thousandth Cut, a flurry all around. Each blow is lighter (30% less damage).",
+		"desc": "Every third blow in a row flings a spectral knife at another foe. Every swing that lands and every foe felled gathers the Thousandth Cut (twice as fast on elites and guardians, kept between fights); the blade brightens and hums, then unleashes a flurry all around. Each blow is lighter (30% less damage).",
 		"recipe": {"grave_iron": 8, "soul_glass": 4, "warden_sigil": 1, "embers": 350}},
 	"quakeheart": {"name": "Quakeheart", "sprite": "w_quakeheart", "slot": "weapon", "arch": "hammer", "icon": "wpn_quakeheart", "unique": true,
 		"tint": Color(1.0, 0.75, 0.5), "glow": 1.6, "flags": {"counterweight": 1},

@@ -305,17 +305,25 @@ func test_uniques_are_themselves() -> void:
 	for id in ["thousandth_cut", "quakeheart", "hundred_embers", "gloamfang", "searing_pike", "windreturn", "hollow_index", "wardenfang", "bloomstring", "sunfall_glaive"]:
 		var spr := String(ItemDB.base(id).get("sprite", ""))
 		check(spr != "" and ResourceLoader.exists("res://assets/sprites/%s.png" % spr), "%s has its own sprite (%s)" % [id, spr])
-	# the Thousandth Cut: the thirtieth blow in a row is a flurry all around
+	# the Thousandth Cut: swings that land gather it; when full, a flurry all around
 	var st := _stage()
 	var pl := _player(st, "thousandth_cut")
 	eq(pl.weapon.form, "thousandth", "the Thousandth Cut counts its blows")
 	var e := _foe(st, Vector2(7.5, 7))
 	_run(st, 0.5)
-	pl.cuts = 29
+	pl.blade_charge = Player.THOUSANDTH - 1.0
 	var hp := e.hp
-	pl._flow(e, false)
+	pl.on_weapon_strike(1, false)
 	_run(st, 0.6)
-	check(e.hp < hp, "the thirtieth cut is a flurry that reaches it (%.0f -> %.0f)" % [hp, e.hp])
+	check(e.hp < hp, "the last swing it needs is a flurry that reaches it (%.0f -> %.0f)" % [hp, e.hp])
+	eq(pl.blade_charge, 0.0, "and it gathers anew")
+	# what it gathered keeps through a pause between fights (4 s), then fades
+	pl.on_weapon_strike(1, false)
+	pl.on_weapon_strike(1, false)
+	_run(st, 3.0)
+	near(pl.blade_charge, 2.0, 0.01, "kept through a short pause")
+	_run(st, 3.0)
+	check(pl.blade_charge < 2.0, "fading once the blade rests longer")
 	st.queue_free()
 	# the Wand of a Hundred Embers: the hundredth calls down a great one
 	var st2 := _stage()

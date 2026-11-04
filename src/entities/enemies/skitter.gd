@@ -28,7 +28,7 @@ func behave(dt: float) -> void:
 				facing = to
 				if stage.grid.box_blocked(pos + vel.normalized() * 0.5, box()):
 					_strafe_sign *= -1.0
-			if state_t > orbit_t and d < 5.0 and stage.grid.line_clear(pos, t.pos):
+			if state_t > orbit_t and d < 5.0 and stage.grid.line_clear(pos, t.pos) and may_strike():
 				aim_dir = dir_to_player()
 				facing = aim_dir
 				set_state("windup")

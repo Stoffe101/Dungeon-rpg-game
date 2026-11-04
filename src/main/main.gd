@@ -125,6 +125,8 @@ func _ready() -> void:
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a == "economy":
 			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
+		elif a == "legendlab":
+			add_child(LegendLab.new())       # dev: how often signature weapon moments come
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 
@@ -189,6 +191,8 @@ func _open_dev_screen(what: String) -> void:
 				for r in (Game.stage as Dungeon).layout.rooms:
 					r.visited = true
 		"inventory":
+			if Dev.args().has("saveload"):
+				Profile.save_loadout(0)     # (dev: a saved build to look at)
 			ui.inventory()
 		"wardrobe":
 			ui.inventory()

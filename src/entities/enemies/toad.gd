@@ -22,7 +22,7 @@ func behave(dt: float) -> void:
 			var d := dist_to_player()
 			aim_dir = dir_to_player()
 			facing = aim_dir
-			if d > 2.2 and d < TONGUE and stage.grid.line_clear(pos, t.pos) and randf() < 0.45:
+			if d > 2.2 and d < TONGUE and stage.grid.line_clear(pos, t.pos) and randf() < 0.45 and may_strike("ranged"):
 				set_state("tongue_windup")
 				sprite.play("crouch")
 				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(TONGUE, 0.7), 0.6 / attack_rate)

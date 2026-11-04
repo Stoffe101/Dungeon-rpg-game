@@ -38,7 +38,7 @@ func behave(dt: float) -> void:
 		"surfaced":
 			vel = Vector2.ZERO
 			var t2 := target()
-			if t2 and swipe_cd <= 0.0 and dist_to_player() < 2.0:
+			if t2 and swipe_cd <= 0.0 and dist_to_player() < 2.0 and may_strike():
 				aim_dir = dir_to_player()
 				facing = aim_dir
 				set_state("swipe_windup")

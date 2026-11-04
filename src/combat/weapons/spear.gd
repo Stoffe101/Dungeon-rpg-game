@@ -278,6 +278,7 @@ func release_charge() -> void:
 
 ## Sunfall Glaive: where the Comet Lunge lands, a falling sun follows it down.
 func _sunfall(at: Vector2) -> void:
+	player.set_meta("legend_moments", int(player.get_meta("legend_moments", 0)) + 1)
 	var st := player.stage
 	var col := Color(1.0, 0.8, 0.4)
 	var r := 3.2 * player.stats.v("area")

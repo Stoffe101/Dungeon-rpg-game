@@ -464,19 +464,64 @@ func save_loadout(i: int) -> void:
 		var it: Variant = equipped().get(slot)
 		if it is Dictionary and not (it as Dictionary).is_empty():
 			gear[slot] = int(it.uid)
+	var wi := weapon_item()
+	var label := ItemDB.item_name(wi) if not wi.is_empty() else String(GearDB.weapon(equipped_weapon()).name)
 	data.loadouts[i] = {"page": skill_page(), "slots": slots().duplicate(), "gear": gear, "weapon": equipped_weapon(),
-		"spells": slots().filter(func(s): return s != "").size(), "pieces": gear.size()}
+		"spells": slots().filter(func(s): return s != "").size(), "pieces": gear.size(), "name": label,
+		"weapon_icon": ItemDB.icon(wi) if not wi.is_empty() else ""}
 	_changed()
+
+
+## What wearing loadout `i` would do, checked before anything changes:
+## {"missing": [slot...] (pieces sold, salvaged or gone), "spells_lost": [id...]
+## (spells its Hearthtree page no longer teaches), "empty": bool}.
+func loadout_check(i: int) -> Dictionary:
+	var l := loadout(i)
+	var out := {"missing": [], "spells_lost": [], "empty": l.is_empty()}
+	if l.is_empty():
+		return out
+	var gear: Dictionary = l.get("gear", {})
+	for slot in gear:
+		if find_item(int(gear[slot])).is_empty():
+			(out.missing as Array).append(String(slot))
+	var page := int(l.get("page", 0))
+	var page_skills: Array = skills() if page == skill_page() else ((data.get("skill_pages", []) as Array)[page] if page < (data.get("skill_pages", []) as Array).size() else skills())
+	var known := SkillDB.abilities(page_skills)
+	for s in l.get("slots", []):
+		if String(s) != "" and not known.has(String(s)):
+			(out.spells_lost as Array).append(String(s))
+	return out
+
+
+## The loadouts an item is part of (their numerals), for warnings before it is
+## sold or salvaged.
+func loadouts_using(uid: int) -> Array:
+	var out: Array = []
+	for i in LOADOUTS:
+		var g: Dictionary = loadout(i).get("gear", {})
+		for slot in g:
+			if int(g[slot]) == uid:
+				out.append(["I", "II", "III"][i])
+	return out
 
 
 ## Puts a saved build back on (in the sanctuary): its page, its spells and
 ## what of its gear is still owned. Returns how many pieces are gone.
 func wear_loadout(i: int) -> int:
+	return (wear_loadout_report(i).missing as Array).size()
+
+
+## The same, telling what could not be put back (loadout_check's report): a
+## piece that is gone leaves its slot as it is, a spell no longer taught
+## leaves its slot empty - nothing is half-changed without saying so.
+func wear_loadout_report(i: int) -> Dictionary:
 	var l := loadout(i)
+	var report := loadout_check(i)
 	if l.is_empty():
-		return 0
+		return report
 	switch_page(int(l.get("page", 0)))
-	var sl: Array = (l.get("slots", ["flare", "", ""]) as Array).duplicate()
+	var known := SkillDB.abilities(skills())
+	var sl: Array = (l.get("slots", ["flare", "", ""]) as Array).map(func(s): return String(s) if known.has(String(s)) else "")
 	while sl.size() < 3:
 		sl.append("")
 	data.equipped.slots = sl
@@ -485,7 +530,8 @@ func wear_loadout(i: int) -> int:
 	for slot in ItemDB.SLOTS:
 		var it: Variant = equipped().get(slot)
 		var want := int(gear.get(slot, -1))
-		if it is Dictionary and not (it as Dictionary).is_empty() and int(it.uid) != want:
+		# (a saved piece that is gone leaves what is worn there now)
+		if it is Dictionary and not (it as Dictionary).is_empty() and int(it.uid) != want and (want < 0 or not find_item(want).is_empty()):
 			unequip(slot)
 	for slot in gear:
 		var uid := int(gear[slot])
@@ -498,7 +544,7 @@ func wear_loadout(i: int) -> int:
 	if not gear.has("weapon"):
 		choose_weapon(String(l.get("weapon", equipped_weapon())))
 	_changed()
-	return missing
+	return report
 
 
 func weapon_level(id: String) -> int:

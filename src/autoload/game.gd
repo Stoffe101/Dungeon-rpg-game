@@ -450,6 +450,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 				Net.i.rpc_id(int(pid), "_run_end", outcome, own_killer, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
+	Profile.data["last_run"] = run.run_id     # (the Satchel marks this run's finds)
 	var delve_best := Delve.best()
 	if run.delve:
 		Profile.data.world["delve_best"] = maxi(delve_best, run.depth)

@@ -583,6 +583,7 @@ func test_loadouts_and_v12() -> void:
 	var bow := Profile.add_item(ItemDB.make_item("splitwood_bow", "rare", 1, rng, 1))
 	Profile.equip(int(helm.uid))
 	Profile.equip(int(bow.uid))
+	Profile.data.level = 30     # (points enough for the page: a page beyond its points is reset)
 	Profile.data.skills = BuildPresets.nodes_of("knives")     # Gloam Knives learned
 	Profile.data.equipped.slots = ["flare", "knives", ""]
 	Profile.save_loadout(0)

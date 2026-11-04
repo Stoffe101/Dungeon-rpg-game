@@ -766,6 +766,12 @@ func _timers(dt: float) -> void:
 		if _momentum_t <= 0.0:
 			momentum = 0
 			cuts = 0
+	if blade_charge > 0.0:
+		_blade_idle += dt
+		if _blade_idle > 4.0:
+			blade_charge = maxf(0.0, blade_charge - dt * 2.0)
+			_blade_cued = blade_charge >= THOUSANDTH * 0.8
+			_legend_glow(blade_charge / THOUSANDTH)
 	# Last Light: unhurt for a breath, the lantern's flame comes back quickly
 	_calm_t += dt
 	if stats.has("last_light") and _calm_t > 2.0 and kindle < stats.v("kindle_max"):
@@ -1082,6 +1088,8 @@ func on_weapon_charged() -> void:
 
 
 func on_weapon_strike(_hits: int, _finisher: bool) -> void:
+	if _hits > 0 and weapon and weapon.form == "thousandth":
+		_gather_blade(2.0 if hearthfire_t > 0.0 and stats.has("hearthforged") else 1.0)
 	if stats.has("overflow") and kindle >= stats.v("kindle_max") - 0.01:
 		for i in 2:
 			var d := aim.rotated(randf_range(-0.6, 0.6))
@@ -1278,6 +1286,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 			Audio.play("crit", -5.0, randf_range(0.95, 1.05))
 		else:
 			Settings.rumble(0.18, 0.0, 0.05)
+		if t.alive and h.has_tag("melee") and weapon and weapon.form == "thousandth" and t is Enemy and ((t as Enemy).elite or (t as Enemy).def.get("boss", false)):
+			_gather_blade(1.0)     # a guardian's or an elite's hide feeds it twice over
+		if not t.alive and h.has_tag("melee") and weapon and weapon.form == "thousandth":
+			_gather_blade(1.0)     # a foe felled feeds the Thousandth Cut
 		if not t.alive and h.has_tag("melee"):
 			# killing blows land a beat harder (a hammer's hardest of all)
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
@@ -1314,25 +1326,50 @@ func _flow(t: Actor, finisher: bool) -> void:
 	momentum = mini(8, momentum + 1)
 	_momentum_t = 1.5
 	cuts += 1
-	if hearthfire_t > 0.0 and stats.has("hearthforged") and weapon and weapon.form == "thousandth" and (cuts + 1) % THOUSANDTH != 0:
-		cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
 		spectral_knife(t)
-	if weapon and weapon.form == "thousandth":
-		form_meter = float(cuts % THOUSANDTH) / THOUSANDTH
-		if cuts % THOUSANDTH == 0:
-			_thousandth_cut()
 	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
 		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
 		_combo_wave_at(aim)
 
 
-const THOUSANDTH := 30
+## The Thousandth Cut gathers with every swing that lands (not every foe one
+## sweep touches) and every foe it fells, and keeps what it gathered between
+## fights - it only fades after four seconds without a blow. Measured with
+## `-- legendlab` (src/dev/legend_lab.gd): as "thirty blows in a row" it came
+## after 48 s in small fights and 18 times a minute in a crowd.
+const THOUSANDTH := 70
+var blade_charge := 0.0
+var _blade_idle := 0.0
+var _blade_cued := false
+
+
+func _gather_blade(n: float) -> void:
+	blade_charge += n
+	_blade_idle = 0.0
+	if blade_charge >= THOUSANDTH:
+		blade_charge = 0.0
+		_blade_cued = false
+		_thousandth_cut()
+	elif blade_charge >= THOUSANDTH * 0.8 and not _blade_cued:
+		# nearly there: the blade hums (heard and seen by its wielder)
+		_blade_cued = true
+		Audio.play("glyph", -8.0, 1.4)
+	_legend_glow(blade_charge / THOUSANDTH)
+
+
+## A signature weapon brightens as its moment gathers (the HUD gauge says it
+## too, but the eye is on the blade).
+func _legend_glow(k: float) -> void:
+	form_meter = k
+	if weapon and weapon.visual:
+		weapon.visual.set_instance_shader_parameter("glow_mult", weapon._base_glow * (1.0 + 1.6 * clampf(k, 0.0, 1.0)))
 
 
 ## The Thousandth Cut (the unique blade): the thirtieth blow in a row is eight
 ## phantom cuts, one after another, through everything around the Kindled.
 func _thousandth_cut() -> void:
+	set_meta("legend_moments", int(get_meta("legend_moments", 0)) + 1)
 	var col := Color(0.85, 0.65, 1.0)
 	stage.fx.number(pos, 2.8, "THE THOUSANDTH CUT", col, true)
 	stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.4)

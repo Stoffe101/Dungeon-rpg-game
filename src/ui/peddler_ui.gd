@@ -147,7 +147,8 @@ func _sell(uid: int) -> void:
 		Profile.add_currency("embers", ItemDB.value(it))
 		Audio.play("buy", 0.0, 0.85)
 		rebuild()
-	if it.rarity in ["epic", "legendary"]:
-		Game.ui.confirm("Sell %s?" % ItemDB.item_name(it), "For %d Embers." % ItemDB.value(it), go)
+	var used := Profile.loadouts_using(uid)
+	if it.rarity in ["epic", "legendary"] or not used.is_empty():
+		Game.ui.confirm("Sell %s?" % ItemDB.item_name(it), "For %d Embers.%s" % [ItemDB.value(it), (" It is part of loadout %s." % ", ".join(used)) if not used.is_empty() else ""], go)
 	else:
 		go.call()
