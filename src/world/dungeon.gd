@@ -140,6 +140,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				print("[dungeon] event room %d: %s" % [rm.id, rm.event])
+	if layout.boss_depth and is_inside_tree():
+		# the guardian's floor: a rumble from below once the title card lifts
+		get_tree().create_timer(4.5, false).timeout.connect(_guardian_stirs)
 	built = true
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
@@ -149,7 +152,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	var title: String = Delve.NAME if run.delve else String(region.name)
 	# a title card already named the place on the way down
 	if Game.ui == null or not Game.ui.card_pending:
-		Events.banner.emit(title, "Depth %d%s" % [lay.depth, ("  -  %s waits below" % String(EnemyDB.get_def(String(region.boss)).name)) if lay.boss_depth else ""])
+		Events.banner.emit(title, String(Delve.depth_title(lay.region, lay.depth, run.delve)[0]))
 		if not run.omens.is_empty() and lay.depth == 1:
 			after(2.6, func() -> void: Events.banner.emit("Omens", Omens.names(run.omens)))
 	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
@@ -189,8 +192,12 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.016, 0.014, 0.028)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = region.ambient
-	env.ambient_light_energy = 0.78
+	# each depth has its own mood: the region's ambient leaning toward the
+	# floor's tint, a little darker the deeper it goes
+	var fd := Delve.floor_def(layout.region, layout.depth, run.delve if run else false)
+	var tint: Color = fd[1]
+	env.ambient_light_color = region.ambient.lerp(Color(tint.r, tint.g, tint.b), 0.35 if tint.a > 0.0 else 0.0)
+	env.ambient_light_energy = [0.84, 0.78, 0.7][Delve.floor_index(layout.depth, run.delve if run else false)]
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -740,7 +747,7 @@ func _spawn_reward(r: Room) -> void:
 
 func _open_spot(p: Vector2) -> Vector2:
 	var t := Vector2i(floori(p.x), floori(p.y))
-	for rad in 4:
+	for rad in 8:
 		for dy in range(-rad, rad + 1):
 			for dx in range(-rad, rad + 1):
 				var q := t + Vector2i(dx, dy)
@@ -864,8 +871,11 @@ func _pull_party_in(r: Room, by: Player = null) -> void:
 func party_spots(r: Room, n: int) -> Array:
 	var c := r.center() + Vector2(0, 2)
 	var tiles: Array = []
-	for t in r.cells:
-		tiles.append(t)
+	# the room's own floor tiles (r.cells are map cells, not tiles)
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if grid.room_of[y * grid.width + x] == r.id:
+				tiles.append(Vector2i(x, y))
 	tiles.sort_custom(func(a, b): return (Vector2(a) + Vector2(0.5, 0.5)).distance_squared_to(c) < (Vector2(b) + Vector2(0.5, 0.5)).distance_squared_to(c))
 	var inner := r.rect.grow(-1)
 	var out: Array = []
@@ -981,16 +991,19 @@ func visit_room(r: Room) -> void:
 
 ## The open floor of `r` nearest to `p` (for nudging anyone out of a seal).
 func _floor_inside(r: Room, p: Vector2) -> Vector2:
+	# the open floor tile of this room nearest to `p` (the room's own tiles:
+	# its centre may be a pit, a wall or a pillar)
 	var best := r.center()
 	var bd := INF
-	for t in r.cells:
-		if grid.at(t.x, t.y) != TileGrid.FLOOR:
-			continue
-		var c := Vector2(t) + Vector2(0.5, 0.5)
-		var d := c.distance_squared_to(p)
-		if d < bd and not grid.box_blocked(c, 0.4):
-			bd = d
-			best = c
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if grid.at(x, y) != TileGrid.FLOOR or grid.room_of[y * grid.width + x] != r.id:
+				continue
+			var c := Vector2(x, y) + Vector2(0.5, 0.5)
+			var d := c.distance_squared_to(p)
+			if d < bd and not grid.box_blocked(c, 0.4):
+				bd = d
+				best = c
 	return best
 
 
@@ -1029,6 +1042,21 @@ func _start_boss(r: Room) -> void:
 		Events.boss_started.emit(e)
 		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
 		Audio.play_music("boss", 0.5))
+
+
+## Anticipation on a guardian's floor: the ground shakes, something below
+## answers, and every Kindled is told who waits. Each machine does this
+## itself (nothing recorded for the network).
+func _guardian_stirs() -> void:
+	if not is_inside_tree() or boss != null or player == null:
+		return
+	var bname := String(EnemyDB.get_def(String(region.get("boss", ""))).get("name", "the guardian"))
+	Net.mute += 1
+	fx.shake(0.4)
+	Audio.play("boss_roar", -16.0, 0.55)
+	Net.mute -= 1
+	var echo := "An Echo of %s" % bname if run.delve else bname
+	Events.toast.emit("The floor trembles. %s stirs somewhere ahead." % echo, Color(1.0, 0.6, 0.5))
 
 
 ## Materials (and now and then gear) from a fallen enemy; elites and bosses

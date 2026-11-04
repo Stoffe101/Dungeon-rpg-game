@@ -116,6 +116,8 @@ func _ready() -> void:
 			_open_dev_screen.call_deferred(a.substr(5))
 		elif a == "uismoke":
 			add_child(preload("res://src/dev/ui_smoke.gd").new())
+		elif a == "scaling":
+			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 

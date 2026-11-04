@@ -25,6 +25,9 @@ func _draw() -> void:
 			for dd in r.doors:
 				if not dd.secret and not known.has(dd.to):
 					known[dd.to] = 1
+	# a guardian's floor: its lair is felt from the start
+	if lay.boss_depth and not known.has(lay.exit_id):
+		known[lay.exit_id] = 1
 	# frame
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.02, 0.04, 0.82))
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.36, 0.27, 0.21), false, 1.0)
@@ -77,7 +80,9 @@ func _draw() -> void:
 		if clip.has_point(pp):
 			draw_rect(Rect2(pp - Vector2(1, 1), Vector2(3, 3)), Color(1.0, 0.75, 0.35))
 	if big:
-		draw_string(UIKit.FONT_OUTLINE, Vector2(6, 12), "%s - Depth %d/%d - Tier %s" % [d.region.name, lay.depth, int(d.region.depths), Difficulty.roman(d.run.tier)], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_GOLD)
+		var fl := String(Delve.floor_def(lay.region, lay.depth, d.run.delve)[0])
+		draw_string(UIKit.FONT_OUTLINE, Vector2(6, 12), "%s - %s%s - Tier %s" % [Delve.NAME if d.run.delve else String(d.region.name), (fl + ", ") if fl != "" else "",
+			Delve.depth_short(lay.region, lay.depth, d.run.delve), Difficulty.roman(d.run.tier)], HORIZONTAL_ALIGNMENT_LEFT, -1, 8, UIKit.C_GOLD)
 
 
 func _cell_center(r: Room) -> Vector2:

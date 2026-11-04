@@ -393,7 +393,9 @@ func _process(_delta: float) -> void:
 	embers_lbl.text = str(pl.run.embers if in_dungeon and pl.run else Profile.currency("embers"))
 	shards_lbl.text = str((pl.run.sunshards if in_dungeon and pl.run else 0) + Profile.currency("sunshards"))
 	if in_dungeon and pl.run:
-		depth_lbl.text = "Tier %s  Depth %d  %s" % [Difficulty.roman(pl.run.tier), pl.run.depth, UIKit.fmt_time(pl.run.elapsed)]
+		depth_lbl.text = "Tier %s  %s  %s" % [Difficulty.roman(pl.run.tier), Delve.depth_short(pl.run.region, pl.run.depth, pl.run.delve), UIKit.fmt_time(pl.run.elapsed)]
+		var guardian := Delve.is_boss_depth(pl.run.depth) if pl.run.delve else pl.run.depth >= int(EnemyDB.REGIONS.get(pl.run.region, {}).get("depths", 3))
+		depth_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5) if guardian else UIKit.C_DIM)
 		omen_lbl.text = Omens.names(pl.run.omens)
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
 	# spells
@@ -493,6 +495,7 @@ func _draw() -> void:
 		var filled := pl.dodge_charges >= i + 1
 		var partial := clampf(pl.dodge_charges - i, 0.0, 1.0)
 		_diamond(Vector2(px + 2, ky + 3), filled, partial)
+	_draw_guardian_pull(pl, get_viewport_rect().size)
 	# (flasks have their own slot beside the abilities)
 	# (the party has its own cards: PartyFrames)
 	# --- xp bar along the bottom ---
@@ -513,6 +516,54 @@ func _draw() -> void:
 		draw_rect(Rect2(bx + roundf(bw * 0.2), 25, 1, 6), Color(1, 1, 1, 0.5))
 		var pr := 1.0 - _boss.poise / maxf(_boss.max_poise, 1.0)
 		draw_rect(Rect2(bx, 32, roundf(bw * pr), 1), Color(1.0, 0.85, 0.45))
+
+
+## On a guardian's floor, until its room is found: an ember at the edge of
+## the screen leans toward the way in (dim at first, brighter once most of
+## the floor is explored). Every machine draws its own from the same layout.
+func _draw_guardian_pull(pl: Player, vp: Vector2) -> void:
+	var d := Game.stage as Dungeon
+	if d == null or d.layout == null or not d.layout.boss_depth or Game.view == null or not pl.alive:
+		return
+	var br := d.layout.room(d.layout.exit_id)
+	if br == null or br.visited:
+		return
+	var target := br.center()
+	for dd in br.doors:
+		if not dd.secret:
+			var c := Vector2.ZERO
+			for t: Vector2i in dd.tiles:
+				c += Vector2(t) + Vector2(0.5, 0.5)
+			target = c / (dd.tiles as Array).size()
+			break
+	var v: PixelView = Game.view
+	var sp := v.internal_to_screen(v.world_to_internal(Iso.to_world(target, 0.0)))
+	var me := v.internal_to_screen(v.world_to_internal(Iso.to_world(pl.pos, 0.8)))
+	var inner := Rect2(Vector2(26, 46), vp - Vector2(52, 96))
+	if inner.has_point(sp):
+		return     # the way in is on screen already
+	var dir := (sp - me).normalized()
+	if dir == Vector2.ZERO:
+		return
+	# where the line from the Kindled toward it leaves the inner frame
+	var tmax := 1e9
+	for k in 2:
+		if absf(dir[k]) > 0.0001:
+			var edge: float = inner.end[k] if dir[k] > 0.0 else inner.position[k]
+			tmax = minf(tmax, (edge - me[k]) / dir[k])
+	var at := (me + dir * maxf(0.0, tmax)).round()
+	var seen := 0
+	for r in d.layout.rooms:
+		if r.visited:
+			seen += 1
+	var strong := float(seen) / maxf(1.0, d.layout.rooms.size()) > 0.6
+	var pulse := 0.55 + 0.45 * sin(Time.get_ticks_msec() / 260.0)
+	var col := Color(1.0, 0.45, 0.35, (0.55 if strong else 0.3) + 0.25 * pulse)
+	var side := dir.orthogonal()
+	var tip := at + dir * 6.0
+	draw_colored_polygon(PackedVector2Array([tip + dir, at - dir * 4.0 + side * 5.0, at - dir * 1.0, at - dir * 4.0 - side * 5.0]), Color(0.03, 0.02, 0.05, col.a))
+	draw_colored_polygon(PackedVector2Array([tip, at - dir * 3.0 + side * 4.0, at - dir * 0.5, at - dir * 3.0 - side * 4.0]), col)
+	draw_rect(Rect2(at - Vector2(1, 1), Vector2(2, 2)), Color(1.0, 0.85, 0.6, col.a))
 
 
 func _frame(r: Rect2) -> void:

@@ -19,6 +19,9 @@ var _log_t := 0.0
 var _goal := Vector2.ZERO
 var _stuck_total := 0.0
 var _dumped := false
+## Scaling evaluation (src/dev/scaling_eval.gd): fight and explore only - no
+## chests, altars, shrines or stairs, which would open screens or end the floor.
+var eval_mode := false
 
 
 func _dump_area() -> void:
@@ -258,6 +261,8 @@ func _next_room_point(d: Dungeon) -> Vector2:
 
 ## Co-op client: props belong to the host, so the bot asks like a player would.
 func _use(p: Prop, pl: Player) -> void:
+	if eval_mode:
+		return
 	if pl.controller == Player.Ctrl.REPLICA:
 		pl.try_interact()
 	else:
