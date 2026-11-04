@@ -564,3 +564,31 @@ func test_landmark_answers() -> void:
 	check(d.pickups.any(func(k): return is_instance_valid(k) and k.kind == "sunshard"), "a Sunshard left at its foot")
 	check(lm.used, "once")
 	d.queue_free()
+
+
+func test_urnlings() -> void:
+	Profile.data = Profile.fresh()
+	var lay := DungeonGen.generate(7, 2, "ossuary", false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]), null)
+	var at := Vector2i(d.random_floor_near(d.player.pos + Vector2(5, 0), 1.0))
+	var u := Prop.make(d, "urn", at, {"mat": "clay", "rich": true, "urnling": true})
+	var dt := 1.0 / 60.0
+	for i in 30:
+		d.simulate(dt)
+	check(is_instance_valid(u) and not u.used, "an Urnling waits while no one is near")
+	var before := d.actors.filter(func(a): return a is Enemy).size()
+	d.player.pos = u.pos + Vector2(1.2, 0)
+	for i in 10:
+		d.simulate(dt)
+	var foes := d.actors.filter(func(a): return a is Enemy and a.display_name == "Urnling")
+	eq(foes.size(), 1, "come close and it bursts out")
+	check(d.actors.filter(func(a): return a is Enemy).size() == before + 1, "one foe more")
+	var urnling: Enemy = foes[0]
+	check(urnling.elite, "a hasted elite")
+	var picks := d.pickups.size()
+	urnling.die(d.player)
+	check(d.pickups.size() > picks + 6, "felled, it spills the urn's treasure twice (%d)" % (d.pickups.size() - picks))
+	d.queue_free()

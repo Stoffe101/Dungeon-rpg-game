@@ -150,6 +150,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 					if is_instance_valid(u) and not u.used:
 						strike_props_circle(u.pos, 0.1, player, false))
 				k += 1
+		# and an Urnling, struck last: it bursts out instead of breaking
+		var ut := Vector2i(player.pos + Vector2(-2.5 + k * 1.0, -1.6))
+		var un := Prop.make(self, "urn", ut, {"mat": "clay", "rich": true, "urnling": true})
+		after(1.5 + k * 0.45, func() -> void:
+			if is_instance_valid(un) and not un.used:
+				strike_props_circle(un.pos, 0.1, player, false))
 	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
@@ -254,7 +260,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id"]:
+			for k in ["mat", "rich", "id", "urnling"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
