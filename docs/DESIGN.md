@@ -723,6 +723,70 @@ then 70%, then 55% of the light, no darker), so the lantern matters more the dee
 every blow (three takes of a hammer biting hot iron), every fourth blow lands
 harder, and the bellows breathe with the fire flaring.
 
+## Combat identity pass: weapon forms, new spells, readable foes
+
+**A variant is a way to play, not a number.** Each archetype has its plain
+form and two variants, and each variant is a *form* (ItemDB "form") the
+archetype's script reads: different strikes, a different held move, a
+mechanic of its own. Sword: the Gravecleaver's two wide cleaves Sunder
+(every third blow on a foe Exposes it) and its Grave Drop executes the
+wounded; the Duelist's Sabre thrusts four times and its held En Garde turns
+the first blow into a riposte (a perfect dodge or Ward readies one too).
+Hammer: the Tombmaul's slams echo as aftershocks and Tombfall plants it for
+four rolling quakes; the Emberforge Mallet heats with every blow that lands,
+throws molten sparks when hot and vents the heat as a nova. Staff: Rimewood
+shards shatter into splinters, its Frost Lance freezes the chilled; the
+Splitbranch's bolts fork and its fireball scatters bursting embers. Daggers:
+the Gloam Kris marks foes (up to five) and tears the marks open with its
+crossing cut or a Shadowstep to the most-marked foe; Ember Shivs throw
+burning blades mid-combo and a fan of seven when held. Spear: the Rootspear
+roots and drags in, and plants a ring of thorns; the Warden's Partisan holds
+a line (frontal blows and shots stop on the shaft for 4 Kindle each) and
+darts at what comes near - a tank's weapon. Bow: the Splitwood nocks an
+arrow every quarter second (more arrows or a true shot, not both); the Long
+Rimebow chills and its Steady Shot is an ice spear that freezes and leaves
+frost. Tome: the Codex writes orbiting glyphs and echoes a spell cast with
+all three; the Grimoire breathes fire in a cone. A HUD gauge shows heat,
+nocked arrows, glyphs, marks or a ready riposte.
+
+**Uniques are themselves.** Every unique and legendary weapon has its own
+silhouette in the hand; three have a moment to build around - the
+Thousandth Cut's thirtieth blow in a row is a flurry, the Wand of a Hundred
+Embers' hundredth ember falls from above, the Sunfall Glaive's lunge brings
+down a falling sun.
+
+**Spells of different kinds.** Soulfire Beam is steered by the aim and burns
+hotter the longer it holds (the caster walks); the Cinder Orb drifts and is
+burst by a second cast (bigger the longer it drifted); Rimewall changes the
+ground (its tiles are pillars while it stands - foes and shots stop); and
+Hearthfire Form is a transformation (faster, hits burst in flame, ends in a
+nova). The older ones gained what they lacked: Gloam Knives lodge and burst
+on a melee blow (a caster-blade bridge), Ember Rush chains through the
+burning, Rekindle cleanses and quickens, the Lantern's light exposes.
+
+**Builds that combine.** Five notables tie spells and forms together
+(Shadow Cutlery: knives leave Kris marks; Detonator: the orb bursts knives,
+marks and ice; Hearthforged: Hearthfire doubles form gauges and grows on
+kills; Frozen Bastion: the wall chills and its shatter freezes; Steady
+Pour: walk at full pace while beaming). Three saved loadouts in the Satchel
+(page, spells, gear, weapon) make trying builds cheap.
+
+**Foes say what they are about to do.** Every telegraphed blow lands on
+every Kindled the shape covers (it used to hit only the chosen target - a
+slam drawn over two players hurt one), its shape flashes as it lands, and
+the striker's body glows redder through the wind-up and flashes at the
+blow, so in a crowd the one about to strike stands out. Frenzied elites
+erupt at half health; Shepherds shield their kin behind a warning ring (kill
+them first). Some glinting urns are Urnlings.
+
+**Every weapon sounds like itself.** Blades slice, hammers crunch, points
+punch in, arrows thunk, spells pop; a crit rings over the impact.
+
+**Co-op rewards are measured, not guessed.** `-- economy` clears whole
+floors exactly (every foe felled, every drop taken) for parties of 1-4. It
+showed a big party's closing wave lifting XP to 1.4-1.8x solo; that wave now
+pays nothing, and every party size sits near +12% per friend from kills.
+
 ## Decisions log
 
 - **3D + sprites over pure 2D**: real lighting/shadows are central to the light
@@ -855,3 +919,13 @@ harder, and the bellows breathe with the fire flaring.
 - **Measure audio, never claim to have heard it.** Generated sounds are
   checked for peaks, clipping, spectrum and loudness and set by those numbers;
   whether they sound good is for a person with ears.
+- **Variants are forms, not stat sticks.** A weapon worth finding changes
+  how a fight is played; numbers alone do not make a build.
+- **Spells differ in behaviour, not colour.** A steered beam, a recast
+  burst, terrain and a transformation each ask something different of the
+  player; a recoloured projectile does not.
+- **A telegraph is a promise.** What its shape covers is what gets hit - for
+  every Kindled in it - and the one about to strike shows it.
+- **Measure rewards with an exact audit, not bots in a time window.** The
+  bots' Embers-per-room swung with how many rooms they cleared; the audit
+  counts what the rules pay.
