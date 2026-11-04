@@ -107,8 +107,28 @@ func _process(delta: float) -> void:
 	fx.step(real if not paused_sim else 0.0)
 	if view and player and is_instance_valid(player):
 		var target := Iso.to_world(player.pos + player.draw_off + player.aim_offset(), 0.0)
+		if _look_t > 0.0:
+			# something worth seeing: the camera leans most of the way toward it
+			_look_t -= real
+			var w := clampf(minf(_look_t, _look_len - _look_t) / 0.35, 0.0, 1.0) * 0.6
+			target = target.lerp(Iso.to_world(_look_at, 0.0), w)
 		view.focus = view.focus.lerp(target, 1.0 - exp(-real * 9.0)) if view.focus.distance_to(target) < 12.0 else target
 	_stage_process(real)
+
+
+var _look_at := Vector2.ZERO
+var _look_t := 0.0
+var _look_len := 1.0
+
+
+## The camera leans toward `p` for `seconds`, then back to the Kindled (a
+## guardian's arrival). This machine's view only; a host sends it on.
+func look_toward(p: Vector2, seconds: float) -> void:
+	if Net.recording:
+		Net.rec(["look", p, seconds])
+	_look_at = p
+	_look_t = seconds
+	_look_len = seconds
 
 
 ## Runs `fn` after `seconds` of simulation time (respects hitstop/slow-mo).

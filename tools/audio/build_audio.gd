@@ -241,6 +241,21 @@ func _sfx() -> void:
 		s.tone(0.0, 1.3, 93.0, 60.0, "saw", 0.4, 0.1, 1.2, 0.05, 6.0, 900.0)
 		s.noise(0.0, 1.2, 0.5, 800.0, 300.0, 60.0, 0.1, 1.5, 9.0))
 	fx("boss_windup", 0.6, func(s): s.tone(0.0, 0.55, 60.0, 130.0, "saw", 0.5, 0.05, 0.8, 0.0, 6.0, 700.0))
+	# a guardian comes: the stone groans and something swells under it (1.6 s),
+	# then it is here - a blow on the floor, a burst, a ringing that hangs
+	fx("boss_rise", 1.8, func(s):
+		s.tone(0.0, 1.7, 65.0, 130.0, "saw", 0.18, 1.2, 0.6, 0.02, 3.0, 600.0)
+		s.noise(0.0, 1.7, 0.4, 400.0, 3200.0, 200.0, 1.3, 0.5, 7.0)
+		s.tone(0.3, 1.4, midi(62), midi(63), "sine", 0.1, 1.0, 0.6, 0.01, 5.0)
+		s.tone(0.3, 1.4, midi(68), midi(69), "sine", 0.08, 1.0, 0.6, 0.01, 4.0)
+		for k in 5:
+			s.noise(0.2 + k * 0.3, 0.08, 0.25, 1800.0, 600.0, 200.0, 0.002, 6.0))
+	fx("boss_arrive", 2.2, func(s):
+		s.tone(0.0, 0.3, 140.0, 48.0, "sine", 0.4, 0.001, 3.0)
+		s.noise(0.0, 0.35, 0.8, 5000.0, 600.0, 200.0, 0.001, 3.5)
+		s.tone(0.0, 0.5, 220.0, 70.0, "saw", 0.25, 0.001, 3.0, 0.0, 6.0, 1200.0)
+		s.bell(0.02, 2.0, 523.0, 0.08, [[1.0, 1.0, 2.0], [2.41, 0.6, 3.0], [3.93, 0.4, 5.0], [5.4, 0.2, 8.0]])
+		s.bell(0.02, 2.0, 554.0, 0.05, [[1.0, 1.0, 2.0], [2.76, 0.5, 4.0]]))
 	fx("thrust", 0.2, func(s): s.noise(0.0, 0.18, 0.7, 4000.0, 1500.0, 600.0, 0.005, 4.0))
 	fx("sweep", 0.5, func(s):
 		s.noise(0.0, 0.45, 0.9, 500.0, 2500.0, 150.0, 0.05, 2.0)
@@ -344,6 +359,32 @@ func _sfx() -> void:
 		for k in 5:
 			s.bell(k * 0.09, 1.0, midi(72 + [0, 4, 7, 11, 14][k]), 0.18)
 		s.pad(0.0, 1.1, [midi(60), midi(67), midi(72)], 0.12, 1400.0, 0.05, 0.6))
+	# finds landing, by grade: a rare one taps down with one glassy note; an
+	# epic one with a rising pair over a soft shimmer; a legendary (set,
+	# unique) one first rises humming into the air (drop_rise), then strikes
+	# the floor with a thump, a metal ring and a cascade with a long tail
+	fx("drop_rare", 0.7, func(s):
+		s.tone(0.0, 0.05, 260.0, 140.0, "sine", 0.25, 0.001, 7.0)
+		s.noise(0.0, 0.02, 0.25, 6000.0, 4000.0, 2500.0, 0.0005, 9.0)
+		s.bell(0.01, 0.6, midi(88), 0.16, [[1.0, 1.0, 4.0], [2.0, 0.35, 6.0], [3.01, 0.15, 9.0]]))
+	fx("drop_epic", 1.1, func(s):
+		s.tone(0.0, 0.07, 220.0, 110.0, "sine", 0.32, 0.001, 6.0)
+		s.noise(0.0, 0.03, 0.3, 7000.0, 4000.0, 2500.0, 0.0005, 8.0)
+		s.bell(0.01, 0.9, midi(81), 0.15, [[1.0, 1.0, 3.0], [2.0, 0.4, 5.0], [3.0, 0.2, 8.0]])
+		s.bell(0.11, 0.9, midi(88), 0.14, [[1.0, 1.0, 3.0], [2.0, 0.4, 5.0], [3.0, 0.2, 8.0]])
+		s.pad(0.05, 0.95, [midi(69), midi(76)], 0.08, 2600.0, 0.05, 0.6))
+	fx("drop_rise", 0.7, func(s):
+		s.noise(0.0, 0.62, 0.22, 500.0, 6000.0, 400.0, 0.4, 0.6)
+		s.tone(0.0, 0.62, midi(57), midi(69), "sine", 0.14, 0.35, 0.8, 0.012, 7.0)
+		s.tone(0.0, 0.62, midi(64), midi(76), "sine", 0.08, 0.4, 0.8))
+	fx("drop_legendary", 2.4, func(s):
+		s.tone(0.0, 0.1, 160.0, 70.0, "sine", 0.26, 0.001, 6.0)
+		s.noise(0.0, 0.05, 0.45, 5000.0, 2000.0, 900.0, 0.0005, 7.0)
+		s.bell(0.0, 1.6, 1318.0, 0.12, [[1.0, 1.0, 2.5], [2.41, 0.55, 4.0], [3.93, 0.3, 6.0], [5.4, 0.18, 9.0]])
+		var notes := [64, 69, 73, 76, 81, 85]
+		for k in notes.size():
+			s.bell(0.08 + k * 0.07, 1.8 - k * 0.12, midi(notes[k] + 12), 0.11)
+		s.pad(0.05, 2.2, [midi(57), midi(64), midi(69), midi(73)], 0.12, 2200.0, 0.08, 1.4))
 	# the Undervault Gate: a slow breathing drone, and the flare as the veil opens
 	fx("gate_hum", 2.6, func(s):
 		s.pad(0.0, 2.5, [55.0, 82.6, 110.3], 0.2, 420.0, 0.9, 1.2)

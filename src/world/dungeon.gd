@@ -1126,9 +1126,11 @@ func _floor_inside(r: Room, p: Vector2) -> Vector2:
 func _start_boss(r: Room) -> void:
 	Audio.stop_music(1.0)
 	var c := r.center()
-	after(1.2, func() -> void:
+	var at := c + Vector2(0, -3)
+	_boss_entrance(at)
+	after(ENTRANCE, func() -> void:
 		var e := _make_enemy(String(region.boss))
-		e.pos = c + Vector2(0, -3)
+		e.pos = at
 		e.room_id = r.id
 		_scale(e, 1, int(Profile.data.world.get("memory", 0)))
 		if run.delve:
@@ -1157,7 +1159,36 @@ func _start_boss(r: Room) -> void:
 			after(10.0, _guardian_call)
 		Events.boss_started.emit(e)
 		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
-		Audio.play_music(String(region.get("boss_music", "boss")), 0.5))
+		Audio.play_music(String(region.get("boss_music", "boss")), 0.5)
+		# it is here: a blow on the floor, a burst of its light, a held breath
+		var col: Color = region.flame
+		fx.flash_light(at, 2.0, col, 7.0, 14.0, 0.9)
+		fx.ring(at, 5.0, col, 0.7, 0.4)
+		fx.ring(at, 3.0, Color(1, 1, 1), 0.4, 0.2)
+		fx.burst(at, 1.0, col, 40, 6.0, 0.8, 4.0)
+		fx.shake(0.55)
+		slow_motion(0.35, 0.35)
+		Audio.play("boss_arrive", -1.0)
+		look_toward(at, 1.6))
+
+
+## A guardian's arrival takes this long: the room trembles, light is drawn in
+## to where it will stand under a widening sigil, the stone groans.
+const ENTRANCE := 1.6
+
+
+func _boss_entrance(at: Vector2) -> void:
+	var col: Color = region.flame
+	Audio.play("boss_rise", -2.0)
+	look_toward(at, ENTRANCE + 0.2)
+	fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(3.4, 3.4), Color(col.r, col.g, col.b, 0.3), col.lightened(0.3), ENTRANCE + 0.1, {"glow": 2.0})
+	for k in 6:
+		after(k * 0.27, func() -> void:
+			fx.shake(0.06 + 0.03 * k)
+			for j in 8:
+				var a := TAU * j / 8.0 + k * 0.4
+				fx.motes(at + Vector2.from_angle(a) * (3.5 - k * 0.5), 0.2, col, 1, 0.6, 0.5, 0.1)
+			fx.motes(at, 0.2, col.lightened(0.2), 2 + k * 2, 1.2 + k * 0.3, 0.7, 0.4 - k * 0.05))
 
 
 ## A guardian facing a party calls for help: every so often foes of its

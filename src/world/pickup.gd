@@ -22,6 +22,7 @@ var net_id := 0
 var replica := false
 var _announced := false
 var _landed := false
+var _hang := 0.0              # a great find hangs in the air a moment before it falls
 static var _beam_tex: GradientTexture2D
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
@@ -78,8 +79,18 @@ func _ready() -> void:
 		add_child(light)
 		sprite.flash(gc, 0.6)
 		grade = {"rare": 1, "epic": 2, "set": 3, "legendary": 3}.get(String(data.get("item", {}).get("rarity", "")), 0)
+		if ItemDB.is_unique(String(data.get("item", {}).get("base", ""))):
+			grade = 3
 		if grade > 0:
 			_loot_beam(gc)
+		if grade >= 3 and not replica:
+			# it rises out of the fallen, turns in the air, and only then drops
+			_hang = 0.6
+			vz = 0.0
+			vel *= 0.3
+			Net.mute += 1
+			Audio.play_at("drop_rise", pos, -4.0, 1.0, 200)
+			Net.mute -= 1
 	elif kind == "sunshard" or kind == "heal":
 		light = OmniLight3D.new()
 		light.light_color = COLORS[kind]
@@ -87,7 +98,36 @@ func _ready() -> void:
 		light.omni_range = 2.5
 		light.position = Vector3(0, 0.4, 0)
 		add_child(light)
+	_name_tag()
 	_sync()
+
+
+## A notable find says what it is over where it lies, in its own colour, so a
+## drop across the room can be read (only to whoever it is for).
+func _name_tag() -> void:
+	if stage == null or stage.fx == null or not (stage is Dungeon):
+		return
+	if owner_peer != 0 and stage.player and stage.player.peer_id != owner_peer:
+		return
+	var text := ""
+	var col := Color.WHITE
+	match kind:
+		"gear":
+			if grade <= 0:
+				return
+			var it: Dictionary = data.get("item", {})
+			text = ItemDB.item_name(it)
+			col = ItemDB.color(it)
+		"rune":
+			var rd := Runes.get_def(String(data.get("id", "")))
+			text = "Rune: %s" % rd.get("name", "?")
+			col = rd.get("color", Color.WHITE)
+		"blueprint":
+			text = "Blueprint: %s" % ItemDB.base(String(data.get("id", ""))).get("name", "?")
+			col = Color(1.0, 0.75, 0.35)
+		_:
+			return
+	stage.fx.tag(self, 0.9, text, col)
 
 
 ## A pillar of the drop's colour, so a good find is seen across the room.
@@ -145,14 +185,16 @@ func _land_fx() -> void:
 	stage.fx.ring(pos, 0.6 + 0.3 * grade, col, 0.4, 0.2)
 	match grade:
 		1:
-			Audio.play_at("wisp", pos, -10.0, 1.1, 120)
+			Audio.play_at("drop_rare", pos, -8.0, randf_range(0.97, 1.03), 120)
 		2:
-			Audio.play_at("wisp", pos, -6.0, 0.85, 120)
+			Audio.play_at("drop_epic", pos, -5.0, 1.0, 150)
 			stage.fx.motes(pos, 0.2, col, 8, 1.4, 1.0, 0.3)
 		_:
-			Audio.play_at("learn", pos, -4.0, 1.0, 200)
+			Audio.play_at("drop_legendary", pos, -2.0, 1.0, 250)
 			stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.5)
 			stage.fx.motes(pos, 0.2, col, 16, 2.0, 1.4, 0.4)
+			stage.fx.ring(pos, 2.2, col, 0.7, 0.12)
+			stage.fx.shake(0.12)
 
 
 ## A find is news for its finder only (co-op: on their machine).
@@ -220,6 +262,23 @@ func tick(dt: float) -> void:
 
 
 func _physics(dt: float) -> void:
+	if _hang > 0.0:
+		# held up in the air, turning, glittering; then let go
+		_hang -= dt
+		height = move_toward(height, 1.3, dt * 4.0)
+		pos = stage.grid.move_box(pos, 0.1, vel * dt, false)
+		vel *= exp(-6.0 * dt)
+		if sprite:
+			sprite.flip_h = fmod(age * 5.0, 2.0) < 1.0
+		if randf() < dt * 30.0:
+			var col: Color = light.light_color if light else Color.WHITE
+			stage.fx.motes(pos, height, col, 1, 0.9, 0.5, 0.15)
+		if _hang <= 0.0:
+			vz = -2.0
+			if sprite:
+				sprite.flip_h = false
+		_sync()
+		return
 	if height > 0.0 or vz > 0.0:
 		vz -= 18.0 * dt
 		height += vz * dt

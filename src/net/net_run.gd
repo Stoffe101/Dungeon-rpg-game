@@ -796,6 +796,8 @@ func apply_events(evs: Array) -> void:
 					Events.boss_started.emit(b)
 			"boss_down":
 				Events.boss_defeated.emit(stage.boss)
+			"look":
+				stage.look_toward(ev[1], float(ev[2]))
 			"vote":
 				Party.show_vote(int(ev[1]), String(ev[2]), int(ev[3]), ev[4], int(ev[5]))
 			"vote_end":

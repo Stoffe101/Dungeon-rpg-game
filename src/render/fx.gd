@@ -457,6 +457,24 @@ func beacon(who: Node, height: float, col: Color) -> void:
 	_marks[who.get_instance_id()] = {"label": v, "who": weakref(who), "height": height, "beacon": true, "name": lines[0], "act": lines[1], "col": col}
 
 
+## A find's name over it on the floor (Pickup._name_tag), in its own colour;
+## it fades out with distance, like the names over things.
+func tag(who: Node, height: float, text: String, col: Color) -> void:
+	unmark(who)
+	if view == null:
+		return
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", FONT_OUTLINE)
+	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_color_override("font_color", col)
+	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.visible = false
+	view.overlay.add_child(l)
+	_marks[who.get_instance_id()] = {"label": l, "who": weakref(who), "height": height, "fade": 9.0}
+
+
 func _update_beacon(m: Dictionary, who: Node, nearest: Node) -> void:
 	var l: Control = m.label
 	var st = Game.stage
@@ -512,6 +530,17 @@ func _update_marks() -> void:
 			_update_beacon(m, who, nearest)
 			continue
 		var l: Control = m.label
+		if m.has("fade"):
+			# a find's name: over it wherever it is, fading with distance
+			var stg = Game.stage
+			var h: float = float(m.height) + float(who.get("height"))
+			var dd: float = (stg.player.pos as Vector2).distance_to(who.get("pos")) if stg and stg.player else 99.0
+			l.modulate.a = clampf((float(m.fade) - dd) / 3.0, 0.0, 1.0)
+			l.visible = l.modulate.a > 0.01
+			var sp2 := view.world_to_internal(Iso.to_world(who.get("pos"), h))
+			var sz2 := l.get_minimum_size()
+			l.position = Vector2(roundf(sp2.x - sz2.x * 0.5), roundf(sp2.y - sz2.y))
+			continue
 		var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
 		var sz := l.get_minimum_size()
 		var bob := 0.0 if m.get("still", false) else roundf(sin(Time.get_ticks_msec() / 260.0) * 1.5)
