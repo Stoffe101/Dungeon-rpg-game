@@ -481,3 +481,17 @@ func test_a_loadout_is_checked_before_it_is_worn() -> void:
 	eq(int(Profile.equipped().get("ring", {}).get("uid", -1)), int(ring.uid), "the rest of the build goes on")
 	eq(String(Profile.data.equipped.slots[1]), "", "an untaught spell leaves its slot empty")
 	eq((rep.missing as Array).size(), 1, "and the report says what could not be put back")
+
+
+## Every foe's script compiles and makes a foe (a parse error in one used to
+## pass every test: the room sweep logs it and carries on).
+func test_every_foe_script_compiles() -> void:
+	var bad: Array = []
+	for id in EnemyDB.ENEMIES:
+		var scr: GDScript = load(String(EnemyDB.get_def(String(id)).script))
+		var e: Variant = scr.new() if scr and scr.can_instantiate() else null
+		if e == null:
+			bad.append(id)
+		elif e is Node:
+			(e as Node).free()
+	check(bad.is_empty(), "every foe can be made (broken: %s)" % str(bad))

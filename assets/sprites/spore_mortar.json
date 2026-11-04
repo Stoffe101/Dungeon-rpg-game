@@ -6,11 +6,23 @@
 			"loop": false,
 			"row": 1
 		},
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 4
+		},
 		"fire": {
 			"fps": 10.0,
 			"frames": 2,
 			"loop": false,
 			"row": 2
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
 		},
 		"idle": {
 			"fps": 2.0,

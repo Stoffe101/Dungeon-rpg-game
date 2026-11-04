@@ -286,6 +286,18 @@ func replica_present(dt: float) -> void:
 	super.replica_present(dt)
 
 
+## States in which a blow may show its drawn flinch (never over a wind-up or
+## an attack: a telegraph must stay readable).
+const FLINCH_STATES := ["idle", "chase", "float", "orbit", "wander", "kite", "walk", "hover", "circle", "approach", "stunned", "recover"]
+var _flinch_t := 0.0
+
+
+func hit_react(dir: Vector2, power := 1.0) -> void:
+	super.hit_react(dir, power)
+	if sprite and sprite.has_anim("hurt") and state in FLINCH_STATES and not def.get("boss", false):
+		_flinch_t = 0.16
+
+
 const SHEPHERD_R := 5.0
 const SHEPHERD_EVERY := 6.5
 var _frenzy := false
@@ -406,6 +418,10 @@ func think(dt: float) -> void:
 	if state == "stunned":
 		set_state("idle")
 	behave(dt)
+	if _flinch_t > 0.0:
+		_flinch_t -= dt
+		if state in FLINCH_STATES:
+			sprite.play("hurt")     # (sent on in snapshots: every screen shows it)
 
 
 ## Override per enemy type.
@@ -510,7 +526,7 @@ var _tell_dur := 0.0
 
 const STRIKERS := 2
 const SHOOTERS := 2
-const TURN := 1.1                  # how long a turn lasts (a wind-up and its blow)
+const TURN_TIME := 1.1             # how long a turn lasts (a wind-up and its blow)
 var _turn_target: Actor = null
 var _turn_kind := ""
 var _turn_until := -1.0
@@ -534,7 +550,7 @@ func may_strike(kind := "melee") -> bool:
 			return false
 	_turn_target = t
 	_turn_kind = kind
-	_turn_until = stage.elapsed + TURN / maxf(0.5, attack_rate)
+	_turn_until = stage.elapsed + TURN_TIME / maxf(0.5, attack_rate)
 	return true
 
 
