@@ -28,6 +28,11 @@ func _draw() -> void:
 	# a guardian's floor: its lair is felt from the start
 	if lay.boss_depth and not known.has(lay.exit_id):
 		known[lay.exit_id] = 1
+	# the Bone Colossus remembered this depth: every hall, hidden ones too
+	if d.remembered():
+		for r in lay.rooms:
+			if not known.has(r.id):
+				known[r.id] = 1
 	# frame
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.02, 0.04, 0.82))
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.36, 0.27, 0.21), false, 1.0)
@@ -115,7 +120,11 @@ func _door_point(r: Room, dd: Dictionary, cw: float, ch: float) -> Vector2:
 
 
 func _room_icon(r: Room, visited: bool) -> String:
+	if r.landmark != "":
+		return {"colossus": "eye", "heartroot": "heart", "sundisc": "sun"}.get(r.landmark, "star")
 	match r.type:
+		Room.Type.SECRET:
+			return "key" if not visited else ""
 		Room.Type.BOSS:
 			return "boss"
 		Room.Type.STAIRS:

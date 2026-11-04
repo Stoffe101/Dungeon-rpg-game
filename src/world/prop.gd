@@ -218,6 +218,21 @@ func _build() -> void:
 			_light(Color(0.4, 0.95, 0.85), 1.3, 5.5, Vector3(0, 1.0, 0.3))
 			interact_radius = 1.3
 			ticks = true
+		"landmark":
+			# a region's great centrepiece (DungeonGen._landmark), three tiles wide
+			var ld := DungeonGen.landmark_def(String(data.get("id", "colossus")))
+			pos = Vector2(tile) + Vector2(0.5, 0.85)
+			_sprite("landmark_" + String(data.get("id", "colossus")), 0.0, 0.0, "idle")
+			_flame_col = ld.get("light", Color(0.4, 0.95, 0.85))
+			# lit from above and behind, so the light is around it, not on it
+			_light(_flame_col, float(ld.get("energy", 0.9)), 7.5, Vector3(0, 2.4 * Iso.SQ2, -0.6))
+			interact_radius = 2.4
+			ticks = true
+			var foot: Array = []
+			for dx in [-1, 0, 1]:
+				for dy in [-1, 0]:
+					foot.append(tile + Vector2i(dx, dy))
+			_solid(foot)
 		"rug":
 			_flat("rug", String(data.get("anim", "rug0")))
 		"spikes":
@@ -353,6 +368,8 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
 	elif kind == "glowcap" and randf() < dt * 1.5:
 		stage.fx.motes(pos + Vector2(randf_range(-0.4, 0.4), 0), 0.8, _flame_col, 1, 0.5, 1.6, 0.2)
+	elif kind == "landmark" and randf() < dt * (6.0 if used else 2.5):
+		stage.fx.motes(pos + Vector2(randf_range(-1.0, 1.0), -0.2), 1.6, _flame_col.lightened(0.2), 1, 0.7, 1.4, 0.35)
 	elif kind == "fountain" and not used and randf() < dt * 6.0:
 		stage.fx.motes(pos, 0.9, Color(1.0, 0.6, 0.4), 1, 1.0, 0.8, 0.3)
 
@@ -397,6 +414,9 @@ func interactable() -> bool:
 			return not lit
 		"echo":
 			return not used
+		"landmark":
+			# the Heart takes blood from each Kindled once; the others answer once
+			return not used
 		"shrine", "merchant", "stairs", "hearthstone", "lore":
 			return true
 	return data.has("prompt") and not used
@@ -437,6 +457,8 @@ func label_name() -> String:
 			return "Unlit Sconce"
 		"lost_camp":
 			return "Lost Camp"
+		"landmark":
+			return String(DungeonGen.landmark_def(String(data.get("id", ""))).get("name", ""))
 	return ""
 
 
@@ -454,6 +476,12 @@ func label_color() -> Color:
 			return Color(1.0, 0.7, 0.42)
 		"sconce", "lost_camp":
 			return Color(1.0, 0.62, 0.32)
+		"landmark":
+			match String(data.get("id", "")):
+				"heartroot":
+					return Color(0.98, 0.48, 0.62)
+				"sundisc":
+					return Color(1.0, 0.82, 0.4)
 	return Color(0.52, 0.96, 0.88)
 
 
@@ -493,6 +521,8 @@ func prompt() -> String:
 			return "Light the sconce"
 		"lost_camp":
 			return "Rekindle the fire"
+		"landmark":
+			return String(DungeonGen.landmark_def(String(data.get("id", ""))).get("prompt", "Touch"))
 	return String(data.get("prompt", ""))
 
 

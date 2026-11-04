@@ -40,7 +40,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	region = EnemyDB.REGIONS[lay.region]
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
-	var theme := LevelBuilder.LevelTheme.named(region.theme)
+	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
 	add_child(LevelBuilder.build(grid, theme))
 	_environment()
 	if not replica:
@@ -70,6 +70,13 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				rm.visited = true
 				rm.cleared = true
 		start = ante
+	if "warp=landmark" in Dev.args():
+		# dev: start beside the floor's landmark, its fight already won
+		for rm in layout.rooms:
+			if rm.landmark != "":
+				player.pos = rm.center() + Vector2(0, 2.5)
+				rm.cleared = true
+				start = rm
 	if "warp=event" in Dev.args():
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
@@ -244,7 +251,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich"]:
+			for k in ["mat", "rich", "id"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
@@ -567,7 +574,13 @@ func _enter_room(r: Room, mine := true) -> void:
 			Events.toast.emit("\"Embers for wares, wanderer?\"", Color(1.0, 0.8, 0.5))
 		elif r.type == Room.Type.STAIRS:
 			Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
-		elif r.type == Room.Type.EVENT:
+		if r.landmark != "":
+			# a great sight, and one more for the record of what this Kindled has seen
+			Profile.note_seen("landmarks", r.landmark)
+			if not replica:
+				var ld := DungeonGen.landmark_def(r.landmark)
+				Events.banner.emit(String(ld.get("name", "")), String(ld.get("line", "")))
+		if r.type == Room.Type.EVENT:
 			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
 				"vault": "A sealed reliquary, and cold sconces around it. Light them together.", "camp": "A camp. Its fire went out long ago."}
 			Events.toast.emit(msg.get(r.event, ""), Color(1.0, 0.8, 0.55))
@@ -589,6 +602,12 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
+	# three or four Kindled: the room calls one more, smaller wave of flankers
+	# and marksmen when its own are done
+	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
+		r.set_meta("party_wave", true)
+		r.encounter = r.encounter.duplicate()
+		r.encounter.append(EnemyDB.party_extras(rng, layout.region, layout.depth, [], players.size()))
 	_pull_party_in(r, by if by else player)
 	_set_gates(r, true)
 	if r.type == Room.Type.BOSS:
@@ -607,12 +626,31 @@ func _spawn_wave(r: Room) -> void:
 	if far.size() >= ids.size():
 		spots = far
 	var elite_done := false
+	var n_own := ids.size()
 	if players.size() > 1:
-		# about 30% more foes per extra Kindled, drawn from the same fight
+		# about 30% more foes per extra Kindled, chosen for what they add
+		# (flankers, back-line pressure) and placed from the far side
 		var extra := int(round(ids.size() * 0.3 * (players.size() - 1)))
-		var base_ids := ids.duplicate()
-		for k in extra:
-			ids.append(base_ids[rng.randi_range(0, base_ids.size() - 1)])
+		ids.append_array(EnemyDB.party_extras(rng, layout.region, layout.depth, ids, extra))
+		if spots.size() > n_own:
+			var c := Vector2.ZERO
+			for p in players:
+				c += p.pos
+			c /= players.size()
+			var rest := spots.slice(n_own)
+			rest.sort_custom(func(a, b): return (Vector2(a) - c).length_squared() > (Vector2(b) - c).length_squared())
+			spots = spots.slice(0, n_own) + rest
+	var share := 1.0
+	if players.size() > 1:
+		var own_v := 0.0
+		var all_v := 0.0
+		for k in ids.size():
+			var v := float(EnemyDB.get_def(String(ids[k])).get("xp", 1))
+			all_v += v
+			if k < n_own:
+				own_v += v
+		var closing: bool = r.get_meta("party_wave", false) and wave == r.encounter.size() - 1
+		share = Party.PARTY_WAVE_SHARE if closing else Party.wave_share(own_v, all_v, players.size())
 	var tempered := run.has_omen("tempered") and r.type != Room.Type.ELITE
 	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
 	for i in ids.size():
@@ -622,8 +660,7 @@ func _spawn_wave(r: Room) -> void:
 		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
 		_scale(e, layout.depth, memory)
 		_coop_scale(e)
-		# a party shares out what its extra foes pay (Party.reward_share)
-		var share := Party.reward_share(players.size())
+		# a party shares out what its extra foes pay (Party.wave_share)
 		if share < 1.0:
 			e.xp = maxi(1, int(round(e.xp * share)))
 			e.embers = int(round(e.embers * share))
@@ -658,8 +695,13 @@ func _coop_scale(e: Enemy) -> void:
 	var extra := players.size() - 1
 	if extra <= 0:
 		return
-	e.max_hp *= 1.0 + (0.5 if e.def.get("boss", false) else 0.35) * extra
+	var is_boss: bool = e.def.get("boss", false)
+	# a guardian is not just more health for more Kindled: a little more,
+	# a quicker tempo, and its call for help (Dungeon._guardian_call)
+	e.max_hp *= 1.0 + (0.4 if is_boss else 0.35) * extra
 	e.hp = e.max_hp
+	if is_boss:
+		e.attack_rate *= 1.0 + 0.07 * extra
 	# a party splits the blows and raises its fallen: each foe hits a little
 	# harder so each Kindled is pressed about as hard as alone (measured with
 	# src/dev/scaling_eval.gd: without this a party member took about half
@@ -1111,9 +1153,48 @@ func _start_boss(r: Room) -> void:
 				bz.append(p)
 		w.set("braziers", bz)
 		Net.rec(["boss", e.net_id])
+		if players.size() > 1:
+			after(10.0, _guardian_call)
 		Events.boss_started.emit(e)
 		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
 		Audio.play_music(String(region.get("boss_music", "boss")), 0.5))
+
+
+## A guardian facing a party calls for help: every so often foes of its
+## region rise beside the Kindled who stands farthest from it (marked a
+## moment before), so nobody fights from a safe spot behind it. More
+## Kindled, more often and more of them.
+func _guardian_call() -> void:
+	if boss == null or not is_instance_valid(boss) or not boss.alive or players.size() <= 1:
+		return
+	var far: Player = null
+	var fd := -1.0
+	for p in active_players():
+		var d := p.pos.distance_to(boss.pos)
+		if d > fd:
+			fd = d
+			far = p
+	if far:
+		var n := players.size() - 1
+		var ids := EnemyDB.party_extras(rng, layout.region, maxi(layout.depth, 2), [], n)
+		for i in ids.size():
+			var at := random_floor_near(far.pos + Vector2.from_angle(rng.randf() * TAU) * 3.0, 1.5)
+			fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(1.6, 1.6), Color(1.0, 0.45, 0.4, 0.4), Color(1.0, 0.6, 0.5, 1.0), 1.0, {"glow": 1.5})
+			var id: String = ids[i]
+			after(0.9, func() -> void:
+				if boss == null or not is_instance_valid(boss) or not boss.alive:
+					return
+				var e := _make_enemy(id)
+				e.pos = at
+				e.room_id = boss.room_id
+				_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
+				e.xp = 0
+				e.embers = 0
+				e.spawn_t = 0.5
+				add_actor(e)
+				register_enemy(e))
+		Audio.play("spawn", -2.0, 0.8)
+	after(maxf(9.0, 16.0 - 2.0 * (players.size() - 1)), _guardian_call)
 
 
 ## Anticipation on a guardian's floor: the ground shakes, something below
@@ -1458,6 +1539,8 @@ func request(what: String, prop: Prop) -> void:
 			Audio.play("deny", -6.0)
 		"lost_camp":
 			_rekindle_camp(prop)
+		"landmark":
+			_landmark_answer(prop, who)
 		"secret":
 			_open_secret(prop)
 		"well":
@@ -1520,6 +1603,72 @@ func _light_sconce(prop: Prop) -> void:
 	Audio.play("gate_open", -2.0, 1.2)
 
 
+## A landmark answers (DungeonGen.LANDMARKS):
+##  the Bone Colossus remembers the whole depth - every room, the hidden
+##  ones too, appears on every Kindled's map (Minimap reads its spent state);
+##  the Heart-Root takes 15% of a Kindled's health for a relic of their
+##  choosing, once each;
+##  the Fallen Sun-Disc warms every Kindled near it once: Kindle full, a third
+##  of their health, a flask, and a Sunshard left at its foot.
+func _landmark_answer(prop: Prop, who: Player) -> void:
+	var col: Color = prop._flame_col
+	match String(prop.data.get("id", "")):
+		"colossus":
+			if prop.used:
+				return
+			prop.used = true
+			prop.sprite.play("woken")
+			prop._base_energy = 1.2
+			fx.flash_light(prop.pos, 2.0, col, 5.0, 12.0, 1.2)
+			fx.ring(prop.pos, 3.0, col, 0.9, 0.3)
+			fx.motes(prop.pos, 1.6, col, 30, 2.0, 1.4, 0.6)
+			Audio.play_at("warden_call", prop.pos, -6.0, 1.3)
+			Events.banner.emit("The Colossus Remembers", "Every hall of this depth is on your map")
+			minimap_changed.emit()
+		"heartroot":
+			if Party.spent(prop, who) or not who.alive or who.downed:
+				Party.tell(who, "The Heart has had your blood.", Color(0.9, 0.6, 0.6))
+				return
+			Party.spend(self, prop, who)
+			who.hp = maxf(1.0, who.hp - who.max_hp * 0.15)
+			prop.sprite.play("fed")
+			prop._base_energy = 2.0
+			fx.burst(who.pos, 0.8, Color(0.9, 0.25, 0.3), 16, 3.0, 0.5, 4.0)
+			fx.motes(prop.pos, 1.4, col, 20, 1.6, 1.0, 0.5)
+			Audio.play_at("pact", prop.pos, -2.0, 0.8)
+			var skills := Party.skills_of(who)
+			var offer := RelicDB.roll_offer(run.rng, 3, who.run.relics, SkillDB.branch_counts(skills), SkillDB.abilities(skills), layout.depth + 1, false)
+			Party.offer_relic(self, who, prop, offer)
+		"sundisc":
+			if prop.used:
+				return
+			prop.used = true
+			prop.sprite.play("lit")
+			prop._base_energy = 1.6
+			prop.light.omni_range = 10.0
+			for pl in players_near(prop.pos, 9.0):
+				pl.gain_kindle(pl.kindle_max())
+				pl.heal(pl.max_hp * 0.35)
+				pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
+				fx.motes(pl.pos, 0.5, col, 16, 1.6, 1.0, 0.5)
+			Pickup.spawn(self, "sunshard", prop.pos + Vector2(0, 1.4), 1)
+			fx.flash_light(prop.pos, 2.0, col, 6.0, 12.0, 1.4)
+			fx.ring(prop.pos, 3.5, col, 1.0, 0.35)
+			Audio.play_at("ignite", prop.pos, 0.0, 0.7)
+			Audio.play_at("flask", prop.pos, -4.0, 0.8)
+			Events.banner.emit("The Last Warmth", "The sun-king's emblem burns once more")
+	if OS.is_debug_build():
+		print("[dungeon] landmark %s answered %s" % [prop.data.get("id", ""), who.name])
+
+
+## Has a Bone Colossus on this depth been heard (every room on the map)?
+func remembered() -> bool:
+	for p in props:
+		if is_instance_valid(p) and p.kind == "landmark" and p.used and String(p.data.get("id", "")) == "colossus":
+			return true
+	return false
+
+
 ## A dead Kindled's camp: rekindling it rests you, and their pack is yours.
 func _rekindle_camp(prop: Prop) -> void:
 	if prop.used:
@@ -1558,7 +1707,7 @@ func _open_secret(prop: Prop) -> void:
 	for c in get_children():
 		if c.name == "Level":
 			c.queue_free()
-	var theme := LevelBuilder.LevelTheme.named(region.theme)
+	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
 	var lvl := LevelBuilder.build(grid, theme)
 	add_child(lvl)
 	rebuild_nav()

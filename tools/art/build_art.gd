@@ -22,6 +22,8 @@ const GenWave2 = preload("res://tools/art/gen_wave2.gd")
 const GenGear = preload("res://tools/art/gen_gear.gd")
 const GenBuilds = preload("res://tools/art/gen_builds.gd")
 const GenWorkshop = preload("res://tools/art/gen_workshop.gd")
+const GenDepths = preload("res://tools/art/gen_depths.gd")
+const GenLandmarks = preload("res://tools/art/gen_landmarks.gd")
 
 
 func _init() -> void:
@@ -55,6 +57,8 @@ func _init() -> void:
 		"gear": func(): GenGear.build("res://assets/sprites"),
 		"builds": func(): GenBuilds.build("res://assets/sprites"),
 		"workshop": func(): GenWorkshop.build("res://assets/sprites"),
+		"depths": func(): GenDepths.build("res://assets/textures"),
+		"landmarks": func(): GenLandmarks.build("res://assets/sprites"),
 	}
 	for k in jobs:
 		if only.is_empty() or k in only:

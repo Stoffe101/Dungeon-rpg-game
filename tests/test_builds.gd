@@ -374,3 +374,121 @@ func test_coop_reward_share() -> void:
 		var foes := 1.0 + Party.FOES_PER_EXTRA * (n - 1)
 		near(foes * Party.reward_share(n), 1.0 + Party.BONUS_PER_EXTRA * (n - 1), 0.0001, "party of %d" % n)
 		check(Party.reward_share(n) < 1.0, "each foe is worth less in a party of %d" % n)
+
+
+## A party is pressed as a party: foes share themselves out instead of all
+## falling on whoever stands nearest; a Kindled standing alone is sought out;
+## extra foes for a party are flankers and marksmen, within the role caps.
+func test_party_targeting_and_extras() -> void:
+	Profile.data = Profile.fresh()
+	var lay := DungeonGen.generate(7, 1, "ossuary", false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]), null)
+	var ps: Array = [d.player]
+	for k in 3:
+		var p := Player.new()
+		p.peer_id = k + 2
+		p.pos = d.random_floor_near(d.player.pos + Vector2(1.2 * (k + 1), 0.0), 0.4)
+		d.add_actor(p)
+		p.setup_from(RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]))
+		ps.append(p)
+	var foes: Array = []
+	for k in 8:
+		var e := d._make_enemy("husk")
+		e.pos = d.random_floor_near(d.player.pos + Vector2(-2.5, 0.5 * k - 2.0), 0.5)
+		d.add_actor(e)
+		e.state = "idle"
+		foes.append(e)
+	for e in foes:
+		e.target()
+	var per := {}
+	for e in foes:
+		per[e._tgt] = int(per.get(e._tgt, 0)) + 1
+	check(per.size() >= 3, "eight foes spread over at least three of four Kindled (%d)" % per.size())
+	check(int(per.get(d.player, 0)) < 8, "the nearest Kindled is not the only target (%d on it)" % int(per.get(d.player, 0)))
+	var extras := EnemyDB.party_extras(d.rng, "ossuary", 2, ["husk", "husk"], 6)
+	eq(extras.size(), 6, "six extras")
+	var roles := {}
+	for id in extras:
+		var r := String(EnemyDB.get_def(id).get("role", ""))
+		roles[r] = int(roles.get(r, 0)) + 1
+		check(not EnemyDB.get_def(id).has("pack"), "no pack summoners among the extras (%s)" % id)
+	for r in roles:
+		if EnemyDB.ROLE_CAP.has(r):
+			check(int(roles[r]) <= int(EnemyDB.ROLE_CAP[r]), "role cap kept for %s" % r)
+	d.queue_free()
+
+
+func test_party_rewards_by_worth() -> void:
+	# a wave's pay per Kindled follows what its own foes are worth, whatever
+	# pricier flankers a party brings with it
+	eq(Party.wave_share(10.0, 10.0, 1), 1.0, "alone: everything")
+	check(absf(Party.wave_share(10.0, 20.0, 2) - 0.56) < 0.001, "two Kindled, foes worth twice as much: 0.56 each")
+	check(absf(Party.wave_share(20.0, 40.0, 4) * 40.0 / 20.0 - 1.36) < 0.001, "four Kindled: 36% more each than alone")
+	check(Party.PARTY_WAVE_SHARE < 0.5, "a big party's closing wave pays little")
+
+
+func test_landmarks() -> void:
+	DungeonGen.force_landmark = true
+	var found := {}
+	for region in ["ossuary", "rootmire", "throne"]:
+		for s in [3, 11, 29]:
+			var with := DungeonGen.generate(s, 2, region, false)
+			DungeonGen.force_landmark = false
+			var without := DungeonGen.generate(s, 2, region, false)
+			DungeonGen.force_landmark = true
+			var lr: Room = null
+			for r in with.rooms:
+				if r.landmark != "":
+					lr = r
+			if lr == null:
+				continue
+			found[region] = true
+			eq(lr.landmark, String(DungeonGen.LANDMARKS[region].id), "the region's own landmark")
+			eq(with.rooms.size(), without.rooms.size(), "the same floor around it (%s %d)" % [region, s])
+			var same := true
+			for r in with.rooms:
+				if r != lr and (r.type != without.room(r.id).type or r.encounter != without.room(r.id).encounter):
+					same = false
+			check(same, "every other room is untouched (%s %d)" % [region, s])
+			var lm: Array = lr.props.filter(func(pd): return pd.kind == "landmark")
+			eq(lm.size(), 1, "one centrepiece")
+			# its room still joins every door with every other around it
+			var g := with.grid
+			var c: Vector2i = lm[0].tile
+			for dx in [-1, 0, 1]:
+				for dy in [-1, 0]:
+					check(g.at(c.x + dx, c.y + dy) == TileGrid.FLOOR, "it stands on open floor")
+			var block := {}
+			for dx in [-1, 0, 1]:
+				for dy in [-1, 0]:
+					block[c + Vector2i(dx, dy)] = true
+			var doors: Array = []
+			for d in lr.doors:
+				if not d.secret:
+					doors.append(d.tiles[0])
+			var seen := {doors[0]: true}
+			var stack: Array = [doors[0]]
+			while not stack.is_empty():
+				var t: Vector2i = stack.pop_back()
+				for o in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var n: Vector2i = t + o
+					if seen.has(n) or block.has(n) or g.room_at(n.x, n.y) != lr.id and not doors.has(n):
+						continue
+					if g.at(n.x, n.y) != TileGrid.FLOOR:
+						continue
+					seen[n] = true
+					stack.append(n)
+			for dt in doors:
+				check(seen.has(dt), "every door of the landmark's room reachable past it (%s %d)" % [region, s])
+	DungeonGen.force_landmark = false
+	eq(found.size(), 3, "a landmark found in every region")
+	# the Wonders feat counts the landmarks this Kindled has seen
+	Profile.data = Profile.fresh()
+	eq(Feats.progress("wonders"), 0, "none seen yet")
+	Profile.note_seen("landmarks", "colossus")
+	Profile.note_seen("landmarks", "colossus")
+	Profile.note_seen("landmarks", "sundisc")
+	eq(Feats.progress("wonders"), 2, "two different landmarks")

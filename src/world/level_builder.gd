@@ -22,10 +22,14 @@ class LevelTheme:
 	var grime := 0.0
 	var grime_color := Color(0.35, 0.3, 0.32)
 
-	static func named(n: String) -> LevelTheme:
+	## `depth_k`: which of the region's three depths (1-3): the second and third
+	## have their own floor and wall faces where they exist (tools/art/gen_depths.gd).
+	static func named(n: String, depth_k := 1) -> LevelTheme:
 		var t := LevelTheme.new()
-		t.floor_tex = load("res://assets/textures/%s_floor.png" % n)
-		t.wall_tex = load("res://assets/textures/%s_wall.png" % n)
+		var fv := "res://assets/textures/%s_floor_d%d.png" % [n, depth_k]
+		var wv := "res://assets/textures/%s_wall_d%d.png" % [n, depth_k]
+		t.floor_tex = load(fv if depth_k > 1 and ResourceLoader.exists(fv) else "res://assets/textures/%s_floor.png" % n)
+		t.wall_tex = load(wv if depth_k > 1 and ResourceLoader.exists(wv) else "res://assets/textures/%s_wall.png" % n)
 		t.top_tex = load("res://assets/textures/%s_top.png" % n)
 		t.ledge_tex = load("res://assets/textures/%s_ledge.png" % n)
 		t.pit_tex = load("res://assets/textures/pit.png")

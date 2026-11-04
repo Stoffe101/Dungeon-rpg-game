@@ -143,9 +143,71 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool) 
 		var lay := _try_generate(rng, depth, region, boss_depth)
 		if lay != null:
 			lay.seed = seed_v
+			_landmark(lay, seed_v)
 			return lay
 	push_error("DungeonGen: failed to generate a layout")
 	return null
+
+
+## Each region's landmark: one great centrepiece that tells something of the
+## place and does something once you reach it (Dungeon.request "landmark").
+const LANDMARKS := {
+	"ossuary": {"id": "colossus", "name": "The Bone Colossus", "line": "It was a warden once. It still remembers every hall.",
+		"prompt": "Listen to the Colossus", "light": Color(0.55, 0.9, 0.85), "energy": 0.45},
+	"rootmire": {"id": "heartroot", "name": "The Heart-Root", "line": "The dead tree's heart still beats. It is thirsty.",
+		"prompt": "Bleed for the Heart (-15% health)", "light": Color(1.0, 0.35, 0.35), "energy": 0.8},
+	"throne": {"id": "sundisc", "name": "The Fallen Sun-Disc", "line": "The sun-king's emblem. A little warmth is still caught in it.",
+		"prompt": "Touch the last warmth", "light": Color(1.0, 0.72, 0.38), "energy": 0.7},
+}
+## Dev (`landmark`): every floor has one.
+static var force_landmark := false
+
+
+static func landmark_def(id: String) -> Dictionary:
+	for k in LANDMARKS:
+		if String(LANDMARKS[k].id) == id:
+			return LANDMARKS[k]
+	return {}
+
+
+## Now and then a floor holds its region's landmark, in the middle of one
+## fight (more often deeper down). Chosen with an rng of its own, so the rest
+## of a seed's floor is the same with or without it.
+static func _landmark(lay: Layout, seed_v: int) -> void:
+	if not LANDMARKS.has(lay.region):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_v, lay.depth, "landmark"])
+	if rng.randf() > minf(0.16 + 0.04 * lay.depth, 0.36) and not force_landmark:
+		return
+	var cands: Array = []
+	for r in lay.rooms:
+		if r.type == Room.Type.COMBAT and r.id >= 2 and r.authored == "" and r.cells.size() == 1 and r.rect.size.x >= 20:
+			cands.append(r)
+	if cands.is_empty():
+		return
+	var r: Room = cands[rng.randi_range(0, cands.size() - 1)]
+	var c := Vector2i(r.center())
+	# open floor around it, whatever the room's own shape put there
+	var g := lay.grid
+	var area := Rect2i(c.x - 4, c.y - 3, 9, 6).intersection(r.rect.grow(-1))
+	for y in range(area.position.y, area.end.y):
+		for x in range(area.position.x, area.end.x):
+			g.put(x, y, TileGrid.FLOOR)
+			g.room_of[y * g.width + x] = r.id
+	# a pit cut in half keeps its edge
+	var ring := area.grow(1)
+	for y in range(ring.position.y, ring.end.y):
+		for x in range(ring.position.x, ring.end.x):
+			if g.at(x, y) == TileGrid.VOID:
+				g.put(x, y, TileGrid.WALL)
+	r.props = r.props.filter(func(pd): return pd.kind == "decal" or not area.has_point(pd.tile))
+	r.landmark = String(LANDMARKS[lay.region].id)
+	r.props.append({"kind": "landmark", "tile": c, "id": r.landmark})
+	# the place it stands is kept: lights at its feet
+	var lamp: String = {"rootmire": "glowcap", "throne": "brazier"}.get(lay.region, "candles")
+	for o in [Vector2i(-3, 1), Vector2i(3, 1)]:
+		r.props.append({"kind": lamp, "tile": c + o})
 
 
 static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String, boss_depth: bool) -> Layout:

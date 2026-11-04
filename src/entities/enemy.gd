@@ -178,9 +178,45 @@ var last_player: Player     # who hit it last (on-kill credit, aggro)
 func target() -> Player:
 	if _tgt and is_instance_valid(_tgt) and _tgt.alive and not _tgt.downed and _tgt_t > 0.0:
 		return _tgt
-	_tgt = stage.nearest_player(pos)
-	_tgt_t = 1.2
+	_tgt_t = randf_range(1.0, 1.6)
+	var ps: Array = stage.active_players()
+	_tgt = stage.nearest_player(pos) if ps.size() <= 1 else _party_target(ps)
 	return _tgt
+
+
+## In a party, foes share themselves out instead of all falling on whoever
+## stands nearest (which left the rest of the party free - why bigger
+## parties took far less per Kindled): a Kindled already pressed by others
+## is less inviting, one standing alone is prey (flankers most of all), and
+## ranged and support foes care little for distance, so the back line is
+## pressed too. A foe keeps its target unless another is clearly better.
+func _party_target(ps: Array) -> Player:
+	var role := String(def.get("role", ""))
+	var reach := role in ["ranged", "artillery", "beam", "support", "summoner", "controller"]
+	var flanker := role in ["harrier", "charger", "swarm", "ambush"]
+	var foes := stage.hostiles(Team.PLAYER)
+	var best: Player = null
+	var bs := INF
+	for p: Player in ps:
+		var s := pos.distance_to(p.pos) * (0.45 if reach else 1.0)
+		var pressed := 0
+		for o in foes:
+			if o != self and o is Enemy and (o as Enemy)._tgt == p and o.alive:
+				pressed += 1
+		s += 1.6 * pressed
+		var alone := true
+		for q: Player in ps:
+			if q != p and q.pos.distance_to(p.pos) < 4.0:
+				alone = false
+				break
+		if alone:
+			s -= 1.5 if flanker else 0.8
+		if p == _tgt:
+			s -= 1.5
+		if s < bs:
+			bs = s
+			best = p
+	return best if best else stage.nearest_player(pos)
 
 
 func set_state(s: String) -> void:
