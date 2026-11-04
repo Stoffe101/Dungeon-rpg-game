@@ -93,6 +93,7 @@ func _gutter() -> void:
 		# Rune of Echoes: one last flare as the flame dies
 		stage.fx.ring(pos, 2.6, LIGHT_COL, 0.3, 0.3)
 		stage.fx.burst(pos, 0.8, LIGHT_COL, 24, 4.0, 0.5, 2.0)
+		stage.strike_props_circle(pos, 2.6, owner_player, true)
 		for a in stage.in_circle(team, pos, 2.6):
 			var h := Combat.player_hit(owner_player, owner_player.stats, damage * 3.0, ["summon", "fire"])
 			h.burn = 2

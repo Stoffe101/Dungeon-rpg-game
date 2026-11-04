@@ -412,7 +412,8 @@ func _process(_delta: float) -> void:
 			combo_box.create_tween().tween_property(combo_box, "modulate:a", 0.0, 0.3)
 	# interaction prompt
 	var near := st.nearest_interactable(pl.pos) if pl.alive else null
-	if near and not Game.ui.has_modal():
+	# (dungeon objects carry their own name and action over them: Fx.beacon)
+	if near and not Game.ui.has_modal() and not (st is Dungeon and near.label_name() != ""):
 		prompt_lbl.text = "[%s] %s" % [Settings.describe_action("interact"), near.prompt()]
 	else:
 		prompt_lbl.text = ""

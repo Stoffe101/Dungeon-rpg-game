@@ -122,6 +122,27 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				if player and player.alive:
 					player.invuln_t = 8.0     # dev: so the ritual is not broken mid-test
 					player.start_hearthcall())
+	if "proplab" in Dev.args() and not replica:
+		# dev: one of each dungeon object around the Kindled, to look at their
+		# names, glow and prompts (the chest right beside it is the one in reach)
+		var spots := [[Vector2(1.2, 0.0), "chest", {"tier": 1}], [Vector2(-3.0, -1.5), "chest", {"tier": 2}], [Vector2(3.5, -2.5), "relic_altar", {"tier": 1}],
+			[Vector2(-4.0, 2.0), "ember_well", {}], [Vector2(4.0, 2.5), "shrine", {}], [Vector2(0.0, -4.0), "spring", {}]]
+		for s in spots:
+			var t := Vector2i(random_floor_near(player.pos + (s[0] as Vector2), 0.6))
+			Prop.make(self, String(s[1]), t, (s[2] as Dictionary).duplicate())
+	if "urnlab" in Dev.args() and not replica:
+		# dev: a row of urns of every make beside the Kindled (the second of each
+		# with something inside), struck one after another from 1.5 s
+		var k := 0
+		for mat in ["clay", "root", "gilded"]:
+			for rich in [false, true]:
+				var t := Vector2i(player.pos + Vector2(-2.5 + k * 1.0, -1.6))
+				var u := Prop.make(self, "urn", t, {"mat": mat, "rich": rich})
+				var delay := 1.5 + k * 0.45
+				after(delay, func() -> void:
+					if is_instance_valid(u) and not u.used:
+						strike_props_circle(u.pos, 0.1, player, false))
+				k += 1
 	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
@@ -147,7 +168,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
 	actor_died.connect(_on_actor_died)
-	Audio.play_music(region.music)
+	# the Hollow Below has its own music; every region its own walk and fight
+	Audio.play_music("hollow" if run.delve else String(region.music))
+	Audio.set_intensity(0.0)
 	Audio.play_ambience(String(region.get("ambience", "amb_crypt")))
 	var title: String = Delve.NAME if run.delve else String(region.name)
 	# a title card already named the place on the way down
@@ -221,6 +244,9 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
+			for k in ["mat", "rich"]:
+				if pd.has(k):
+					extra[k] = pd[k]
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
 				extra["solid"] = true
@@ -465,8 +491,49 @@ func _ambient_air(real: float) -> void:
 				fx.motes(p, randf_range(0.1, 1.0), Color(0.45, 0.95, 0.85), 1, 0.3, 3.0, 0.2)
 
 
+var _fight_t := 0.0          # music: how long this machine's Kindled has been in a fight
+var _elite_heard := {}
+var _amb_t := 6.0
+
+
+## The music follows the fight this machine's Kindled is in (on host and
+## guests alike, from what is near it): the fight's layer swells while foes
+## are awake close by, an elite's arrival strikes a sting, and the end of a
+## real fight a quiet chord. Now and then the place makes a sound of its own.
+func _music_watch(real: float) -> void:
+	if player == null or not is_instance_valid(player) or boss != null:
+		return
+	var near := 0
+	for a in hostiles(player.team):
+		if a is Enemy and (a as Enemy).state != "spawn" and a.pos.distance_to(player.pos) < 12.0:
+			near += 1
+			var e := a as Enemy
+			if e.elite and not _elite_heard.has(e.get_instance_id()):
+				_elite_heard[e.get_instance_id()] = true
+				Audio.sting("sting_elite", -3.0)
+	if near > 0:
+		_fight_t += real
+		Audio.set_intensity(clampf(0.55 + 0.12 * near, 0.0, 1.0))
+	else:
+		if _fight_t > 4.0:
+			Audio.sting("sting_clear", -6.0)
+		_fight_t = 0.0
+		Audio.set_intensity(0.0)
+	_amb_t -= real
+	if _amb_t <= 0.0:
+		_amb_t = randf_range(7.0, 16.0)
+		var pool: Array = AMB_ONESHOTS.get(layout.region, AMB_ONESHOTS.ossuary)
+		var at := player.pos + Vector2.from_angle(randf() * TAU) * randf_range(5.0, 10.0)
+		Audio.play_at(String(pool[randi() % pool.size()]), at, -8.0, randf_range(0.9, 1.1), 500)
+
+
+const AMB_ONESHOTS := {"ossuary": ["amb_drip", "amb_chain", "amb_stone", "amb_whisper"], "rootmire": ["amb_drip", "amb_creak", "amb_bubble", "amb_stone"],
+	"throne": ["amb_bell", "amb_stone", "amb_chain", "amb_gust"]}
+
+
 func _stage_process(real: float) -> void:
 	_ambient_air(real)
+	_music_watch(real)
 	if _death_t >= 0.0:
 		_death_t -= real
 		if _death_t < 0.0:
@@ -1046,7 +1113,7 @@ func _start_boss(r: Room) -> void:
 		Net.rec(["boss", e.net_id])
 		Events.boss_started.emit(e)
 		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
-		Audio.play_music("boss", 0.5))
+		Audio.play_music(String(region.get("boss_music", "boss")), 0.5))
 
 
 ## Anticipation on a guardian's floor: the ground shakes, something below

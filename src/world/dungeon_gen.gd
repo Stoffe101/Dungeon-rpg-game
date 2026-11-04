@@ -849,7 +849,10 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 		if wall_adj.is_empty():
 			break
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
-		r.props.append({"kind": "urn", "tile": t})
+		# urns of the region's own make; now and then one glints (rarer near
+		# the top, a little more common deeper down)
+		r.props.append({"kind": "urn", "tile": t, "mat": {"rootmire": "root", "throne": "gilded"}.get(lay.region, "clay"),
+			"rich": rng.randf() < 0.06 + 0.02 * mini(lay.depth, 6)})
 	# set dressing that gives each region its silhouette, against the walls
 	if r.type in [Room.Type.COMBAT, Room.Type.ELITE, Room.Type.TREASURE] and floor_tiles.size() > 60:
 		var pieces: Array = {"rootmire": ["stump"], "throne": ["statue", "statue", "column_fallen"]}.get(lay.region, ["sarcophagus", "bone_heap"])

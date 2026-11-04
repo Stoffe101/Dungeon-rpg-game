@@ -86,7 +86,8 @@ func _build() -> void:
 		"decal":
 			_decal(int(data.get("variant", 0)))
 		"urn":
-			_sprite("urn", 0.0)
+			var mat := String(data.get("mat", "clay"))
+			_sprite("urn" if mat == "clay" else "urn_" + mat, 0.0, 0.0, "rich" if data.get("rich", false) else "idle")
 			breakable = true
 			strike_radius = 0.45
 		"candles":
@@ -242,6 +243,8 @@ func _build() -> void:
 				_solid([tile])
 			if data.has("solid_tiles"):
 				_solid(data.solid_tiles)     # a wide prop blocks more than its own tile
+	if stage is Dungeon and label_name() != "":
+		stage.fx.beacon(self, _label_height(), label_color())
 
 
 func _sprite(sheet: String, h: float, z := 0.0, anim := "") -> void:
@@ -399,6 +402,67 @@ func interactable() -> bool:
 	return data.has("prompt") and not used
 
 
+## The name over it in the world ("" for none): what it is, at a glance.
+func label_name() -> String:
+	match kind:
+		"chest":
+			if data.get("sealed", false):
+				return "Sealed Reliquary"
+			return "Ancient Chest" if int(data.get("tier", 1)) >= 2 else "Treasure Chest"
+		"ember_pile":
+			return "Ember Pile"
+		"relic_altar":
+			return "Relic Altar"
+		"spring":
+			return "Spring of Vigor"
+		"fountain":
+			return "Ember Fountain"
+		"shrine":
+			return "Shrine of Pacts"
+		"merchant":
+			return "Merchant"
+		"stairs":
+			return "Stairs Down"
+		"hearthstone":
+			return "Hearthstone"
+		"lore":
+			return "Lorestone"
+		"ember_well":
+			return "Ember Well"
+		"trial_altar":
+			return "Trial Altar"
+		"echo":
+			return "Echo of a Fallen Kindled"
+		"sconce":
+			return "Unlit Sconce"
+		"lost_camp":
+			return "Lost Camp"
+	return ""
+
+
+## The colour of its kind: treasure gold, the Undervault's magic soul-teal,
+## a bargain with a price rose, the way onward pale gold, trade amber.
+func label_color() -> Color:
+	match kind:
+		"chest", "ember_pile":
+			return Color(1.0, 0.82, 0.4)
+		"shrine":
+			return Color(0.98, 0.48, 0.62)
+		"stairs", "hearthstone":
+			return Color(1.0, 0.94, 0.74)
+		"merchant":
+			return Color(1.0, 0.7, 0.42)
+		"sconce", "lost_camp":
+			return Color(1.0, 0.62, 0.32)
+	return Color(0.52, 0.96, 0.88)
+
+
+func _label_height() -> float:
+	if sprite and sprite.sheet:
+		return float(sprite.sheet.frame_size.y) / 16.0 / Iso.SQ2 + 0.3
+	return 1.0
+
+
 func prompt() -> String:
 	match kind:
 		"chest":
@@ -479,6 +543,57 @@ func interact(pl: Player) -> void:
 			stage.request(kind, self)
 
 
+const URN_COLORS := {"clay": [Color(0.86, 0.8, 0.68), Color(0.42, 0.85, 0.8)], "root": [Color(0.5, 0.38, 0.26), Color(0.45, 0.62, 0.3)],
+	"gilded": [Color(0.32, 0.31, 0.38), Color(1.0, 0.78, 0.35)]}
+const URN_MATS := ["clay", "root", "gilded"]
+
+
+## An urn goes: a crack, then shards and dust, its pieces left on the floor,
+## the sound of its own material - and whatever was inside. (Drops come from
+## the stage's generator: a glinting urn always pays, a plain one sometimes.)
+func _shatter_urn() -> void:
+	var mat := String(data.get("mat", "clay"))
+	if sprite and sprite.has_anim("crack"):
+		sprite.play("crack")
+		sprite.flash(Color(1, 1, 1), 0.05)
+	var st := stage
+	var p := pos
+	var rich: bool = data.get("rich", false)
+	var cols: Array = URN_COLORS.get(mat, URN_COLORS.clay)
+	Audio.play_at("urn" if mat == "clay" else "urn_" + mat, p, -1.0, randf_range(0.94, 1.06))
+	st.after(0.06, func() -> void:
+		st.fx.burst(p, 0.45, cols[0], 16, 4.6, 0.55, 10.0, Vector2.ZERO, PI, 2.6, 1.0)
+		st.fx.burst(p, 0.45, cols[1], 6, 4.0, 0.5, 10.0)
+		st.fx.burst(p, 0.2, Color(0.55, 0.5, 0.46), 8, 1.1, 0.9, -0.6)
+		st.fx.debris(p + Vector2(0, 0.05), "urn_shards", URN_MATS.find(mat), 45.0)
+		if rich:
+			st.fx.flash_light(p, 0.5, Color(1.0, 0.8, 0.4), 2.0, 3.0, 0.3)
+			st.fx.motes(p, 0.5, Color(1.0, 0.85, 0.45), 10, 1.0, 0.8, 0.4)
+		_urn_loot(st, p, rich, mat)
+		st.props.erase(self)
+		queue_free())
+
+
+static func _urn_loot(st: Stage, p: Vector2, rich: bool, mat: String) -> void:
+	var rng := st.rng
+	var region_mat: String = {"root": "rootwood", "gilded": "sun_gold"}.get(mat, "bone_dust")
+	if rich:
+		for i in rng.randi_range(4, 7):
+			Pickup.spawn(st, "ember", p, 2)
+		Pickup.spawn(st, "material", p, 1, {"id": region_mat})
+		if rng.randf() < 0.15:
+			Pickup.spawn(st, "material", p, 1, {"id": "ember_core"})
+		return
+	var roll := rng.randf()
+	if roll < 0.4:
+		for i in rng.randi_range(1, 2):
+			Pickup.spawn(st, "ember", p, 1)
+	elif roll < 0.5:
+		Pickup.spawn(st, "heal", p, 8)
+	elif roll < 0.55:
+		Pickup.spawn(st, "material", p, 1, {"id": region_mat})
+
+
 func on_struck(src: Node, fire := false) -> void:
 	match kind:
 		"bramble", "root_node", "bramble_wall":
@@ -495,16 +610,7 @@ func on_struck(src: Node, fire := false) -> void:
 		"urn":
 			used = true
 			breakable = false
-			stage.fx.burst(pos, 0.4, Color(0.62, 0.5, 0.42), 14, 4.0, 0.5, 9.0)
-			Audio.play("urn", -4.0, randf_range(0.9, 1.15))
-			var roll := randf()
-			if roll < 0.5:
-				for i in randi_range(1, 3):
-					Pickup.spawn(stage, "ember", pos, 1)
-			elif roll < 0.62:
-				Pickup.spawn(stage, "heal", pos, 8)
-			queue_free()
-			stage.props.erase(self)
+			_shatter_urn()
 		"boss_brazier":
 			if not lit and src is Player:
 				set_lit(true, Color(1.0, 0.6, 0.3))

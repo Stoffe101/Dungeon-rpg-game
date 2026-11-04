@@ -31,6 +31,36 @@ func fx(name: String, dur: float, build: Callable, seed_v := 1) -> void:
 	s.save(SFX + name + ".wav", 0.85)
 
 
+## A vessel breaking: a thump of its body, a crack, shards scattering (most
+## of them at once, a few late ones skittering), a breath of dust. Clay rings
+## bright, a root-bound jar cracks dull and woody, a gilded one rings metal.
+static func _shatter(s, mat: String) -> void:
+	var rng: RandomNumberGenerator = s.rng
+	match mat:
+		"root":
+			s.tone(0.0, 0.08, 190.0, 90.0, "sine", 0.3, 0.001, 6.0)
+			s.noise(0.0, 0.08, 0.8, 4200.0, 1400.0, 450.0, 0.001, 5.0)
+			s.tone(0.004, 0.06, 680.0, 500.0, "square", 0.2, 0.0005, 8.0, 0.0, 6.0, 2400.0)
+			s.noise(0.03, 0.05, 0.35, 3000.0, 1500.0, 600.0, 0.001, 6.0)
+		"gilded":
+			s.tone(0.0, 0.08, 230.0, 90.0, "sine", 0.32, 0.001, 6.0)
+			s.noise(0.0, 0.045, 0.9, 10000.0, 4000.0, 1500.0, 0.0005, 7.0)
+			s.bell(0.0, 0.55, 1760.0 * rng.randf_range(0.95, 1.05), 0.1, [[1.0, 1.0, 4.0], [2.41, 0.6, 6.0], [3.93, 0.4, 9.0], [5.2, 0.25, 13.0]])
+		_:
+			s.tone(0.0, 0.09, 200.0, 80.0, "sine", 0.32, 0.001, 6.0)
+			s.noise(0.0, 0.05, 0.9, 9000.0, 3500.0, 1200.0, 0.0005, 7.0)
+	var n: int = {"root": 8, "gilded": 14}.get(mat, 18)
+	var lo: float = {"root": 900.0, "gilded": 3000.0}.get(mat, 2400.0)
+	var hi: float = {"root": 2200.0, "gilded": 7500.0}.get(mat, 6200.0)
+	for k in n:
+		var t: float = 0.015 + pow(rng.randf(), 1.6) * 0.42
+		var f: float = rng.randf_range(lo, hi)
+		var a: float = rng.randf_range(0.14, 0.3) * (1.0 - t * 1.3)
+		s.tone(t, rng.randf_range(0.05, 0.12), f, f * 0.97, "sine", maxf(0.02, a), 0.0005, 9.0)
+		s.noise(t, 0.012, maxf(0.05, a * 2.0), 9000.0, 6000.0, 3000.0, 0.0003, 9.0)
+	s.noise(0.04, 0.35, 0.12, 2500.0, 800.0, 200.0, 0.02, 2.0)
+
+
 static func midi(n: float) -> float:
 	return 440.0 * pow(2.0, (n - 69.0) / 12.0)
 
@@ -242,13 +272,55 @@ func _sfx() -> void:
 		for k in notes.size():
 			s.bell(k * 0.06, 0.8, midi(notes[k]), 0.14)
 		s.pad(0.0, 0.9, [midi(60), midi(67)], 0.25, 2000.0, 0.1, 0.5))
-	fx("chest", 0.7, func(s):
-		s.tone(0.0, 0.3, 110.0, 150.0, "saw", 0.3, 0.02, 1.0, 0.05, 20.0, 700.0)
-		s.bell(0.25, 0.4, 1046.0, 0.2))
-	fx("urn", 0.4, func(s):
-		s.noise(0.0, 0.3, 0.8, 6000.0, 1500.0, 800.0, 0.001, 5.0)
+	# a chest: the lid's hinge creaks, the latch knocks, coins and light spill
+	fx("chest", 1.1, func(s):
+		s.tone(0.0, 0.35, 180.0, 260.0, "saw", 0.16, 0.03, 1.0, 0.06, 26.0, 900.0)
+		s.noise(0.0, 0.3, 0.12, 2500.0, 1500.0, 600.0, 0.05, 2.0, 30.0)
+		s.tone(0.34, 0.06, 140.0, 90.0, "sine", 0.45, 0.001, 6.0)
+		s.noise(0.34, 0.04, 0.5, 3500.0, 1200.0, 400.0, 0.001, 8.0)
+		for k in 7:
+			var t: float = 0.42 + k * 0.045 + s.rng.randf() * 0.03
+			s.bell(t, 0.25, s.rng.randf_range(2600.0, 4200.0), 0.07, [[1.0, 1.0, 9.0], [2.7, 0.5, 13.0]])
+		s.bell(0.45, 0.6, 1046.0, 0.1)
+		s.bell(0.55, 0.6, 1568.0, 0.06))
+	# the Undervault's own sounds, heard from a few tiles off (Dungeon._music_watch)
+	fx("amb_drip", 0.6, func(s):
+		for k in 2:
+			var f: float = s.rng.randf_range(1300.0, 1900.0)
+			s.tone(k * 0.28, 0.14, f, f * 0.55, "sine", 0.3 - k * 0.1, 0.001, 8.0))
+	fx("amb_chain", 1.2, func(s):
+		for k in 9:
+			var t: float = k * 0.09 + s.rng.randf() * 0.04
+			s.bell(t, 0.3, s.rng.randf_range(1800.0, 3200.0), 0.12 - k * 0.008, [[1.0, 1.0, 10.0], [2.3, 0.6, 14.0], [3.7, 0.3, 18.0]])
+			s.noise(t, 0.02, 0.15, 6000.0, 3000.0, 1500.0, 0.001, 9.0))
+	fx("amb_stone", 1.6, func(s):
+		s.noise(0.0, 1.4, 0.5, 500.0, 180.0, 40.0, 0.2, 1.5, 9.0)
+		s.tone(0.0, 1.2, 70.0, 55.0, "saw", 0.08, 0.3, 1.5, 0.0, 6.0, 220.0)
 		for k in 4:
-			s.tone(k * 0.03, 0.12, 1400.0 + k * 400.0, 1300.0 + k * 380.0, "sine", 0.15, 0.001, 8.0))
+			s.noise(0.6 + k * 0.18, 0.05, 0.25, 2500.0, 1000.0, 300.0, 0.001, 6.0))
+	fx("amb_whisper", 2.2, func(s):
+		for k in 3:
+			var t: float = k * 0.55
+			s.noise(t, 0.6, 0.22, 2400.0, 1600.0, 700.0, 0.15, 1.5, 7.0 + k))
+	fx("amb_creak", 1.4, func(s):
+		s.tone(0.0, 1.1, 210.0, 160.0, "saw", 0.12, 0.08, 1.2, 0.04, 22.0, 900.0)
+		s.noise(0.0, 1.0, 0.1, 1800.0, 900.0, 300.0, 0.1, 1.5, 22.0))
+	fx("amb_bubble", 1.0, func(s):
+		for k in 4:
+			var t: float = k * 0.17 + s.rng.randf() * 0.05
+			var f: float = s.rng.randf_range(260.0, 480.0)
+			s.tone(t, 0.12, f, f * 1.9, "sine", 0.22, 0.004, 4.0))
+	fx("amb_bell", 3.5, func(s):
+		s.bell(0.0, 3.4, 220.0, 0.25, [[1.0, 1.0, 1.2], [2.76, 0.5, 1.8], [5.4, 0.25, 2.6], [8.93, 0.12, 3.5]]))
+	fx("amb_gust", 2.6, func(s):
+		s.noise(0.0, 2.5, 0.5, 600.0, 1600.0, 120.0, 0.9, 1.2, 0.0))
+	# urns shattering, one voice per material, three takes each (Audio picks one)
+	for mat in ["clay", "root", "gilded"]:
+		var base: String = "urn" if mat == "clay" else "urn_" + String(mat)
+		for take in 3:
+			var nm: String = base if take == 0 else "%s_%d" % [base, take + 1]
+			var m: String = mat
+			fx(nm, 0.62, func(s): _shatter(s, m), 11 + take * 17 + mat.length() * 5)
 	fx("ignite", 0.6, func(s):
 		s.noise(0.0, 0.5, 0.8, 600.0, 3000.0, 200.0, 0.02, 2.0)
 		s.tone(0.0, 0.4, 180.0, 90.0, "sine", 0.4, 0.01, 3.0))
@@ -401,6 +473,159 @@ func _music() -> void:
 	_boss()
 	_hearth()
 	_victory()
+	# layers that play in step with the walking music and swell in a fight
+	_combat_layer("crypt", 70.0, 8, 38, 121)
+	_combat_layer("rootmire", 76.0, 8, 40, 161)
+	_combat_layer("throne", 62.0, 8, 33, 171)
+	_hollow()
+	_combat_layer("hollow", 60.0, 8, 37, 181)
+	_boss_bloom()
+	_boss_king()
+	_stings()
+
+
+## A fight's layer for a walking loop: the same tempo and length, so the two
+## play in step (Audio swells it with the fight). Low drums, a driving
+## ostinato on the root with a half-step of dread every fourth bar, and a
+## tremolo of high strings.
+func _combat_layer(base: String, bpm: float, bars: int, root: int, seed_v: int) -> void:
+	var beat := 60.0 / bpm
+	var L := bars * 4 * beat
+	var s := Synth.new(22050, L, true, seed_v)
+	var throne := base == "throne"
+	var root_wood := base == "rootmire"
+	for b in bars:
+		var t0 := b * 4 * beat
+		# drums: a heavy pulse, a push before the bar, a roll into each fourth bar
+		s.kick(t0, 0.75)
+		s.kick(t0 + 1.5 * beat, 0.45)
+		s.kick(t0 + 2.0 * beat, 0.6)
+		if root_wood:
+			for k in 6:
+				s.noise(t0 + k * beat * 0.66, 0.03, 0.22, 3000.0, 1500.0, 500.0, 0.001, 8.0)
+		else:
+			s.snare(t0 + 3.0 * beat, 0.18 if not throne else 0.26)
+		if b % 4 == 3:
+			for k in 6:
+				s.kick(t0 + 3.0 * beat + k * beat / 6.0, 0.25 + 0.06 * k)
+		# the ostinato: eighths on the root, a half-step up every fourth bar
+		var n := root + 12 + (1 if b % 4 == 3 else 0)
+		for k in 8:
+			var f := midi(n + (12 if k % 4 == 2 else 0))
+			s.tone(t0 + k * beat * 0.5, beat * 0.42, f, f, "saw", 0.16, 0.004, 3.0, 0.0, 6.0, 900.0)
+		# high strings trembling on a fifth (on the dread bar, a tritone)
+		var top := root + 24
+		var pair := [top, top + (6 if b % 4 == 3 else 7)]
+		for k in 16:
+			for p in pair:
+				var fh := midi(p)
+				s.tone(t0 + k * beat * 0.25, beat * 0.22, fh, fh, "saw", 0.03, 0.01, 2.0, 0.0, 6.0, 2200.0)
+		if throne and b % 2 == 0:
+			# brass stabs for the drowned court
+			var ch := [root + 12, root + 15, root + 19]
+			for c in ch:
+				s.tone(t0, beat * 0.6, midi(c), midi(c), "saw", 0.07, 0.01, 2.0, 0.0, 6.0, 1300.0)
+	s.echo(beat * 0.5, 0.2, 1.0)
+	s.save(MUS + base + "_combat.wav", 0.8)
+
+
+## The Hollow Below: no region's music, its own - whole-tone bells drifting
+## over a beating drone, slow breaths of a far choir. Unsettling, not loud.
+func _hollow() -> void:
+	var bpm := 60.0
+	var beat := 60.0 / bpm
+	var bars := 8
+	var L := bars * 4 * beat
+	var s := Synth.new(22050, L, true, 191)
+	var d1: float = roundf(midi(37) * L) / L
+	var d2: float = roundf((midi(37) + 0.9) * L) / L
+	s.tone(0.0, L, d1, d1, "sine", 0.07, 0.0001, 0.0)
+	s.tone(0.0, L, d2, d2, "sine", 0.04, 0.0001, 0.0)
+	var whole := [61, 63, 65, 67, 69, 71, 73]
+	for b in bars * 4:
+		if s.rng.randf() < 0.4:
+			var n: int = whole[s.rng.randi_range(0, whole.size() - 1)]
+			s.bell(b * beat + s.rng.randf() * 0.4, 3.5, midi(n + 12), 0.09)
+	for c in 4:
+		var fr: Array = []
+		for n in [[49, 55, 61], [51, 57, 63], [47, 53, 59], [49, 55, 61]][c]:
+			fr.append(midi(n))
+		s.pad(c * 8 * beat, 8 * beat + 1.0, fr, 0.11, 600.0, 3.0, 2.5)
+	s.echo(beat * 0.75, 0.45, 1.0)
+	s.save(MUS + "hollow.wav", 0.75)
+
+
+## The Hollow Bloom: a rolling 6/8, marimba-wood riff in E minor over a
+## growling drone, swelling roots.
+func _boss_bloom() -> void:
+	var bpm := 112.0
+	var eighth := 60.0 / bpm / 2.0
+	var bars := 16
+	var L := bars * 6 * eighth
+	var s := Synth.new(22050, L, true, 201)
+	var dr: float = roundf(midi(28) * L) / L
+	s.tone(0.0, L, dr, dr, "saw", 0.12, 0.0001, 0.0, 0.0, 6.0, 260.0)
+	var riff := [52, 55, 59, 57, 55, 50]
+	for b in bars:
+		var t0 := b * 6 * eighth
+		s.kick(t0, 0.75)
+		s.kick(t0 + 3 * eighth, 0.55)
+		s.noise(t0 + 2 * eighth, 0.04, 0.25, 4000.0, 2000.0, 600.0, 0.001, 8.0)
+		s.noise(t0 + 5 * eighth, 0.04, 0.25, 4000.0, 2000.0, 600.0, 0.001, 8.0)
+		for k in 6:
+			var n: int = riff[k] + (2 if b % 4 == 3 and k > 2 else 0) + (12 if b >= 8 and k % 3 == 0 else 0)
+			s.bell(t0 + k * eighth, 0.8, midi(n), 0.14, [[1.0, 1.0, 7.0], [3.99, 0.3, 12.0], [9.2, 0.08, 18.0]])
+		if b % 2 == 0:
+			var fr: Array = []
+			for n in [[40, 47, 52], [36, 43, 48], [38, 45, 50], [35, 42, 47]][(b / 2) % 4]:
+				fr.append(midi(n + 12))
+			s.pad(t0, 12 * eighth + 0.4, fr, 0.09, 900.0, 0.6, 0.8)
+	s.save(MUS + "boss_bloom.wav", 0.85)
+
+
+## The Ashen King: a dead court's war march - timpani, brass chords on the
+## harmonic minor, a snare that never rests, a broken fanfare above.
+func _boss_king() -> void:
+	var bpm := 118.0
+	var beat := 60.0 / bpm
+	var bars := 16
+	var L := bars * 4 * beat
+	var s := Synth.new(22050, L, true, 211)
+	var chords := [[45, 48, 52], [41, 45, 48], [44, 47, 50], [45, 48, 52]]
+	for b in bars:
+		var t0 := b * 4 * beat
+		s.kick(t0, 0.8)
+		s.kick(t0 + 2 * beat, 0.6)
+		for k in 8:
+			s.snare(t0 + k * beat * 0.5, 0.1 + (0.12 if k % 2 == 1 else 0.0))
+		var ch: Array = chords[(b / 2) % 4]
+		for c in ch:
+			s.tone(t0, beat * 1.6, midi(c + 12), midi(c + 12), "saw", 0.07, 0.02, 1.6, 0.0, 6.0, 1500.0)
+			s.tone(t0 + 2.5 * beat, beat * 0.5, midi(c + 12), midi(c + 12), "saw", 0.06, 0.01, 2.0, 0.0, 6.0, 1500.0)
+		s.tone(t0, beat * 3.8, midi(ch[0] - 12), midi(ch[0] - 12), "saw", 0.14, 0.01, 1.2, 0.0, 6.0, 400.0)
+	var fan := [69, 72, 76, 75, 72, 71, 68, 69, 76, 77, 76, 72, 71, 72, 69, 68]
+	for k in fan.size():
+		var t := 8 * 4 * beat + k * 2 * beat
+		s.tone(t, 1.7 * beat, midi(fan[k]), midi(fan[k]), "square", 0.07, 0.02, 1.4, 0.005, 5.0, 2000.0)
+	s.save(MUS + "boss_king.wav", 0.85)
+
+
+## Stings over the music: an elite comes (a timpani blow, a brass cluster
+## rising, a cymbal swell) and a room is quiet again (a resolving chord).
+func _stings() -> void:
+	var e := Synth.new(22050, 2.4, false, 221)
+	e.kick(0.0, 1.0)
+	e.kick(0.12, 0.6)
+	for k in 3:
+		var n := 50 + k * 1
+		e.tone(0.05, 1.8, midi(n), midi(n + 2), "saw", 0.12, 0.25, 1.5, 0.0, 6.0, 1600.0)
+	e.noise(0.2, 1.6, 0.3, 2500.0, 9000.0, 2000.0, 1.2, 1.0)
+	e.save(MUS + "sting_elite.wav", 0.8)
+	var c := Synth.new(22050, 3.2, false, 222)
+	c.pad(0.0, 3.0, [midi(57), midi(62), midi(64)], 0.18, 1400.0, 0.3, 1.6)
+	c.pad(0.9, 2.2, [midi(57), midi(61), midi(64)], 0.18, 1400.0, 0.5, 1.6)
+	c.bell(0.9, 2.2, midi(81), 0.06)
+	c.save(MUS + "sting_clear.wav", 0.6)
 
 
 ## Exploration: slow, cold, D minor. A drone, shifting pads, a sparse plucked motif.
@@ -410,10 +635,12 @@ func _crypt() -> void:
 	var bars := 8
 	var L := bars * 4 * beat
 	var s := Synth.new(22050, L, true, 21)
+	# (drones kept low: the pads and the plucked line carry the piece, and a
+	# loud sub drone masks the fight - measured with tools/audio/analyze.py)
 	var dr: float = roundf(midi(38) * L) / L
-	s.tone(0.0, L, dr, dr, "sine", 0.22, 0.0001, 0.0)
+	s.tone(0.0, L, dr, dr, "sine", 0.09, 0.0001, 0.0)
 	var dr5: float = roundf(midi(45) * L) / L
-	s.tone(0.0, L, dr5, dr5, "sine", 0.1, 0.0001, 0.0)
+	s.tone(0.0, L, dr5, dr5, "sine", 0.05, 0.0001, 0.0)
 	var chords := [[50, 53, 57], [46, 50, 53], [43, 46, 50], [45, 49, 52]]
 	for c in 4:
 		var fr: Array = []
@@ -440,7 +667,7 @@ func _throne() -> void:
 	var L := bars * 4 * beat
 	var s := Synth.new(22050, L, true, 71)
 	var dr: float = roundf(midi(33) * L) / L
-	s.tone(0.0, L, dr, dr, "sine", 0.2, 0.0001, 0.0)
+	s.tone(0.0, L, dr, dr, "sine", 0.08, 0.0001, 0.0)
 	var chords := [[45, 48, 52], [41, 45, 48], [44, 47, 50], [45, 48, 52]]
 	for c in 4:
 		var fr: Array = []
@@ -543,7 +770,7 @@ func _rootmire() -> void:
 	var L := bars * 4 * beat
 	var s := Synth.new(22050, L, true, 61)
 	var dr: float = roundf(midi(40) * L) / L
-	s.tone(0.0, L, dr, dr, "sine", 0.18, 0.0001, 0.0)
+	s.tone(0.0, L, dr, dr, "sine", 0.08, 0.0001, 0.0)
 	var chords := [[52, 55, 59, 62], [50, 54, 57, 61], [48, 52, 55, 59], [50, 54, 57, 62]]
 	for c in 4:
 		var fr: Array = []

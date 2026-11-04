@@ -386,7 +386,7 @@ func _clear_walk(a: Vector2, b: Vector2) -> bool:
 
 ## Props that react to being struck (urns, braziers, cracked walls).
 func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, src: Node, fire := false) -> void:
-	for pr in props:
+	for pr in props.duplicate():
 		if not is_instance_valid(pr) or not pr.breakable or pr.used:
 			continue
 		var to: Vector2 = pr.pos - origin
@@ -396,6 +396,18 @@ func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, 
 		if dist > 0.6 and absf(dir.angle_to(to)) > half_angle + 0.3:
 			continue
 		pr.on_struck(src, fire)
+
+
+## Props along a line (a thrust, a rush, a beam).
+func strike_props_line(a: Vector2, b: Vector2, width: float, src: Node, fire := false) -> void:
+	var seg := b - a
+	var len2 := maxf(seg.length_squared(), 0.0001)
+	for pr in props.duplicate():
+		if not is_instance_valid(pr) or not pr.breakable or pr.used:
+			continue
+		var t := clampf((pr.pos - a).dot(seg) / len2, 0.0, 1.0)
+		if pr.pos.distance_to(a + seg * t) <= width + pr.strike_radius:
+			pr.on_struck(src, fire)
 
 
 func strike_props_circle(p: Vector2, r: float, src: Node, fire := false) -> void:

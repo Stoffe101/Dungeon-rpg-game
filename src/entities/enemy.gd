@@ -618,6 +618,7 @@ func _combust(pl: Player) -> void:
 	stage.fx.burst(p, 0.5, Color(1.0, 0.6, 0.2), 22, 6.0, 0.45, 2.0)
 	stage.fx.flash_light(p, 0.6, Color(1.0, 0.55, 0.2), 3.0, 5.0, 0.3)
 	Audio.play("explode", -3.0, 1.15)
+	stage.strike_props_circle(p, 2.4, pl, true)
 	for a in stage.in_circle(Team.PLAYER, p, 2.4):
 		var h := Combat.player_hit(pl, pl.stats, 14.0 + 6.0 * stacks, ["fire"])
 		h.burn = maxi(1, stacks - 1)

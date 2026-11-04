@@ -335,16 +335,100 @@ static func _banner(dir: String) -> void:
 	single(dir, "banner", c, Vector2i(6, 21))
 
 
+## Breakable urns, one material per region: bone-banded clay (the Ossuary),
+## a clay jar bound in roots (the Rootmire), a gilded court jar (the Throne).
+## "idle", "rich" (a glint creeps over one with something worth having
+## inside), "crack" (the instant before it shatters). Plus "urn_shards": what
+## is left on the floor, one frame per material.
 static func _urn(dir: String) -> void:
-	var c := Px.new(12, 14)
-	var m := c.mask().ellipse(6.0, 8.5, 4.6, 4.8)
-	m.rect(4, 1, 4, 4)
-	c.paint(m, Pal.EARTH, 3, true)
-	c.paint(c.mask().rect(3, 1, 6, 2), Pal.EARTH, 4)
-	c.line(2, 8, 10, 8, Pal.EARTH[2])
-	c.put(4, 6, Pal.EARTH[5])
+	for mat in ["clay", "root", "gilded"]:
+		var s := Sheet.new(14, 16, Vector2i(7, 15))
+		s.add("idle", [_urn_frame(mat, -1, false)], 1.0)
+		var rich: Array = []
+		for i in 4:
+			rich.append(_urn_frame(mat, i, false))
+		s.add("rich", rich, 6.0)
+		s.add("crack", [_urn_frame(mat, -1, true)], 1.0)
+		s.save(dir, "urn" if mat == "clay" else "urn_" + mat)
+	var sh := Sheet.new(16, 12, Vector2i(8, 6))
+	var fr: Array = []
+	for mat in ["clay", "root", "gilded"]:
+		fr.append(_urn_shards(mat))
+	sh.add("idle", fr, 1.0)
+	sh.save(dir, "urn_shards")
+
+
+static func _urn_ramps(mat: String) -> Array:
+	match mat:
+		"root":
+			return [Pal.EARTH, Pal.MOSS, Pal.WOOD]
+		"gilded":
+			return [Pal.STONE, Pal.GOLD, Pal.GOLD]
+	return [Pal.BONE, Pal.EARTH, Pal.SOUL]
+
+
+static func _urn_frame(mat: String, glint: int, cracked: bool) -> Px:
+	var c := Px.new(14, 16)
+	var r: Array = _urn_ramps(mat)
+	var body: Array = r[0]
+	var band: Array = r[1]
+	var accent: Array = r[2]
+	var m := c.mask().ellipse(7.0, 10.0, 5.2, 5.0)
+	m.rect(5, 2, 4, 4)
+	c.paint(m, body, 2 if mat == "gilded" else 3, true)
+	# lip and neck
+	c.paint(c.mask().rect(4, 1, 6, 2), body, 4 if mat != "gilded" else 3)
+	c.line(5, 4, 8, 4, body[1])
+	# bands: bone studs, a root wrap, gold rings
+	match mat:
+		"clay":
+			c.line(2, 9, 11, 9, band[2])
+			for x in [3, 6, 9]:
+				c.put(x, 9, Pal.BONE[4])
+			c.put(7, 12, accent[3])
+		"root":
+			c.line(2, 8, 6, 11, band[3])
+			c.line(6, 11, 11, 8, band[2])
+			c.line(3, 13, 9, 6, accent[2])
+			c.put(4, 6, band[4])
+			c.put(10, 12, band[3])
+		"gilded":
+			c.line(2, 8, 11, 8, band[3])
+			c.line(3, 12, 10, 12, band[2])
+			c.put(7, 10, band[4])
+			c.line(4, 1, 9, 1, band[3])
+	if cracked:
+		# a crack runs down the body the instant before it goes
+		c.line(7, 3, 6, 7, Pal.INK)
+		c.line(6, 7, 8, 10, Pal.INK)
+		c.line(8, 10, 6, 14, Pal.INK)
+		c.line(6, 7, 3, 9, Pal.INK)
 	c.outline(Pal.INK)
-	single(dir, "urn", c, Vector2i(6, 13))
+	if glint >= 0:
+		# something worth having inside: a slow glint over the shoulder
+		var gx := 4 + glint * 2
+		c.lit(gx, 7 - glint % 2, Pal.GOLD[4])
+		c.lit(gx + 1, 6, Pal.WHITE if glint == 1 else Pal.GOLD[3])
+		if glint == 2:
+			c.lit(gx, 5, Pal.GOLD[4])
+			c.lit(gx, 9, Pal.GOLD[3])
+	return c
+
+
+static func _urn_shards(mat: String) -> Px:
+	var c := Px.new(16, 12)
+	var r: Array = _urn_ramps(mat)
+	var body: Array = r[0]
+	var band: Array = r[1]
+	# curved pieces of the body and a few chips, as they fell
+	c.paint(c.mask().poly(V([[2, 6], [6, 4], [7, 7], [3, 8]])), body, 3, true)
+	c.paint(c.mask().poly(V([[9, 3], [13, 4], [12, 7], [9, 6]])), body, 2, true)
+	c.paint(c.mask().poly(V([[8, 8], [11, 9], [9, 11]])), body, 3)
+	c.line(3, 7, 6, 5, band[2])
+	for p in [[1, 3], [14, 9], [6, 10], [12, 1], [4, 1]]:
+		c.put(p[0], p[1], body[2])
+	c.outline(Pal.INK)
+	return c
 
 
 static func _candles(dir: String) -> void:

@@ -71,6 +71,7 @@ static func _blast(st: Stage, p: Vector2, dmg: float, self_ref: Node) -> void:
 	st.fx.burst(p, 0.5, Color(0.35, 0.4, 0.25), 12, 2.5, 1.0, -1.0)
 	st.fx.shake(0.35)
 	Audio.play("explode", -2.0, 0.85)
+	st.strike_props_circle(p, BLAST_R, null, false)     # a blast is a blast: urns go too
 	var pl := st.player
 	for vp in st.players_near(p, BLAST_R):
 		var h := Hit.make(self_ref, dmg, ["fire"])

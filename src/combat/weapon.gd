@@ -306,6 +306,7 @@ func line_hit(from: Vector2, to: Vector2, width: float, dmg: float, tags: Array,
 	var seg := to - from
 	var len2 := maxf(seg.length_squared(), 0.0001)
 	var dir := seg.normalized() if seg.length() > 0.01 else player.aim
+	player.stage.strike_props_line(from, to, width, player, tags.has("fire") or player.stats.has("living_pyre") or player.stats.has("searing_edge"))
 	for a in player.stage.hostiles(player.team):
 		if hit_ids.has(a.get_instance_id()) or not a.targetable:
 			continue

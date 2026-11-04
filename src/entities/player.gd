@@ -1316,6 +1316,7 @@ func _rune_on_hit(t: Actor, h: Hit, res: Combat.Result, runes: Array) -> void:
 		stage.fx.ring(p, 2.2, Color(1.0, 0.5, 0.25), 0.25, 0.3)
 		stage.fx.burst(p, 0.5, Color(1.0, 0.55, 0.25), 18, 5.0, 0.4, 2.0)
 		Audio.play_at("explode", p, -4.0, 1.2)
+		stage.strike_props_circle(p, 2.2, self, true)
 		for a in stage.in_circle(team, p, 2.2):
 			var vh := Combat.player_hit(self, stats, 1.0, ["fire", "ability"])
 			vh.amount = dmg
@@ -1375,6 +1376,7 @@ func _thermal_shock(t: Actor) -> void:
 	stage.fx.ring(t.pos, 2.2, Color(0.9, 0.95, 1.0), 0.3, 0.3)
 	stage.fx.burst(t.pos, 0.6, Color(0.9, 0.95, 1.0), 20, 4.0, 0.6, -1.5)
 	Audio.play("steam", -2.0)
+	stage.strike_props_circle(t.pos, 2.2, self, false)
 	for a in stage.in_circle(team, t.pos, 2.2):
 		var h := Combat.player_hit(self, stats, 32.0, ["fire", "frost"])
 		h.proc = false
@@ -1499,6 +1501,7 @@ func _retribute() -> void:
 	stage.fx.burst(pos, 0.8, Color(1.0, 0.85, 0.5), 20, 5.0, 0.4, 1.0)
 	stage.fx.shake(0.3)
 	Audio.play("aegis", -2.0, 0.7)
+	stage.strike_props_circle(pos, 3.0, self, false)
 	for a in stage.in_circle(team, pos, 3.0):
 		var h := Combat.player_hit(self, stats, dmg, ["melee"])
 		h.knockback = (a.pos - pos).normalized() * 9.0
@@ -1531,6 +1534,7 @@ func _aegis_broken() -> void:
 func _bramble_burst(taken: float) -> void:
 	stage.fx.burst(pos, 0.6, Color(0.5, 0.75, 0.3), 16, 5.0, 0.3, 3.0)
 	stage.fx.ring(pos, 2.6, Color(0.55, 0.8, 0.35), 0.2, 0.2)
+	stage.strike_props_circle(pos, 2.6, self, false)
 	for a in stage.in_circle(team, pos, 2.6):
 		var th := Hit.make(self, taken * 2.0, ["melee"])
 		th.can_crit = false
