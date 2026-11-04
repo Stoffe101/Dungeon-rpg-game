@@ -201,6 +201,8 @@ func _craft(masterwork: bool) -> void:
 	Audio.play("forge", 0.0)
 	Audio.play("relic", -6.0 if it.rarity == "common" else 0.0)
 	Game.ui.toast("Forged: %s %s" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it)], ItemDB.color(it))
+	if Game.stage is Hub:
+		(Game.stage as Hub).workshop_flare(it.rarity != "common")
 	rebuild()
 
 
@@ -260,6 +262,8 @@ func _temper_detail(dv: VBoxContainer) -> void:
 			Profile.mark_changed()
 			Audio.play("forge", 0.0, 1.1)
 			Game.ui.toast("Tempered: %s" % ItemDB.item_name(it), ItemDB.color(it))
+			if Game.stage is Hub:
+				(Game.stage as Hub).workshop_flare(false)
 			rebuild(), 110)
 	b.disabled = not Profile.can_pay(cost)
 	dv.add_child(b)

@@ -628,7 +628,8 @@ static func recipe(base_id: String) -> Dictionary:
 ## the highest difficulty tier the Kindled has unlocked.
 static func craft(base_id: String, rng: RandomNumberGenerator, masterwork := false, forge_level := 1, tier := 1) -> Dictionary:
 	var rar := "epic" if masterwork else roll_rarity(rng, 0.04 * (forge_level - 1))
-	return make_item(base_id, rar, 1, rng, tier)
+	# a master's workshop (forge level 3) tempers what it makes once already
+	return make_item(base_id, rar, 2 if forge_level >= 3 else 1, rng, tier)
 
 
 static func temper_cost(item: Dictionary) -> Dictionary:
@@ -645,6 +646,10 @@ static func temper_cost(item: Dictionary) -> Dictionary:
 		for k in b.get("salvage", {}):
 			out[k] = 1
 	out["embers"] = 60 * lvl * int(ceil(tier_mult(int(item.get("tier", 1)))))
+	# a bigger workshop tempers for less (forge level 2: 15%, 3: 30%)
+	var fl := Profile.building("forge")
+	if fl >= 2:
+		out["embers"] = int(round(int(out.embers) * (1.0 - 0.15 * (mini(fl, 3) - 1))))
 	return out
 
 

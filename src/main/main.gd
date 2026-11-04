@@ -41,6 +41,9 @@ func _ready() -> void:
 					if Profile.allocate(id):
 						changed = true
 			Profile.data.equipped.slots = ["cinder_lance", "frost_sigil"] if a.substr(7) == "all" else Profile.data.equipped.slots
+		elif a.begins_with("forge="):
+			# dev: forge=0..3 sets the workshop's level (the camp shows it)
+			Profile.data.sanctuary["forge"] = clampi(int(a.substr(6)), 0, int(Profile.SANCTUARY.forge.max))
 		elif a.begins_with("build="):
 			# dev: build=knives|lantern|rush|hail|bulwark|frost|starter (src/dev/build_presets.gd)
 			BuildPresets.apply(a.substr(6))

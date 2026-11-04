@@ -518,8 +518,11 @@ func set_slot(i: int, ability: String) -> void:
 const SANCTUARY := {
 	"hearth": {"name": "The Last Hearth", "max": 4, "costs": [{}, {"embers": 120}, {"embers": 300, "sunshards": 1}, {"embers": 600, "sunshards": 2}],
 		"desc": "Feed the Hearth. Each level grants +10 maximum health and lights more of the sanctuary."},
-	"forge": {"name": "Ashen Forge", "max": 1, "costs": [{"embers": 80}],
-		"desc": "Rebuild the forge to temper weapons and craft new ones."},
+	"forge": {"name": "Ashen Forge", "max": 3, "costs": [{"embers": 80}, {"embers": 300, "grave_iron": 6}, {"embers": 650, "soul_glass": 6, "sunshards": 1}],
+		"desc": "Rebuild the forge to temper weapons and craft new ones.",
+		"levels": ["The forge burns again: temper and forge weapons, craft and temper gear.",
+			"A quench trough and a wall of tools: tempering gear costs 15% fewer Embers, and crafted gear rolls a little rarer.",
+			"A master's workshop - bellows, a grindstone, the smith's banner: tempering costs 30% fewer Embers and crafted gear comes off the anvil already tempered once."]},
 	"apothecary": {"name": "Ember Apothecary", "max": 3, "costs": [{"embers": 100}, {"embers": 250}, {"embers": 450, "sunshards": 1}],
 		"desc": "Distil hearth-light: +1 flask charge at level 1 and 3, stronger flasks at level 2."},
 	"shrine": {"name": "Shrine of Memory", "max": 1, "costs": [{"embers": 150, "sunshards": 1}],

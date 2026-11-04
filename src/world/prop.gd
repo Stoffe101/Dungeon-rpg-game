@@ -240,6 +240,8 @@ func _build() -> void:
 			interact_radius = float(data.get("radius", 1.2))
 			if data.get("solid", false):
 				_solid([tile])
+			if data.has("solid_tiles"):
+				_solid(data.solid_tiles)     # a wide prop blocks more than its own tile
 
 
 func _sprite(sheet: String, h: float, z := 0.0, anim := "") -> void:
