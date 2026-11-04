@@ -81,13 +81,18 @@ func finalize_walls() -> void:
 
 
 ## Wall height in tiles. Near (south) walls are short ledges so they never hide
-## the floor behind them; everything else is a full two-tile wall.
+## the floor behind them; everything else is a full two-tile wall. A wall
+## standing inside a room (a central block, a broken wall) is a waist-high
+## block: plainly solid, never mistaken for a step (it was an 8-px ledge that
+## read as one), and low enough to see the fight beyond it.
 func wall_height(x: int, y: int) -> float:
 	var t := at(x, y)
 	if t == PILLAR:
 		return 2.0
 	if t != WALL:
 		return 0.0
+	if room_of[y * width + x] >= 0:
+		return 1.0
 	for k in [1, 2]:
 		var n := at(x, y - k)
 		if n == FLOOR or n == PIT or n == GATE or n == PROP:
@@ -114,7 +119,9 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 func move_box(p: Vector2, r: float, motion: Vector2, can_cross_pits := false) -> Vector2:
 	var out := p
 	out.x += motion.x
+	var x_blocked := false
 	if _box_hits(out, r, can_cross_pits):
+		x_blocked = true
 		if motion.x > 0.0:
 			out.x = floorf(out.x + r) - r - 0.001
 		else:
@@ -122,14 +129,50 @@ func move_box(p: Vector2, r: float, motion: Vector2, can_cross_pits := false) ->
 		if _box_hits(out, r, can_cross_pits):
 			out.x = p.x
 	out.y += motion.y
+	var y_blocked := false
 	if _box_hits(out, r, can_cross_pits):
+		y_blocked = true
 		if motion.y > 0.0:
 			out.y = floorf(out.y + r) - r - 0.001
 		else:
 			out.y = floorf(out.y - r) + 1.0 + r + 0.001
 		if _box_hits(out, r, can_cross_pits):
 			out.y = p.y
+	# rounding corners: walking along one axis into the very edge of a block
+	# (a hair of the box on it) slides around it instead of stopping dead
+	if x_blocked and absf(motion.x) > absf(motion.y) and absf(out.x - p.x) < absf(motion.x) * 0.5:
+		out = _round_corner(out, r, Vector2(signf(motion.x), 0.0), absf(motion.x), can_cross_pits)
+	elif y_blocked and absf(motion.y) > absf(motion.x) and absf(out.y - p.y) < absf(motion.y) * 0.5:
+		out = _round_corner(out, r, Vector2(0.0, signf(motion.y)), absf(motion.y), can_cross_pits)
 	return out
+
+
+const CORNER := 0.26
+
+
+## The box was stopped going along `dir`: if sliding sideways by at most
+## CORNER frees the way, slide (no faster than the walk itself).
+func _round_corner(p: Vector2, r: float, dir: Vector2, step: float, cross: bool) -> Vector2:
+	var side := Vector2(dir.y, dir.x)     # the other axis
+	var k := 0 if side.x != 0.0 else 1   # (index of the other axis)
+	var best := p
+	var best_need := INF
+	for s in [1.0, -1.0]:
+		var c: float = p[k]
+		var edge: float = (floorf(c - r) + 1.0 + r + 0.001) if s > 0.0 else (floorf(c + r) - r - 0.001)
+		var need := absf(edge - c)
+		if need <= 0.0005 or need > CORNER or need >= best_need:
+			continue
+		var q := p
+		q[k] = edge
+		if _box_hits(q, r, cross) or _box_hits(q + dir * 0.05, r, cross):
+			continue
+		best_need = need
+		best = p
+		best[k] = move_toward(c, edge, step)
+	if best_need < INF and not _box_hits(best, r, cross):
+		return best
+	return p
 
 
 func _box_hits(p: Vector2, r: float, can_cross_pits: bool) -> bool:

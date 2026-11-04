@@ -65,6 +65,8 @@ func build_visual(sheet: String, anim := "") -> void:
 		sprite = PixelSprite.new()
 		visual.add_child(sprite)
 		sprite.setup(sheet, anim)
+		# a hair of depth lead of its own (sprite.gdshader): no two actors share a plane
+		sprite.set_instance_shader_parameter("lead", 1.0 + float(get_instance_id() % 11) * 0.012)
 	shadow = MeshInstance3D.new()
 	var q := QuadMesh.new()
 	var sw := maxf(radius * 2.2, 0.6) * shadow_scale

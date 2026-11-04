@@ -166,6 +166,7 @@ func _environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.05
 	env.adjustment_saturation = 1.08
+	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	view.set_environment(env)
 
 

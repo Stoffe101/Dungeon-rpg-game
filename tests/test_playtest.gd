@@ -363,3 +363,60 @@ func test_a_guest_works_at_the_hosts_forge_with_their_own_purse() -> void:
 	Profile.visiting = {"forge": 0}
 	eq(Profile.facility("forge"), 0, "a ruined host forge is a ruin for the guest too")
 	Profile.visiting = {}
+
+
+# --- what blocks looks like it blocks ---------------------------------------------------
+
+func test_walking_into_a_corner_slides_around_it() -> void:
+	var g := TileGrid.new(12, 12)
+	for y in range(1, 11):
+		for x in range(1, 11):
+			g.put(x, y, TileGrid.FLOOR)
+	g.put(6, 5, TileGrid.PILLAR)
+	# walking east, the box's top edge just catching the pillar's bottom corner
+	var p := Vector2(4.5, 6.0 + 0.27 - 0.1)
+	for k in 40:
+		p = g.move_box(p, 0.27, Vector2(0.1, 0.0))
+	check(p.x > 7.0, "the walker rounds the corner and goes on (x %.2f)" % p.x)
+	# but straight into the pillar's face: stopped
+	var q := Vector2(4.5, 5.5)
+	for k in 40:
+		q = g.move_box(q, 0.27, Vector2(0.1, 0.0))
+	check(q.x < 6.0, "a wall met head-on still stops you (x %.2f)" % q.x)
+
+
+func test_a_wall_inside_a_room_stands_waist_high() -> void:
+	Profile.data = Profile.fresh()
+	var found := false
+	for seed_v in range(40, 80):
+		var lay := DungeonGen.generate(seed_v, 2, "ossuary", false)
+		var g := lay.grid
+		for y in g.height:
+			for x in g.width:
+				if g.at(x, y) == TileGrid.WALL and g.room_at(x, y) >= 0:
+					found = true
+					eq(g.wall_height(x, y), 1.0, "an interior wall is a block, not a step")
+					break
+			if found:
+				break
+		if found:
+			break
+	check(found, "some room has a wall inside it")
+
+
+func test_wide_dressing_blocks_what_it_covers() -> void:
+	Profile.data = Profile.fresh()
+	var checked := 0
+	for seed_v in range(1, 30):
+		var d := _dungeon(seed_v, "ossuary", 2)
+		for p in d.props:
+			if is_instance_valid(p) and String(p.data.get("sheet", "")) == "sarcophagus":
+				eq(d.grid.at(p.tile.x, p.tile.y), TileGrid.PROP, "the sarcophagus's tile blocks")
+				eq(d.grid.at(p.tile.x + 1, p.tile.y), TileGrid.PROP, "and the second tile it covers")
+				checked += 1
+			if is_instance_valid(p) and String(p.data.get("sheet", "")) == "bone_heap":
+				eq(d.grid.at(p.tile.x, p.tile.y), TileGrid.FLOOR, "a heap of bones is walked through")
+		d.queue_free()
+		if checked >= 3:
+			break
+	check(checked >= 1, "sarcophagi were placed (%d)" % checked)

@@ -275,7 +275,7 @@ func _sync_paperdoll() -> void:
 		l.visible = sprite.visible
 		l.scale = sprite.scale
 		l.position = sprite.position + Vector3(0, 0, float(l.get_meta("z", 0.004)))
-		for k in ["dissolve", "flash", "tint"]:
+		for k in ["dissolve", "flash", "tint", "lead"]:
 			var v: Variant = sprite.get_instance_shader_parameter(k)
 			if v != null:
 				l.set_instance_shader_parameter(k, v)

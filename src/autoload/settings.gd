@@ -21,6 +21,7 @@ const DEFAULTS := {
 	"pixel_scale": 0,        # 0 = automatic (world pixel size)
 	"window_mode": "windowed",
 	"vsync": true,
+	"brightness": 1.0,           # the world's brightness (environment adjustment)
 	"max_fps": 0,
 	"screen_shake": 1.0,
 	"hitstop": true,
@@ -116,6 +117,8 @@ func get_value(key: String, fallback: Variant = null) -> Variant:
 func set_value(key: String, v: Variant, persist := true) -> void:
 	values[key] = v
 	_apply(key)
+	if key == "brightness" and Game.stage and Game.stage.get("env") is Environment:
+		(Game.stage.get("env") as Environment).adjustment_brightness = float(v)
 	changed.emit(key)
 	if persist:
 		save_settings()

@@ -140,6 +140,7 @@ func _open_page(id: String) -> void:
 			_stepper("World pixel size", "pixel_scale", [0, 2, 3, 4, 5, 6, 8], ["Auto", "2x", "3x", "4x", "5x", "6x", "8x"], "How large the world's pixels are drawn: smaller shows more of the floor.")
 			_stepper("Frame cap", "max_fps", [0, 60, 120, 144, 240], ["Unlimited", "60", "120", "144", "240"], "The most frames per second drawn.")
 			_switch("V-Sync", "vsync", "Waits for the monitor: no tearing, a little more input delay.")
+			_slider("Brightness", "brightness", 0.8, 1.5, 0.05, "How bright the world is drawn. The Undervault is meant to be dark, never unreadable.")
 			_switch("Show frame rate", "show_fps", "A frame counter in the corner.")
 		"gameplay":
 			_stepper("Pointer steering", "steer", ["on", "always", "off"], ["W follows the mouse", "Always", "Off"],

@@ -55,9 +55,14 @@ void fragment() {
 	EMISSION = emission_color.rgb;
 }
 
+// the light's tail is lifted before it is banded (v^falloff): the pool a
+// lantern or a torch throws reads several tiles further before the last band
+// gives out (it used to drop to black about four tiles from the lantern)
+uniform float falloff = 0.62;
+
 void light() {
 	float ndl = clamp((dot(NORMAL, LIGHT) + wrap) / (1.0 + wrap), 0.0, 1.0);
-	float v = ndl * ATTENUATION;
+	float v = pow(ndl * ATTENUATION, falloff);
 	float d = (bayer4(FRAGCOORD.xy) - 0.5) * dither_strength;
 	float q = floor(v * bands + 0.5 + d) / bands;
 	DIFFUSE_LIGHT += max(q, 0.0) * LIGHT_COLOR / PI;

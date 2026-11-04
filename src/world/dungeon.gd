@@ -233,7 +233,10 @@ func _environment() -> void:
 	var fd := Delve.floor_def(layout.region, layout.depth, run.delve if run else false)
 	var tint: Color = fd[1]
 	env.ambient_light_color = region.ambient.lerp(Color(tint.r, tint.g, tint.b), 0.35 if tint.a > 0.0 else 0.0)
-	env.ambient_light_energy = [0.84, 0.78, 0.7][Delve.floor_index(layout.depth, run.delve if run else false)]
+	# (raised from 0.84/0.78/0.70 by the second playtest: walls, floor and
+	# obstacles must read beyond the lantern - darkness for tension, not for
+	# hiding what blocks the way)
+	env.ambient_light_energy = [1.08, 1.0, 0.92][Delve.floor_index(layout.depth, run.delve if run else false)]
 	if run and run.delve:
 		# every pass through the regions, the Hollow is darker
 		env.ambient_light_energy *= Delve.gloom(layout.depth)
@@ -247,6 +250,7 @@ func _environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
 	env.adjustment_saturation = 1.05
+	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	if view:
 		view.set_environment(env)
 
@@ -265,7 +269,13 @@ func _place_props() -> void:
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
-				extra["solid"] = true
+				if pd.get("wide", false):
+					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
+					extra["ox"] = 0.5
+				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+					extra["low"] = true      # underfoot: walked through, drawn behind whoever stands on it
+				else:
+					extra["solid"] = true
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
 				if pd.get("sealed", false):
