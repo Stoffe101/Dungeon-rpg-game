@@ -44,7 +44,7 @@ func hit_color() -> Color:
 
 
 func behave(dt: float) -> void:
-	cooldown -= dt * attack_rate
+	cooldown -= dt * attack_rate * tempo
 	sunrise_cd -= dt
 	if phase == 2:
 		eclipse_t -= dt

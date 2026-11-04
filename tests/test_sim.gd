@@ -238,12 +238,33 @@ func test_walking_turns_the_kindled() -> void:
 	pl.move_in = Vector2.LEFT
 	_run(st, 0.2)
 	check(pl.facing.x < -0.7, "walking left faces left with the mouse to the right (%s)" % pl.facing)
+	check(pl.sprite.anim.ends_with("_side") and pl.sprite.flip_h, "and is drawn facing left (%s, flip %s)" % [pl.sprite.anim, pl.sprite.flip_h])
 	pl.move_in = Vector2.ZERO
 	_run(st, 0.2)
 	check(pl.facing.x < -0.7, "stopping keeps the last facing (%s)" % pl.facing)
+	pl.aim = Vector2(0.3, -1.0).normalized()     # the camera settling shifts the aim; the pointer did not move
+	_run(st, 0.1)
+	check(pl.facing.x < -0.7 and pl.sprite.flip_h, "an aim that only drifts does not turn a Kindled at rest (%s)" % pl.facing)
 	pl.aim = Vector2.UP
+	pl._mouse_moved = true     # the hand moves the pointer
 	_run(st, 0.1)
 	check(pl.facing.y < -0.7, "moving the mouse while standing turns to it (%s)" % pl.facing)
+	# each direction key shows its own frames
+	for k in [[Vector2.UP, "up", false], [Vector2.DOWN, "down", false], [Vector2.LEFT, "side", true], [Vector2.RIGHT, "side", false]]:
+		pl.move_in = k[0]
+		_run(st, 0.15)
+		check(pl.sprite.anim == "run_" + String(k[1]) and pl.sprite.flip_h == bool(k[2]), "%s: %s, flip %s" % [str(k[0]), pl.sprite.anim, pl.sprite.flip_h])
+	# a diagonal keeps the frames already shown
+	pl.move_in = Vector2.UP
+	_run(st, 0.15)
+	pl.move_in = Vector2(1, -1).normalized()
+	_run(st, 0.15)
+	eq(pl.sprite.anim, "run_up", "W then W+D stays up")
+	pl.move_in = Vector2.RIGHT
+	_run(st, 0.15)
+	pl.move_in = Vector2(1, -1).normalized()
+	_run(st, 0.15)
+	eq(pl.sprite.anim, "run_side", "D then W+D stays side")
 	pl.aim = Vector2.RIGHT
 	pl.move_in = Vector2.LEFT
 	pl.weapon.press()

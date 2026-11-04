@@ -265,6 +265,7 @@ const REGIONS := {
 		"ambient": Color(0.3, 0.46, 0.38),
 		"flame": Color(0.55, 1.0, 0.45),
 		"music": "rootmire",
+		"boss_music": "boss_bloom",
 		"ambience": "amb_root",
 		"torch": "torch_bio",
 		"gate": "gate_root",
@@ -285,6 +286,7 @@ const REGIONS := {
 		"ambient": Color(0.5, 0.4, 0.38),
 		"flame": Color(1.0, 0.72, 0.35),
 		"music": "throne",
+		"boss_music": "boss_king",
 		"ambience": "amb_throne",
 		"torch": "torch_warm",
 		"gate": "gate_throne",
@@ -333,6 +335,42 @@ const SQUADS := {
 ## How many of a role one fight may hold: two Lampwights shielding each other,
 ## or three Mortars, are not puzzles, just walls.
 const ROLE_CAP := {"support": 1, "summoner": 1, "terrain": 1, "artillery": 2, "beam": 2, "ambush": 2}
+
+
+## Foes a bigger party meets beside a room's own: chosen for what they add -
+## flankers and back-line pressure in turn - within the role caps, never
+## pack summoners; not copies of the same fight.
+static func party_extras(rng: RandomNumberGenerator, region: String, depth: int, current: Array, n: int) -> Array:
+	var pool: Array = []
+	for id in REGIONS[region].pool:
+		if int(ENEMIES[id].min_depth) <= depth and not ENEMIES[id].has("pack"):
+			pool.append(id)
+	var flank := pool.filter(func(i): return String(ENEMIES[i].get("role", "")) in ["harrier", "charger", "swarm", "brute"])
+	var back := pool.filter(func(i): return String(ENEMIES[i].get("role", "")) in ["ranged", "artillery", "beam"])
+	var out: Array = []
+	for k in n:
+		var src: Array = flank if k % 2 == 0 else back
+		if src.is_empty():
+			src = back if src == flank else flank
+		var all: Array = current + out
+		var cands := src.filter(func(i): return _role_room(i, all))
+		if cands.is_empty():
+			cands = current.duplicate() if not current.is_empty() else pool
+		if cands.is_empty():
+			break
+		out.append(cands[rng.randi_range(0, cands.size() - 1)])
+	return out
+
+
+static func _role_room(id: String, ids: Array) -> bool:
+	var role := String(ENEMIES[id].get("role", ""))
+	if not ROLE_CAP.has(role):
+		return true
+	var n := 0
+	for i in ids:
+		if String(ENEMIES.get(i, {}).get("role", "")) == role:
+			n += 1
+	return n < int(ROLE_CAP[role])
 
 
 ## Builds a list of enemy ids worth roughly `budget` points for a room.

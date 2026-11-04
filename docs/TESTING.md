@@ -76,10 +76,36 @@ Steam's relay. A human pair on two PCs is still needed (see below).
   (names, levels, health with numbers, Kindle), a fight, a downed guest with
   the bleed-out and revive line, and a level-up seen by every guest.
 - `partyesc`: the party screen opened, hosted from, closed with Esc.
+- `facing` (solo, or a party with `DEVNET=1`): each of W/S/A/D and the
+  diagonals turns and animates the Kindled, stopping keeps the facing,
+  attacking faces the pointer even walking away, a dodge faces its way; in a
+  party every machine walks its own way and checks the others are drawn
+  turned correctly, in the sanctuary and below.
+- `landmark` (`DEVNET=1 XARGS=landmark`): the host brings the party to the
+  floor's landmark, the first guest walks up and presses F, every machine
+  checks the name over it, that it answered, and (Colossus) that every room
+  is on its own map.
 
 A scenario prints `[scenario] ok/FAIL ...` lines, `[probe] {...}` lines four
 times a second, and ends with `[scenario] RESULT <role>: n passed, m failed`
 (exit code 1 on a failure). Captures go to `captures/e2e/`.
+
+`XARGS="..."` gives every process of `tools/dev/e2e.sh` the same extra dev
+switches (`XARGS=landmark`: every floor has its landmark - every machine must
+generate the same floor).
+
+### Looking and listening tools (development pass)
+
+- `-- urnlab`: a row of urns of each make, plain and glinting, beside the
+  Kindled, struck one after another from 1.5 s; `-- proplab`: six kinds of
+  dungeon objects around it, to read the labels; `-- landmark warp=landmark`: start beside the floor's
+  landmark with its fight won.
+- `-- audiorec=SECONDS`: records the Master, Music, SFX and Ambience buses to
+  `user://audio_rec/` while you play (or the bot plays).
+- `python tools/audio/analyze.py <wav...>`: length, peak, RMS, loudest 50 ms,
+  crest factor, spectral centroid, share of energy below 120 Hz and above
+  8 kHz, decay time, clipped samples. **This is measurement, not listening**:
+  it finds clipping, mud and imbalance, not whether something sounds good.
 
 ## Human playtest on two PCs
 
@@ -149,3 +175,39 @@ What bots and scripts cannot judge. Use a fresh dev profile
    ring)? Do names stay readable when everyone stands at the fire? Does a
    party fight feel as tense as playing alone (foes hit 10% harder per extra
    Kindled)? Do rare-find toasts from friends feel nice or noisy?
+
+## Human playtest: the development pass
+
+Facing (keyboard + mouse, then a pad):
+- Walk W, A, S, D and each diagonal: the Kindled turns and runs that way,
+  no flicker on diagonals. Stop: it keeps facing that way.
+- Walk away from the pointer and attack: it turns to swing at the pointer.
+  Dodge: it faces where it goes. Armour and weapon stay on the body.
+- In a party, watch a friend walk around you and turn: they face where they
+  go on your screen too, after the stairs and after rejoining.
+
+Listening (headphones, then laptop or TV speakers - nothing has been heard
+by a person yet):
+- Walk a region, then fight: does the combat layer rise in time with the
+  music and fall away after? Is any region's music tiring after 20 minutes?
+- Break urns of each region: satisfying, varied, not too loud or shrill?
+- Drops: rare / epic / legendary chimes distinct? The legendary hum and impact.
+- A guardian's arrival (rumble, then the arrival), the Colossus waking, the
+  smith's anvil and bellows in the sanctuary.
+- A four-player brawl: are wind-ups and parries still heard? Does anything
+  clip or pump?
+
+Co-op difficulty (2, 3 and 4 players, Tier I-III):
+- Do foes come for everyone, not just whoever is in front? Does anyone get
+  picked off for standing alone - and does that feel fair or unfair?
+- Guardians in a party: are the helpers it calls readable (marked first) and
+  survivable? Is the fight longer or just harder?
+- Do rewards feel fair per player compared to solo?
+
+The world:
+- Can you tell at a glance what every object is and what F will do? Try
+  Settings > Accessibility > Object names: only the nearest / off.
+- Landmarks (`-- landmark` to see one every floor): do they feel like places?
+  Is the Heart-Root's price worth it?
+- Depths 2 and 3 of each region and the Hollow Below past depth 9: do they
+  feel deeper?

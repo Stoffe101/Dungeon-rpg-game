@@ -1,19 +1,31 @@
 {
 	"anims": {
+		"crack": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
 		"idle": {
 			"fps": 1.0,
 			"frames": 1,
 			"loop": true,
 			"row": 0
+		},
+		"rich": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
 		}
 	},
-	"emit": false,
+	"emit": true,
 	"frame": [
-		12,
-		14
+		14,
+		16
 	],
 	"origin": [
-		6,
-		13
+		7,
+		15
 	]
 }

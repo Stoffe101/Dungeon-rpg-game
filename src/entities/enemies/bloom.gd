@@ -49,7 +49,7 @@ func extra_damage_taken(_h: Hit) -> float:
 
 func behave(dt: float) -> void:
 	vel = Vector2.ZERO
-	cooldown -= dt * attack_rate
+	cooldown -= dt * attack_rate * tempo
 	inhale_cd -= dt
 	if phase == 1 and hp_ratio() <= 0.55 and state in ["idle", "recover"]:
 		_bloom_phase()

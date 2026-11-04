@@ -258,7 +258,14 @@ func can_charge() -> bool:
 
 ## Angle (screen space) the weapon points at, before swing offsets.
 func base_angle() -> float:
-	return Iso.screen_angle(player.aim if phase == Phase.IDLE or phase == Phase.CHARGE else aim_dir)
+	# carried, the weapon goes where the Kindled faces; drawn back or swung, it
+	# points where the blow goes
+	match phase:
+		Phase.IDLE:
+			return Iso.screen_angle(player.look)
+		Phase.CHARGE:
+			return Iso.screen_angle(player.aim)
+	return Iso.screen_angle(aim_dir)
 
 
 func hit_flash() -> void:
@@ -299,6 +306,7 @@ func line_hit(from: Vector2, to: Vector2, width: float, dmg: float, tags: Array,
 	var seg := to - from
 	var len2 := maxf(seg.length_squared(), 0.0001)
 	var dir := seg.normalized() if seg.length() > 0.01 else player.aim
+	player.stage.strike_props_line(from, to, width, player, tags.has("fire") or player.stats.has("living_pyre") or player.stats.has("searing_edge"))
 	for a in player.stage.hostiles(player.team):
 		if hit_ids.has(a.get_instance_id()) or not a.targetable:
 			continue

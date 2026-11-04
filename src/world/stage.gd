@@ -107,8 +107,28 @@ func _process(delta: float) -> void:
 	fx.step(real if not paused_sim else 0.0)
 	if view and player and is_instance_valid(player):
 		var target := Iso.to_world(player.pos + player.draw_off + player.aim_offset(), 0.0)
+		if _look_t > 0.0:
+			# something worth seeing: the camera leans most of the way toward it
+			_look_t -= real
+			var w := clampf(minf(_look_t, _look_len - _look_t) / 0.35, 0.0, 1.0) * 0.6
+			target = target.lerp(Iso.to_world(_look_at, 0.0), w)
 		view.focus = view.focus.lerp(target, 1.0 - exp(-real * 9.0)) if view.focus.distance_to(target) < 12.0 else target
 	_stage_process(real)
+
+
+var _look_at := Vector2.ZERO
+var _look_t := 0.0
+var _look_len := 1.0
+
+
+## The camera leans toward `p` for `seconds`, then back to the Kindled (a
+## guardian's arrival). This machine's view only; a host sends it on.
+func look_toward(p: Vector2, seconds: float) -> void:
+	if Net.recording:
+		Net.rec(["look", p, seconds])
+	_look_at = p
+	_look_t = seconds
+	_look_len = seconds
 
 
 ## Runs `fn` after `seconds` of simulation time (respects hitstop/slow-mo).
@@ -386,7 +406,7 @@ func _clear_walk(a: Vector2, b: Vector2) -> bool:
 
 ## Props that react to being struck (urns, braziers, cracked walls).
 func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, src: Node, fire := false) -> void:
-	for pr in props:
+	for pr in props.duplicate():
 		if not is_instance_valid(pr) or not pr.breakable or pr.used:
 			continue
 		var to: Vector2 = pr.pos - origin
@@ -396,6 +416,18 @@ func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, 
 		if dist > 0.6 and absf(dir.angle_to(to)) > half_angle + 0.3:
 			continue
 		pr.on_struck(src, fire)
+
+
+## Props along a line (a thrust, a rush, a beam).
+func strike_props_line(a: Vector2, b: Vector2, width: float, src: Node, fire := false) -> void:
+	var seg := b - a
+	var len2 := maxf(seg.length_squared(), 0.0001)
+	for pr in props.duplicate():
+		if not is_instance_valid(pr) or not pr.breakable or pr.used:
+			continue
+		var t := clampf((pr.pos - a).dot(seg) / len2, 0.0, 1.0)
+		if pr.pos.distance_to(a + seg * t) <= width + pr.strike_radius:
+			pr.on_struck(src, fire)
 
 
 func strike_props_circle(p: Vector2, r: float, src: Node, fire := false) -> void:

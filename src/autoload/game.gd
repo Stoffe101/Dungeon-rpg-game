@@ -152,6 +152,7 @@ func _enter_depth(depth: int) -> void:
 					Events.banner.emit("The Deep Stirs", "A new Omen: %s" % Omens.get_def(om).name))
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
+	DungeonGen.force_landmark = "landmark" in Dev.args()
 	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth)
 	_clear_stage()
 	var d := Dungeon.new()

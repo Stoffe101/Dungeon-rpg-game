@@ -338,6 +338,8 @@ func on_input(peer: int, d: Array) -> void:
 	var a := Vector2(d[3], d[4])
 	if a.length() > 0.1:
 		pl.aim = a.normalized()
+	if d.size() > 14:
+		pl.remote_look = Vector2(d[13], d[14])     # the owner's own facing
 	pl.aim_point = Vector2(d[5], d[6])
 	var held := bool(d[7])
 	if bool(_last_held.get(peer, false)) and not held:
@@ -615,13 +617,17 @@ func _client_tick(delta: float) -> void:
 
 ## Input goes out every frame something changes, and at least INPUT_HZ times a
 ## second; the prediction only ever uses what was sent, so it and the host agree.
+var _sent_look := Vector2.RIGHT     # the facing in the last input sent (a turn goes out at once)
+
+
 func _send_input(pl: Player, now_s: float) -> void:
 	var now := Time.get_ticks_msec()
 	var pr: Array = []
 	for k in Net.PRESS_KEYS:
 		pr.append(int(pl.presses.get(k, 0)))
 	var down := pl._attack_down
-	var changed := pr != _sent_presses or down != _sent_down
+	var changed := pr != _sent_presses or down != _sent_down or absf(pl.look.angle_to(_sent_look)) > 0.3
+	_sent_look = pl.look
 	if not changed and now - _send_ms < 1000.0 / INPUT_HZ - 1.0:
 		return
 	if pr[0] != (_sent_presses[0] if not _sent_presses.is_empty() else 0):
@@ -635,7 +641,7 @@ func _send_input(pl: Player, now_s: float) -> void:
 	_seq += 1
 	var m := pl.move_in.limit_length(1.0)
 	var pkt := [_seq, q(m.x), q(m.y), q(pl.aim.x), q(pl.aim.y), q(pl.aim_point.x), q(pl.aim_point.y), down, pr,
-		int(Net.rtt_s() * 1000.0), _hold_ms, q(pl.pos.x), q(pl.pos.y)]
+		int(Net.rtt_s() * 1000.0), _hold_ms, q(pl.pos.x), q(pl.pos.y), q(pl.look.x), q(pl.look.y)]
 	Net.i.to_host("_n_input", [floor_id, pkt], "in", false)
 	Net.i.count("in_out")
 	pl.pred_move = Vector2(pkt[1], pkt[2])
@@ -790,6 +796,8 @@ func apply_events(evs: Array) -> void:
 					Events.boss_started.emit(b)
 			"boss_down":
 				Events.boss_defeated.emit(stage.boss)
+			"look":
+				stage.look_toward(ev[1], float(ev[2]))
 			"vote":
 				Party.show_vote(int(ev[1]), String(ev[2]), int(ev[3]), ev[4], int(ev[5]))
 			"vote_end":

@@ -628,6 +628,101 @@ rarer); a master's workshop (bellows, banner, grindstone; tempering 30%
 cheaper, crafted gear tempered once). The smith's hammer strikes are the
 sparks; crafting flares the anvil and the quench barrel hisses.
 
+## Development pass: feel, atmosphere, smart co-op, landmarks
+
+**Facing.** Who the Kindled faces follows one priority, the same on every
+screen: fighting (an attack, a charge, a held stick aim) faces the aim;
+otherwise walking faces the walk (W/A/S/D and diagonals); standing still
+keeps the last facing unless the mouse moves; a dodge faces where it goes.
+The side frames switch with hysteresis (side when |x| > 1.15|y|, back only
+when |x| < 0.7|y|), so a diagonal never flickers. The idle weapon follows the
+facing, a charge the aim. A guest sends its facing with its input (the host no
+longer guesses it from movement), so a turned Kindled looks turned to everyone.
+
+**Bigger parties are hunted, not padded.** The bot evaluation showed why
+parties were safer: every foe chased the nearest Kindled, so the rest fought
+for free. Foes now share themselves out (a Kindled already pressed by others
+is less inviting, one standing alone more, flankers most of all; ranged and
+support foes barely care about distance, so the back line is pressed too) and
+keep a target for a second or so unless another is clearly better. A party's
+extra foes are picked for what they add - flankers and marksmen in turn,
+inside the role caps, never pack summoners - and placed on the far side;
+three or four Kindled meet one more short closing wave. Guardians gain less
+health per friend (+40%), shorter rests between attacks (+7% per friend; wind-ups
+and their warnings unchanged) and a call for help:
+every 14 s (two Kindled), 12 s (three) or 10 s (four) foes of the region rise
+(marked first) beside whoever stands
+farthest from it. No role is required; every check is about position.
+Rewards follow worth, not count (Party.wave_share): each wave pays a Kindled
+what its own foes are worth, +12% per friend, whatever pricier extras came
+with it; the closing wave pays a quarter.
+
+**The world says what things are.** Interactables carry a name and, on the
+one F would use, the action - in a colour per category (treasure gold, magic
+soul-teal, bargains with a price rose, the way onward pale gold, trade amber)
+- with a soft highlight pulse. Names fade with distance and never stack.
+Players who prefer a clean screen choose "only the nearest" or "off" (then the
+old prompt returns).
+
+**Urns are worth breaking, not farming.** Each region has its own make (clay,
+root-bound, gilded), its own break sound (three takes) and shards that stay on
+the floor. Most hold a little or nothing; a glinting one (8% of urns at depth
+1, rising to 18% by depth 6) always pays: Embers, a region material and
+sometimes an Ember Core. Drops come from the floor's rng, and urns never return, so there is
+nothing to farm. Every attack breaks them.
+
+**Music follows the fight.** Each region's loop has a combat layer of the same
+length, started on the same frame; its volume follows how many awake foes are
+near this machine's Kindled (up in about a second, down over a few). An elite
+arriving strikes a sting; a real fight ending, a quiet chord. Region identities
+(as written in tools/audio/build_audio.gd): the Ossuary cold D minor with a
+sparse plucked motif; the Rootmire E dorian with woody marimba plucks; the
+Throne a harmonic-minor processional with timpani, brass-like pads, a tolling
+bell and a broken fanfare; the Hollow Below whole-tone bells over a beating
+drone; the Bloom and the King have their own guardian music. The mix: a limiter on the master, a gentle
+compressor on effects, warnings (wind-ups, guardians, parries) on voices of
+their own so a crowd never steals them, music ducked a little under heavy
+fighting.
+
+**Depths look deeper.** The second and third depth of each region are drawn
+from their own floor and wall textures, built from the first: the Ossuary
+gains bones in the paving, then soul-light in its seams; the Rootmire spore
+caps, then the Bloom's red veins; the Throne ash and scorch, then gold inlay
+and a sun in the floor.
+
+**Landmarks.** A floor sometimes holds its region's great centrepiece in the
+middle of one fight (20% of floors at depth 1, 4% more each depth, at most 36%): the Bone Colossus, a
+half-buried warden's skull whose eyes still hold soul-light; the Heart-Root,
+the dead tree's heart held in an arch of roots; the Fallen Sun-Disc, the
+sun-king's cracked emblem. Each tells something and does something once you
+reach it: the Colossus remembers the depth (every room, hidden ones too, on
+every Kindled's map) - information, which suits the Ossuary's secrets; the
+Heart-Root takes 15% of a Kindled's health for a relic of their choosing (once
+each - a bargain everyone in a party may make or refuse); the Sun-Disc warms
+the party (Kindle, health, a flask) and leaves a Sunshard. A landmark is picked
+with its own rng, so the rest of a seed's floor is unchanged. Seeing all three
+earns "Wonders of the Deep".
+
+**Loot is a moment.** A legendary, set or unique find rises from the fallen,
+turns in the air for half a second with a rising hum, then strikes the floor
+with its own sound, ring and flash. Rare and epic finds land with their own
+chimes; every notable find says its name over where it lies (in co-op, only to
+whoever it is for).
+
+**Guardians arrive.** For 1.6 s the room trembles in growing pulses, light is
+drawn into a widening sigil and the stone groans; then the guardian is there:
+a shockwave in the region's light, a quarter-second of slow motion, the
+camera leaning toward it (on every screen) and its name.
+
+**The Hollow Below changes on each pass.** After the first nine depths the
+regions bleed together (foes of the next region take places in some fights;
+the title card says whose dead walk there) and every pass is darker (85%,
+then 70%, then 55% of the light, no darker), so the lantern matters more the deeper it goes.
+
+**The workshop sounds like one.** The smith's hammer rings on the anvil on
+every blow (three takes of a hammer biting hot iron), every fourth blow lands
+harder, and the bellows breathe with the fire flaring.
+
 ## Decisions log
 
 - **3D + sprites over pure 2D**: real lighting/shadows are central to the light
@@ -750,3 +845,13 @@ sparks; crafting flares the anvil and the quench barrel hisses.
 - **Steam is optional and reached dynamically.** The game builds and runs
   without GodotSteam (LAN / direct IP); with it, lobbies and Valve's relay
   carry the same messages. Development switches only work in debug builds.
+- **Make parties harder by how foes choose, not by health.** Health sponges
+  make fights longer, not more interesting; the measured gap came from foes
+  ignoring all but the nearest Kindled.
+- **Share rewards by worth.** Counting foes let pricier extras inflate a
+  party's pay; valuing them keeps "a little more for company" honest.
+- **Landmarks on their own rng.** A rare centrepiece must not reshuffle every
+  seed's floors (dev seed lists, tests, players' shared seeds).
+- **Measure audio, never claim to have heard it.** Generated sounds are
+  checked for peaks, clipping, spectrum and loudness and set by those numbers;
+  whether they sound good is for a person with ears.

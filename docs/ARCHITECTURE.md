@@ -121,3 +121,34 @@ saves, shows the summary -> `goto_hub()`.
   archetype through `_favour`).
 - **Depths**: `Delve.depth_title` / `depth_short` / `floor_def` describe any
   depth (regions and the Hollow Below) for cards, banners, HUD and map.
+
+## Feel and atmosphere (development pass)
+
+- **Facing**: `Player._update_look` decides `look` (fight -> aim, walk -> move,
+  moved mouse -> pointer, dodge -> its direction; a remote Kindled uses
+  `remote_look`), `_update_anim` picks up/down/side with hysteresis,
+  `sync_visual` mirrors only side frames. `Weapon.base_angle` uses `look` when
+  idle and `aim` when charging.
+- **Party AI**: `Enemy.target()` re-evaluates every 1-1.6 s; with two or more
+  Kindled, `_party_target` scores distance (x0.45 for reach roles), pressure
+  from other foes, isolation and stickiness. `EnemyDB.party_extras` picks a
+  party's extra foes by role; `Party.wave_share` values rewards;
+  `Dungeon._guardian_call` brings help to a guardian.
+- **Labels**: `Prop.label_name` / `label_color` / `prompt`; `Fx.beacon` marks
+  (name + action, nearest only, `world_names` setting), `Fx.tag` for finds
+  (fades with distance), `_unstack_names` keeps them apart (what F would use
+  first). `PixelSprite.highlight` is the pulse.
+- **Audio**: `Audio.play_music` starts `<name>` and `<name>_combat` on the same
+  frame; `set_intensity` (driven by `Dungeon._music_watch`) sets the layer;
+  `sting` for short phrases; warnings use their own six voices
+  (`_is_warning`); bus effects: Music high-pass, SFX compressor, Master hard
+  limiter. `audiorec=S` records the buses to `user://audio_rec/`.
+- **Landmarks**: `DungeonGen.LANDMARKS` / `_landmark` (own rng, after
+  generation), `Room.landmark`, Prop kind `landmark`,
+  `Dungeon._landmark_answer`, `Dungeon.remembered()` (read by `Minimap`).
+  Art: `tools/art/gen_landmarks.gd`.
+- **Depth textures**: `tools/art/gen_depths.gd` writes `<theme>_floor_d2/d3`
+  and `_wall_d2/d3`; `LevelBuilder.LevelTheme.named(name, depth_k)` uses them.
+- **The Hollow Below**: `Delve.cycle` / `bleed_region` / `gloom`.
+- **Camera**: `Stage.look_toward(p, secs)` leans the follow camera (recorded
+  for guests as `look`).

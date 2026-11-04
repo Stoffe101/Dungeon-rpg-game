@@ -19,6 +19,9 @@ var _t := 0.0
 var _flash_t := 0.0
 var _flash_len := 0.0
 var _flash_col := Color.WHITE
+## A steady soft glow (an object within reach); a flash wins over it.
+var highlight := Color(1, 1, 1, 0)
+var _hl_shown := false
 
 
 func setup(sheet_name: String, start_anim: String = "") -> PixelSprite:
@@ -78,6 +81,9 @@ func _process(delta: float) -> void:
 		_flash_t -= delta
 		var a := clampf(_flash_t / maxf(_flash_len, 0.001), 0.0, 1.0)
 		set_instance_shader_parameter("flash", Color(_flash_col.r, _flash_col.g, _flash_col.b, a if _flash_t > 0.0 else 0.0))
+	elif highlight.a > 0.0 or _hl_shown:
+		set_instance_shader_parameter("flash", highlight)
+		_hl_shown = highlight.a > 0.0
 	if not playing or anim == "":
 		return
 	var info: Dictionary = sheet.anims[anim]

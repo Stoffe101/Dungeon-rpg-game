@@ -24,6 +24,7 @@ const FEATS := {
 	"archivist": {"name": "Archivist", "desc": "Learn every blueprint.", "goal": 13, "reward": {"points": 1}},
 	"matched": {"name": "Matched", "desc": "Wear four pieces of one tier set.", "goal": 4, "reward": {"sunshards": 1}},
 	"fashion": {"name": "Fashion of the Deep", "desc": "Unlock 6 looks in the wardrobe.", "goal": 6, "reward": {"embers": 300}},
+	"wonders": {"name": "Wonders of the Deep", "desc": "Find the great landmark of every region.", "goal": 3, "reward": {"sunshards": 2}},
 	"restored": {"name": "Hearth Restored", "desc": "Fully restore every sanctuary building.", "goal": 1, "reward": {"points": 1}},
 	"cap": {"name": "Kindled Paragon", "desc": "Reach the level cap.", "goal": 60, "reward": {"sunshards": 3}},
 	"renowned": {"name": "Renowned", "desc": "Reach Renown 10 (experience past the level cap).", "goal": 10, "reward": {"embers": 1000}},
@@ -86,6 +87,8 @@ static func progress(id: String) -> int:
 			return best2
 		"fashion":
 			return Looks.unlocked().size()
+		"wonders":
+			return (d.get("seen", {}).get("landmarks", []) as Array).size()
 		"restored":
 			for b in Profile.SANCTUARY:
 				if Profile.building(b) < int(Profile.SANCTUARY[b].max):

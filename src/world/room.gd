@@ -26,6 +26,7 @@ var elite_affix := ""
 var grudge := false
 var event := ""
 var authored := ""                   # a hand-made room's id (DungeonGen.AUTHORED), else procedural
+var landmark := ""                   # a great centrepiece's id (DungeonGen.LANDMARKS), else ""
 
 # runtime
 var visited := false

@@ -259,6 +259,7 @@ static func _sigil_at(pl: Player, target: Vector2, r: float, pulses: int, dmg: f
 		Audio.play("frost", -3.0, 1.0 + data_t[0] * 0.05)
 		_ab = "frost_sigil"
 		_power = power
+		st.strike_props_circle(h.pos, r, pl, false)
 		for a in st.in_circle(pl.team, h.pos, r):
 			var hit := _hit(pl, dmg, ["frost"])
 			hit.chill = 0.4
@@ -333,6 +334,7 @@ static func shade(pl: Player, p: Vector2, dmg: float, delay: float, twice := fal
 		st.fx.flash_light(p, 0.6, Color(0.6, 0.35, 0.9), 2.5, 4.0, 0.25)
 		Audio.play("shade", -2.0)
 		_ab = "gloamstep"
+		st.strike_props_circle(p, 2.0, pl, false)
 		for a in st.in_circle(pl.team, p, 2.0 * (1.4 if gravity else 1.0)):
 			var h := _hit(pl, dmg, ["shadow"])
 			h.knockback = (p - a.pos).normalized() * 6.0 if gravity else (a.pos - p).normalized() * 5.0
@@ -472,6 +474,7 @@ static func _rush(pl: Player, is_echo: bool) -> bool:
 			for k in 5:
 				var p := from.lerp(dest, (k + 0.5) / 5.0)
 				st.fx.burst(p, 0.3, col, 6, 2.5, 0.35, 2.0)
+				st.strike_props_circle(p, 1.0, pl, true)
 				for a in st.in_circle(pl.team, p, 1.0):
 					var h := _hit(pl, float(d.damage) * 0.35, ["fire"])
 					h.burn = 1
@@ -491,6 +494,7 @@ static func _rush_cut(pl: Player, from: Vector2, to: Vector2, dmg: float, col: C
 	var gravity := Runes.has(pl, "rush", "gravity")
 	for k in 6:
 		st.fx.burst(from.lerp(to, k / 5.0), 0.4, col, 3, 2.0, 0.25, 0.0, dir, 0.6)
+	st.strike_props_line(from, to, 0.8, pl, true)
 	for a in st.in_line(pl.team, from, to, 0.8):
 		var h := _hit(pl, dmg, ["melee", "fire"])
 		h.burn = 1

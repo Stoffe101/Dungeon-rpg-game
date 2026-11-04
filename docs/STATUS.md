@@ -4,6 +4,57 @@ Last updated: 2026-11-04.
 
 ## Implemented
 
+- **Development pass: feel, atmosphere, smart co-op (branch
+  feature/feel-and-atmosphere)** - details in DESIGN, "Development pass".
+  - *Facing (top priority)*: W/A/S/D and diagonals turn and animate the
+    Kindled; it keeps its facing when it stops; a fight (attack, charge,
+    stick aim) faces the aim, walking faces the walk, a moved mouse faces the
+    pointer, a dodge faces where it goes. Hysteresis stops flicker on
+    diagonals; the idle weapon follows the facing; armour layers mirror with
+    the body. In co-op each Kindled sends its facing (protocol 7), so hosts
+    and guests draw every Kindled turned the way its owner sees it.
+  - *Smarter co-op*: foes share themselves out over a party (pressed Kindled
+    are less inviting, a lone one is prey, ranged and support foes care
+    little for distance); a party's extra foes are chosen by role (flankers
+    and marksmen, within the role caps) and come from the far side; 3-4
+    Kindled meet a closing wave; guardians gain less health per friend (+40%)
+    but a quicker tempo and a call for help beside whoever stands farthest.
+    Rewards are shared by worth, not by count.
+  - *Interactables*: names over chests, shrines, wells, landmarks...
+    in category colours (treasure gold, magic teal, bargains rose, the way
+    onward pale gold), the action line on the one F would use, a soft
+    highlight pulse; Settings > Accessibility > Object names (all / nearest /
+    off).
+  - *Urns*: three materials by region, crack-and-shatter with shards left on
+    the floor, dust, three takes of a break sound per material; now and then a
+    glinting urn that always pays; every attack type breaks them (blades,
+    projectiles, spells, explosions, foes' blasts); rewards from the floor's
+    own rng (no farming).
+  - *Audio*: each region's walking music has a combat layer in step with it
+    that swells with the fight; the Hollow Below and the two later guardians
+    have their own music; stings for elites and a cleared fight; ambient
+    one-shots per region; a master limiter, an SFX compressor, warnings on
+    their own voices, music ducked under heavy fighting. All original
+    (generated in tools/audio/build_audio.gd).
+  - *Depths look deeper*: second and third depth floor/wall textures per
+    region (bones, then soul-light seams; spore caps, then the Bloom's veins;
+    ash, then gold inlay and a sun mosaic).
+  - *Landmarks*: a rare fight around a region's great centrepiece (the Bone
+    Colossus reveals the depth's map, hidden rooms too; the Heart-Root trades
+    15% health for a relic, once per Kindled; the Fallen Sun-Disc restores the
+    party and leaves a Sunshard), a banner on entry, minimap icons, the
+    "Wonders of the Deep" feat.
+  - *Loot*: legendary/set/unique finds hang turning in the air before they
+    fall; each grade lands with its own sound; notable finds show their name
+    on the floor (only to whoever they are for).
+  - *Guardians arrive*: the room trembles, light gathers under a widening
+    sigil, then a shockwave, a breath of slow motion, and the camera leans
+    toward it on every screen.
+  - *The Hollow Below* changes each pass through the regions: foes of the
+    next region bleed in and it gets darker.
+  - *The smith's anvil* rings on every blow (three takes), bellows breathe and
+    the fire flares.
+
 - **Evolution pass (branch feature/evolution-builds)**: builds, weapons, fair
   co-op, readable depths and a real workshop (details in DESIGN, "Evolution
   pass").
@@ -217,6 +268,7 @@ Last updated: 2026-11-04.
 
 | Kind | What |
 |---|---|
+| Development pass (2026-11-04) | **Unit tests**: 122 pass (party targeting and extras, rewards by worth, landmarks: generation leaves the rest of a seed's floor unchanged, its room stays walkable, each of the three answers, the Wonders feat; Hollow cycles; facing with every key). **UI smoke**: 43 checks pass at 1080p (three runs after a harness fix; a feat card opening late made the resident checks flaky). **Separate processes, real input, localhost (one PC)**: 2-player journey 53+51 checks; 4-player journey 71+63+62+62 (after making two talk checks wait on results: with four windows on one PC a dialogue opened up to 0.65 s after F); facing 14+14; stairs under `netsim=typical` 7+9; bestiary with 3 players; `landmark` (a guest presses F at the Colossus; every machine sees it wake and the whole map) 6+7; solo `talk` 13. **Viewed in captures**: facing on host and guest, labels, urns breaking (all makes), depth textures (9 region/depth pairs), the three landmarks idle and answered (solo and host+guest), loot hang and floor names, a guardian's arrival frame by frame, the Hollow at depth 10. **Frame times** (`perflog`, 1080p, V-Sync at 165 Hz, RTX 5070, bot playing): p50 and p95 6.1 ms, p99 at most 8.3 ms in the Ossuary, a Rootmire landmark floor, the Throne guardian fight and the sanctuary; single worst frames 6-34 ms after the first loading window. **Audio, measured not heard**: every new sound peak-normalised to -1 dBFS without clipping, low end checked per file; a 41 s guardian-floor recording of all buses: master peak -4.5 dBFS, no sample over -1 dBFS, bus loudness steady within ~3 dB; 41% of the master's energy below 120 Hz (mostly the guardian music). **Bot co-op evaluation**: Tier III, 3 seeds x 240 s per party (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
 | Automated tests | 76 tests (incl. the six new enemies in sims, squads, behavioural affixes, Omens, Grudge growth, vault/camp generation, Thornmail, Mirrorguard, Executioner's Band, every blueprint has an icon, walking turns the Kindled, Hearthcall break/complete, every weapon's combo and charge, forge costs, the level cap and Renown, pages, feats, the v7 migration, difficulty tiers and the capstone unlock, enemy tier scaling and double affixes, tier might, every region's creatures having scripts/sheets/tiles and rolling only their own pool, blueprints and learning, sets/uniques/looks, gear rolls/stats, equip/craft/salvage, run loot settlement, footsteps on contact frames, mastery ranks, resident requests and gifts, save migration v3->v4, Hearthtree route finding and stat totals, Warden brazier sear, Rootmire brambles never sealing doors, event room generation, Interact through the real input action, device-aware button labels, residents arriving and walking between spots), run locally and on GitHub Actions: combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
 | Autopilot playtests | Headless bot runs (seed 7): clears depth 1, descends, plays depth 2. Boss run with `godmode`: Gloamfall at 54%, skitter calls, Warden dies, Hearthstone victory settles (bonus, sunshards, staff unlock). Without godmode the naive bot dies to the Warden in ~25s. Rootmire (godmode): depth 1-2, Bloom wilted by all four burned roots, victory. Event rooms: bot completes a Trial (3 waves, reward), Ember Well and Echo offers without script errors. Loot: a god-mode run through depth 2 and the Warden banked materials, two epic pieces and the Gloamward Lantern into the save. Combat feel: burst captures (`hitlab burst=`) reviewed frame by frame for impacts and flash bloom; sword, hammer and staff autopilot runs clean after the change. Requests: a god-mode run with five active requests counted elite kills, a Sunshard, a chest and Wren's bird (the bot never Wards, so the Ward counter is only checked by code review). Found and fixed: corridor targeting, partial pathing to solid goals, descend re-entry, freed-object timer callbacks. |
 | Latest round (satchel exterior, uniques, dungeon/camp visuals, bestiary) | Captured and viewed: the satchel opening (shut satchel, flap up, unfolding), every region before/after the visual pass (grime, decals, room lights), decal rows per region (a bug passed the Ossuary row to every region - fixed and re-checked), the camp centre with trophies, rugs and camp clutter, the forge-ruin sign near and far, the title screen, the Bestiary empty and after a Warden kill, the new item icons. The smoke test caught the cat stealing a resident's conversation (moved). |
@@ -235,6 +287,19 @@ Last updated: 2026-11-04.
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
+
+- Development pass: nothing in its audio has been listened to by a person -
+  levels, balance and the low end are set by measurement
+  (tools/audio/analyze.py, bus recordings with `audiorec`), which is not the
+  same as hearing it. Co-op difficulty is measured with bots on one PC
+  (3 seeds x 240 s per party, Tier III): damage taken per Kindled per room is
+  now in the solo band (parties 11-28%, solo 16-32%), XP per Kindled is
+  1.03-1.59x solo; Embers per Kindled read 1.4-2.2x but that number divides
+  by rooms cleared, which varies 1.3-7.3 between runs (too noisy to tune
+  from). A 4-player melee bot party once took 89 s per room. Landmarks,
+  urns, loot hang and the guardian entrance are seen in captures, not played
+  by a person. All multiplayer checks ran as separate local processes, not on
+  two PCs or over Steam.
 
 - Evolution pass: the new spells, keystones, weapon variants and the co-op
   damage scaling are tuned by tests, bots and formulas only. With weapons as a
@@ -298,6 +363,12 @@ Last updated: 2026-11-04.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. This pass with people: docs/TESTING.md "Human playtest: the development
+   pass" - facing on keyboard, mouse and pad (and on a friend's screen), a
+   listening pass on headphones and speakers (music layers, urns, drops,
+   guardian arrival, anvil), 2-4 player difficulty and whether parties feel
+   hunted rather than swarmed, landmarks and urn rewards.
 
 0. The evolution pass with people: docs/TESTING.md "Human playtest: the
    evolution pass" (spells and hotbar on keyboard and pad, build feel, weapon

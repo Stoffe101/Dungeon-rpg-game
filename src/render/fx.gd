@@ -430,22 +430,118 @@ func signboard(who: Node, height: float, title: String, sub: String, col: Color)
 	_marks[who.get_instance_id()] = {"label": p, "who": weakref(who), "height": height, "still": true}
 
 
+## A name over a dungeon object you can use (a chest, an altar, the stairs):
+## it fades in as you come near; over the one F would use it adds the action
+## ("[F] Open") and the object glows softly. Spent objects go quiet. Each
+## machine draws its own from its own Kindled.
+func beacon(who: Node, height: float, col: Color) -> void:
+	unmark(who)
+	if view == null:
+		return
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", -1)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lines: Array = []
+	for c in [col, Color(1.0, 0.85, 0.45)]:
+		var l := Label.new()
+		l.add_theme_font_override("font", FONT_OUTLINE)
+		l.add_theme_font_size_override("font_size", 8)
+		l.add_theme_color_override("font_color", c)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		v.add_child(l)
+		lines.append(l)
+	v.visible = false
+	view.overlay.add_child(v)
+	_marks[who.get_instance_id()] = {"label": v, "who": weakref(who), "height": height, "beacon": true, "name": lines[0], "act": lines[1], "col": col}
+
+
+## A find's name over it on the floor (Pickup._name_tag), in its own colour;
+## it fades out with distance, like the names over things.
+func tag(who: Node, height: float, text: String, col: Color) -> void:
+	unmark(who)
+	if view == null:
+		return
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_override("font", FONT_OUTLINE)
+	l.add_theme_font_size_override("font_size", 8)
+	l.add_theme_color_override("font_color", col)
+	l.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.visible = false
+	view.overlay.add_child(l)
+	_marks[who.get_instance_id()] = {"label": l, "who": weakref(who), "height": height, "fade": 9.0}
+
+
+func _update_beacon(m: Dictionary, who: Node, nearest: Node) -> void:
+	var l: Control = m.label
+	var st = Game.stage
+	var spr: PixelSprite = who.get("sprite")
+	if st == null or st.player == null or not who.interactable() or not st.player.alive:
+		l.visible = false
+		if spr:
+			spr.highlight.a = 0.0
+		return
+	var d: float = (st.player.pos as Vector2).distance_to(who.get("pos"))
+	# close by: a name; farther off it fades (only what is near says anything)
+	var a := clampf((6.5 - d) / 2.0, 0.0, 1.0)
+	var near := nearest == who
+	var nm: String = who.label_name()
+	if (m.name as Label).text != nm:
+		(m.name as Label).text = nm
+	var act := "[%s] %s" % [Settings.describe_action("interact"), who.prompt()]
+	if (m.act as Label).text != act:
+		(m.act as Label).text = act
+	(m.act as Label).visible = near
+	l.set_meta("prio", near)
+	var mode := String(Settings.get_value("world_names", "all"))
+	l.visible = a > 0.01 and mode != "off" and (near or mode == "all")
+	l.modulate.a = a if near else a * 0.7
+	l.reset_size()
+	var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
+	var sz := l.get_minimum_size()
+	l.position = Vector2(roundf(sp.x - sz.x * 0.5), roundf(sp.y - sz.y))
+	if spr:
+		var col: Color = m.col
+		spr.highlight = Color(col.r, col.g, col.b, (0.1 + 0.07 * sin(Time.get_ticks_msec() / 190.0)) if near else 0.0)
+
+
 func unmark(who: Node) -> void:
 	var m: Dictionary = _marks.get(who.get_instance_id(), {})
 	if not m.is_empty():
-		(m.label as Label).queue_free()
+		(m.label as Control).queue_free()
 		_marks.erase(who.get_instance_id())
 
 
 func _update_marks() -> void:
+	var nearest: Node = null
+	var cur = Game.stage
+	if cur and cur.player and is_instance_valid(cur.player) and cur.has_method("nearest_interactable"):
+		nearest = cur.nearest_interactable(cur.player.pos)
 	for k in _marks.keys():
 		var m: Dictionary = _marks[k]
 		var who: Node = m.who.get_ref()
 		if who == null or not is_instance_valid(who):
-			(m.label as Label).queue_free()
+			(m.label as Control).queue_free()
 			_marks.erase(k)
 			continue
+		if m.get("beacon", false):
+			_update_beacon(m, who, nearest)
+			continue
 		var l: Control = m.label
+		if m.has("fade"):
+			# a find's name: over it wherever it is, fading with distance
+			var stg = Game.stage
+			var h: float = float(m.height) + float(who.get("height"))
+			var dd: float = (stg.player.pos as Vector2).distance_to(who.get("pos")) if stg and stg.player else 99.0
+			l.modulate.a = clampf((float(m.fade) - dd) / 3.0, 0.0, 1.0)
+			l.visible = l.modulate.a > 0.01 and String(Settings.get_value("world_names", "all")) != "off"
+			var sp2 := view.world_to_internal(Iso.to_world(who.get("pos"), h))
+			var sz2 := l.get_minimum_size()
+			l.position = Vector2(roundf(sp2.x - sz2.x * 0.5), roundf(sp2.y - sz2.y))
+			continue
 		var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
 		var sz := l.get_minimum_size()
 		var bob := 0.0 if m.get("still", false) else roundf(sin(Time.get_ticks_msec() / 260.0) * 1.5)
@@ -469,10 +565,16 @@ func _unstack_names() -> void:
 	var names: Array = []
 	for m in _marks.values():
 		if not m.get("still", false) and is_instance_valid(m.label) and (m.label as Control).visible:
-			names.append(m.label)
+			names.append(m.label)     # names over Kindled and over objects alike
 	if names.size() < 2:
 		return
-	names.sort_custom(func(a, b): return (a as Control).position.y > (b as Control).position.y)
+	# what F would use keeps its place; then the one nearest the camera
+	names.sort_custom(func(a, b):
+		var pa := bool((a as Control).get_meta("prio", false))
+		var pb := bool((b as Control).get_meta("prio", false))
+		if pa != pb:
+			return pa
+		return (a as Control).position.y > (b as Control).position.y)
 	var placed: Array = []
 	for l: Control in names:
 		var r := Rect2(l.position, l.get_minimum_size())
@@ -581,6 +683,33 @@ func splat(p: Vector2, col: Color, life := 24.0, scale_k := 1.0) -> void:
 	mi.set_instance_shader_parameter("tint", Color(col.r, col.g, col.b, 1.0))
 	add_child(mi)
 	_splats.append({"mesh": mi, "t": 0.0, "life": life, "col": col})
+	while _splats.size() > MAX_SPLATS:
+		var old: Dictionary = _splats.pop_front()
+		if is_instance_valid(old.mesh):
+			old.mesh.queue_free()
+
+
+## Pieces left on the floor (a shattered urn): one frame of a flat sheet,
+## fading after `life` seconds. Every machine draws it (recorded).
+func debris(p: Vector2, sheet: String, frame: int, life := 45.0) -> void:
+	if Net.recording:
+		Net.rec(["fx", "debris", p, sheet, frame, life])
+	var info := SpriteLib.get_sheet(sheet)
+	if info == null:
+		return
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.orientation = PlaneMesh.FACE_Y
+	q.size = Vector2(info.frame_size.x * Iso.TEXEL, info.frame_size.y * Iso.TEXEL * Iso.SQ2)
+	q.material = info.material
+	mi.mesh = q
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Iso.to_world(p, 0.0) + Vector3(0, 0.005, 0)
+	mi.set_instance_shader_parameter("frame", Vector2(clampi(frame, 0, maxi(info.cols - 1, 0)), 0))
+	mi.set_instance_shader_parameter("flip", 1.0 if randf() > 0.5 else 0.0)
+	mi.set_instance_shader_parameter("tint", Color(1, 1, 1, 1))
+	add_child(mi)
+	_splats.append({"mesh": mi, "t": 0.0, "life": life, "col": Color(1, 1, 1)})
 	while _splats.size() > MAX_SPLATS:
 		var old: Dictionary = _splats.pop_front()
 		if is_instance_valid(old.mesh):

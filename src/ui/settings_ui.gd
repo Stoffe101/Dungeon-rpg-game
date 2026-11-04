@@ -150,6 +150,8 @@ func _open_page(id: String) -> void:
 			_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05, "How hard the camera kicks on impacts.")
 			_slider("Effect intensity", "effects_intensity", 0.25, 1.0, 0.05, "Particles and flashes from your own Kindled.")
 			_switch("Reduce flashes", "reduce_flashes", "Softens bright flashes and the damage pulse at the screen's edges.")
+			_stepper("Object names", "world_names", ["all", "nearest", "off"], ["All nearby", "Only the nearest", "Off"],
+				"Names over chests, shrines and finds. Off: what F would use is told at the bottom of the screen instead.")
 		"coop":
 			_name_row()
 			_slider("Allies' effects", "ally_effects", 0.2, 1.0, 0.05, "How strongly other Kindled's particles are drawn on your screen, beside your own.")

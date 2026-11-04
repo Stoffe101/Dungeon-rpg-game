@@ -76,7 +76,16 @@ remembers who hurts it.
 - **Armour you can see**: every helm, chest, glove and boot is drawn on the
   Kindled; the wardrobe can show any piece you own, or hide it.
 - **The Hollow Below**: an endless descent with an Echo of a guardian every
-  third depth and one more Omen at every depth.
+  third depth and one more Omen at every depth; past depth 9 the regions bleed together and
+  the dark deepens.
+- **Landmarks**: now and then a fight takes place around a region's great
+  centrepiece - the Bone Colossus, the Heart-Root, the Fallen Sun-Disc - each
+  with something to give.
+- **Co-op that hunts the whole party**: foes share themselves out, flank a
+  Kindled standing alone, and guardians call for help; rewards stay fair.
+- **A world that says what things are**: names and actions over everything
+  you can use, urns that shatter, loot that hangs in the air before it lands,
+  music that swells with each fight.
 - The Hearthtree: a 74-node constellation skill tree with keystones, hybrids and
   ranked masteries, route preview (click any node to kindle the path to it),
   search, a bonuses panel and three saved pages. Levels cap at 60 - about half

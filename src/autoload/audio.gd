@@ -23,6 +23,19 @@ var _music_cur: AudioStreamPlayer
 var _music_name := ""
 var _amb: AudioStreamPlayer
 var _amb_name := ""
+# a fight's layer, in step with the walking music (`<name>_combat`), and how
+# much of it plays (set_intensity: 0 walking, 1 fighting)
+var _layer_a: AudioStreamPlayer
+var _layer_b: AudioStreamPlayer
+var _layer_cur: AudioStreamPlayer
+var _intensity := 0.0
+var _intensity_to := 0.0
+var _sting: AudioStreamPlayer
+# warnings that must be heard over everything (enemy wind-ups, guardians,
+# Wards): their own voices, never stolen by a crowd of hits
+var _prio_players: Array[AudioStreamPlayer] = []
+var _prio_next := 0
+const PRIO_POOL := 6
 
 
 func _ready() -> void:
@@ -49,6 +62,24 @@ func _ready() -> void:
 		mrv.damping = 0.4
 		mrv.wet = 0.18
 		AudioServer.add_bus_effect(mus, mrv)
+		# no sub-rumble under the instruments (it masks the fight's thumps)
+		var hp := AudioEffectHighPassFilter.new()
+		hp.cutoff_hz = 48.0
+		AudioServer.add_bus_effect(mus, hp)
+	# effects: a gentle compressor so a four-player brawl stays one sound
+	if AudioServer.get_bus_effect_count(sfx) == 1:
+		var comp := AudioEffectCompressor.new()
+		comp.threshold = -14.0
+		comp.ratio = 3.0
+		comp.attack_us = 4000.0
+		comp.release_ms = 140.0
+		AudioServer.add_bus_effect(sfx, comp)
+	# the master never clips, however much happens at once
+	var master := AudioServer.get_bus_index("Master")
+	if AudioServer.get_bus_effect_count(master) == 0:
+		var lim := AudioEffectHardLimiter.new()
+		lim.ceiling_db = -1.0
+		AudioServer.add_bus_effect(master, lim)
 	for i in POOL:
 		var p := AudioStreamPlayer.new()
 		p.bus = "SFX"
@@ -59,10 +90,50 @@ func _ready() -> void:
 	for m in [_music_a, _music_b]:
 		m.bus = "Music"
 		add_child(m)
+	_layer_a = AudioStreamPlayer.new()
+	_layer_b = AudioStreamPlayer.new()
+	for m in [_layer_a, _layer_b]:
+		m.bus = "Music"
+		m.volume_db = -60.0
+		add_child(m)
+	_sting = AudioStreamPlayer.new()
+	_sting.bus = "Music"
+	add_child(_sting)
+	for i in PRIO_POOL:
+		var pp := AudioStreamPlayer.new()
+		pp.bus = "SFX"
+		add_child(pp)
+		_prio_players.append(pp)
 	_amb = AudioStreamPlayer.new()
 	_amb.bus = "Ambience"
 	add_child(_amb)
 	apply_volumes()
+	for a in Dev.args():
+		if a.begins_with("audiorec="):
+			_record(float(a.substr(9)))
+
+
+## Dev (`-- audiorec=SECONDS`): records what each bus plays (and the final
+## mix) for that long, then writes user://audio_rec/<bus>.wav - stems to
+## measure the real mix with tools/audio/analyze.py.
+func _record(secs: float) -> void:
+	var recs := {}
+	for b in ["Master", "Music", "SFX", "Ambience"]:
+		var idx := AudioServer.get_bus_index(b)
+		var r := AudioEffectRecord.new()
+		AudioServer.add_bus_effect(idx, r)
+		r.set_recording_active(true)
+		recs[b] = r
+	print("[audio] recording %d s of every bus" % int(secs))
+	get_tree().create_timer(secs, true, false, true).timeout.connect(func() -> void:
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://audio_rec"))
+		for b in recs:
+			var r: AudioEffectRecord = recs[b]
+			var w := r.get_recording()
+			r.set_recording_active(false)
+			if w:
+				w.save_to_wav("user://audio_rec/%s.wav" % b)
+		print("[audio] stems written to ", ProjectSettings.globalize_path("user://audio_rec")))
 
 
 func apply_volumes() -> void:
@@ -129,7 +200,11 @@ func play(sname: String, volume_db := 0.0, pitch := 1.0, bus := "SFX", gap_ms :=
 			push_warning("Audio: no sound named '%s'" % sname)
 		return
 	var p := _players[_next]
-	_next = (_next + 1) % POOL
+	if _is_warning(sname):
+		p = _prio_players[_prio_next]
+		_prio_next = (_prio_next + 1) % PRIO_POOL
+	else:
+		_next = (_next + 1) % POOL
 	p.stream = s
 	p.volume_db = volume_db
 	p.pitch_scale = pitch
@@ -166,31 +241,103 @@ func ui(sname: String) -> void:
 	play(sname, -4.0, 1.0, "UI")
 
 
+## Sounds that must cut through (they get their own voices).
+static func _is_warning(sname: String) -> bool:
+	return sname.ends_with("_windup") or sname.begins_with("boss") or sname in ["parry", "perfect", "telegraph", "warden_call", "eclipse"]
+
+
+static func _loop(s: AudioStream) -> void:
+	if s is AudioStreamWAV:
+		(s as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+		(s as AudioStreamWAV).loop_end = int((s as AudioStreamWAV).get_length() * (s as AudioStreamWAV).mix_rate)
+
+
 func play_music(mname: String, fade := 1.5) -> void:
 	if mname == _music_name:
 		return
 	_music_name = mname
 	var s := _stream(MUSIC_DIR, mname)
+	var layer := _stream(MUSIC_DIR, mname + "_combat")
 	var old := _music_cur
+	var old_layer := _layer_cur
 	var nxt := _music_b if _music_cur == _music_a else _music_a
+	var nxt_layer := _layer_b if _layer_cur == _layer_a else _layer_a
 	if s:
-		if s is AudioStreamWAV:
-			(s as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
-			(s as AudioStreamWAV).loop_end = int((s as AudioStreamWAV).get_length() * (s as AudioStreamWAV).mix_rate)
+		_loop(s)
 		nxt.stream = s
 		nxt.volume_db = -40.0
 		nxt.play()
 		var tw := create_tween()
 		tw.tween_property(nxt, "volume_db", 0.0, fade)
+		# the fight's layer starts on the same frame (in step) at the
+		# intensity of the moment
+		if layer:
+			_loop(layer)
+			nxt_layer.stream = layer
+			nxt_layer.volume_db = -60.0
+			nxt_layer.play()
 	if old and old.playing:
 		var tw2 := create_tween()
 		tw2.tween_property(old, "volume_db", -40.0, fade)
 		tw2.tween_callback(old.stop)
+	if old_layer and old_layer.playing:
+		var tw3 := create_tween()
+		tw3.tween_property(old_layer, "volume_db", -60.0, fade)
+		tw3.tween_callback(old_layer.stop)
 	_music_cur = nxt
+	_layer_cur = nxt_layer if layer else null
+
+
+## How much of the fight's layer plays over the walking music (0..1). Rises
+## in about a second, falls away over a few.
+func set_intensity(v: float) -> void:
+	_intensity_to = clampf(v, 0.0, 1.0)
+
+
+## A short phrase over the music (an elite arrives, a room falls quiet).
+func sting(sname: String, volume_db := -2.0) -> void:
+	var s := _stream(MUSIC_DIR, sname)
+	if s == null:
+		return
+	if s is AudioStreamWAV:
+		(s as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_DISABLED
+	_sting.stream = s
+	_sting.volume_db = volume_db
+	_sting.play()
+	if log_sounds:
+		print("[audio] %.2f sting %s" % [Time.get_ticks_msec() / 1000.0, sname])
+
+
+var _duck := 0.0
+
+
+func _process(delta: float) -> void:
+	var rate := 0.9 if _intensity_to > _intensity else 0.3
+	_intensity = move_toward(_intensity, _intensity_to, rate * delta)
+	# the music steps back (up to 4 dB) while the fight is loud, so blows and
+	# warnings sit on top of it; it comes back over a second
+	var sfx := AudioServer.get_bus_index("SFX")
+	var mus := AudioServer.get_bus_index("Music")
+	if sfx >= 0 and mus >= 0:
+		var peak := maxf(AudioServer.get_bus_peak_volume_left_db(sfx, 0), AudioServer.get_bus_peak_volume_right_db(sfx, 0))
+		var want := clampf((peak + 20.0) / 12.0, 0.0, 1.0) * 4.0
+		_duck = move_toward(_duck, want, (30.0 if want > _duck else 4.0) * delta)
+		var v := float(Settings.get_value("music_volume", 0.8))
+		if v > 0.001:
+			AudioServer.set_bus_volume_db(mus, linear_to_db(v) - _duck)
+	if _layer_cur and _layer_cur.playing and _music_cur:
+		# follows the walking music's own fade too
+		var base := db_to_linear(_music_cur.volume_db)
+		_layer_cur.volume_db = linear_to_db(maxf(0.0001, _intensity * base))
 
 
 func stop_music(fade := 1.0) -> void:
 	_music_name = ""
+	if _layer_cur and _layer_cur.playing:
+		var tl := create_tween()
+		tl.tween_property(_layer_cur, "volume_db", -60.0, fade)
+		tl.tween_callback(_layer_cur.stop)
+		_layer_cur = null
 	if _music_cur and _music_cur.playing:
 		var tw := create_tween()
 		tw.tween_property(_music_cur, "volume_db", -40.0, fade)

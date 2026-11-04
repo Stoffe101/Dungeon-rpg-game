@@ -35,6 +35,21 @@ static func reward_share(n: int) -> float:
 	return (1.0 + BONUS_PER_EXTRA * (n - 1)) / (1.0 + FOES_PER_EXTRA * (n - 1))
 
 
+## The same, by worth rather than by count: a wave whose own foes are worth
+## `own` (experience) and that a party of `n` meets as `all` (with the extra
+## foes it brings, which tend to be the pricier flankers and marksmen) pays
+## each Kindled about `own` x (1 + 12% per extra Kindled), whatever was added.
+static func wave_share(own: float, all: float, n: int) -> float:
+	if n <= 1 or all <= 0.0:
+		return 1.0
+	return clampf(own * (1.0 + BONUS_PER_EXTRA * (n - 1)) / all, 0.1, 1.0)
+
+
+## A big party's extra closing wave (Dungeon._start_encounter) pays little:
+## it is there for the fight, not the spoils.
+const PARTY_WAVE_SHARE := 0.25
+
+
 ## A friend found something worth hearing about: the rest of the party is told
 ## (the finder has their own banner); nobody else can take it - it is theirs.
 static func announce_find(st: Stage, finder: Player, item: Dictionary) -> void:
