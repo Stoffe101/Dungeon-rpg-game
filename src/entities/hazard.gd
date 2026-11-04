@@ -19,7 +19,9 @@ var _p := 0.0
 var _age := 0.0
 
 
-static func spawn(st: Stage, p: Vector2, r: float, duration: float, t: int, col: Color, fn: Callable) -> Hazard:
+## `quiet`: a faint stain with no ring (trails laid in a line, where rings
+## would pile up into a column of circles).
+static func spawn(st: Stage, p: Vector2, r: float, duration: float, t: int, col: Color, fn: Callable, quiet := false) -> Hazard:
 	var h := Hazard.new()
 	h.stage = st
 	h.pos = p
@@ -33,6 +35,9 @@ static func spawn(st: Stage, p: Vector2, r: float, duration: float, t: int, col:
 	# the player's own hazards stay quiet so enemy telegraphs keep priority
 	var fill_a := 0.18 if t == Actor.Team.PLAYER else 0.35
 	var edge_a := 0.45 if t == Actor.Team.PLAYER else 1.0
+	if quiet:
+		fill_a = 0.1
+		edge_a = 0.0
 	var edge := col.lightened(0.3)
 	edge.a = edge_a
 	h.shape_node = st.fx.shape(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(r * 2, r * 2), Color(col.r, col.g, col.b, fill_a), edge, duration, {"progress": 1.0, "glow": 1.1})

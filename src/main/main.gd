@@ -123,6 +123,8 @@ func _ready() -> void:
 			add_child(preload("res://src/dev/ui_smoke.gd").new())
 		elif a == "scaling":
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
+		elif a == "economy":
+			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 
@@ -218,8 +220,15 @@ func _perf_tick() -> void:
 	_perf_last = now
 
 
+var _worst_at := 0.0
+var _worst := 0.0
+
+
 func _perf(dt: float) -> void:
 	_frames.append(dt * 1000.0)
+	if dt * 1000.0 > _worst:
+		_worst = dt * 1000.0
+		_worst_at = Time.get_ticks_msec() / 1000.0
 	_perf_t += dt
 	if _perf_t < 10.0:
 		return
@@ -227,10 +236,11 @@ func _perf(dt: float) -> void:
 	f.sort()
 	var n := f.size()
 	var st = Game.stage
-	print("[perf] frames %d  p50 %.1f ms  p95 %.1f  p99 %.1f  worst %.1f  actors %d  particles %d  stage %s" % [n, f[n / 2], f[int(n * 0.95)], f[int(n * 0.99)], f[n - 1],
+	print("[perf] frames %d  p50 %.1f ms  p95 %.1f  p99 %.1f  worst %.1f (at %.2f s)  actors %d  particles %d  stage %s" % [n, f[n / 2], f[int(n * 0.95)], f[int(n * 0.99)], f[n - 1], _worst_at,
 		st.actors.size() if st else 0, st.fx._p_count if st and st.fx else 0, "-" if st == null else String(st.name)])
 	_frames.clear()
 	_perf_t = 0.0
+	_worst = 0.0
 
 
 func _notification(what: int) -> void:

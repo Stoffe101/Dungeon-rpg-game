@@ -97,6 +97,7 @@ func rebuild() -> void:
 	body.add_child(_wardrobe_panel() if wardrobe_open else _bag_panel())
 	if stats_open:
 		body.add_child(GearUI.stats_panel(140, "SatchelPocket"))
+	outer.add_child(_loadout_strip())
 	var hint := UIKit.label("", 8, Color(0.85, 0.74, 0.6), true)
 	hint.text = "A equip / take off   X salvage   B close" if Settings.using_pad else "Click: equip / take off    Right-click: salvage    %s: close" % Settings.describe_action("inventory")
 	outer.add_child(hint)
@@ -311,6 +312,41 @@ func _doll_panel() -> PanelContainer:
 		doll.add_child(lbl)
 	_materials(v)
 	return p
+
+
+## Three saved builds: each remembers the Hearthtree page, the spells, the
+## worn gear and the weapon. Saved anywhere; worn in the sanctuary.
+func _loadout_strip() -> Control:
+	var row := UIKit.hbox(4)
+	row.add_child(UIKit.label("LOADOUTS", 8, UIKit.C_GOLD, true))
+	var home := Game.stage is Hub
+	for i in Profile.LOADOUTS:
+		var l := Profile.loadout(i)
+		var box := UIKit.hbox(2)
+		var nm: String = ["I", "II", "III"][i]
+		var what := ("%s  %d pcs" % [nm, int(l.get("pieces", 0))]) if not l.is_empty() else "%s  empty" % nm
+		box.add_child(UIKit.label(what, 8, UIKit.C_TEXT if not l.is_empty() else UIKit.C_DIM))
+		var wear := UIKit.button("Wear", func() -> void:
+			var gone := Profile.wear_loadout(i)
+			Audio.ui("ui_click")
+			if gone > 0:
+				Game.ui.toast("%d piece%s of that build are gone." % [gone, "" if gone == 1 else "s"], Color(0.9, 0.75, 0.6))
+			if Game.stage and Game.stage.player:
+				Game.stage.player.rebuild_stats()
+			rebuild(), 34)
+		wear.disabled = l.is_empty() or not home
+		wear.tooltip_text = "Put this build on (in the sanctuary)" if not home else "Put this build on"
+		wear.name = "loadout_wear_%d" % i
+		box.add_child(wear)
+		var save := UIKit.button("Save", func() -> void:
+			Profile.save_loadout(i)
+			Audio.ui("ui_click")
+			Game.ui.toast("Loadout %s saved." % nm, Color(1.0, 0.85, 0.55))
+			rebuild(), 34)
+		save.name = "loadout_save_%d" % i
+		box.add_child(save)
+		row.add_child(box)
+	return row
 
 
 func _empty_icon(slot: String) -> String:

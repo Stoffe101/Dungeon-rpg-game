@@ -39,6 +39,12 @@ func _dump_area() -> void:
 		print("[bot] ", line)
 
 
+## Dev (`botcharge`): every third attack is held for a charged attack or a
+## stance (to see and test the weapon forms' held moves).
+var _hold_t := -1.0
+var _attacks := 0
+
+
 func _ready() -> void:
 	pl = get_parent() as Player
 	pl.autopilot = true
@@ -91,6 +97,8 @@ func _process(delta: float) -> void:
 		_stuck_total += delta
 		if _stuck_total > 6.0 and target == null:
 			_stuck_total = -20.0
+			# (the dump runs full path searches: a ~0.2s stall of the bot's own,
+			# not the game's - ignore it in perflog measurements)
 			_dump_area()
 		if _stuck_t > 0.8:
 			_jitter = Vector2.from_angle(randf() * TAU)
@@ -121,7 +129,7 @@ func _pick_target() -> Actor:
 	return best
 
 
-func _fight(t: Actor, _delta: float) -> void:
+func _fight(t: Actor, delta: float) -> void:
 	var st := pl.stage
 	var d := t.pos.distance_to(pl.pos)
 	pl.aim_point = t.pos
@@ -137,9 +145,22 @@ func _fight(t: Actor, _delta: float) -> void:
 		pl.move_in = to.orthogonal() * _strafe * 0.4
 		if randf() < 0.01:
 			_strafe = -_strafe
-	if d < want + 0.6:
+	if _hold_t >= 0.0:
+		# holding: keep aiming at it until the hold is done
+		_hold_t -= delta
+		pl.aim = to
+		pl.aim_point = t.pos
+		if _hold_t < 0.0:
+			pl._attack_down = false
+			pl._release_pending = true
+	elif d < want + 0.6:
+		_attacks += 1
 		pl.press("attack")
-		pl._release_pending = true
+		if "botcharge" in Dev.args() and _attacks % 3 == 0:
+			pl._attack_down = true
+			_hold_t = 1.35
+		else:
+			pl._release_pending = true
 	# dodge threats: enemies winding up close by, or projectiles inbound
 	if _dodge_cd <= 0.0:
 		for a in st.hostiles(pl.team):
@@ -162,6 +183,12 @@ func _fight(t: Actor, _delta: float) -> void:
 	# spells: each when it suits what it does (all three slots)
 	for i in pl.ability_slots.size():
 		var id: String = pl.ability_slots[i]
+		if id == "orb" and pl.cast_t <= 0.0:
+			# a Cinder Orb drifting beside a foe: burst it (the second cast)
+			for o in Abilities.live_orbs(pl):
+				if st.nearest_hostile(pl.team, o.pos, 1.8) != null:
+					pl.press("a%d" % (i + 1))
+					break
 		if id == "" or i >= pl.ability_cd.size() or pl.ability_cd[i] > 0.0 or not pl.slot_open(i):
 			continue
 		var cost: float = GearDB.ability(id).cost * pl.stats.v("ability_cost")
@@ -175,6 +202,12 @@ func _fight(t: Actor, _delta: float) -> void:
 				use = d > 2.5 and d < 6.0
 			"lantern", "aegis", "wisp":
 				use = d < 6.0
+			"beam", "orb":
+				use = d < 7.0
+			"rimewall":
+				use = d < 5.0 and d > 2.0
+			"hearthfire":
+				use = d < 3.5
 			"rekindle":
 				use = d < 5.0 and (pl.hp < pl.max_hp * 0.6 or st.players.any(func(o): return o != pl and o.downed and o.pos.distance_to(pl.pos) < 4.0))
 		if use:

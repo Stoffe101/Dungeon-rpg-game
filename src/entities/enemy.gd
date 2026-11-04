@@ -255,6 +255,7 @@ func tick(dt: float) -> void:
 		targetable = not phased
 		sprite.set_tint(Color(1, 1, 1, 0.35 if phased else 1.0))
 	super.tick(dt)
+	_tell()
 	_update_bar(dt)
 	_wildfire(dt)
 	if elite and alive:
@@ -280,12 +281,58 @@ func replica_present(dt: float) -> void:
 	_seen_hp = hp
 	if has_affix("phasing"):
 		sprite.set_tint(Color(1, 1, 1, 1.0 if targetable else 0.35))
+	_tell()
 	_update_bar(dt)
 	super.replica_present(dt)
 
 
+const SHEPHERD_R := 5.0
+const SHEPHERD_EVERY := 6.5
+var _frenzy := false
+var _shep_t := 3.0
+
+
+## Frenzied: at half health it erupts (once) - faster, and it strikes faster.
+func _check_frenzy() -> void:
+	if _frenzy or not has_affix("frenzied") or not alive or hp > max_hp * 0.5:
+		return
+	_frenzy = true
+	speed *= 1.4
+	attack_rate *= 1.35
+	stage.fx.ring(pos, 1.6, Color(1.0, 0.35, 0.3), 0.3, 0.3)
+	stage.fx.burst(pos, 0.8, Color(1.0, 0.3, 0.25), 18, 4.0, 0.4, 0.0)
+	stage.fx.number(pos, 2.4, "FRENZY", Color(1.0, 0.45, 0.4), true)
+	Audio.play_at("frenzy", pos, -2.0)
+	voice("attack", -4.0)
+
+
+## Shepherd: soul-light gathers (a ring warns), then every foe around is shielded.
+func _shepherd(dt: float) -> void:
+	_shep_t -= dt
+	if _shep_t > 0.0:
+		return
+	_shep_t = SHEPHERD_EVERY
+	var col := Color(0.5, 0.95, 0.85)
+	var warn := stage.fx.shape(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(SHEPHERD_R * 2.0, SHEPHERD_R * 2.0), Color(col.r, col.g, col.b, 0.12), Color(col.r, col.g, col.b, 0.8), 0.9, {"progress": 1.0, "glow": 1.4})
+	begin_tell(0.85)
+	var me := self
+	stage.after(0.85, func() -> void:
+		if not is_instance_valid(me) or not me.alive:
+			return
+		me.stage.fx.ring(me.pos, SHEPHERD_R, col, 0.35, 0.3)
+		Audio.play_at("shepherd", me.pos, -3.0)
+		for a in me.stage.actors:
+			if a is Enemy and a != me and a.alive and a.pos.distance_to(me.pos) <= SHEPHERD_R:
+				var e := a as Enemy
+				e.shield_max = maxf(e.shield_max, e.max_hp * 0.25)
+				e.shield = maxf(e.shield, e.max_hp * 0.25)
+				me.stage.fx.motes(e.pos, 0.6, col, 6, 1.0, 0.6, 0.3))
+
+
 ## The affixes that change how a fight plays, every frame.
 func _affix_tick(dt: float) -> void:
+	if has_affix("shepherd"):
+		_shepherd(dt)
 	if has_affix("molten") and vel.length() > 0.5:
 		_trail_t -= dt
 		if _trail_t <= 0.0:
@@ -436,7 +483,8 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 	if Net.recording:
 		var tid := Net.i.run_sync.next_proj_id()
 		tele.set_meta("tid", tid)
-		Net.rec(["tele", tid, kind, center, dir, size, duration, params])
+		Net.rec(["tele", tid, kind, center, dir, size, duration, params, net_id])
+	begin_tell(duration)
 	var dur := duration
 	var start := stage.elapsed
 	var st := stage
@@ -444,6 +492,35 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 	data.update = func(_t: float, n: MeshInstance3D) -> void:
 		var k := clampf((st.elapsed - start) / maxf(dur, 0.01), 0.0, 1.0)
 		n.set_instance_shader_parameter("progress", k)
+
+
+var _tell_start := -99.0
+var _tell_dur := 0.0
+
+
+## Its body tells the blow coming, not only the ground: it glows ever redder
+## through the wind-up and flashes pale as the blow lands - in a crowd, the
+## one about to strike stands out. (Co-op guests: NetRun._tele starts it.)
+func begin_tell(duration: float) -> void:
+	_tell_start = stage.elapsed
+	_tell_dur = maxf(duration, 0.05)
+
+
+func _tell() -> void:
+	if sprite == null:
+		return
+	var t := stage.elapsed - _tell_start
+	if t < 0.0 or t > _tell_dur + 0.15:
+		if sprite.highlight.a > 0.0:
+			sprite.highlight.a = 0.0
+		return
+	var k := clampf(t / _tell_dur, 0.0, 1.0)
+	if t > _tell_dur:
+		sprite.highlight = Color(1.0, 0.95, 0.85, 0.55 * (1.0 - (t - _tell_dur) / 0.15))
+	elif k > 0.82:
+		sprite.highlight = Color(1.0, 0.55, 0.5, 0.45 + 0.2 * sin(t * 60.0))
+	else:
+		sprite.highlight = Color(1.0, 0.25, 0.3, 0.08 + 0.32 * k * k)
 
 
 func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
@@ -456,36 +533,61 @@ func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
 	return h
 
 
+## A foe's blow lands on every Kindled inside what its telegraph showed (it
+## used to strike only the one it chose: a slam drawn over two players hurt
+## one, and standing together looked safer than it was). The ground flashes
+## where it lands.
 func strike_circle(center: Vector2, r: float, amount: float, kb := 5.0) -> bool:
-	var t := target()
-	if t and t.pos.distance_to(center) <= r + t.radius:
-		t.take_enemy_hit(make_hit(amount, center, kb), self)
-		return true
-	return false
+	_strike_flash(Fx.Shape.DISC, center, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), {})
+	var any := false
+	for t in stage.active_players():
+		if t.pos.distance_to(center) <= r + t.radius:
+			t.take_enemy_hit(_hit_on(t, amount, center, kb), self)
+			any = true
+	return any
 
 
 func strike_arc(origin: Vector2, dir: Vector2, r: float, half: float, amount: float, kb := 5.0) -> bool:
-	var t := target()
-	if t == null:
-		return false
-	var to := t.pos - origin
-	if to.length() > r + t.radius:
-		return false
-	if to.length() > 0.5 and absf(dir.angle_to(to)) > half + 0.15:
-		return false
-	t.take_enemy_hit(make_hit(amount, origin, kb), self)
-	return true
+	_strike_flash(Fx.Shape.CONE, origin, dir, Vector2(r * 2.0, r * 2.0), {"half_angle": half})
+	var any := false
+	for t in stage.active_players():
+		var to := t.pos - origin
+		if to.length() > r + t.radius:
+			continue
+		if to.length() > 0.5 and absf(dir.angle_to(to)) > half + 0.15:
+			continue
+		t.take_enemy_hit(_hit_on(t, amount, origin, kb), self)
+		any = true
+	return any
 
 
 func strike_line(origin: Vector2, dir: Vector2, length: float, width: float, amount: float, kb := 5.0) -> bool:
-	var t := target()
-	if t == null:
-		return false
-	var q := Geometry2D.get_closest_point_to_segment(t.pos, origin, origin + dir * length)
-	if q.distance_to(t.pos) <= width * 0.5 + t.radius:
-		t.take_enemy_hit(make_hit(amount, origin, kb), self)
-		return true
-	return false
+	_strike_flash(Fx.Shape.RECT, origin, dir, Vector2(length, width), {})
+	var any := false
+	for t in stage.active_players():
+		var q := Geometry2D.get_closest_point_to_segment(t.pos, origin, origin + dir * length)
+		if q.distance_to(t.pos) <= width * 0.5 + t.radius:
+			t.take_enemy_hit(_hit_on(t, amount, origin, kb), self)
+			any = true
+	return any
+
+
+## The blow on one Kindled: knocked away from where it came from.
+func _hit_on(t: Player, amount: float, from: Vector2, kb: float) -> Hit:
+	var h := Hit.make(self, amount, ["melee"])
+	h.can_crit = false
+	var d := (t.pos - from).normalized() if t.pos.distance_to(from) > 0.05 else (t.pos - pos).normalized()
+	h.knockback = d * kb
+	h.from_dir = d
+	return h
+
+
+## The moment a telegraphed blow lands: its shape flashes pale for a breath.
+func _strike_flash(kind: int, at: Vector2, dir: Vector2, size: Vector2, params: Dictionary) -> void:
+	var p := params.duplicate()
+	p["progress"] = 1.0
+	p["glow"] = 1.5
+	stage.fx.shape(kind, at, dir, size, Color(1.0, 0.85, 0.8, 0.28), Color(1.0, 0.95, 0.9, 0.9), 0.09, p)
 
 
 func shoot(sheet: String, dir: Vector2, spd: float, amount: float, rad := 0.22) -> Projectile:
@@ -532,6 +634,8 @@ func on_damaged(hit: Hit, res: Combat.Result) -> void:
 			_tgt = src
 			_tgt_t = 2.5
 	_hb_show_t = 3.0
+	if elite:
+		_check_frenzy()
 	if alive and _voice_t <= 0.0 and res.amount > 0.0:
 		_voice_t = 0.45
 		voice("hurt", -9.0)
@@ -588,6 +692,10 @@ func die(killer: Node) -> void:
 		stage.fx.shake(0.3)
 	if pl and by_player:
 		var st := pl.stats
+		if pl.hearthfire_t > 0.0 and st.has("hearthforged") and pl.hearthfire_bonus < 5.0:
+			# Hearthforged: every foe felled feeds the form a second
+			pl.hearthfire_t += 1.0
+			pl.hearthfire_bonus += 1.0
 		if st.v("life_on_kill") > 0.0:
 			pl.heal(st.v("life_on_kill"))
 		if st.v("kindle_on_kill") > 0.0:

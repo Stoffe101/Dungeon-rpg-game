@@ -78,6 +78,14 @@ remembers who hurts it.
 - **The Hollow Below**: an endless descent with an Echo of a guardian every
   third depth and one more Omen at every depth; past depth 9 the regions bleed together and
   the dark deepens.
+- **Weapons that play differently**: every variant is a form of its weapon
+  with its own mechanic - a riposting sabre, a heating forge-mallet, a
+  line-holding partisan, a volley bow, glyph-writing and fire-breathing
+  tomes - and the uniques have their own looks and signature moments.
+- **Spells of every kind**: a beam you steer, an orb you burst, a wall of
+  ice, a form of living fire - with Hearthtree synergies and loadouts.
+- **Foes that tell their blows**: the one about to strike glows, and what
+  its telegraph covers is what it hits.
 - **Landmarks**: now and then a fight takes place around a region's great
   centrepiece - the Bone Colossus, the Heart-Root, the Fallen Sun-Disc - each
   with something to give.

@@ -81,6 +81,10 @@ Steam's relay. A human pair on two PCs is still needed (see below).
   attacking faces the pointer even walking away, a dodge faces its way; in a
   party every machine walks its own way and checks the others are drawn
   turned correctly, in the sanctuary and below.
+- `spells` (`DEVNET=1 XARGS=build=wall` or `XARGS="build=pyreblade hitlab lab=husk,husk"`):
+  the first guest casts on its own keys; every machine checks a Rimewall's
+  ice and pillar tiles appear and melt, Hearthfire's glow on that Kindled,
+  and the host's Emberforge heat on the guest's gauge.
 - `landmark` (`DEVNET=1 XARGS=landmark`): the host brings the party to the
   floor's landmark, the first guest walks up and presses F, every machine
   checks the name over it, that it answered, and (Colossus) that every room
@@ -211,3 +215,42 @@ The world:
   Is the Heart-Root's price worth it?
 - Depths 2 and 3 of each region and the Hollow Below past depth 9: do they
   feel deeper?
+
+### Tools of the combat identity pass
+
+- `-- botcharge`: the autopilot holds every third attack (charged moves and
+  stances, to see and test the forms).
+- `-- build=beam|wall|pyreblade|shadow`: whole builds around the new spells,
+  each with a weapon form; with `hitlab cast=1,2` they cast at lab foes.
+- `-- wear=<variant>`: any form (e.g. `wear=wardens_partisan`).
+- `-- economy profile=economy.json [seeds= region= depth= tier=]`: the exact
+  economy audit (parties 1-4, every foe felled, every drop taken; report in
+  `user://economy_audit.md`).
+
+## Human playtest: the combat identity pass
+
+Weapons (keyboard + mouse, then a pad) - for each variant (`-- wear=...`):
+- Does it play differently from the plain weapon? Is its held move clear
+  (charge, stance, guard)? Is its gauge readable?
+- Duelist's Sabre: does En Garde feel fair (1s, one blow)? Partisan: is
+  Hold the Line strong but not safe (4 Kindle a block)?
+- Uniques: are the Thousandth Cut's flurry, the Hundredth Ember and the
+  falling sun exciting?
+
+Spells (`-- build=beam|wall|pyreblade|shadow`):
+- Soulfire Beam: is steering it satisfying? Cinder Orb: is the recast clear?
+  Rimewall: does it change fights (and never trap you)? Hearthfire: does the
+  form feel powerful?
+- Knives with a melee weapon, Rush chains, Rekindle's cleanse.
+
+Foes:
+- In a crowd, can you tell which foe is about to strike from its glow? Do
+  strikes land where the telegraph showed, for everyone in it?
+- Frenzied and Shepherd elites: readable? Urnlings: a fun surprise or a
+  cheap shot?
+
+Listening (nothing in this pass has been heard by a person):
+- each weapon's impact; the new spells; forms' sounds (riposte, block,
+  aftershock, vent, breath...); Frenzy and Shepherd.
+
+Co-op: whole expeditions with 2-4 players - do rewards feel fair per player?

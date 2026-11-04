@@ -913,8 +913,12 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 		# urns of the region's own make; now and then one glints (rarer near
 		# the top, a little more common deeper down)
+		var rich := rng.randf() < 0.06 + 0.02 * mini(lay.depth, 6)
+		# from depth 2, one glinting urn in three is an Urnling: something lives
+		# in it (chosen by the tile, not the rng, so the floor is otherwise the same)
+		var urnling := rich and lay.depth >= 2 and posmod(t.x * 7 + t.y * 13 + lay.depth, 3) == 0
 		r.props.append({"kind": "urn", "tile": t, "mat": {"rootmire": "root", "throne": "gilded"}.get(lay.region, "clay"),
-			"rich": rng.randf() < 0.06 + 0.02 * mini(lay.depth, 6)})
+			"rich": rich, "urnling": urnling})
 	# set dressing that gives each region its silhouette, against the walls
 	if r.type in [Room.Type.COMBAT, Room.Type.ELITE, Room.Type.TREASURE] and floor_tiles.size() > 60:
 		var pieces: Array = {"rootmire": ["stump"], "throne": ["statue", "statue", "column_fallen"]}.get(lay.region, ["sarcophagus", "bone_heap"])

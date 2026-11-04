@@ -90,6 +90,7 @@ func _build() -> void:
 			_sprite("urn" if mat == "clay" else "urn_" + mat, 0.0, 0.0, "rich" if data.get("rich", false) else "idle")
 			breakable = true
 			strike_radius = 0.45
+			ticks = data.get("urnling", false)
 		"candles":
 			_sprite("candles", 0.0)
 			_light(Color(1.0, 0.7, 0.4), 0.7, 3.2, Vector3(0, 0.5, 0.1))
@@ -218,6 +219,16 @@ func _build() -> void:
 			_light(Color(0.4, 0.95, 0.85), 1.3, 5.5, Vector3(0, 1.0, 0.3))
 			interact_radius = 1.3
 			ticks = true
+		"icewall":
+			# Rimewall: a block of ice raised on one tile - it stops foes and
+			# their shots (a pillar until it melts; unsolid() gives the floor back)
+			_sprite("icewall", 0.0, 0.0, "idle")
+			if stage.grid.at(tile.x, tile.y) == TileGrid.FLOOR:
+				stage.grid.put(tile.x, tile.y, TileGrid.PILLAR)
+				stage.set_tile_solid(tile, true)
+				_solid_tiles.append(tile)
+			_light(Color(0.6, 0.85, 1.0), 0.5, 3.0, Vector3(0, 0.8 * Iso.SQ2, 0.2))
+			ticks = data.get("bastion", false)
 		"landmark":
 			# a region's great centrepiece (DungeonGen._landmark), three tiles wide
 			var ld := DungeonGen.landmark_def(String(data.get("id", "colossus")))
@@ -368,6 +379,21 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
 	elif kind == "glowcap" and randf() < dt * 1.5:
 		stage.fx.motes(pos + Vector2(randf_range(-0.4, 0.4), 0), 0.8, _flame_col, 1, 0.5, 1.6, 0.2)
+	elif kind == "urn" and data.get("urnling", false) and not used:
+		# an Urnling: now and then it trembles; come close and it bursts out
+		if sprite:
+			var shake := fmod(_t, 2.6) < 0.25
+			sprite.position.x = (roundf(sin(_t * 70.0) * 1.0) / 16.0) if shake else 0.0
+		if not Net.is_client() and stage.nearest_player(pos, 1.8) != null:
+			used = true
+			breakable = false
+			_urnling_wakes()
+	elif kind == "icewall" and data.get("bastion", false) and fmod(_t, 1.0) < dt and not Net.is_client():
+		# Frozen Bastion: the wall chills what stands beside it
+		for a in stage.hostiles(Actor.Team.PLAYER):
+			if a.pos.distance_to(pos) < 1.4:
+				a.status.apply_chill(0.3)
+		stage.fx.motes(pos, 0.4, Color(0.7, 0.9, 1.0), 4, 0.6, 0.6, 0.6)
 	elif kind == "landmark" and randf() < dt * (6.0 if used else 2.5):
 		stage.fx.motes(pos + Vector2(randf_range(-1.0, 1.0), -0.2), 1.6, _flame_col.lightened(0.2), 1, 0.7, 1.4, 0.35)
 	elif kind == "fountain" and not used and randf() < dt * 6.0:
@@ -604,6 +630,45 @@ func _shatter_urn() -> void:
 		queue_free())
 
 
+const URNLINGS := {"clay": "skitter", "root": "sporeling", "gilded": "hound"}
+
+
+## An Urnling breaks out: the urn bursts and a quick, hasted thing comes out
+## of it - felled, it spills what the urn held, twice over.
+func _urnling_wakes() -> void:
+	var st := stage
+	var d := st as Dungeon
+	var mat := String(data.get("mat", "clay"))
+	var p := pos
+	if sprite and sprite.has_anim("crack"):
+		sprite.play("crack")
+	Audio.play_at("urn" if mat == "clay" else "urn_" + mat, p, 0.0, 0.85)
+	Audio.play_at("frenzy", p, -4.0, 1.4)
+	var cols: Array = URN_COLORS.get(mat, URN_COLORS.clay)
+	st.fx.burst(p, 0.45, cols[0], 18, 5.0, 0.55, 10.0, Vector2.ZERO, PI, 2.6, 1.0)
+	st.fx.debris(p + Vector2(0, 0.05), "urn_shards", URN_MATS.find(mat), 45.0)
+	st.fx.number(p, 2.2, "URNLING!", Color(1.0, 0.6, 0.45), true)
+	if d:
+		var id: String = URNLINGS.get(mat, "skitter")
+		var e := d._make_enemy(id)
+		e.pos = p
+		d._scale(e, d.layout.depth, int(Profile.data.world.get("memory", 0)))
+		d._coop_scale(e)
+		e.make_elite("hasted")
+		e.display_name = "Urnling"
+		e.spawn_t = 0.25
+		e.room_id = room_id
+		var rng_mat := mat
+		e.died_enemy.connect(func(_e: Enemy) -> void:
+			_urn_loot(st, p, true, rng_mat)
+			_urn_loot(st, p, true, rng_mat))
+		d.add_actor(e)
+		Profile.note_seen("enemies", id)
+	st.props.erase(self)
+	unsolid()
+	queue_free()
+
+
 static func _urn_loot(st: Stage, p: Vector2, rich: bool, mat: String) -> void:
 	var rng := st.rng
 	var region_mat: String = {"root": "rootwood", "gilded": "sun_gold"}.get(mat, "bone_dust")
@@ -640,7 +705,10 @@ func on_struck(src: Node, fire := false) -> void:
 		"urn":
 			used = true
 			breakable = false
-			_shatter_urn()
+			if data.get("urnling", false) and not Net.is_client():
+				_urnling_wakes()
+			else:
+				_shatter_urn()
 		"boss_brazier":
 			if not lit and src is Player:
 				set_lit(true, Color(1.0, 0.6, 0.3))

@@ -4,6 +4,34 @@ Last updated: 2026-11-04.
 
 ## Implemented
 
+- **Combat identity pass (branch feature/combat-identity)** - details in
+  DESIGN, "Combat identity pass".
+  - *Weapon forms*: all 14 variants play differently (Gravecleaver sunders
+    and executes, Duelist's Sabre ripostes from En Garde, Tombmaul's
+    aftershocks and Tombfall, Emberforge Mallet's heat, Rimewood's shards and
+    Frost Lance, Splitbranch's forks and cluster fireball, Gloam Kris marks,
+    Ember Shivs thrown, Rootspear roots and thorns, Warden's Partisan holds
+    the line, Splitwood's nocked volley, Long Rimebow's ice spear, Codex
+    glyphs and spell echoes, Grimoire's fire breath), with a HUD gauge where
+    a form has one.
+  - *Uniques and legendaries* have their own held sprites; the Thousandth
+    Cut, the Wand of a Hundred Embers and the Sunfall Glaive have signature
+    moments.
+  - *Spells*: Soulfire Beam (steered channel), Cinder Orb (recast to burst),
+    Rimewall (ice wall terrain), Hearthfire Form (transformation); Gloam
+    Knives lodge and burst on melee, Ember Rush chains through the burning,
+    Rekindle cleanses and quickens, the Hearth Lantern exposes foes.
+  - *Foes*: a blow lands on every Kindled its telegraph covers; the striker
+    glows through its wind-up and the ground flashes as it lands; Frenzied
+    and Shepherd elites; Urnlings in glinting urns.
+  - *Builds*: five synergy notables (Shadow Cutlery, Detonator, Hearthforged,
+    Frozen Bastion, Steady Pour), three saved loadouts (save v12), four build
+    presets around the new mechanics.
+  - *Feel*: each weapon class lands with its own impact sound; hammer kills
+    hit hardest.
+  - *Co-op rewards*: an exact economy audit (`-- economy`); a party's closing
+    wave now pays no Embers or XP.
+
 - **Development pass: feel, atmosphere, smart co-op (branch
   feature/feel-and-atmosphere)** - details in DESIGN, "Development pass".
   - *Facing (top priority)*: W/A/S/D and diagonals turn and animate the
@@ -268,6 +296,7 @@ Last updated: 2026-11-04.
 
 | Kind | What |
 |---|---|
+| Combat identity pass (2026-11-04) | **Unit tests**: 145 pass (every form's mechanic, the uniques' moments, each new spell and rework, foes striking all covered Kindled and their wind-up glow, Frenzied and Shepherd, synergy notables, loadouts and the v11->v12 migration, Urnlings). **UI smoke**: 43 checks at 1080p and 3440x1440 (the Satchel's loadout strip fits). **Rendered, bot fighting (`hitlab botcharge`)**: all 14 forms with no script errors; spells cast with `cast=` and build presets; uniques held; foes' wind-up glow and strike flash. **Separate processes, real input, one PC**: `scenario=spells` with `build=wall` (a guest's Rimewall rises and melts on both screens) and `build=pyreblade` (Hearthfire glow on both; the host's heat on the guest's gauge) - 6+6 checks each; regressions under protocol 8: 4-player journey 71+63+62+62, 2-player journey 53+51, facing 14+14, stairs under `netsim=typical` 7+9, 3-player bestiary - all passed. **Frame times** (`perflog`, 1080p, V-Sync 165 Hz, bot fighting a crowd with `build=beam|pyreblade|wall|shadow`): p50 6.1 ms, p95 6.2 ms, p99 at most 7.4 ms; single worst frames 12-62 ms, except ~230 ms stalls in the bot's own stuck-diagnostic dump (full path searches in src/dev/bot.gd, not game code - confirmed by timing the bot's frame and a run without the bot). **Audio events**: each weapon class plays its own impact (audio log). **Measured, not heard**: every new sound peaks at -1 dBFS without clipping; the hammer's crunch rebalanced to carry on small speakers. **Economy audit**: 12 seeds x 5 floors, exact (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
 | Development pass (2026-11-04) | **Unit tests**: 122 pass (party targeting and extras, rewards by worth, landmarks: generation leaves the rest of a seed's floor unchanged, its room stays walkable, each of the three answers, the Wonders feat; Hollow cycles; facing with every key). **UI smoke**: 43 checks pass at 1080p (three runs after a harness fix; a feat card opening late made the resident checks flaky). **Separate processes, real input, localhost (one PC)**: 2-player journey 53+51 checks; 4-player journey 71+63+62+62 (after making two talk checks wait on results: with four windows on one PC a dialogue opened up to 0.65 s after F); facing 14+14; stairs under `netsim=typical` 7+9; bestiary with 3 players; `landmark` (a guest presses F at the Colossus; every machine sees it wake and the whole map) 6+7; solo `talk` 13. **Viewed in captures**: facing on host and guest, labels, urns breaking (all makes), depth textures (9 region/depth pairs), the three landmarks idle and answered (solo and host+guest), loot hang and floor names, a guardian's arrival frame by frame, the Hollow at depth 10. **Frame times** (`perflog`, 1080p, V-Sync at 165 Hz, RTX 5070, bot playing): p50 and p95 6.1 ms, p99 at most 8.3 ms in the Ossuary, a Rootmire landmark floor, the Throne guardian fight and the sanctuary; single worst frames 6-34 ms after the first loading window. **Audio, measured not heard**: every new sound peak-normalised to -1 dBFS without clipping, low end checked per file; a 41 s guardian-floor recording of all buses: master peak -4.5 dBFS, no sample over -1 dBFS, bus loudness steady within ~3 dB; 41% of the master's energy below 120 Hz (mostly the guardian music). **Bot co-op evaluation**: Tier III, 3 seeds x 240 s per party (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
 | Automated tests | 76 tests (incl. the six new enemies in sims, squads, behavioural affixes, Omens, Grudge growth, vault/camp generation, Thornmail, Mirrorguard, Executioner's Band, every blueprint has an icon, walking turns the Kindled, Hearthcall break/complete, every weapon's combo and charge, forge costs, the level cap and Renown, pages, feats, the v7 migration, difficulty tiers and the capstone unlock, enemy tier scaling and double affixes, tier might, every region's creatures having scripts/sheets/tiles and rolling only their own pool, blueprints and learning, sets/uniques/looks, gear rolls/stats, equip/craft/salvage, run loot settlement, footsteps on contact frames, mastery ranks, resident requests and gifts, save migration v3->v4, Hearthtree route finding and stat totals, Warden brazier sear, Rootmire brambles never sealing doors, event room generation, Interact through the real input action, device-aware button labels, residents arriving and walking between spots), run locally and on GitHub Actions: combat math, stats, statuses, settlement, XP curve, skill tree rules/connectivity/layout, relic offers, profile currencies, forge, grudges, save round-trip + corrupt-file recovery + migration, dungeon connectivity/structure/determinism/overlap/wall heights, encounter budgets, headless combat simulations (AI hunts and hits, sword combo kills, dodge i-frames + perfect dodge, Ward reflect, burn kills, projectile/wall, bloat friendly fire). `tools/dev/run_tests.sh` |
 | Autopilot playtests | Headless bot runs (seed 7): clears depth 1, descends, plays depth 2. Boss run with `godmode`: Gloamfall at 54%, skitter calls, Warden dies, Hearthstone victory settles (bonus, sunshards, staff unlock). Without godmode the naive bot dies to the Warden in ~25s. Rootmire (godmode): depth 1-2, Bloom wilted by all four burned roots, victory. Event rooms: bot completes a Trial (3 waves, reward), Ember Well and Echo offers without script errors. Loot: a god-mode run through depth 2 and the Warden banked materials, two epic pieces and the Gloamward Lantern into the save. Combat feel: burst captures (`hitlab burst=`) reviewed frame by frame for impacts and flash bloom; sword, hammer and staff autopilot runs clean after the change. Requests: a god-mode run with five active requests counted elite kills, a Sunshard, a chest and Wren's bird (the bot never Wards, so the Ward counter is only checked by code review). Found and fixed: corridor targeting, partial pathing to solid goals, descend re-entry, freed-object timer callbacks. |
@@ -287,6 +316,19 @@ Last updated: 2026-11-04.
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
+
+- Combat identity pass: every form, spell and synergy is tuned by tests,
+  captures and bot runs only - nobody has fought with them. Numbers to watch
+  in play: Hold the Line's 4 Kindle per block, En Garde's 1s guard, the
+  beam's ramp, the Cinder Orb's growth, Hearthfire's 50 Kindle / 22s, the
+  Urnling's surprise. Its new sounds are generated and measured, not heard.
+  The orange dither on held weapons is the existing lantern look.
+- Co-op rewards (exact, `-- economy`, 12 seeds each, Ossuary 1-3, Rootmire
+  and Throne 2, Tier III): XP from kills per Kindled is 1.10-1.16x solo
+  (2 players), 1.23-1.28x (3), 1.34-1.44x (4) against +12% per friend;
+  Embers per Kindled over a whole floor 1.04-1.10x, 1.12-1.17x, 1.19-1.26x
+  (chests, urns and room rewards are not divided by design). Gear and
+  material drops are not in the audit; whether these feel fair is for play.
 
 - Development pass: nothing in its audio has been listened to by a person -
   levels, balance and the low end are set by measurement
@@ -363,6 +405,11 @@ Last updated: 2026-11-04.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. The combat identity pass with people: docs/TESTING.md "Human playtest:
+   the combat identity pass" - every weapon form on keyboard and pad, the
+   new spells and their combinations, whether foes' wind-ups read in a
+   crowd, loadouts, and party rewards over a whole expedition.
 
 0. This pass with people: docs/TESTING.md "Human playtest: the development
    pass" - facing on keyboard, mouse and pad (and on a friend's screen), a

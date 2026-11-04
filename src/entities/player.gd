@@ -97,6 +97,15 @@ var shelter_t := 0.0          # in a Hearth Lantern's light: Kindle and less dam
 var spellblade_n := 0         # Spellblade: weapon hits charged by the last spell
 var spellblade_el := "fire"
 var momentum := 0             # Momentum: hits in quick succession (0-8)
+var form_meter := 0.0         # the weapon form's gauge, 0..1 (heat, nocked arrows, glyphs; host's for guests)
+var channel_t := 0.0          # pouring a Soulfire Beam: slow, no weapon
+var hearthfire_t := 0.0       # Hearthfire Form
+var hearthfire_power := 1.0
+var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
+var haste_t := 0.0            # Rekindle's quickening
+var rush_refund := 0.0        # Ember Rush through the burning: part of its cooldown back
+var _orb_cast_t := 0.0        # co-op client: a Cinder Orb of its own still drifting (a press bursts it)
+var _fire_mote_t := 0.0
 var _momentum_t := 0.0
 var cuts := 0                 # Thousand Cuts: hits in a row
 var retribution := 0.0        # Retribution: damage held for the next Ward
@@ -518,6 +527,12 @@ func _move_mult() -> float:
 		mult *= 0.35
 	if flask_t > 0.0:
 		mult *= 0.45
+	if channel_t > 0.0 and not stats.has("steady_pour"):
+		mult *= 0.45
+	if hearthfire_t > 0.0:
+		mult *= 1.25
+	if haste_t > 0.0:
+		mult *= 1.25
 	return mult
 
 
@@ -561,6 +576,10 @@ func _predict(dt: float) -> void:
 	shelter_t = maxf(0.0, shelter_t - dt)
 	# (Momentum, Last Light and Hearthbond run on the host; Momentum comes back
 	# in the snapshot so the swings predicted here keep its pace)
+	channel_t = maxf(0.0, channel_t - dt)
+	hearthfire_t = maxf(0.0, hearthfire_t - dt)
+	haste_t = maxf(0.0, haste_t - dt)
+	_orb_cast_t = maxf(0.0, _orb_cast_t - dt)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	flask_t = maxf(0.0, flask_t - dt)
@@ -693,6 +712,17 @@ func _timers(dt: float) -> void:
 			for ally in stage.players_near(pos, 5.0):
 				ally.gain_kindle(1.0)
 	gloam_t = maxf(0.0, gloam_t - dt)
+	channel_t = maxf(0.0, channel_t - dt)
+	haste_t = maxf(0.0, haste_t - dt)
+	if hearthfire_t > 0.0:
+		# hearth-fire: cold cannot hold it, and the lantern feeds
+		hearthfire_t -= dt
+		status.chill = 0.0
+		status.snare_t = 0.0
+		gain_kindle(6.0 * dt)
+		if hearthfire_t <= 0.0:
+			hearthfire_t = 0.0
+			Abilities.hearthfire_nova(self)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	dodge_age += dt
@@ -751,7 +781,7 @@ func _handle_actions(_dt: float) -> void:
 	if _buf.flask > 0.0 and flask_t <= 0.0:
 		_buf.flask = 0.0
 		_drink()
-	if weapon == null or ward_t > 0.0 or flask_t > 0.0:
+	if weapon == null or ward_t > 0.0 or flask_t > 0.0 or channel_t > 0.0:
 		return
 	if _buf.attack > 0.0 and cast_t <= 0.0:
 		_buf.attack = 0.0
@@ -846,6 +876,16 @@ func slot_open(slot: int) -> bool:
 
 func _try_ability(slot: int) -> void:
 	var id: String = ability_slots[slot] if slot < ability_slots.size() else ""
+	if id == "orb" and cast_t <= 0.0:
+		# a second cast bursts the Cinder Orb still drifting (no cost, no wait)
+		if predicting and _orb_cast_t > 0.0:
+			_orb_cast_t = 0.0
+			cast_t = 0.15
+			_hold("a%d" % slot)
+			return
+		if not predicting and Abilities.burst_orbs(self):
+			cast_t = 0.15
+			return
 	if id == "" or slot >= ability_cd.size() or ability_cd[slot] > 0.0 or cast_t > 0.0 or not slot_open(slot):
 		return
 	var d := GearDB.ability(id)
@@ -873,6 +913,14 @@ func _try_ability(slot: int) -> void:
 		cast_t = 0.2
 		_hold("kindle")
 		_hold("a%d" % slot)
+		# the spells that change how the Kindled moves, predicted at once
+		match id:
+			"beam":
+				channel_t = float(d.duration)
+			"hearthfire":
+				hearthfire_t = float(d.duration)
+			"orb":
+				_orb_cast_t = float(d.life)
 		# a blink or a rush moves the Kindled at once (the host picks the same spot)
 		if id == "gloamstep" or id == "rush":
 			var rng: float = float(d.range) * (stats.v("area") if id == "rush" else 1.0)
@@ -899,6 +947,10 @@ func _try_ability(slot: int) -> void:
 	if stats.has("blood_price"):
 		hp = maxf(1.0, hp - max_hp * 0.04)
 	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown") * Runes.cooldown_mult(self, id)
+	if id == "rush" and rush_refund > 0.0:
+		# through the burning: the next Rush comes sooner
+		ability_cd[slot] *= 1.0 - rush_refund
+		rush_refund = 0.0
 	cast_t = 0.2
 
 
@@ -1123,6 +1175,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		_crit_chain(t, res.amount * 0.5)
 	if direct and h.proc and (stats.has("momentum") or stats.has("thousand_cuts")):
 		_flow(t, finisher)
+	if direct and h.proc and hearthfire_t > 0.0 and not h.has_tag("ability"):
+		Abilities.hearthfire_burst(self, t)
+	if h.has_tag("melee") and not dot and int(t.get_meta("knives_in", 0)) > 0:
+		Abilities.knives_detonate(self, t)
 	if res.crit and direct and h.proc and stats.has("crit_knives"):
 		spectral_knife(t)     # Gloamfang
 	_unique_on_hit(t, h, res, direct)
@@ -1147,19 +1203,41 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 			stage.fx.kick(h.from_dir, 2.5 if res.crit or finisher else 1.2)
 			if weapon:
 				weapon.hit_flash()
+		# each weapon lands with its own sound; a crit rings over it
+		Audio.play(_impact_sound(h), -4.0 if not res.crit else -2.0, randf_range(0.93, 1.07))
 		if res.crit:
 			stage.fx.burst(t.pos, 0.8, Color(1.0, 0.9, 0.5), 6, 5.0, 0.2, 0.0, h.from_dir, 0.5)
 			stage.hitstop(0.06)
 			Settings.rumble(0.35, 0.25, 0.08)
-			Audio.play("crit", -3.0, randf_range(0.95, 1.05))
+			Audio.play("crit", -5.0, randf_range(0.95, 1.05))
 		else:
 			Settings.rumble(0.18, 0.0, 0.05)
-			Audio.play("hit", -4.0, randf_range(0.9, 1.1))
 		if not t.alive and h.has_tag("melee"):
-			# killing blows land a beat harder
+			# killing blows land a beat harder (a hammer's hardest of all)
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
+			if weapon and weapon.id == "hammer":
+				stage.fx.burst(t.pos, 0.3, Color(0.7, 0.66, 0.6), 10, 5.0, 0.5, 9.0, h.from_dir, 1.0, 2.5)
+				stage.fx.shake(0.18)
 			stage.fx.kick(h.from_dir, 2.0)
 	return res
+
+
+## What a hit sounds like: a blade slices, a hammer crunches, a point punches
+## in, an arrow thunks, a spell or bolt pops.
+func _impact_sound(h: Hit) -> String:
+	if h.has_tag("melee") and weapon and not h.has_tag("ability"):
+		match weapon.id:
+			"hammer":
+				return "hit_blunt"
+			"spear":
+				return "hit_pierce"
+			"sword", "daggers":
+				return "hit_slash"
+	if h.has_tag("ranged") and weapon and weapon.id == "bow" and not h.has_tag("ability"):
+		return "hit_arrow"
+	if h.has_tag("ranged") or h.has_tag("ability"):
+		return "hit_magic"
+	return "hit"
 
 
 ## Momentum and Thousand Cuts: weapon hits in quick succession build up.
@@ -1170,11 +1248,44 @@ func _flow(t: Actor, finisher: bool) -> void:
 	momentum = mini(8, momentum + 1)
 	_momentum_t = 1.5
 	cuts += 1
+	if hearthfire_t > 0.0 and stats.has("hearthforged") and weapon and weapon.form == "thousandth" and (cuts + 1) % THOUSANDTH != 0:
+		cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
 		spectral_knife(t)
+	if weapon and weapon.form == "thousandth":
+		form_meter = float(cuts % THOUSANDTH) / THOUSANDTH
+		if cuts % THOUSANDTH == 0:
+			_thousandth_cut()
 	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
 		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
 		_combo_wave_at(aim)
+
+
+const THOUSANDTH := 30
+
+
+## The Thousandth Cut (the unique blade): the thirtieth blow in a row is eight
+## phantom cuts, one after another, through everything around the Kindled.
+func _thousandth_cut() -> void:
+	var col := Color(0.85, 0.65, 1.0)
+	stage.fx.number(pos, 2.8, "THE THOUSANDTH CUT", col, true)
+	stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.4)
+	Audio.play("riposte", 0.0, 0.8)
+	for k in 8:
+		var a := k * TAU / 8.0 + randf() * 0.3
+		stage.after(0.05 * k, func() -> void:
+			if not alive:
+				return
+			var d := Vector2.from_angle(a)
+			stage.fx.swipe(pos, d, 3.0, deg_to_rad(50.0), Color(col.r, col.g, col.b, 0.9), 0.08, 0.45, k % 2 == 0)
+			Audio.play("swing", -6.0, 1.3 + 0.03 * k)
+			for f in stage.in_arc(team, pos, d, 3.0, deg_to_rad(28.0)):
+				var h := Combat.player_hit(self, stats, 14.0, ["melee", "shadow"])
+				h.proc = false
+				h.from_dir = d
+				h.knockback = d * 3.0
+				h.poise = 10.0
+				deal_hit(f, h))
 
 
 ## A spectral knife at another foe near `t` (or `t` itself): Thousand Cuts,
@@ -1415,6 +1526,9 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if ward_t > 0.0 and not h.has_tag("dot") and not h.unblockable:
 		_on_ward(attacker, false)
 		return empty
+	# a stance weapon (the Sabre's En Garde, the Partisan's line) takes it
+	if weapon and not h.has_tag("dot") and weapon.guard_hit(h, attacker):
+		return empty
 	if not h.has_tag("dot") and not h.unblockable and stage.players.size() > 1:
 		for ally in stage.players_near(pos, 4.0):
 			if ally != self and ally.ward_t > 0.0 and ally.stats.has("bastion"):
@@ -1573,6 +1687,8 @@ func _moth(dt: float) -> void:
 
 func _perfect_dodge() -> void:
 	perfect_done = true
+	if weapon:
+		weapon.on_evade()
 	stage.slow_motion(0.3, 0.35)
 	Settings.rumble(0.6, 0.0, 0.12)
 	stage.fx.ring(pos, 1.8, Color(1.0, 0.9, 0.6), 0.3, 0.15)
@@ -1595,6 +1711,8 @@ func _perfect_dodge() -> void:
 
 
 func _on_ward(attacker: Node, projectile: bool) -> void:
+	if weapon:
+		weapon.on_evade()
 	if stats.has("retribution") and retribution > 1.0:
 		_retribute()
 	ward_t = 0.0
@@ -2106,6 +2224,35 @@ func _update_anim() -> void:
 		sprite.set_tint(Color(1, 1, 1, 1))
 
 
+## How the spells of the moment show on the Kindled (every machine draws its
+## own, from the timers or the host's flags - never sent on): Hearthfire Form
+## burns around it, a Soulfire Beam lights its lantern, Rekindle's haste glows.
+func _spell_look() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	if controller == Ctrl.REPLICA and peer_id != Net.my_id():
+		# another Kindled on a guest's screen runs no clock of its own: its
+		# spells fade unless the next snapshot keeps them (NetRun._spell_bits)
+		var dt := get_process_delta_time()
+		hearthfire_t = maxf(0.0, hearthfire_t - dt)
+		channel_t = maxf(0.0, channel_t - dt)
+		haste_t = maxf(0.0, haste_t - dt)
+	if hearthfire_t > 0.0:
+		sprite.highlight = Color(1.0, 0.55, 0.2, 0.32 + 0.12 * sin(t * 14.0))
+	elif channel_t > 0.0:
+		sprite.highlight = Color(1.0, 0.7, 0.35, 0.18)
+	elif haste_t > 0.0:
+		sprite.highlight = Color(1.0, 0.9, 0.6, 0.1 + 0.05 * sin(t * 10.0))
+	elif sprite.highlight.a > 0.0:
+		sprite.highlight.a = 0.0
+	if hearthfire_t > 0.0 and stage:
+		_fire_mote_t -= get_process_delta_time()
+		if _fire_mote_t <= 0.0:
+			_fire_mote_t = 0.05
+			Net.mute += 1
+			stage.fx.motes(pos + Vector2(randf_range(-0.3, 0.3), randf_range(-0.2, 0.2)), 0.5, Color(1.0, 0.6, 0.22), 1, 1.6, 0.5, 0.15)
+			Net.mute -= 1
+
+
 func sync_visual() -> void:
 	super.sync_visual()
 	if sprite and alive:
@@ -2118,6 +2265,7 @@ func sync_visual() -> void:
 			sprite.flip_h = look.x < 0.0
 		elif not side:
 			sprite.flip_h = false
+		_spell_look()
 	if not gear_layers.is_empty():
 		_sync_paperdoll()
 

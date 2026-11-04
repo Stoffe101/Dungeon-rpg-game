@@ -331,3 +331,16 @@ Earlier (bot-only), all on one Windows machine, separate processes, localhost:
 Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
 controls. The human test plan is in docs/TESTING.md.
+
+## Protocol 8 (combat identity pass)
+
+- Player rows gained index 30 (the weapon form's gauge, `form_meter`: heat,
+  nocked arrows, glyphs, marks, a ready riposte) and index 31 (bits:
+  Hearthfire Form 1, a Soulfire Beam pouring 2, Rekindle's haste 4). A
+  guest keeps them alive a moment past each snapshot (`NetRun._spell_bits`);
+  other Kindled's copies count them down themselves.
+- The "tele" event carries the foe's net id as a ninth element, so a guest's
+  copy of the foe glows through its wind-up.
+- A guest predicts its own beam (slowed), Hearthfire (faster) and Cinder
+  Orb recast (no cost); the host decides. Rimewall ice is a prop ("prop+")
+  whose tiles become pillars on every machine; it melts as a prop removal.

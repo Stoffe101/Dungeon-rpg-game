@@ -28,6 +28,7 @@ var stagger_t := 0.0
 var exposed_t := 0.0
 var freeze_immune_t := 0.0
 var snare_t := 0.0
+var root_t := 0.0             # rooted: cannot move (it can still strike)
 
 
 func apply_burn(stacks: int, dps_per_stack: float, max_stacks: int, src: Node = null) -> void:
@@ -55,6 +56,10 @@ func apply_snare(seconds: float) -> void:
 	snare_t = maxf(snare_t, seconds)
 
 
+func apply_root(seconds: float) -> void:
+	root_t = maxf(root_t, seconds)
+
+
 func is_frozen() -> bool:
 	return frozen_t > 0.0
 
@@ -69,7 +74,7 @@ func burning() -> bool:
 
 ## Movement multiplier from chill/freeze.
 func speed_mult() -> float:
-	if frozen_t > 0.0:
+	if frozen_t > 0.0 or root_t > 0.0:
 		return 0.0
 	return (1.0 - chill * 0.5) * (0.5 if snare_t > 0.0 else 1.0)
 
@@ -111,6 +116,7 @@ func tick(dt: float) -> float:
 	freeze_immune_t = maxf(0.0, freeze_immune_t - dt)
 	stagger_t = maxf(0.0, stagger_t - dt)
 	exposed_t = maxf(0.0, exposed_t - dt)
+	root_t = maxf(0.0, root_t - dt)
 	snare_t = maxf(0.0, snare_t - dt)
 	return dmg
 
@@ -122,4 +128,5 @@ func clear() -> void:
 	frozen_t = 0.0
 	stagger_t = 0.0
 	exposed_t = 0.0
+	root_t = 0.0
 	snare_t = 0.0

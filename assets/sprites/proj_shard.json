@@ -1,0 +1,19 @@
+{
+	"anims": {
+		"idle": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		10,
+		6
+	],
+	"origin": [
+		5,
+		3
+	]
+}

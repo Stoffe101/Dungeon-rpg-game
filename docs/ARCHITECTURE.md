@@ -152,3 +152,23 @@ saves, shows the summary -> `goto_hub()`.
 - **The Hollow Below**: `Delve.cycle` / `bleed_region` / `gloom`.
 - **Camera**: `Stage.look_toward(p, secs)` leans the follow camera (recorded
   for guests as `look`).
+
+## Combat identity (weapon forms, spells, loadouts)
+
+- **Weapon forms**: `Weapon.form` (from the item base's "form") is read by
+  each archetype script (`src/combat/weapons/*.gd`). Hooks: `guard_hit` /
+  `on_evade` (Player._take_enemy_hit, _perfect_dodge, _on_ward), `shoot`, an
+  `each` callback in `arc_hit` / `line_hit` for per-foe effects, and
+  `Player.form_meter` (HUD gauge; synced as player row index 30).
+- **Unique sprites**: ItemDB "sprite" replaces the archetype's held sprite
+  (`tools/art/gen_uniques.gd`); forms "thousandth", "hundred", "sunfall".
+- **Spells**: `Abilities._beam`, `_orb` (+ `live_orbs` / `burst_orbs`,
+  recast in `Player._try_ability`), `_rimewall` (Prop "icewall" makes its
+  tile a PILLAR; `unsolid()` restores it), `_hearthfire` (+ `hearthfire_burst`,
+  `hearthfire_nova`). Player timers `channel_t`, `hearthfire_t`, `haste_t`
+  feed `_move_mult` (so prediction matches) and ride in row index 31 as bits.
+- **Foes**: `Enemy.strike_*` hit every active Kindled in the shape;
+  `begin_tell` / `_tell` make the wind-up glow (guests: the "tele" event
+  carries the foe's net id); affixes "frenzied", "shepherd".
+- **Loadouts**: `Profile.save_loadout` / `wear_loadout` / `loadout` (save v12).
+- **Economy audit**: `src/dev/economy_audit.gd` (`-- economy`).

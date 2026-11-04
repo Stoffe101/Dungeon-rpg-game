@@ -21,6 +21,15 @@ const PRESETS := {
 		"nodes": ["w_rk", "w_ret", "w8", "w3"], "slots": ["rekindle", "flare", ""]},
 	"frost": {"desc": "Rime staff: returning frost", "weapon": "staff", "level": 12,
 		"nodes": ["r3r", "r_ret", "r3"], "slots": ["frost_sigil", "flare", ""]},
+	# builds of the combat-identity pass: a weapon form and the new spells
+	"beam": {"desc": "Soulfire channeler: a steered beam, a cinder orb and the Grimoire of Ash's breath", "weapon": "tome", "item": "grimoire_of_ash", "level": 14,
+		"nodes": ["p_beam", "k_orb", "p3"], "slots": ["beam", "orb", "flare"]},
+	"wall": {"desc": "Glacial marksman: Rimewall, Frost Sigil and the Long Rimebow's ice spears", "weapon": "bow", "item": "long_rimebow", "level": 12,
+		"nodes": ["r_wall", "r3r", "r3"], "slots": ["rimewall", "frost_sigil", "flare"]},
+	"pyreblade": {"desc": "Hearthfire smith: Hearthfire Form, Ember Rush chains and the Emberforge Mallet's heat", "weapon": "hammer", "item": "emberforge_mallet", "level": 12,
+		"nodes": ["b_form", "b_rush", "p3"], "slots": ["hearthfire", "rush", "flare"]},
+	"shadow": {"desc": "Gloam cutter: lodged knives torn open by the Gloam Kris's marks", "weapon": "daggers", "item": "gloam_kris", "level": 12,
+		"nodes": ["gk", "g_fan", "g4r"], "slots": ["knives", "gloamstep", "flare"]},
 }
 
 
@@ -50,6 +59,10 @@ static func apply(preset: String) -> bool:
 	Profile.data.skills = tree
 	Profile.unlock_weapon(String(p.weapon))
 	Profile.choose_weapon(String(p.weapon))
+	if p.has("item"):
+		# the weapon form the build is made around
+		var it := Profile.add_item(ItemDB.make_item(String(p.item), "rare", 1, RandomNumberGenerator.new(), 1))
+		Profile.equip(int(it.uid))
 	Profile.data.equipped.slots = (p.slots as Array).duplicate()
 	Profile._changed()
 	print("[dev] build=%s: level %d, %d nodes, spells %s, %s" % [preset, Profile.level(), tree.size(), str(Profile.slots()), p.weapon])

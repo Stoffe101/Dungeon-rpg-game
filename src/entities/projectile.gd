@@ -35,6 +35,7 @@ var _back := false            # on the way back
 var sprite: PixelSprite
 var light: OmniLight3D
 var spin := false
+var phasing := false          # passes through walls (orbiting glyphs)
 var net_id := 0
 var replica := false
 var _announced := false
@@ -138,7 +139,7 @@ func tick(dt: float) -> void:
 	var n := maxi(1, int(ceil(step.length() / 0.2)))
 	for i in n:
 		pos += step / n
-		if stage.grid.blocks_shot(floori(pos.x), floori(pos.y)):
+		if not phasing and stage.grid.blocks_shot(floori(pos.x), floori(pos.y)):
 			if returning and not _back:
 				pos -= step / n
 				_turn_back()

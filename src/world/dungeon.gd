@@ -150,6 +150,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 					if is_instance_valid(u) and not u.used:
 						strike_props_circle(u.pos, 0.1, player, false))
 				k += 1
+		# and an Urnling, struck last: it bursts out instead of breaking
+		var ut := Vector2i(player.pos + Vector2(-2.5 + k * 1.0, -1.6))
+		var un := Prop.make(self, "urn", ut, {"mat": "clay", "rich": true, "urnling": true})
+		after(1.5 + k * 0.45, func() -> void:
+			if is_instance_valid(un) and not un.used:
+				strike_props_circle(un.pos, 0.1, player, false))
 	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
@@ -254,7 +260,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id"]:
+			for k in ["mat", "rich", "id", "urnling"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
@@ -655,6 +661,7 @@ func _spawn_wave(r: Room) -> void:
 			rest.sort_custom(func(a, b): return (Vector2(a) - c).length_squared() > (Vector2(b) - c).length_squared())
 			spots = spots.slice(0, n_own) + rest
 	var share := 1.0
+	var closing := false
 	if players.size() > 1:
 		var own_v := 0.0
 		var all_v := 0.0
@@ -663,7 +670,7 @@ func _spawn_wave(r: Room) -> void:
 			all_v += v
 			if k < n_own:
 				own_v += v
-		var closing: bool = r.get_meta("party_wave", false) and wave == r.encounter.size() - 1
+		closing = r.get_meta("party_wave", false) and wave == r.encounter.size() - 1
 		share = Party.PARTY_WAVE_SHARE if closing else Party.wave_share(own_v, all_v, players.size())
 	var tempered := run.has_omen("tempered") and r.type != Room.Type.ELITE
 	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
@@ -675,7 +682,14 @@ func _spawn_wave(r: Room) -> void:
 		_scale(e, layout.depth, memory)
 		_coop_scale(e)
 		# a party shares out what its extra foes pay (Party.wave_share)
-		if share < 1.0:
+		if closing:
+			# a big party's closing wave is for the fight: it pays no Embers or
+			# experience (measured with -- economy: even 1 XP each lifted a
+			# four-player party's XP to ~1.5x solo)
+			e.xp = 0
+			e.embers = 0
+			e.set_meta("share", share)
+		elif share < 1.0:
 			e.xp = maxi(1, int(round(e.xp * share)))
 			e.embers = int(round(e.embers * share))
 			e.set_meta("share", share)

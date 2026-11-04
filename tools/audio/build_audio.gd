@@ -79,6 +79,32 @@ func _sfx() -> void:
 		s.tone(0.0, 0.12, 220.0, 60.0, "sine", 0.9, 0.001, 4.0)
 		s.noise(0.0, 0.06, 0.7, 6000.0, 2000.0, 300.0, 0.001, 6.0)
 		s.bell(0.0, 0.3, 1450.0, 0.25))
+	# impacts by what lands (Player._impact_sound), two takes each: a blade's
+	# slice, a hammer's crunch, a point punching in, an arrow's thunk, a spell's pop
+	for take in 2:
+		var sfx2 := "" if take == 0 else "_2"
+		var j: float = [1.0, 1.07][take]
+		fx("hit_slash" + sfx2, 0.18, func(s):
+			s.noise(0.0, 0.06, 0.6, 7000.0 * j, 2500.0, 1500.0, 0.001, 5.0)
+			s.tone(0.0, 0.08, 200.0 * j, 85.0, "sine", 0.7, 0.001, 5.0)
+			s.bell(0.0, 0.1, 1850.0 * j, 0.06, [[1.0, 1.0, 10.0]]), 61 + take)
+		fx("hit_blunt" + sfx2, 0.26, func(s):
+			s.tone(0.0, 0.12, 190.0 * j, 70.0, "sine", 0.55, 0.001, 4.0)
+			s.noise(0.0, 0.12, 0.9, 2400.0 * j, 500.0, 180.0, 0.001, 4.0)
+			s.tone(0.0, 0.05, 520.0 * j, 300.0, "square", 0.12, 0.0005, 7.0, 0.0, 6.0, 1500.0)
+			s.noise(0.0, 0.025, 0.45, 5000.0, 2500.0, 1200.0, 0.0005, 8.0), 71 + take)
+		fx("hit_pierce" + sfx2, 0.18, func(s):
+			s.tone(0.0, 0.07, 240.0 * j, 110.0, "sine", 0.75, 0.001, 5.0)
+			s.noise(0.0, 0.04, 0.55, 3200.0 * j, 2000.0, 1300.0, 0.0005, 7.0)
+			s.noise(0.02, 0.07, 0.25, 900.0, 500.0, 200.0, 0.002, 4.0, 40.0), 81 + take)
+		fx("hit_arrow" + sfx2, 0.18, func(s):
+			s.tone(0.0, 0.06, 640.0 * j, 420.0, "square", 0.25, 0.0005, 6.0, 0.0, 6.0, 1800.0)
+			s.tone(0.0, 0.08, 170.0 * j, 80.0, "sine", 0.6, 0.001, 5.0)
+			s.noise(0.0, 0.02, 0.35, 4000.0, 2000.0, 900.0, 0.0005, 8.0), 91 + take)
+		fx("hit_magic" + sfx2, 0.22, func(s):
+			s.tone(0.0, 0.12, 900.0 * j, 280.0, "sine", 0.4, 0.001, 4.0)
+			s.tone(0.0, 0.08, 160.0, 80.0, "sine", 0.5, 0.001, 5.0)
+			s.noise(0.0, 0.08, 0.3, 9000.0, 6000.0, 3500.0, 0.001, 5.0), 101 + take)
 	fx("slam", 0.5, func(s):
 		s.tone(0.0, 0.45, 95.0, 35.0, "sine", 1.0, 0.002, 3.5)
 		s.noise(0.0, 0.4, 0.8, 1200.0, 150.0, 0.0, 0.002, 4.0))
@@ -380,6 +406,150 @@ func _sfx() -> void:
 	# epic one with a rising pair over a soft shimmer; a legendary (set,
 	# unique) one first rises humming into the air (drop_rise), then strikes
 	# the floor with a thump, a metal ring and a cascade with a long tail
+	# --- weapon forms -------------------------------------------------------------
+	# Gravecleaver: a heavy chop biting in; Sunder: the guard of a foe cracks
+	fx("cleave_hit", 0.45, func(s):
+		s.tone(0.0, 0.12, 150.0, 62.0, "sine", 0.36, 0.001, 5.0)
+		s.noise(0.0, 0.09, 0.8, 3200.0, 700.0, 300.0, 0.001, 6.0)
+		s.tone(0.005, 0.18, 720.0, 640.0, "square", 0.08, 0.001, 6.0, 0.0, 6.0, 2200.0))
+	fx("sunder", 0.8, func(s):
+		s.noise(0.0, 0.05, 0.9, 9000.0, 4000.0, 1500.0, 0.0005, 8.0)
+		s.tone(0.0, 0.1, 180.0, 70.0, "sine", 0.3, 0.001, 6.0)
+		s.bell(0.01, 0.7, 610.0, 0.16, [[1.0, 1.0, 3.0], [2.41, 0.5, 5.0], [3.93, 0.3, 8.0]])
+		s.tone(0.03, 0.4, 900.0, 420.0, "saw", 0.06, 0.002, 3.0, 0.0, 6.0, 2400.0))
+	# Duelist's Sabre: the riposte - a bright, fast ring of steel
+	fx("riposte", 0.55, func(s):
+		s.noise(0.0, 0.08, 0.5, 12000.0, 5000.0, 3000.0, 0.002, 5.0)
+		s.bell(0.02, 0.5, 1760.0, 0.16, [[1.0, 1.0, 5.0], [2.76, 0.4, 7.0]])
+		s.bell(0.05, 0.45, 2637.0, 0.1, [[1.0, 1.0, 6.0]]))
+	# Tombmaul: the ground answering a slam
+	fx("aftershock", 0.7, func(s):
+		s.tone(0.0, 0.32, 110.0, 44.0, "sine", 0.4, 0.004, 3.0)
+		s.noise(0.0, 0.5, 0.6, 900.0, 250.0, 120.0, 0.004, 2.5)
+		for k in 6:
+			s.noise(0.04 + k * 0.05, 0.03, 0.18, 2600.0, 1200.0, 500.0, 0.001, 8.0))
+	# Emberforge Mallet: molten sparks, and the heat vented all at once
+	fx("sparks", 0.4, func(s):
+		for k in 9:
+			var t: float = s.rng.randf() * 0.25
+			s.noise(t, 0.012, 0.35, 11000.0, 7000.0, 3500.0, 0.0003, 9.0)
+			s.tone(t, 0.04, s.rng.randf_range(2600.0, 4200.0), 2000.0, "sine", 0.08, 0.0005, 9.0))
+	fx("vent", 1.2, func(s):
+		s.noise(0.0, 1.0, 0.8, 400.0, 3400.0, 150.0, 0.03, 1.4, 18.0)
+		s.tone(0.0, 0.9, 85.0, 60.0, "saw", 0.22, 0.02, 1.6, 0.04, 9.0, 500.0)
+		s.tone(0.0, 0.2, 160.0, 70.0, "sine", 0.3, 0.001, 5.0))
+	# Gloam Kris: marks torn open - a rip of shadow
+	fx("gloam_tear", 0.6, func(s):
+		s.noise(0.0, 0.3, 0.6, 1800.0, 700.0, 300.0, 0.01, 2.5, 26.0)
+		s.tone(0.0, 0.35, 880.0, 280.0, "saw", 0.14, 0.004, 2.5, 0.0, 6.0, 1600.0)
+		s.bell(0.04, 0.45, 466.0, 0.08, [[1.0, 1.0, 4.0], [2.76, 0.4, 6.0]]))
+	# Ember Shivs: a thrown little knife
+	fx("shiv", 0.25, func(s):
+		s.noise(0.0, 0.1, 0.4, 9000.0, 4000.0, 2500.0, 0.003, 4.0)
+		s.bell(0.0, 0.18, 2349.0, 0.08, [[1.0, 1.0, 9.0], [2.4, 0.4, 12.0]]))
+	# Rootspear: a root closing round a leg; the spear planted and thorns rising
+	fx("root", 0.45, func(s):
+		s.tone(0.0, 0.3, 190.0, 130.0, "saw", 0.16, 0.004, 2.5, 0.06, 22.0, 900.0)
+		s.noise(0.0, 0.05, 0.5, 2600.0, 1200.0, 500.0, 0.001, 7.0)
+		s.noise(0.08, 0.2, 0.2, 1500.0, 700.0, 300.0, 0.01, 3.0, 30.0))
+	fx("thornplant", 1.0, func(s):
+		s.tone(0.0, 0.14, 160.0, 60.0, "sine", 0.35, 0.001, 5.0)
+		s.noise(0.0, 0.06, 0.7, 3000.0, 900.0, 300.0, 0.001, 7.0)
+		for k in 7:
+			s.noise(0.15 + k * 0.08, 0.05, 0.22, 2400.0, 1200.0, 600.0, 0.002, 6.0)
+		s.tone(0.12, 0.7, 140.0, 220.0, "saw", 0.08, 0.1, 1.5, 0.08, 18.0, 800.0))
+	# Warden's Partisan: a blow stopped on the shaft
+	fx("block", 0.5, func(s):
+		s.noise(0.0, 0.04, 0.8, 8000.0, 3000.0, 1200.0, 0.0005, 8.0)
+		s.bell(0.0, 0.45, 880.0, 0.18, [[1.0, 1.0, 5.0], [2.41, 0.6, 7.0], [3.93, 0.3, 10.0]])
+		s.tone(0.0, 0.08, 240.0, 120.0, "sine", 0.2, 0.001, 6.0))
+	# Splitwood Bow: another arrow on the string
+	fx("nock", 0.15, func(s):
+		s.noise(0.0, 0.015, 0.4, 5000.0, 2500.0, 900.0, 0.0005, 9.0)
+		s.tone(0.0, 0.07, 1250.0, 1100.0, "sine", 0.12, 0.001, 8.0))
+	# Long Rimebow: the ice spear; Rimewood: shards breaking, the Frost Lance
+	fx("ice_spear", 0.9, func(s):
+		s.noise(0.0, 0.25, 0.5, 2500.0, 9000.0, 1500.0, 0.01, 3.0)
+		s.bell(0.04, 0.8, 1568.0, 0.12, [[1.0, 1.0, 3.0], [2.0, 0.4, 5.0], [3.0, 0.2, 8.0]])
+		s.bell(0.06, 0.7, 2093.0, 0.08, [[1.0, 1.0, 4.0]])
+		s.tone(0.0, 0.5, 4200.0, 3600.0, "sine", 0.03, 0.02, 3.0, 0.02, 11.0))
+	fx("shatter_ice", 0.4, func(s):
+		for k in 8:
+			var t2: float = s.rng.randf() * 0.12
+			var f2: float = s.rng.randf_range(2800.0, 6000.0)
+			s.tone(t2, s.rng.randf_range(0.06, 0.14), f2, f2 * 0.98, "sine", 0.1, 0.0005, 8.0)
+		s.noise(0.0, 0.04, 0.5, 10000.0, 6000.0, 3000.0, 0.0005, 8.0))
+	fx("frost_lance", 1.0, func(s):
+		s.noise(0.0, 0.5, 0.45, 6000.0, 2500.0, 1800.0, 0.01, 2.5)
+		s.pad(0.0, 0.7, [1046.0, 1318.0, 1568.0], 0.07, 5000.0, 0.01, 0.45)
+		s.bell(0.0, 0.8, 2637.0, 0.06, [[1.0, 1.0, 3.0]])
+		s.tone(0.0, 0.12, 300.0, 120.0, "sine", 0.18, 0.001, 5.0))
+	# Codex of Echoes: a glyph written; spent, the spell answers again
+	fx("glyph", 0.5, func(s):
+		s.bell(0.0, 0.45, 1318.0, 0.12, [[1.0, 1.0, 4.0], [2.0, 0.35, 6.0]])
+		s.tone(0.0, 0.3, 659.0, 990.0, "sine", 0.05, 0.05, 2.0))
+	fx("echo_cast", 1.0, func(s):
+		s.noise(0.0, 0.35, 0.3, 800.0, 5000.0, 600.0, 0.25, 0.8)
+		for k in 4:
+			s.bell(0.3 + k * 0.05, 0.6, midi(76 + [0, 3, 7, 12][k]), 0.08)
+		s.pad(0.25, 0.7, [midi(64), midi(71)], 0.06, 2600.0, 0.05, 0.4))
+	# Grimoire of Ash: a short breath of fire (repeats while reading)
+	fx("breath", 0.4, func(s):
+		s.noise(0.0, 0.38, 0.6, 700.0, 1600.0, 200.0, 0.03, 1.5, 21.0)
+		s.noise(0.0, 0.3, 0.2, 4000.0, 2500.0, 1500.0, 0.03, 2.0, 37.0))
+	# --- spells of this pass -------------------------------------------------------
+	# Soulfire Beam: the lantern opening, then its pour (repeated while it flows)
+	fx("beam_start", 0.6, func(s):
+		s.noise(0.0, 0.4, 0.6, 600.0, 4000.0, 300.0, 0.03, 1.8)
+		s.tone(0.0, 0.5, 220.0, 440.0, "saw", 0.14, 0.02, 2.0, 0.0, 6.0, 1800.0)
+		s.bell(0.05, 0.45, 880.0, 0.08, [[1.0, 1.0, 4.0], [2.0, 0.4, 6.0]]))
+	fx("beam_hum", 0.45, func(s):
+		s.noise(0.0, 0.42, 0.45, 900.0, 1400.0, 250.0, 0.04, 1.2, 31.0)
+		s.tone(0.0, 0.42, 330.0, 335.0, "saw", 0.08, 0.04, 1.2, 0.02, 9.0, 1400.0))
+	# Cinder Orb: thrown with a soft whoomp; its burst grows with its age
+	fx("orb_throw", 0.5, func(s):
+		s.noise(0.0, 0.35, 0.45, 500.0, 1800.0, 150.0, 0.02, 2.0)
+		s.tone(0.0, 0.3, 160.0, 260.0, "sine", 0.18, 0.02, 2.5))
+	fx("orb_burst", 1.0, func(s):
+		s.tone(0.0, 0.16, 150.0, 60.0, "sine", 0.32, 0.001, 4.0)
+		s.noise(0.0, 0.6, 0.8, 4000.0, 600.0, 180.0, 0.002, 2.6)
+		for k in 6:
+			s.noise(0.05 + k * 0.05, 0.03, 0.2, 7000.0, 4000.0, 2000.0, 0.001, 7.0))
+	# Rimewall: ice rising with a crackle; and shattering
+	fx("icewall_rise", 0.9, func(s):
+		s.noise(0.0, 0.5, 0.4, 3000.0, 7000.0, 1200.0, 0.02, 2.5)
+		for k in 8:
+			var t3: float = 0.03 + k * 0.05
+			s.tone(t3, 0.08, s.rng.randf_range(1800.0, 3600.0), 1500.0, "sine", 0.08, 0.001, 7.0)
+		s.tone(0.0, 0.3, 120.0, 90.0, "sine", 0.2, 0.01, 3.0))
+	fx("icewall_shatter", 0.9, func(s):
+		s.noise(0.0, 0.08, 0.9, 10000.0, 5000.0, 2500.0, 0.0005, 6.0)
+		for k in 16:
+			var t4: float = s.rng.randf() * 0.35
+			var f4: float = s.rng.randf_range(2200.0, 6500.0)
+			s.tone(t4, s.rng.randf_range(0.06, 0.2), f4, f4 * 0.97, "sine", 0.08, 0.0005, 8.0)
+		s.tone(0.0, 0.12, 170.0, 80.0, "sine", 0.25, 0.001, 5.0))
+	# Hearthfire Form: the Kindled catching fire; the form ending in a nova
+	fx("hearthfire_on", 1.2, func(s):
+		s.noise(0.0, 0.9, 0.7, 400.0, 3500.0, 150.0, 0.12, 1.4, 17.0)
+		s.tone(0.0, 0.9, 110.0, 220.0, "saw", 0.16, 0.1, 1.5, 0.03, 7.0, 1200.0)
+		s.pad(0.2, 0.9, [midi(57), midi(64), midi(69)], 0.07, 2400.0, 0.2, 0.5))
+	fx("hearthfire_end", 0.9, func(s):
+		s.tone(0.0, 0.2, 180.0, 55.0, "sine", 0.32, 0.001, 4.0)
+		s.noise(0.0, 0.7, 0.7, 3000.0, 500.0, 150.0, 0.003, 2.2))
+	# elites: a Frenzied foe erupting; a Shepherd's shield washing over its kin
+	fx("frenzy", 0.8, func(s):
+		s.tone(0.0, 0.6, 140.0, 95.0, "saw", 0.3, 0.02, 1.8, 0.08, 14.0, 900.0)
+		s.noise(0.0, 0.5, 0.5, 1500.0, 600.0, 200.0, 0.01, 2.0, 24.0)
+		s.tone(0.0, 0.15, 200.0, 80.0, "sine", 0.25, 0.001, 5.0))
+	fx("shepherd", 0.9, func(s):
+		s.pad(0.0, 0.8, [midi(62), midi(69), midi(74)], 0.08, 2600.0, 0.05, 0.6)
+		s.bell(0.0, 0.7, midi(86), 0.08, [[1.0, 1.0, 3.0], [2.0, 0.4, 5.0]])
+		s.noise(0.0, 0.5, 0.2, 3000.0, 6000.0, 1500.0, 0.05, 2.0))
+	# Ember Rush: a chained rush (its cooldown comes back)
+	fx("rush_chain", 0.4, func(s):
+		s.bell(0.0, 0.35, 1175.0, 0.1, [[1.0, 1.0, 5.0], [2.0, 0.4, 7.0]])
+		s.bell(0.06, 0.3, 1568.0, 0.08, [[1.0, 1.0, 6.0]]))
 	# the Bone Colossus wakes: a long breath through an old skull, bone
 	# grinding, and the soul-light in its eyes ringing up
 	fx("colossus_wake", 2.6, func(s):
