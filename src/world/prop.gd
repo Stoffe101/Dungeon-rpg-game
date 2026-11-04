@@ -218,6 +218,15 @@ func _build() -> void:
 			_light(Color(0.4, 0.95, 0.85), 1.3, 5.5, Vector3(0, 1.0, 0.3))
 			interact_radius = 1.3
 			ticks = true
+		"icewall":
+			# Rimewall: a block of ice raised on one tile - it stops foes and
+			# their shots (a pillar until it melts; unsolid() gives the floor back)
+			_sprite("icewall", 0.0, 0.0, "idle")
+			if stage.grid.at(tile.x, tile.y) == TileGrid.FLOOR:
+				stage.grid.put(tile.x, tile.y, TileGrid.PILLAR)
+				stage.set_tile_solid(tile, true)
+				_solid_tiles.append(tile)
+			_light(Color(0.6, 0.85, 1.0), 0.5, 3.0, Vector3(0, 0.8 * Iso.SQ2, 0.2))
 		"landmark":
 			# a region's great centrepiece (DungeonGen._landmark), three tiles wide
 			var ld := DungeonGen.landmark_def(String(data.get("id", "colossus")))

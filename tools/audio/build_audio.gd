@@ -471,6 +471,50 @@ func _sfx() -> void:
 	fx("breath", 0.4, func(s):
 		s.noise(0.0, 0.38, 0.6, 700.0, 1600.0, 200.0, 0.03, 1.5, 21.0)
 		s.noise(0.0, 0.3, 0.2, 4000.0, 2500.0, 1500.0, 0.03, 2.0, 37.0))
+	# --- spells of this pass -------------------------------------------------------
+	# Soulfire Beam: the lantern opening, then its pour (repeated while it flows)
+	fx("beam_start", 0.6, func(s):
+		s.noise(0.0, 0.4, 0.6, 600.0, 4000.0, 300.0, 0.03, 1.8)
+		s.tone(0.0, 0.5, 220.0, 440.0, "saw", 0.14, 0.02, 2.0, 0.0, 6.0, 1800.0)
+		s.bell(0.05, 0.45, 880.0, 0.08, [[1.0, 1.0, 4.0], [2.0, 0.4, 6.0]]))
+	fx("beam_hum", 0.45, func(s):
+		s.noise(0.0, 0.42, 0.45, 900.0, 1400.0, 250.0, 0.04, 1.2, 31.0)
+		s.tone(0.0, 0.42, 330.0, 335.0, "saw", 0.08, 0.04, 1.2, 0.02, 9.0, 1400.0))
+	# Cinder Orb: thrown with a soft whoomp; its burst grows with its age
+	fx("orb_throw", 0.5, func(s):
+		s.noise(0.0, 0.35, 0.45, 500.0, 1800.0, 150.0, 0.02, 2.0)
+		s.tone(0.0, 0.3, 160.0, 260.0, "sine", 0.18, 0.02, 2.5))
+	fx("orb_burst", 1.0, func(s):
+		s.tone(0.0, 0.16, 150.0, 60.0, "sine", 0.32, 0.001, 4.0)
+		s.noise(0.0, 0.6, 0.8, 4000.0, 600.0, 180.0, 0.002, 2.6)
+		for k in 6:
+			s.noise(0.05 + k * 0.05, 0.03, 0.2, 7000.0, 4000.0, 2000.0, 0.001, 7.0))
+	# Rimewall: ice rising with a crackle; and shattering
+	fx("icewall_rise", 0.9, func(s):
+		s.noise(0.0, 0.5, 0.4, 3000.0, 7000.0, 1200.0, 0.02, 2.5)
+		for k in 8:
+			var t3: float = 0.03 + k * 0.05
+			s.tone(t3, 0.08, s.rng.randf_range(1800.0, 3600.0), 1500.0, "sine", 0.08, 0.001, 7.0)
+		s.tone(0.0, 0.3, 120.0, 90.0, "sine", 0.2, 0.01, 3.0))
+	fx("icewall_shatter", 0.9, func(s):
+		s.noise(0.0, 0.08, 0.9, 10000.0, 5000.0, 2500.0, 0.0005, 6.0)
+		for k in 16:
+			var t4: float = s.rng.randf() * 0.35
+			var f4: float = s.rng.randf_range(2200.0, 6500.0)
+			s.tone(t4, s.rng.randf_range(0.06, 0.2), f4, f4 * 0.97, "sine", 0.08, 0.0005, 8.0)
+		s.tone(0.0, 0.12, 170.0, 80.0, "sine", 0.25, 0.001, 5.0))
+	# Hearthfire Form: the Kindled catching fire; the form ending in a nova
+	fx("hearthfire_on", 1.2, func(s):
+		s.noise(0.0, 0.9, 0.7, 400.0, 3500.0, 150.0, 0.12, 1.4, 17.0)
+		s.tone(0.0, 0.9, 110.0, 220.0, "saw", 0.16, 0.1, 1.5, 0.03, 7.0, 1200.0)
+		s.pad(0.2, 0.9, [midi(57), midi(64), midi(69)], 0.07, 2400.0, 0.2, 0.5))
+	fx("hearthfire_end", 0.9, func(s):
+		s.tone(0.0, 0.2, 180.0, 55.0, "sine", 0.32, 0.001, 4.0)
+		s.noise(0.0, 0.7, 0.7, 3000.0, 500.0, 150.0, 0.003, 2.2))
+	# Ember Rush: a chained rush (its cooldown comes back)
+	fx("rush_chain", 0.4, func(s):
+		s.bell(0.0, 0.35, 1175.0, 0.1, [[1.0, 1.0, 5.0], [2.0, 0.4, 7.0]])
+		s.bell(0.06, 0.3, 1568.0, 0.08, [[1.0, 1.0, 6.0]]))
 	# the Bone Colossus wakes: a long breath through an old skull, bone
 	# grinding, and the soul-light in its eyes ringing up
 	fx("colossus_wake", 2.6, func(s):

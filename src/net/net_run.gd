@@ -224,7 +224,8 @@ func _send_snapshots() -> void:
 				p.downed, q(p.bleed_t), q(p.revive_k), q(p.look.x), q(p.look.y), q(p.aim.x), q(p.aim.y),
 				int(w.phase) if w else 0, q(w.swing) if w else 0.0, q(w.aim_dir.x) if w else 1.0, q(w.aim_dir.y) if w else 0.0, w.charged if w else false,
 				p.hearthcall_t, p.run.embers if p.run else 0, p.run.sunshards if p.run else 0, p.run.relics if p.run else [],
-				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0, q(p.hurt_t), q(p.status.speed_mult()), q(p.stats.v("kindle_max")), q(p.ability_cd[2] if p.ability_cd.size() > 2 else 0.0), p.momentum, q(p.form_meter)])
+				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0, q(p.hurt_t), q(p.status.speed_mult()), q(p.stats.v("kindle_max")), q(p.ability_cd[2] if p.ability_cd.size() > 2 else 0.0), p.momentum, q(p.form_meter),
+				(1 if p.hearthfire_t > 0.0 else 0) | (2 if p.channel_t > 0.0 else 0) | (4 if p.haste_t > 0.0 else 0)])
 	var prs: Array = []
 	for pr in stage.projectiles:
 		if is_instance_valid(pr) and pr.net_id != 0:
@@ -987,6 +988,8 @@ func _apply_own(pl: Player, p: Array) -> void:
 		pl.momentum = int(p[29])     # its weapon's pace (Momentum) is the host's
 	if p.size() > 30:
 		pl.form_meter = float(p[30])  # its weapon form's gauge (heat, nocked arrows, glyphs)
+	if p.size() > 31:
+		_spell_bits(pl, int(p[31]))
 	if not pl.held_local("dodge"):
 		pl.dodge_charges = float(p[5])
 	pl.downed = bool(p[6])
@@ -1049,6 +1052,20 @@ func _apply_other(pl: Player, p: Array) -> void:
 		pl.momentum = int(p[29])
 	if p.size() > 30:
 		pl.form_meter = float(p[30])
+	if p.size() > 31:
+		_spell_bits(pl, int(p[31]))
+
+
+## The spells on a Kindled the host knows of (Hearthfire Form, a beam, haste):
+## kept alive a moment past each snapshot, so they show (and, for this
+## machine's own Kindled, so its predicted step keeps the right pace).
+func _spell_bits(pl: Player, bits: int) -> void:
+	if bits & 1:
+		pl.hearthfire_t = maxf(pl.hearthfire_t, 0.2)
+	if bits & 2:
+		pl.channel_t = maxf(pl.channel_t, 0.12)
+	if bits & 4:
+		pl.haste_t = maxf(pl.haste_t, 0.2)
 
 
 func _apply_row(a: Actor, e: Array, own: bool) -> void:

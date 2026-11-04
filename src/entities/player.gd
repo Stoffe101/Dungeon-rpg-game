@@ -98,6 +98,13 @@ var spellblade_n := 0         # Spellblade: weapon hits charged by the last spel
 var spellblade_el := "fire"
 var momentum := 0             # Momentum: hits in quick succession (0-8)
 var form_meter := 0.0         # the weapon form's gauge, 0..1 (heat, nocked arrows, glyphs; host's for guests)
+var channel_t := 0.0          # pouring a Soulfire Beam: slow, no weapon
+var hearthfire_t := 0.0       # Hearthfire Form
+var hearthfire_power := 1.0
+var haste_t := 0.0            # Rekindle's quickening
+var rush_refund := 0.0        # Ember Rush through the burning: part of its cooldown back
+var _orb_cast_t := 0.0        # co-op client: a Cinder Orb of its own still drifting (a press bursts it)
+var _fire_mote_t := 0.0
 var _momentum_t := 0.0
 var cuts := 0                 # Thousand Cuts: hits in a row
 var retribution := 0.0        # Retribution: damage held for the next Ward
@@ -519,6 +526,12 @@ func _move_mult() -> float:
 		mult *= 0.35
 	if flask_t > 0.0:
 		mult *= 0.45
+	if channel_t > 0.0:
+		mult *= 0.45
+	if hearthfire_t > 0.0:
+		mult *= 1.25
+	if haste_t > 0.0:
+		mult *= 1.25
 	return mult
 
 
@@ -562,6 +575,10 @@ func _predict(dt: float) -> void:
 	shelter_t = maxf(0.0, shelter_t - dt)
 	# (Momentum, Last Light and Hearthbond run on the host; Momentum comes back
 	# in the snapshot so the swings predicted here keep its pace)
+	channel_t = maxf(0.0, channel_t - dt)
+	hearthfire_t = maxf(0.0, hearthfire_t - dt)
+	haste_t = maxf(0.0, haste_t - dt)
+	_orb_cast_t = maxf(0.0, _orb_cast_t - dt)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	flask_t = maxf(0.0, flask_t - dt)
@@ -694,6 +711,17 @@ func _timers(dt: float) -> void:
 			for ally in stage.players_near(pos, 5.0):
 				ally.gain_kindle(1.0)
 	gloam_t = maxf(0.0, gloam_t - dt)
+	channel_t = maxf(0.0, channel_t - dt)
+	haste_t = maxf(0.0, haste_t - dt)
+	if hearthfire_t > 0.0:
+		# hearth-fire: cold cannot hold it, and the lantern feeds
+		hearthfire_t -= dt
+		status.chill = 0.0
+		status.snare_t = 0.0
+		gain_kindle(6.0 * dt)
+		if hearthfire_t <= 0.0:
+			hearthfire_t = 0.0
+			Abilities.hearthfire_nova(self)
 	cast_t = maxf(0.0, cast_t - dt)
 	hurt_t = maxf(0.0, hurt_t - dt)
 	dodge_age += dt
@@ -752,7 +780,7 @@ func _handle_actions(_dt: float) -> void:
 	if _buf.flask > 0.0 and flask_t <= 0.0:
 		_buf.flask = 0.0
 		_drink()
-	if weapon == null or ward_t > 0.0 or flask_t > 0.0:
+	if weapon == null or ward_t > 0.0 or flask_t > 0.0 or channel_t > 0.0:
 		return
 	if _buf.attack > 0.0 and cast_t <= 0.0:
 		_buf.attack = 0.0
@@ -847,6 +875,16 @@ func slot_open(slot: int) -> bool:
 
 func _try_ability(slot: int) -> void:
 	var id: String = ability_slots[slot] if slot < ability_slots.size() else ""
+	if id == "orb" and cast_t <= 0.0:
+		# a second cast bursts the Cinder Orb still drifting (no cost, no wait)
+		if predicting and _orb_cast_t > 0.0:
+			_orb_cast_t = 0.0
+			cast_t = 0.15
+			_hold("a%d" % slot)
+			return
+		if not predicting and Abilities.burst_orbs(self):
+			cast_t = 0.15
+			return
 	if id == "" or slot >= ability_cd.size() or ability_cd[slot] > 0.0 or cast_t > 0.0 or not slot_open(slot):
 		return
 	var d := GearDB.ability(id)
@@ -874,6 +912,14 @@ func _try_ability(slot: int) -> void:
 		cast_t = 0.2
 		_hold("kindle")
 		_hold("a%d" % slot)
+		# the spells that change how the Kindled moves, predicted at once
+		match id:
+			"beam":
+				channel_t = float(d.duration)
+			"hearthfire":
+				hearthfire_t = float(d.duration)
+			"orb":
+				_orb_cast_t = float(d.life)
 		# a blink or a rush moves the Kindled at once (the host picks the same spot)
 		if id == "gloamstep" or id == "rush":
 			var rng: float = float(d.range) * (stats.v("area") if id == "rush" else 1.0)
@@ -900,6 +946,10 @@ func _try_ability(slot: int) -> void:
 	if stats.has("blood_price"):
 		hp = maxf(1.0, hp - max_hp * 0.04)
 	ability_cd[slot] = float(d.cooldown) * stats.v("cooldown") * Runes.cooldown_mult(self, id)
+	if id == "rush" and rush_refund > 0.0:
+		# through the burning: the next Rush comes sooner
+		ability_cd[slot] *= 1.0 - rush_refund
+		rush_refund = 0.0
 	cast_t = 0.2
 
 
@@ -1124,6 +1174,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		_crit_chain(t, res.amount * 0.5)
 	if direct and h.proc and (stats.has("momentum") or stats.has("thousand_cuts")):
 		_flow(t, finisher)
+	if direct and h.proc and hearthfire_t > 0.0 and not h.has_tag("ability"):
+		Abilities.hearthfire_burst(self, t)
+	if h.has_tag("melee") and not dot and int(t.get_meta("knives_in", 0)) > 0:
+		Abilities.knives_detonate(self, t)
 	if res.crit and direct and h.proc and stats.has("crit_knives"):
 		spectral_knife(t)     # Gloamfang
 	_unique_on_hit(t, h, res, direct)
@@ -2145,6 +2199,35 @@ func _update_anim() -> void:
 		sprite.set_tint(Color(1, 1, 1, 1))
 
 
+## How the spells of the moment show on the Kindled (every machine draws its
+## own, from the timers or the host's flags - never sent on): Hearthfire Form
+## burns around it, a Soulfire Beam lights its lantern, Rekindle's haste glows.
+func _spell_look() -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	if controller == Ctrl.REPLICA and peer_id != Net.my_id():
+		# another Kindled on a guest's screen runs no clock of its own: its
+		# spells fade unless the next snapshot keeps them (NetRun._spell_bits)
+		var dt := get_process_delta_time()
+		hearthfire_t = maxf(0.0, hearthfire_t - dt)
+		channel_t = maxf(0.0, channel_t - dt)
+		haste_t = maxf(0.0, haste_t - dt)
+	if hearthfire_t > 0.0:
+		sprite.highlight = Color(1.0, 0.55, 0.2, 0.32 + 0.12 * sin(t * 14.0))
+	elif channel_t > 0.0:
+		sprite.highlight = Color(1.0, 0.7, 0.35, 0.18)
+	elif haste_t > 0.0:
+		sprite.highlight = Color(1.0, 0.9, 0.6, 0.1 + 0.05 * sin(t * 10.0))
+	elif sprite.highlight.a > 0.0:
+		sprite.highlight.a = 0.0
+	if hearthfire_t > 0.0 and stage:
+		_fire_mote_t -= get_process_delta_time()
+		if _fire_mote_t <= 0.0:
+			_fire_mote_t = 0.05
+			Net.mute += 1
+			stage.fx.motes(pos + Vector2(randf_range(-0.3, 0.3), randf_range(-0.2, 0.2)), 0.5, Color(1.0, 0.6, 0.22), 1, 1.6, 0.5, 0.15)
+			Net.mute -= 1
+
+
 func sync_visual() -> void:
 	super.sync_visual()
 	if sprite and alive:
@@ -2157,6 +2240,7 @@ func sync_visual() -> void:
 			sprite.flip_h = look.x < 0.0
 		elif not side:
 			sprite.flip_h = false
+		_spell_look()
 	if not gear_layers.is_empty():
 		_sync_paperdoll()
 

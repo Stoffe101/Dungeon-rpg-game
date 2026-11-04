@@ -141,23 +141,43 @@ const ABILITIES := {
 	},
 	"knives": {
 		"name": "Gloam Knives", "cost": 10.0, "cooldown": 0.42, "icon": "knives",
-		"desc": "Cut five knives from your lantern's shadow and fling them in a fan. Cheap and quick: a caster's blade. Shaped by every projectile modifier you carry.",
+		"desc": "Cut five knives from your lantern's shadow and fling them in a fan. They lodge in what they strike and burst open at your next melee blow on it (or after 2.5s). Shaped by every projectile modifier you carry.",
 		"damage": 7.0, "count": 5, "range": 9.0,
 	},
 	"lantern": {
 		"name": "Hearth Lantern", "cost": 45.0, "cooldown": 16.0, "icon": "lantern",
-		"desc": "Plant a lantern at the cursor for 12s. It looses ember bolts at foes, and every Kindled in its light regains Kindle and takes 10% less damage.",
+		"desc": "Plant a lantern at the cursor for 12s. It looses ember bolts at foes; every Kindled in its light regains Kindle and takes 10% less damage, and every foe in it is Exposed (takes more damage).",
 		"damage": 8.0, "duration": 12.0, "radius": 3.5,
 	},
 	"rush": {
 		"name": "Ember Rush", "cost": 22.0, "cooldown": 3.0, "icon": "rush",
-		"desc": "Burst toward the cursor as a streak of fire, cutting and burning everything in your path. Counts as a melee strike.",
+		"desc": "Burst toward the cursor as a streak of fire, cutting and burning everything in your path. Counts as a melee strike. Rushing through a burning foe gives back 60% of the cooldown.",
 		"damage": 22.0, "range": 6.0,
 	},
 	"rekindle": {
 		"name": "Rekindle", "cost": 40.0, "cooldown": 24.0, "icon": "rekindle",
-		"desc": "Hearth-light floods out around you: you and every ally in it gain a ward of 25% of health and 20 Kindle, and fallen allies in it get back up.",
+		"desc": "Hearth-light floods out around you: you and every ally in it gain a ward of 25% of health and 20 Kindle, shake off burning, chill and roots and run faster for 3s; fallen allies in it get back up.",
 		"radius": 4.0, "ward": 0.25,
+	},
+	"beam": {
+		"name": "Soulfire Beam", "cost": 30.0, "cooldown": 6.0, "icon": "beam",
+		"desc": "Pour the lantern's fire out in a beam for 1.6s, steered by your aim. It burns hotter the longer it holds on; you walk slowly while it flows.",
+		"damage": 5.0, "duration": 1.6, "range": 7.5,
+	},
+	"orb": {
+		"name": "Cinder Orb", "cost": 28.0, "cooldown": 5.0, "icon": "orb",
+		"desc": "Send a slow orb of embers drifting toward the cursor, scorching what it touches. Cast again to burst it: the longer it has drifted, the bigger the burst (it bursts by itself after 4s).",
+		"damage": 26.0, "radius": 2.2, "life": 4.0,
+	},
+	"rimewall": {
+		"name": "Rimewall", "cost": 35.0, "cooldown": 10.0, "icon": "icewall",
+		"desc": "Raise a wall of ice across your aim for 5s. Foes cannot pass it and their shots break on it. When it melts it shatters, chilling and cutting what stands beside it.",
+		"damage": 18.0, "duration": 5.0, "length": 5,
+	},
+	"hearthfire": {
+		"name": "Hearthfire Form", "cost": 50.0, "cooldown": 22.0, "icon": "hearthfire",
+		"desc": "Become hearth-fire for 7s: you move faster, your weapon's hits burst in flame and set foes alight, cold cannot slow you and Kindle flows back. It ends in a nova.",
+		"damage": 10.0, "duration": 7.0,
 	},
 }
 

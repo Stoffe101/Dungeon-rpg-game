@@ -48,6 +48,9 @@ func think(dt: float) -> void:
 	for pl in stage.players_near(pos, light_r):
 		pl.shelter_t = 0.3
 		pl.gain_kindle(3.0 * dt)
+	# nothing hides in its light: foes in it are Exposed (they take more damage)
+	for a in stage.in_circle(team, pos, light_r):
+		a.status.exposed_t = maxf(a.status.exposed_t, 0.25)
 	if draws_in:
 		for a in stage.in_circle(team, pos, light_r + 1.5):
 			if not a.anchored:

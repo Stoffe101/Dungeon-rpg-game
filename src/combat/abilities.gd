@@ -38,6 +38,14 @@ static func cast(pl: Player, id: String, power := 1.0, at := Vector2.INF, dir :=
 			ok = _rush(pl, power < 1.0)
 		"rekindle":
 			ok = _rekindle(pl, power, at)
+		"beam":
+			ok = _beam(pl, power, dir)
+		"orb":
+			ok = _orb(pl, power, at)
+		"rimewall":
+			ok = _rimewall(pl, power)
+		"hearthfire":
+			ok = _hearthfire(pl, power)
 	_ab = ""
 	_power = 1.0
 	if ok:
@@ -64,8 +72,8 @@ static func echo(pl: Player, id: String, at: Vector2, dir: Vector2, target: Vect
 		return
 	var st := pl.stage
 	match id:
-		"flare", "cinder_lance":
-			st.after(0.6, func() -> void:
+		"flare", "cinder_lance", "beam", "orb":
+			st.after(0.6 if id != "beam" else 1.8, func() -> void:
 				if is_instance_valid(pl) and pl.alive:
 					cast(pl, id, 0.6, at, dir))
 		"frost_sigil":
@@ -400,7 +408,9 @@ static func _knives(pl: Player, at: Vector2, dir0: Vector2) -> bool:
 			h.knockback = proj.vel.normalized() * proj.knockback
 			h.from_dir = proj.vel.normalized()
 			h.poise = 3.0
-			return h, 0.12)
+			return h
+		pr.on_hit_fn = func(_proj: Projectile, t: Actor, _res) -> void:
+			_knife_lodge(pl, t, power, ab), 0.12)
 	pl.stage.fx.burst(from + aim * 0.5, 0.7, col, 6, 3.0, 0.2, 0.0, aim, 0.7)
 	Audio.play("knives", -4.0, randf_range(0.95, 1.1))
 	return true
@@ -485,6 +495,10 @@ static func _rush(pl: Player, is_echo: bool) -> bool:
 	st.fx.flash_light(dest, 0.6, col, 2.2, 4.0, 0.25)
 	st.fx.shake(0.12)
 	Audio.play("ember_rush", -2.0)
+	if pl.rush_refund > 0.0:
+		st.fx.number(dest, 2.4, "CHAIN", Color(1.0, 0.75, 0.4))
+		st.fx.ring(dest, 1.2, Color(1.0, 0.75, 0.4), 0.2, 0.25)
+		Audio.play("rush_chain", -4.0)
 	return true
 
 
@@ -496,6 +510,8 @@ static func _rush_cut(pl: Player, from: Vector2, to: Vector2, dmg: float, col: C
 		st.fx.burst(from.lerp(to, k / 5.0), 0.4, col, 3, 2.0, 0.25, 0.0, dir, 0.6)
 	st.strike_props_line(from, to, 0.8, pl, true)
 	for a in st.in_line(pl.team, from, to, 0.8):
+		if a.status.burning():
+			pl.rush_refund = 0.6
 		var h := _hit(pl, dmg, ["melee", "fire"])
 		h.burn = 1
 		h.from_dir = dir
@@ -528,7 +544,14 @@ static func _rekindle(pl: Player, power: float, at: Vector2) -> bool:
 			ally.barrier = maxf(ally.barrier, ward)
 			ally.barrier_t = 5.0
 			ally.gain_kindle(20.0 * power)
+			# the hearth-light burns off what clings and quickens the step
+			ally.status.burn_stacks = 0
+			ally.status.chill = 0.0
+			ally.status.snare_t = 0.0
+			ally.status.root_t = 0.0
+			ally.haste_t = maxf(ally.haste_t, 3.0 * power)
 			st.fx.ring(ally.pos, 1.0, col, 0.3, 0.2)
+			st.fx.motes(ally.pos, 0.2, Color(1.0, 0.95, 0.7), 12, 3.0, 0.9, 0.25)
 	if Runes.has(pl, "rekindle", "split") and power >= 0.99:
 		var ahead := pl.pos + pl.aim * 2.5
 		st.after(0.4, func() -> void:
@@ -559,3 +582,389 @@ static func _wisp(pl: Player, power: float) -> bool:
 	pl.stage.fx.burst(pl.pos, 1.0, Color(1.0, 0.85, 0.45), 20, 3.0, 0.6, -1.0)
 	Audio.play("wisp", 0.0)
 	return true
+
+
+
+# --- Soulfire Beam ------------------------------------------------------------------
+
+## A beam of the lantern's fire, steered by the Kindled's aim for 1.6s; it
+## burns hotter the longer it holds on (Rune of Many: two thinner beams beside
+## it; of the Well: it drags what it touches in toward its line).
+static func _beam(pl: Player, power: float, dir0: Vector2) -> bool:
+	var d := GearDB.ability("beam")
+	var st := pl.stage
+	var dur: float = float(d.duration) * (1.0 if power >= 0.99 else 0.6)
+	var ticks := int(dur / 0.08)
+	var ab := _ab
+	var pw := _power
+	var col := Runes.tint(pl, "beam", Color(1.0, 0.62, 0.25))
+	var side := Runes.has(pl, "beam", "split")
+	var well := Runes.has(pl, "beam", "gravity")
+	if power >= 0.99:
+		pl.channel_t = dur
+	Audio.play("beam_start", -2.0)
+	for k in ticks:
+		st.after(0.08 * k, func() -> void:
+			if not is_instance_valid(pl) or not pl.alive:
+				return
+			var aim := pl.aim if dir0 == Vector2.ZERO or power >= 0.99 else dir0
+			var ramp := 1.0 + 1.2 * float(k) / maxf(1.0, ticks - 1)
+			_beam_tick(pl, aim, float(d.range) * pl.stats.v("area"), float(d.damage) * ramp, k, col, ab, pw, well)
+			if side:
+				for s in [-0.24, 0.24]:
+					_beam_tick(pl, aim.rotated(s), float(d.range) * 0.8, float(d.damage) * ramp * 0.5, k, col, ab, pw, false)
+			if k % 5 == 0:
+				Audio.play("beam_hum", -6.0, 0.95 + 0.04 * ramp))
+	return true
+
+
+static func _beam_tick(pl: Player, aim: Vector2, reach: float, dmg: float, k: int, col: Color, ab: String, pw: float, well: bool) -> void:
+	var st := pl.stage
+	var from := pl.pos + aim * 0.45
+	var to := from
+	var step := 0.0
+	while step < reach:
+		var p := from + aim * (step + 0.25)
+		if st.grid.blocks_shot(floori(p.x), floori(p.y)):
+			break
+		to = p
+		step += 0.25
+	var len := from.distance_to(to)
+	# a wide soft glow, and a white-hot core that flickers with the pour
+	var flick := 0.85 + 0.15 * sin(st.elapsed * 40.0 + k)
+	st.fx.shape(Fx.Shape.RECT, from, aim, Vector2(len, 0.8), Color(col.r, col.g, col.b, 0.22 * flick), Color(col.r, col.g, col.b, 0.5), 0.1, {"progress": 1.0, "glow": 1.6})
+	st.fx.shape(Fx.Shape.RECT, from, aim, Vector2(len, 0.24), Color(1.0, 0.92, 0.7, 0.85 * flick), Color(1.0, 0.98, 0.9, 1.0), 0.1, {"progress": 1.0, "glow": 3.0})
+	if k % 2 == 0:
+		st.fx.burst(to, 0.6, col, 3, 3.0, 0.2, 0.0, -aim, 0.8)
+	if k % 4 == 0:
+		st.fx.flash_light(from.lerp(to, 0.5), 0.6, col, 1.4, len * 0.7 + 2.0, 0.12)
+	st.strike_props_line(from, to, 0.5, pl, true)
+	var was := _ab
+	var wp := _power
+	_ab = ab
+	_power = pw
+	for a in st.in_line(pl.team, from, to, 0.5):
+		var h := _hit(pl, dmg, ["fire"])
+		h.burn = 1 if k % 3 == 0 else 0
+		h.silent = k % 3 != 0
+		h.poise = 3.0
+		h.from_dir = aim
+		h.knockback = Vector2.ZERO
+		if well:
+			var t := clampf((a.pos - from).dot(aim), 0.0, len)
+			h.knockback = (from + aim * t - a.pos) * 4.0
+		pl.deal_hit(a, h)
+	_ab = was
+	_power = wp
+
+
+# --- Cinder Orb ---------------------------------------------------------------------
+
+## A slow orb of embers drifting toward the cursor, scorching what it touches;
+## cast again to burst it (bigger the longer it drifted). Rune of Many: two
+## orbs; of Echoes: the burst comes twice; of the Well: it draws foes in.
+static func _orb(pl: Player, power: float, at: Vector2) -> bool:
+	var d := GearDB.ability("orb")
+	var st := pl.stage
+	var from := pl.pos if at == Vector2.INF else at
+	var target := pl.aim_point if at == Vector2.INF else at + pl.aim * 5.0
+	var dirs: Array = [(target - from).normalized()]
+	var each := 1.0
+	if Runes.has(pl, "orb", "split"):
+		dirs = [dirs[0].rotated(-0.35), dirs[0].rotated(0.35)]
+		each = 0.6
+	var orbs: Array = []
+	for dv: Vector2 in dirs:
+		if dv.length() < 0.1:
+			dv = pl.aim
+		var pr := Projectile.create(st, "proj_cinder_orb", from + dv * 0.6, dv * 4.2, pl.team)
+		pr.source = pl
+		pr.damage = 4.0 * _power
+		pr.tags = ["ability", "fire"]
+		pr.burn = 1
+		pr.radius = 0.45
+		pr.pierce = 999
+		pr.life = float(d.life)
+		pr.height = 0.8
+		pr.knockback = 0.5
+		pr.reflectable = false
+		pr.trail_color = Color(1.0, 0.55, 0.2)
+		pr.trail_rate = 24.0
+		pr.with_light(Color(1.0, 0.55, 0.22), 1.4, 3.5)
+		pr.set_meta("born", st.elapsed)
+		pr.set_meta("power", _power * each * power)
+		pr.set_meta("ab", _ab)
+		pr.on_end_fn = func(proj: Projectile, p: Vector2) -> void:
+			_orb_burst(pl, proj, p)
+		orbs.append(pr)
+		if Runes.has(pl, "orb", "gravity"):
+			_orb_pull(pl, pr)
+	pl.set_meta("orbs", orbs)
+	Audio.play("orb_throw", -2.0)
+	return true
+
+
+static func _orb_pull(pl: Player, pr: Projectile) -> void:
+	var st := pl.stage
+	for k in 40:
+		st.after(0.1 * k, func() -> void:
+			if not is_instance_valid(pr) or pr.life <= 0.0 or not is_instance_valid(pl):
+				return
+			for a in st.in_circle(pl.team, pr.pos, 3.0):
+				if a is Enemy and not (a as Enemy).def.get("boss", false):
+					a.push += (pr.pos - a.pos).normalized() * 0.6)
+
+
+## The Kindled's orbs still drifting (Player._try_ability: a second cast bursts them).
+static func live_orbs(pl: Player) -> Array:
+	var orbs: Array = pl.get_meta("orbs", [])
+	return orbs.filter(func(o): return is_instance_valid(o) and o.life > 0.0)
+
+
+static func burst_orbs(pl: Player) -> bool:
+	var orbs := live_orbs(pl)
+	if orbs.is_empty():
+		return false
+	for o in orbs:
+		o.life = 0.0     # ends on its next step: the burst (on_end_fn)
+	pl.set_meta("orbs", [])
+	return true
+
+
+static func _orb_burst(pl: Player, proj: Projectile, p: Vector2) -> void:
+	if not is_instance_valid(pl) or proj.get_meta("burst", false):
+		return
+	proj.set_meta("burst", true)
+	var st := pl.stage
+	var d := GearDB.ability("orb")
+	var age := clampf((st.elapsed - float(proj.get_meta("born", st.elapsed))) / 2.5, 0.0, 1.0)
+	var k := 1.0 + 1.5 * age
+	var r: float = float(d.radius) * (1.0 + 0.5 * age) * pl.stats.v("area")
+	var dmg: float = float(d.damage) * k
+	var col := Color(1.0, 0.55, 0.22)
+	var was := _ab
+	var wp := _power
+	_ab = String(proj.get_meta("ab", "orb"))
+	_power = float(proj.get_meta("power", 1.0))
+	st.fx.ring(p, r, col, 0.3, 0.4)
+	st.fx.ring(p, r * 0.55, Color(1.0, 0.9, 0.6), 0.22, 0.25)
+	st.fx.burst(p, 0.5, col, int(16 + 24 * age), 6.0 + 3.0 * age, 0.45, 2.0)
+	st.fx.flash_light(p, 0.8, col, 3.0 + 2.0 * age, r * 2.5, 0.35)
+	st.fx.shake(0.15 + 0.25 * age)
+	Audio.play_at("orb_burst", p, -1.0 + 3.0 * age, 1.15 - 0.25 * age)
+	st.strike_props_circle(p, r, pl, true)
+	for a in st.in_circle(pl.team, p, r):
+		var h := _hit(pl, dmg, ["fire"])
+		h.burn = 1 + int(2.0 * age)
+		h.knockback = (a.pos - p).normalized() * (5.0 + 5.0 * age)
+		h.from_dir = (a.pos - p).normalized()
+		h.poise = 20.0 + 30.0 * age
+		pl.deal_hit(a, h)
+	_ab = was
+	_power = wp
+	if Runes.has(pl, "orb", "echo") and not proj.get_meta("echoed", false):
+		var ghost := Projectile.new()
+		ghost.set_meta("born", float(proj.get_meta("born", st.elapsed)) + 1.2)
+		ghost.set_meta("power", float(proj.get_meta("power", 1.0)) * 0.5)
+		ghost.set_meta("ab", proj.get_meta("ab", "orb"))
+		ghost.set_meta("echoed", true)
+		st.after(0.5, func() -> void:
+			if is_instance_valid(pl):
+				_orb_burst(pl, ghost, p)
+			ghost.free())
+
+
+# --- Rimewall -----------------------------------------------------------------------
+
+## A wall of ice across the Kindled's aim: foes and their shots stop at it;
+## melted, it shatters on what stands beside it. Rune of Many: a longer wall;
+## of Echoes: it shatters twice; of the Well: foes near are dragged to its face.
+static func _rimewall(pl: Player, power: float) -> bool:
+	var d := GearDB.ability("rimewall")
+	var st := pl.stage
+	var c := pl.pos + (pl.aim_point - pl.pos).limit_length(5.0)
+	if st.grid.at(floori(c.x), floori(c.y)) != TileGrid.FLOOR:
+		c = st.random_floor_near(c, 1.5)
+	var across := pl.aim.orthogonal().normalized()
+	var n := int(d.length) + (2 if Runes.has(pl, "rimewall", "split") else 0)
+	var made := 0
+	var segs: Array = []
+	var taken := {}
+	for k in n:
+		var t := Vector2i(floori(c.x + across.x * (k - (n - 1) * 0.5)), floori(c.y + across.y * (k - (n - 1) * 0.5)))
+		if taken.has(t) or st.grid.at(t.x, t.y) != TileGrid.FLOOR:
+			continue
+		var blocked := false
+		for a in st.actors:
+			if a.alive and Vector2i(floori(a.pos.x), floori(a.pos.y)) == t:
+				blocked = true     # never wall anyone in
+				break
+		if blocked:
+			continue
+		taken[t] = true
+		var seg := Prop.make(st, "icewall", t, {})
+		segs.append(seg)
+		made += 1
+	if made == 0:
+		return false
+	st.fx.burst(c, 0.3, Color(0.75, 0.92, 1.0), 20, 4.0, 0.5, 4.0)
+	st.fx.flash_light(c, 0.8, Color(0.6, 0.85, 1.0), 2.5, 6.0, 0.3)
+	st.fx.shake(0.15)
+	Audio.play("icewall_rise", -1.0)
+	if Runes.has(pl, "rimewall", "gravity"):
+		for a in st.in_circle(pl.team, c, 3.5):
+			if a is Enemy and not (a as Enemy).def.get("boss", false):
+				var near := c + across * across.dot(a.pos - c)
+				a.push += (near - a.pos).normalized() * 6.0
+	var dur: float = float(d.duration) * power
+	var dmg: float = float(d.damage) * _power
+	var twice := Runes.has(pl, "rimewall", "echo")
+	var ab := _ab
+	st.after(dur, func() -> void:
+		_rimewall_shatter(pl, segs, dmg, ab)
+		if twice:
+			st.after(0.5, func() -> void: _rimewall_shatter(pl, segs, dmg * 0.6, ab, true)))
+	return true
+
+
+static func _rimewall_shatter(pl: Player, segs: Array, dmg: float, ab: String, ghost := false) -> void:
+	if segs.is_empty():
+		return
+	var st: Stage = null
+	var at: Array = []
+	for s in segs:
+		if is_instance_valid(s):
+			st = s.stage
+			at.append(s.pos)
+			if not ghost:
+				s.unsolid()
+				st.props.erase(s)
+				s.queue_free()
+	if st == null or not is_instance_valid(pl):
+		return
+	var was := _ab
+	_ab = ab
+	Audio.play_at("icewall_shatter", at[at.size() / 2] if not at.is_empty() else pl.pos, -1.0)
+	var hit := {}
+	for p: Vector2 in at:
+		st.fx.burst(p, 0.8, Color(0.8, 0.95, 1.0), 10, 5.0, 0.4, 6.0)
+		for a in st.in_circle(pl.team, p, 1.5):
+			if hit.has(a.get_instance_id()):
+				continue
+			hit[a.get_instance_id()] = true
+			var h := _hit(pl, dmg, ["frost"])
+			h.chill = 0.5
+			h.knockback = (a.pos - p).normalized() * 4.0
+			h.poise = 20.0
+			pl.deal_hit(a, h)
+	_ab = was
+
+
+# --- Hearthfire Form ----------------------------------------------------------------
+
+## The Kindled becomes hearth-fire for 7s (Player.hearthfire_t: faster, hits
+## burst in flame, cold cannot slow it, Kindle flows back); it ends in a nova.
+static func _hearthfire(pl: Player, power: float) -> bool:
+	var d := GearDB.ability("hearthfire")
+	var st := pl.stage
+	var dur: float = float(d.duration) * (1.0 if power >= 0.99 else 0.5)
+	pl.hearthfire_t = maxf(pl.hearthfire_t, dur)
+	pl.hearthfire_power = _power
+	pl.status.chill = 0.0
+	pl.status.snare_t = 0.0
+	var col := Color(1.0, 0.6, 0.25)
+	st.fx.ring(pl.pos, 2.2, col, 0.35, 0.35)
+	st.fx.burst(pl.pos, 0.4, col, 30, 5.0, 0.6, -1.0)
+	st.fx.flash_light(pl.pos, 1.0, col, 4.0, 7.0, 0.5)
+	Audio.play("hearthfire_on", -1.0)
+	return true
+
+
+## When the form ends: a nova of what was left of it.
+static func hearthfire_nova(pl: Player) -> void:
+	var st := pl.stage
+	var d := GearDB.ability("hearthfire")
+	var r := 3.0 * pl.stats.v("area")
+	var col := Color(1.0, 0.6, 0.25)
+	st.fx.ring(pl.pos, r, col, 0.35, 0.4)
+	st.fx.burst(pl.pos, 0.4, col, 28, 6.0, 0.45, 2.0)
+	st.fx.flash_light(pl.pos, 0.8, col, 3.0, 6.0, 0.4)
+	st.fx.shake(0.25)
+	Audio.play("hearthfire_end", -1.0)
+	var was := _ab
+	var wp := _power
+	_ab = "hearthfire"
+	_power = pl.hearthfire_power
+	for a in st.in_circle(pl.team, pl.pos, r):
+		var h := _hit(pl, float(d.damage) * 3.0, ["fire"])
+		h.burn = 2
+		h.knockback = (a.pos - pl.pos).normalized() * 8.0
+		h.poise = 30.0
+		pl.deal_hit(a, h)
+	_ab = was
+	_power = wp
+
+
+## A weapon hit in Hearthfire Form: a burst of flame where it landed.
+static func hearthfire_burst(pl: Player, t: Actor) -> void:
+	var st := pl.stage
+	var d := GearDB.ability("hearthfire")
+	st.fx.burst(t.pos, 0.6, Color(1.0, 0.6, 0.25), 8, 3.5, 0.3, 2.0)
+	var was := _ab
+	var wp := _power
+	_ab = "hearthfire"
+	_power = pl.hearthfire_power
+	for a in st.in_circle(pl.team, t.pos, 1.1):
+		var h := _hit(pl, float(d.damage), ["fire"])
+		h.burn = 1
+		h.proc = false
+		h.silent = a != t
+		h.knockback = Vector2.ZERO
+		pl.deal_hit(a, h)
+	_ab = was
+	_power = wp
+
+
+
+# --- Gloam Knives: lodged blades -------------------------------------------------------
+
+## A knife that strikes stays in the foe; the next melee blow on it (or 2.5s)
+## tears the lodged ones open at once.
+static func _knife_lodge(pl: Player, t: Actor, power: float, ab: String) -> void:
+	if not is_instance_valid(t) or not t.alive or not is_instance_valid(pl):
+		return
+	var n := mini(12, int(t.get_meta("knives_in", 0)) + 1)
+	t.set_meta("knives_in", n)
+	t.set_meta("knives_power", power)
+	t.set_meta("knives_ab", ab)
+	var stamp := pl.stage.elapsed
+	t.set_meta("knives_t", stamp)
+	pl.stage.fx.motes(t.pos, 1.2, Color(0.72, 0.5, 1.0), 1, 0.3, 0.8, 0.2)
+	var st := pl.stage
+	st.after(2.5, func() -> void:
+		if is_instance_valid(t) and is_instance_valid(pl) and float(t.get_meta("knives_t", -1.0)) == stamp:
+			knives_detonate(pl, t))
+
+
+static func knives_detonate(pl: Player, t: Actor) -> void:
+	var n := int(t.get_meta("knives_in", 0))
+	t.set_meta("knives_in", 0)
+	t.set_meta("knives_t", -1.0)
+	if n <= 0 or not t.alive or not is_instance_valid(pl):
+		return
+	var d := GearDB.ability("knives")
+	var was := _ab
+	var wp := _power
+	_ab = String(t.get_meta("knives_ab", "knives"))
+	_power = float(t.get_meta("knives_power", 1.0)) * Runes.damage_mult(pl, "knives")
+	var h := _hit(pl, float(d.damage) * 0.8 * n, ["shadow"])
+	h.proc = false
+	h.poise = 4.0 * n
+	h.from_dir = (t.pos - pl.pos).normalized()
+	pl.deal_hit(t, h)
+	_ab = was
+	_power = wp
+	var col := Color(0.72, 0.5, 1.0)
+	pl.stage.fx.burst(t.pos, 0.9, col, 6 + 3 * n, 3.0 + 0.4 * n, 0.3, 0.0)
+	pl.stage.fx.ring(t.pos, 0.5 + 0.12 * n, col, 0.2, 0.2)
+	Audio.play_at("gloam_tear", t.pos, -6.0 + 0.5 * n, 1.3)

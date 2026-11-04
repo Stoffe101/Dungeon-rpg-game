@@ -25,6 +25,8 @@ static func build(dir: String) -> void:
 	_icespear(dir)
 	_glyph(dir)
 	_bomblet(dir)
+	_cinder_orb(dir)
+	_icewall(dir)
 
 
 ## A drop of molten metal with a short glowing tail.
@@ -150,3 +152,44 @@ static func _bomblet(dir: String) -> void:
 		fr.append(c)
 	s.add("idle", fr, 10.0)
 	s.save(dir, "proj_bomblet")
+
+
+
+## Cinder Orb: a slow-turning ball of embers in a shell of smoke.
+static func _cinder_orb(dir: String) -> void:
+	var s := Sheet.new(14, 14, Vector2i(7, 7))
+	var fr: Array = []
+	for i in 4:
+		var c := Px.new(14, 14)
+		c.paint(c.mask().ellipse(7.0, 7.0, 6.0, 6.0), Pal.ASH, 1, true)
+		c.fill_lit(c.mask().ellipse(7.0, 7.0, 4.5, 4.5), Pal.EMBER[3])
+		c.fill_lit(c.mask().ellipse(6.5, 6.5, 2.6, 2.6), Pal.EMBER[4])
+		c.lit(6, 6, Pal.WHITE)
+		for k in 5:
+			var a := k * TAU / 5.0 + i * 0.4
+			c.lit(int(7.0 + cos(a) * 5.0), int(7.0 + sin(a) * 5.0), Pal.EMBER[4] if k % 2 else Pal.GOLD[4])
+		c.outline(Pal.INK)
+		fr.append(c)
+	s.add("idle", fr, 9.0)
+	s.save(dir, "proj_cinder_orb")
+
+
+## Rimewall: one block of a wall of ice - clear, cracked, frost at its foot.
+static func _icewall(dir: String) -> void:
+	var s := Sheet.new(18, 26, Vector2i(9, 24))
+	var fr: Array = []
+	for i in 2:
+		var c := Px.new(18, 26)
+		c.paint(c.mask().ellipse(9.0, 23.0, 8.5, 3.0), Pal.FROST, 2, true)
+		var block := c.mask().poly(V([[2, 23], [1, 8], [4, 2], [9, 0.5], [14, 2], [17, 7], [16, 23]]))
+		c.paint(block, Pal.FROST, 3, true)
+		c.fill_lit(c.mask().poly(V([[4, 20], [4, 8], [7, 4], [8, 18]])), Pal.FROST[4])
+		c.line(11, 4, 13, 12, Pal.FROST[1])
+		c.line(13, 12, 11, 19, Pal.FROST[1])
+		c.lit(5, 6 + i, Pal.WHITE)
+		c.lit(6, 12, Pal.FROST[5])
+		c.lit(12, 8 - i, Pal.FROST[5])
+		c.outline(Pal.FROST[0])
+		fr.append(c)
+	s.add("idle", fr, 2.0)
+	s.save(dir, "icewall")

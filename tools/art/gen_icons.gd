@@ -15,6 +15,7 @@ const NAMES := [
 	"ember", "xp", "flask", "dodge", "kindle", "lock", "eye", "hearth", "star", "key",
 	"daggers", "spear", "bow", "tome", "knives", "rush", "rekindle", "ricochet", "return", "momentum",
 	"hail", "spellblade", "lastlight", "bond", "splinter", "cuts", "fan", "retribution", "lanterns",
+	"beam", "orb", "icewall", "hearthfire",
 ]
 
 const REWARD_KEYS := ["relic", "embers", "vigor", "memory", "sunshard", "chest", "shrine", "merchant", "skull", "stairs", "boss"]
@@ -332,6 +333,36 @@ static func draw(n: String) -> Px:
 			c.line(6, 6, 13, 13, Pal.GOLD[3])
 			c.line(11, 13, 12, 12, Pal.GOLD[3])
 			c.put(5, 5, Pal.INK)
+		"beam":
+			# a beam of fire poured from a lantern, burning hotter at its end
+			c.paint(c.mask().ellipse(3.0, 12.0, 2.5, 3.0), Pal.STEEL, 2)
+			c.lit(3, 12, Pal.EMBER[4])
+			c.fill_lit(c.mask().poly(V([[4, 11], [15, 2], [15.5, 4.5], [5, 13]])), Pal.EMBER[3])
+			c.line(5, 11, 14, 3, Pal.EMBER[5])
+			c.lit(14, 3, Pal.WHITE)
+			c.lit(15, 2, Pal.GOLD[4])
+		"orb":
+			# a ball of embers, and the burst it is waiting to become
+			for k in 8:
+				var a := k * TAU / 8.0
+				c.lit(int(8.0 + cos(a) * 7.0), int(8.0 + sin(a) * 7.0), Pal.EMBER[3])
+			c.paint(c.mask().ellipse(8.0, 8.0, 4.6, 4.6), Pal.ASH, 1)
+			c.fill_lit(c.mask().ellipse(8.0, 8.0, 3.4, 3.4), Pal.EMBER[3])
+			c.fill_lit(c.mask().ellipse(7.5, 7.5, 1.8, 1.8), Pal.EMBER[4])
+			c.lit(7, 7, Pal.WHITE)
+		"icewall":
+			# three blocks of ice in a row
+			for k in 3:
+				var x0 := 1 + k * 5
+				c.paint(c.mask().poly(V([[x0, 14], [x0, 6 - (k % 2) * 2], [x0 + 2, 3 - (k % 2) * 2], [x0 + 4, 5], [x0 + 4.6, 14]])), Pal.FROST, 3, true)
+				c.lit(x0 + 1, 7, Pal.WHITE)
+			c.line(0, 15, 15, 15, Pal.FROST[2])
+		"hearthfire":
+			# a figure of flame
+			_flame(c, 8.0, 15.0, 5.5, 14.0, Pal.EMBER)
+			c.fill(c.mask().ellipse(8.0, 6.0, 1.8, 1.8), Pal.INK)
+			c.lit(7, 6, Pal.GOLD[4])
+			c.lit(9, 6, Pal.GOLD[4])
 		"knives":
 			# three spectral blades fanned out from one point
 			for k in 3:
