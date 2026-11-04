@@ -67,6 +67,8 @@ func _run() -> void:
 			await facing()
 		"landmark":
 			await landmark()
+		"spells":
+			await spells()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -610,6 +612,75 @@ func landmark() -> void:
 	if role == "host":
 		Net.i.dev_shot("landmark/%s_answered" % lid)
 	await wait(2.5)
+
+
+## The new spells and weapon forms in a party (DEVNET=1 with XARGS=build=wall
+## or build=pyreblade): the first guest casts on its own keys and every
+## machine checks what it sees - a Rimewall's ice (and its pillar tiles), its
+## melting; Hearthfire Form's glow on that Kindled; the Emberforge Mallet's
+## heat (the host's) on the guest's own gauge.
+func spells() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending, 90.0, "below together")
+	await wait(1.0)
+	_strip_bot()
+	var d := dun()
+	var me := Net.my_id() == _first_guest()
+	var guest: Player = null
+	for p in d.players:
+		if p.peer_id == _first_guest():
+			guest = p
+	expect(guest != null, "the first guest's Kindled is here")
+	if guest == null:
+		return
+	var slots: Array = d.player.ability_slots
+	_park_pointer(Vector2(1, 0))
+	# a floor starts with no Kindle: the host (whose word it is) fills everyone's
+	if role == "host":
+		for p in d.players:
+			p.kindle = p.kindle_max()
+	await until(func() -> bool: return d.player.kindle >= 50.0, 6.0, "Kindle to cast with")
+	if slots.has("rimewall"):
+		if me:
+			tap("ability_%d" % (slots.find("rimewall") + 1))
+		await until(func() -> bool: return _ice(d).size() >= 3, 6.0, "a guest's Rimewall rises on this screen")
+		var walls := _ice(d)
+		if not walls.is_empty():
+			var t: Vector2i = walls[0].tile
+			expect(d.grid.at(t.x, t.y) == TileGrid.PILLAR, "its tiles stop foes and shots here too")
+		if role == "host":
+			Net.i.dev_shot("spells/rimewall")
+		await until(func() -> bool: return _ice(d).is_empty(), 9.0, "and it melts on this screen")
+		if not walls.is_empty() and is_instance_valid(d):
+			pass
+	if slots.has("hearthfire"):
+		if role == "host":
+			for p in d.players:
+				p.kindle = p.kindle_max()
+		await wait(0.5)
+		if me:
+			tap("ability_%d" % (slots.find("hearthfire") + 1))
+		await until(func() -> bool: return guest.hearthfire_t > 0.0, 5.0, "the guest is hearth-fire on this screen")
+		await wait(0.3)
+		expect(guest.sprite.highlight.a > 0.15, "and burns there (glow %.2f)" % guest.sprite.highlight.a)
+		if role == "host":
+			Net.i.dev_shot("spells/hearthfire")
+		# the Mallet's heat (dealt by the host) reaches the guest's own gauge
+		if me and d.player.weapon and d.player.weapon.form == "forge":
+			var foes: Array = d.hostiles(d.player.team).filter(func(a): return a is Enemy and a.alive)
+			if not foes.is_empty():
+				var f: Actor = foes[0]
+				await walk_to(f.pos + Vector2(-1.2, 0), 0.6, 6.0)
+				release_all()
+				for k in 4:
+					Dev.mouse = get_viewport().get_visible_rect().size * 0.5 + Vector2(120, 0)
+					tap("attack")
+					await wait(0.7)
+				await until(func() -> bool: return d.player.form_meter > 0.05, 4.0, "the host's heat shows on my gauge (%.2f)" % d.player.form_meter)
+	await wait(1.0)
+
+
+func _ice(d: Dungeon) -> Array:
+	return d.props.filter(func(p): return is_instance_valid(p) and p.kind == "icewall")
 
 
 ## Every machine walks its own way (host left, guests right) for two seconds;
