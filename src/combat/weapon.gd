@@ -27,11 +27,15 @@ var swing := 0.0          # current swing offset (radians, screen space)
 var visual: MeshInstance3D
 var hit_ids := {}
 var _charge_fx_t := 0.0
+var _base_glow := 1.0
 var _hit_flash := 0.0     # the blade glints when it connects
 ## Co-op client, this machine's Kindled: the weapon keeps its timing and its
 ## picture (so a swing starts the moment it is asked for) but deals nothing;
 ## the host deals the blows.
 var predicting := false
+## The weapon item's form (ItemDB base "form"): how this variant plays - its
+## own strikes, charged attack or stance (each archetype script reads it).
+var form := ""
 
 
 func setup(p: Player, weapon_id: String, lvl: int) -> void:
@@ -54,6 +58,8 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 		if b.has("tint"):
 			visual.set_instance_shader_parameter("tint", b.tint)
 		glow = maxf(glow, float(b.get("glow", 1.0)))
+		form = String(b.get("form", ""))
+	_base_glow = glow
 	visual.set_instance_shader_parameter("glow_mult", glow)
 
 
@@ -194,6 +200,29 @@ func max_combo() -> int:
 	return 1
 
 
+## A perfect dodge or a Ward (a form may answer: the Sabre's riposte).
+func on_evade() -> void:
+	pass
+
+
+## A stance weapon's guard (the Duelist's Sabre, the Warden's Partisan): true
+## when it takes the blow instead of the Kindled (Player._take_enemy_hit).
+func guard_hit(_h: Hit, _attacker: Node) -> bool:
+	return false
+
+
+## A shot this weapon looses (forms' own projectiles): the player's team, its
+## source, damage scaled by the forge and the item.
+func shoot(sheet: String, from: Vector2, dir: Vector2, spd: float, dmg: float, tags: Array, life: float) -> Projectile:
+	var pr := Projectile.create(player.stage, sheet, from, dir * spd, player.team)
+	pr.source = player
+	pr.damage = dmg * damage_scale()
+	pr.tags = tags
+	pr.life = life
+	pr.reflectable = false
+	return pr
+
+
 func _set_phase(p: int, length: float) -> void:
 	phase = p
 	phase_t = 0.0
@@ -321,6 +350,9 @@ func line_hit(from: Vector2, to: Vector2, width: float, dmg: float, tags: Array,
 		h.forced_crit = opts.get("crit", false)
 		if opts.get("unblockable", false):
 			h.unblockable = true
+		if opts.has("each"):
+			# a form's touch on each foe struck (marks, roots, executions)
+			(opts.each as Callable).call(a, h)
 		player.deal_hit(a, h, opts.get("finisher", false))
 		n += 1
 	return n
@@ -343,6 +375,9 @@ func arc_hit(origin: Vector2, dir: Vector2, rng: float, half_angle: float, dmg: 
 		h.forced_crit = opts.get("crit", false)
 		if opts.get("unblockable", false):
 			h.unblockable = true
+		if opts.has("each"):
+			# a form's touch on each foe struck (marks, roots, executions)
+			(opts.each as Callable).call(a, h)
 		player.deal_hit(a, h, opts.get("finisher", false))
 		n += 1
 	return n

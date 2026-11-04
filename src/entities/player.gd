@@ -97,6 +97,7 @@ var shelter_t := 0.0          # in a Hearth Lantern's light: Kindle and less dam
 var spellblade_n := 0         # Spellblade: weapon hits charged by the last spell
 var spellblade_el := "fire"
 var momentum := 0             # Momentum: hits in quick succession (0-8)
+var form_meter := 0.0         # the weapon form's gauge, 0..1 (heat, nocked arrows, glyphs; host's for guests)
 var _momentum_t := 0.0
 var cuts := 0                 # Thousand Cuts: hits in a row
 var retribution := 0.0        # Retribution: damage held for the next Ward
@@ -1415,6 +1416,9 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if ward_t > 0.0 and not h.has_tag("dot") and not h.unblockable:
 		_on_ward(attacker, false)
 		return empty
+	# a stance weapon (the Sabre's En Garde, the Partisan's line) takes it
+	if weapon and not h.has_tag("dot") and weapon.guard_hit(h, attacker):
+		return empty
 	if not h.has_tag("dot") and not h.unblockable and stage.players.size() > 1:
 		for ally in stage.players_near(pos, 4.0):
 			if ally != self and ally.ward_t > 0.0 and ally.stats.has("bastion"):
@@ -1573,6 +1577,8 @@ func _moth(dt: float) -> void:
 
 func _perfect_dodge() -> void:
 	perfect_done = true
+	if weapon:
+		weapon.on_evade()
 	stage.slow_motion(0.3, 0.35)
 	Settings.rumble(0.6, 0.0, 0.12)
 	stage.fx.ring(pos, 1.8, Color(1.0, 0.9, 0.6), 0.3, 0.15)
@@ -1595,6 +1601,8 @@ func _perfect_dodge() -> void:
 
 
 func _on_ward(attacker: Node, projectile: bool) -> void:
+	if weapon:
+		weapon.on_evade()
 	if stats.has("retribution") and retribution > 1.0:
 		_retribute()
 	ward_t = 0.0

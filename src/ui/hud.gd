@@ -443,6 +443,16 @@ func _show_tip(text: String, at: Control) -> void:
 	tooltip.position = at.global_position + Vector2(0, -tooltip.size.y - 4)
 
 
+## Weapon forms with a gauge: [label, colour] (Player.form_meter, 0..1).
+const FORM_GAUGES := {
+	"forge": ["HEAT", Color(1.0, 0.45, 0.18)],
+	"volley": ["NOCKED", Color(1.0, 0.85, 0.5)],
+	"echo": ["GLYPHS", Color(0.6, 1.0, 0.92)],
+	"kris": ["MARKS", Color(0.75, 0.5, 1.0)],
+	"duelist": ["RIPOSTE", Color(1.0, 0.95, 0.7)],
+}
+
+
 func _draw() -> void:
 	var st: Stage = Game.stage
 	if st == null or st.player == null:
@@ -489,6 +499,20 @@ func _draw() -> void:
 	var kc := Color(1.0, 0.6, 0.25) if kr < 0.999 else Color(1.0, 0.85, 0.45)
 	draw_rect(Rect2(x0 + 1, ky + 1, roundf(w * 0.8 * kr), 4), kc)
 	draw_rect(Rect2(x0 + 1, ky + 1, roundf(w * 0.8 * kr), 1), Color(1.0, 0.9, 0.6))
+	# --- the weapon form's gauge (heat, nocked arrows, glyphs, marks, a riposte) ---
+	var form := pl.weapon.form if pl.weapon else ""
+	if FORM_GAUGES.has(form):
+		var g: Array = FORM_GAUGES[form]
+		var gy := ky + 8
+		var gw := w * 0.8
+		var fr := clampf(pl.form_meter, 0.0, 1.0)
+		var gc: Color = g[1]
+		if fr >= 0.999:
+			gc = gc.lightened(0.25 + 0.2 * sin(Time.get_ticks_msec() / 90.0))
+		_frame(Rect2(x0, gy, gw + 2, 4))
+		draw_rect(Rect2(x0 + 1, gy + 1, gw, 2), Color(0.08, 0.06, 0.08))
+		draw_rect(Rect2(x0 + 1, gy + 1, roundf(gw * fr), 2), gc)
+		draw_string(UIKit.FONT_OUTLINE, Vector2(x0 + gw + 6, gy + 5), String(g[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 8, gc if fr > 0.01 else UIKit.C_DIM)
 	# --- dodge pips ---
 	var maxc := int(pl.stats.v("dodge_charges"))
 	for i in maxc:

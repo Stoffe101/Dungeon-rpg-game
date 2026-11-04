@@ -39,6 +39,12 @@ func _dump_area() -> void:
 		print("[bot] ", line)
 
 
+## Dev (`botcharge`): every third attack is held for a charged attack or a
+## stance (to see and test the weapon forms' held moves).
+var _hold_t := -1.0
+var _attacks := 0
+
+
 func _ready() -> void:
 	pl = get_parent() as Player
 	pl.autopilot = true
@@ -121,7 +127,7 @@ func _pick_target() -> Actor:
 	return best
 
 
-func _fight(t: Actor, _delta: float) -> void:
+func _fight(t: Actor, delta: float) -> void:
 	var st := pl.stage
 	var d := t.pos.distance_to(pl.pos)
 	pl.aim_point = t.pos
@@ -137,9 +143,22 @@ func _fight(t: Actor, _delta: float) -> void:
 		pl.move_in = to.orthogonal() * _strafe * 0.4
 		if randf() < 0.01:
 			_strafe = -_strafe
-	if d < want + 0.6:
+	if _hold_t >= 0.0:
+		# holding: keep aiming at it until the hold is done
+		_hold_t -= delta
+		pl.aim = to
+		pl.aim_point = t.pos
+		if _hold_t < 0.0:
+			pl._attack_down = false
+			pl._release_pending = true
+	elif d < want + 0.6:
+		_attacks += 1
 		pl.press("attack")
-		pl._release_pending = true
+		if "botcharge" in Dev.args() and _attacks % 3 == 0:
+			pl._attack_down = true
+			_hold_t = 1.35
+		else:
+			pl._release_pending = true
 	# dodge threats: enemies winding up close by, or projectiles inbound
 	if _dodge_cd <= 0.0:
 		for a in st.hostiles(pl.team):

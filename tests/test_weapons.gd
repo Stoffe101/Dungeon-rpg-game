@@ -32,10 +32,10 @@ func test_equipping_a_weapon_item() -> void:
 	check(Profile.equip(int(it.uid)), "a found bow can be wielded")
 	eq(Profile.equipped_weapon(), "bow", "wielding it takes up its archetype")
 	check(Profile.weapon_unlocked("bow"), "and teaches it")
-	# its stats are the Kindled's: one more arrow with every shot
+	# it plays its own way (a volley of nocked arrows), and its stats are the Kindled's
 	var st := Stats.for_player()
 	Profile.apply_gear(st)
-	eq(int(round(st.v("projectiles"))), 1, "Splitwood Bow: +1 projectile")
+	eq(String(ItemDB.base("splitwood_bow").get("form", "")), "volley", "Splitwood Bow: the volley form")
 	check(st.v("weapon_damage") < 1.0, "and its arrows are lighter (%.2f)" % st.v("weapon_damage"))
 	# taking up another archetype at the forge puts the bow back in the bag
 	Profile.choose_weapon("sword")
@@ -57,16 +57,16 @@ func test_weapon_might_and_forge_together() -> void:
 	var w := Weapon.new()
 	w.player = pl
 	w.level = 0
-	near(w.damage_scale(), 1.14, 0.001, "a Gravecleaver hits 14% harder")
+	near(w.damage_scale(), 1.08, 0.001, "a Gravecleaver hits 8% harder")
 	w.level = 5
-	near(w.damage_scale(), (1.0 + 5 * GearDB.FORGE_DAMAGE_PER_LEVEL) * 1.14, 0.001, "and the forge's +5 still counts")
+	near(w.damage_scale(), (1.0 + 5 * GearDB.FORGE_DAMAGE_PER_LEVEL) * 1.08, 0.001, "and the forge's +5 still counts")
 	pl.free()
 
 
 func test_whole_number_stats_stay_whole() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
-	var it := ItemDB.make_item("long_rimebow", "common", 5, rng, 6)
+	var it := ItemDB.make_item("windreturn", "common", 5, rng, 6)
 	var pierce := 0.0
 	for m in ItemDB.mods_of(it):
 		if m[0] == "pierce":
