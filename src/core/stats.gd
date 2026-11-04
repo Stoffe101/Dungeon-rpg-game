@@ -15,6 +15,7 @@ const PLAYER_BASE := {
 	"crit_chance": 0.05,
 	"crit_mult": 1.75,
 	"attack_speed": 1.0,
+	"weapon_damage": 1.0,      # the weapon item's own might (Weapon.damage_scale)
 	"dodge_charges": 2.0,
 	"dodge_recharge": 1.1,
 	"dodge_distance": 3.4,

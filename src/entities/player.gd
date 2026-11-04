@@ -263,6 +263,14 @@ func _sync_paperdoll() -> void:
 				l.set_instance_shader_parameter(k, v)
 
 
+## The weapon item this Kindled wields ({} for a plain archetype); another
+## Kindled's comes from their character sheet.
+func weapon_item() -> Dictionary:
+	var eq: Variant = sheet.get("equipped", {}) if not sheet.is_empty() else Profile.equipped()
+	var it: Variant = (eq as Dictionary).get("weapon") if eq is Dictionary else null
+	return it if it is Dictionary else {}
+
+
 func set_weapon(id: String, level: int) -> void:
 	if weapon:
 		weapon.free_visual()
@@ -1106,6 +1114,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		_crit_chain(t, res.amount * 0.5)
 	if direct and h.proc and (stats.has("momentum") or stats.has("thousand_cuts")):
 		_flow(t, finisher)
+	if res.crit and direct and h.proc and stats.has("crit_knives"):
+		spectral_knife(t)     # Gloamfang
 	_unique_on_hit(t, h, res, direct)
 	if h.proc and stats.has("thermal_shock"):
 		if (h.has_tag("fire") and was_chilled) or (h.has_tag("frost") and was_burning):
@@ -1152,32 +1162,40 @@ func _flow(t: Actor, finisher: bool) -> void:
 	_momentum_t = 1.5
 	cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
-		var other: Actor = null
-		var bd := 7.0
-		for a in stage.hostiles(team):
-			if a != t and a.targetable and a.pos.distance_to(pos) < bd and stage.grid.line_clear(pos, a.pos):
-				bd = a.pos.distance_to(pos)
-				other = a
-		var to := other if other else t
-		var dmg: float = 6.0 + 0.35 * (float(weapon.def.damage[0]) if weapon else 10.0)
-		var me := self
-		Volley.fire(self, "proj_knife", pos, (to.pos - pos).normalized(), 24.0, 1, func(pr: Projectile, _d: Vector2) -> void:
-			pr.damage = dmg
-			pr.tags = ["melee", "shadow"]
-			pr.life = 0.4
-			pr.height = 0.7
-			pr.spin = true
-			pr.reflectable = false
-			pr.trail_color = Color(0.72, 0.5, 1.0)
-			pr.trail_rate = 24.0
-			pr.make_hit_fn = func(proj: Projectile, _x: Actor) -> Hit:
-				var hh := Combat.player_hit(me, me.stats, proj.damage, proj.tags.duplicate())
-				hh.proc = false
-				hh.from_dir = proj.vel.normalized()
-				return hh)
+		spectral_knife(t)
 	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
 		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
 		_combo_wave_at(aim)
+
+
+## A spectral knife at another foe near `t` (or `t` itself): Thousand Cuts,
+## Gloamfang. It cannot set off more knives.
+func spectral_knife(t: Actor) -> void:
+	var other: Actor = null
+	var bd := 7.0
+	for a in stage.hostiles(team):
+		if a != t and a.targetable and a.pos.distance_to(pos) < bd and stage.grid.line_clear(pos, a.pos):
+			bd = a.pos.distance_to(pos)
+			other = a
+	var to := other if other else t
+	if to == null or not is_instance_valid(to):
+		return
+	var dmg: float = (6.0 + 0.35 * (float(weapon.def.damage[0]) if weapon else 10.0)) * (weapon.damage_scale() if weapon else 1.0)
+	var me := self
+	Volley.fire(self, "proj_knife", pos, (to.pos - pos).normalized(), 24.0, 1, func(pr: Projectile, _d: Vector2) -> void:
+		pr.damage = dmg
+		pr.tags = ["melee", "shadow"]
+		pr.life = 0.4
+		pr.height = 0.7
+		pr.spin = true
+		pr.reflectable = false
+		pr.trail_color = Color(0.72, 0.5, 1.0)
+		pr.trail_rate = 24.0
+		pr.make_hit_fn = func(proj: Projectile, _x: Actor) -> Hit:
+			var hh := Combat.player_hit(me, me.stats, proj.damage, proj.tags.duplicate())
+			hh.proc = false
+			hh.from_dir = proj.vel.normalized()
+			return hh)
 
 
 ## A cutting wave of embers along `dir` (Momentum at its peak).

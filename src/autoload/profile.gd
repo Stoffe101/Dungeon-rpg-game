@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 10
+const VERSION := 11
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -238,6 +238,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("settled_runs"):
 			out["settled_runs"] = []
 		v = 10
+	if v < 11:
+		# v11: a third spell slot; weapons are items (inventory.equipped.weapon,
+		# absent until one is found - the forge's archetype stays as it was)
+		if out.get("equipped") is Dictionary:
+			var sl: Array = (out.equipped as Dictionary).get("slots", ["flare", ""])
+			while sl.size() < 3:
+				sl.append("")
+			out.equipped["slots"] = sl
+		v = 11
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -453,9 +462,29 @@ func forge_cost(id: String) -> Dictionary:
 	return cost
 
 
+## The archetype the Kindled fights with: the weapon item's, else the one
+## taken up at the forge.
 func equipped_weapon() -> String:
+	var arm := ItemDB.arch_of(weapon_item())
+	if arm != "":
+		return arm
 	var w: String = data.equipped.get("weapon", "sword")
 	return w if weapon_unlocked(w) else "sword"
+
+
+func weapon_item() -> Dictionary:
+	var it: Variant = equipped().get("weapon")
+	return it if it is Dictionary else {}
+
+
+## Takes up an archetype at the forge; a weapon item of another archetype goes
+## back in the bag.
+func choose_weapon(id: String) -> void:
+	data.equipped.weapon = id
+	var arm := ItemDB.arch_of(weapon_item())
+	if arm != "" and arm != id:
+		unequip("weapon")
+	_changed()
 
 
 func slots() -> Array:
@@ -802,6 +831,11 @@ func equip(uid: int) -> bool:
 	if old is Dictionary and not (old as Dictionary).is_empty():
 		bag().append(old)
 	equipped()[slot] = it
+	var arch := ItemDB.arch_of(it)
+	if arch != "":
+		# a found weapon teaches its archetype: wield it at once
+		unlock_weapon(arch)
+		data.equipped.weapon = arch
 	_changed()
 	return true
 

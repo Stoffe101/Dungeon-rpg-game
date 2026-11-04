@@ -799,7 +799,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 		detail.add_child(row)
 		if unlocked:
 			var e := UIKit.button("Equip", func() -> void:
-				Profile.data.equipped.weapon = id
+				Profile.choose_weapon(id)
 				Profile.save_profile()
 				if Game.stage and Game.stage.player:
 					Game.stage.player.set_weapon(id, Profile.weapon_level(id))

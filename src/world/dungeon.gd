@@ -11,6 +11,7 @@ const REWARD_ICONS := {
 	"boss": "boss", "rest": "vigor", "secret": "chest",
 }
 
+var _favour := ""     # whose archetype a gear roll is for (weapon finds lean to it)
 var layout: DungeonGen.Layout
 var run: RunState
 var region: Dictionary
@@ -1046,7 +1047,7 @@ func _drop_loot(e: Enemy) -> void:
 		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
-			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier))
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier, _favour))
 	if e == boss:
 		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
 		_rune_drop(e.pos)
@@ -1054,21 +1055,33 @@ func _drop_loot(e: Enemy) -> void:
 		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
 		var leg: String = {"rootmire": "bloom_crown", "throne": "sunfall_mantle"}.get(layout.region, "gloamward_lantern")
 		var flag := "legendary_" + leg
-		if not Profile.data.flags.get(flag, false) or rng.randf() < 0.35:
+		var had_first := bool(Profile.data.flags.get(flag, false))
+		if not had_first or rng.randf() < 0.35:
 			Profile.data.flags[flag] = true
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(leg, "legendary", 1, rng, run.tier))
-		_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier))
+		# its legendary weapon: sure the first time it is due (the second
+		# victory), then now and then
+		var wleg: String = ItemDB.BOSS_WEAPONS.get(layout.region, "")
+		if wleg != "":
+			var wflag := "legendary_" + wleg
+			if (had_first and not Profile.data.flags.get(wflag, false)) or rng.randf() < 0.2:
+				Profile.data.flags[wflag] = true
+				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(wleg, "legendary", 1, rng, run.tier))
+		_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier, _favour))
 		if run.tier >= 2:
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_set_piece(rng, layout.depth, run.tier))
 
 
 ## A gear drop. Co-op: one roll for each Kindled, visible to and taken by its
-## owner only (nobody walks off with a friend's find).
+## owner only (nobody walks off with a friend's find). Weapon finds lean
+## toward the archetype the finder fights with (`_favour`).
 func _gear_drop(p: Vector2, roll: Callable) -> void:
 	if players.size() <= 1:
+		_favour = player.weapon.id if player and player.weapon else ""
 		Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
 		return
 	for pl in players:
+		_favour = pl.weapon.id if pl.weapon else ""
 		var pk := Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
 		pk.owner_peer = pl.peer_id
 
@@ -1109,11 +1122,11 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
 	var lucky := player != null and player.stats.has("lucky")
 	if rng.randf() < 0.25 + 0.25 * tier:
-		_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier))
+		_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier, _favour))
 	if lucky:
 		# the Four-Leaf Ring: one more treasure, every time
 		if rng.randf() < 0.5:
-			_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier))
+			_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier, _favour))
 		else:
 			Pickup.spawn(self, "material", prop.pos, 2, {"id": "ember_core"})
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
@@ -1195,7 +1208,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			Pickup.spawn(self, "sunshard", e.pos, 1)
 			if int(e.get_meta("grudge_level", 1)) >= 2:
 				# what it hoarded while it grew
-				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier))
+				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier, _favour))
 			run.grudges_settled.append(g.get("name", "?"))
 			Events.banner.emit("Grudge Settled", "%s returns to the dust." % g.get("name", "It"))
 		if e == boss:
@@ -1398,7 +1411,7 @@ func _light_sconce(prop: Prop) -> void:
 				if is_instance_valid(p) and not p.used:
 					p.interact(player)
 					# the reliquary keeps something better than a chest
-					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier))
+					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier, _favour))
 					Pickup.spawn(self, "sunshard", p.pos, 1)
 					_rune_drop(p.pos))
 	if OS.is_debug_build():
@@ -1428,7 +1441,7 @@ func _rekindle_camp(prop: Prop) -> void:
 	Audio.play("ignite", -2.0, 0.8)
 	Audio.play("flask", -4.0, 0.9)
 	if rng.randf() < 0.55:
-		_gear_drop(prop.pos + Vector2(1.6, -0.4), func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier))
+		_gear_drop(prop.pos + Vector2(1.6, -0.4), func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier, _favour))
 	else:
 		for i in 6:
 			Pickup.spawn(self, "ember", prop.pos + Vector2(1.6, -0.4), 4 + layout.depth * 2)

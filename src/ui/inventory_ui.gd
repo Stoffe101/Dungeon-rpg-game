@@ -291,8 +291,8 @@ func _doll_panel() -> PanelContainer:
 	var eq := Profile.equipped()
 	for slot in DOLL:
 		var b: Button
-		if slot == "weapon":
-			b = _weapon_button()
+		if slot == "weapon" and Profile.weapon_item().is_empty():
+			b = _weapon_button()     # the plain archetype from the forge
 		else:
 			var it: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
 			b = GearUI.slot_button(it, 26, _empty_icon(slot))
@@ -314,7 +314,7 @@ func _doll_panel() -> PanelContainer:
 
 
 func _empty_icon(slot: String) -> String:
-	return {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem"}.get(slot, "bag")
+	return {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem", "weapon": "wpn_sword"}.get(slot, "bag")
 
 
 func _weapon_button() -> Button:

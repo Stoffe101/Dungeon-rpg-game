@@ -50,6 +50,10 @@ static func shape(pr: Projectile, pl: Player, group: Dictionary) -> void:
 		pr.tags.append("projectile")
 	if st.has("ember_hail"):
 		pr.damage *= 0.75
+	if st.has("seeking") and pr.homing_target == null and pl.stage:
+		# Wand of a Hundred Embers: it bends toward the nearest foe ahead
+		pr.homing_target = pl.stage.nearest_hostile(pl.team, pr.pos + pr.vel.normalized() * 3.0, 9.0, true)
+		pr.homing_turn = 5.0
 
 
 ## One shot of a volley, configured by the caller's `setup` (sheet, speed,

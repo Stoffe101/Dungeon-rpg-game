@@ -5,13 +5,22 @@
 ##
 ## Item instance: {uid, base, rarity, level (1-5, tempering), tier (difficulty it
 ## dropped at), affixes: [[stat, op, v]]}
+## Weapons are items too (slot "weapon"): each base is a variant of an
+## archetype (`arch`: its moves, src/combat/weapons/<arch>.gd) with its own
+## identity stats. The forge's levels for that archetype (+10, Temper,
+## Masterwork, Ascend) apply to every variant; the item's own level is tempered
+## at the smithy like any gear.
 ## Base kinds: plain bases (craftable), set pieces (drop at Tier II+; bonuses at
 ## 2 and 4 pieces), uniques (learned from blueprints, with special mechanics),
 ## and boss legendaries.
 class_name ItemDB
 extends RefCounted
 
-const SLOTS := ["head", "chest", "hands", "feet", "ring", "charm"]
+const SLOTS := ["head", "chest", "hands", "feet", "ring", "charm", "weapon"]
+## Stats that count whole things (charges, projectiles): never scaled by level or tier.
+const INTEGRAL := ["dodge_charges", "flask_charges", "projectiles", "pierce", "chain", "fork"]
+## Archetypes that loose projectiles with their attacks.
+const RANGED := ["staff", "bow", "tome"]
 const SLOT_NAMES := {"head": "Head", "chest": "Chest", "hands": "Hands", "feet": "Feet", "ring": "Ring", "charm": "Charm", "weapon": "Weapon"}
 const MAX_LEVEL := 5
 const MAX_TIER := 8
@@ -275,7 +284,123 @@ const BASES := {
 	"sunfall_mantle": {"name": "Sunfall Mantle", "slot": "chest", "icon": "sunfall_mantle", "legendary": true, "look": "sunfall",
 		"mods": [["damage", "add", 0.15], ["ability_cost", "more", -0.15], ["kindle_max", "add", 20.0]],
 		"desc": "The Ashen King's mantle, woven from the last light of the sun.", "salvage": {"eclipse_shard": 1}},
+
+	# ================= weapons: variants of each archetype =================
+	# the first of each archetype is its plain form; the others trade for an identity
+	"hearthblade": {"name": "Hearthblade", "slot": "weapon", "arch": "sword", "icon": "wpn_sword", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"grave_iron": 4, "bone_dust": 2, "embers": 60}},
+	"gravecleaver": {"name": "Gravecleaver", "slot": "weapon", "arch": "sword", "icon": "wpn_cleaver", "tint": Color(0.78, 0.82, 0.92),
+		"mods": [["weapon_damage", "add", 0.14], ["poise_damage", "add", 0.3], ["attack_speed", "add", -0.1]],
+		"desc": "Heavy and slow: every cut staggers.", "recipe": {"grave_iron": 8, "bone_dust": 4, "embers": 120}},
+	"duelist_sabre": {"name": "Duelist's Sabre", "slot": "weapon", "arch": "sword", "icon": "wpn_sabre", "tint": Color(1.0, 0.92, 0.7),
+		"mods": [["attack_speed", "add", 0.12], ["crit_chance", "add", 0.05]],
+		"desc": "Light and quick; it finds the gaps.", "recipe": {"grave_iron": 5, "spore_silk": 3, "embers": 120}},
+	"cinderhammer": {"name": "Cinderhammer", "slot": "weapon", "arch": "hammer", "icon": "wpn_hammer", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"grave_iron": 6, "embers": 80}},
+	"tombmaul": {"name": "Tombmaul", "slot": "weapon", "arch": "hammer", "icon": "wpn_maul", "tint": Color(0.82, 0.8, 0.76),
+		"mods": [["weapon_damage", "add", 0.12], ["poise_damage", "add", 0.5], ["armor", "add", 0.04], ["attack_speed", "add", -0.08]],
+		"desc": "A grave-lid on a haft. Nothing stays standing.", "recipe": {"grave_iron": 8, "bone_dust": 6, "embers": 140}},
+	"emberforge_mallet": {"name": "Emberforge Mallet", "slot": "weapon", "arch": "hammer", "icon": "wpn_mallet", "tint": Color(1.0, 0.82, 0.55),
+		"mods": [["fire_damage", "add", 0.15], ["burn_chance", "add", 0.15]],
+		"desc": "Still hot from the Hearth's anvil.", "recipe": {"grave_iron": 6, "rootwood": 4, "ember_core": 1, "embers": 160}},
+	"ashwood_staff": {"name": "Ashwood Staff", "slot": "weapon", "arch": "staff", "icon": "wpn_staff", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"rootwood": 3, "bone_dust": 3, "embers": 60}},
+	"rimewood_staff": {"name": "Rimewood Staff", "slot": "weapon", "arch": "staff", "icon": "wpn_rimestaff", "tint": Color(0.7, 0.88, 1.0),
+		"mods": [["frost_damage", "add", 0.18], ["chill_chance", "add", 0.2]],
+		"desc": "Its bolts burn cold.", "recipe": {"rootwood": 4, "soul_glass": 4, "embers": 140}},
+	"splitbranch_staff": {"name": "Splitbranch Staff", "slot": "weapon", "arch": "staff", "icon": "wpn_splitstaff", "tint": Color(1.0, 0.9, 0.6),
+		"mods": [["projectiles", "add", 1.0], ["weapon_damage", "add", -0.12]],
+		"desc": "Forked at the head: everything it looses comes in pairs.", "recipe": {"rootwood": 6, "spore_silk": 3, "embers": 160}},
+	"twin_fangs": {"name": "Twin Fangs", "slot": "weapon", "arch": "daggers", "icon": "wpn_daggers", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"grave_iron": 3, "soul_glass": 2, "embers": 80}},
+	"gloam_kris": {"name": "Gloam Kris", "slot": "weapon", "arch": "daggers", "icon": "wpn_kris", "tint": Color(0.85, 0.65, 1.0),
+		"mods": [["crit_mult", "add", 0.3], ["dodge_recharge", "more", -0.08]],
+		"desc": "Wavy blades that drink the light.", "recipe": {"soul_glass": 5, "spore_silk": 3, "embers": 150}},
+	"ember_shivs": {"name": "Ember Shivs", "slot": "weapon", "arch": "daggers", "icon": "wpn_shivs", "tint": Color(1.0, 0.75, 0.55),
+		"mods": [["burn_chance", "add", 0.15], ["attack_speed", "add", 0.06]],
+		"desc": "Little knives that leave little fires.", "recipe": {"grave_iron": 4, "ember_core": 1, "embers": 140}},
+	"sunpiercer": {"name": "Sunpiercer", "slot": "weapon", "arch": "spear", "icon": "wpn_spear", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"grave_iron": 4, "rootwood": 2, "embers": 80}},
+	"rootspear": {"name": "Rootspear", "slot": "weapon", "arch": "spear", "icon": "wpn_rootspear", "tint": Color(0.85, 1.0, 0.75),
+		"mods": [["weapon_damage", "add", 0.05], ["poise_damage", "add", 0.3], ["max_hp", "add", 12.0]],
+		"desc": "Grown, not forged. It does not break.", "recipe": {"rootwood": 6, "spore_silk": 2, "embers": 140}},
+	"wardens_partisan": {"name": "Warden's Partisan", "slot": "weapon", "arch": "spear", "icon": "wpn_partisan", "tint": Color(0.75, 0.95, 0.95),
+		"mods": [["weapon_damage", "add", 0.04], ["armor", "add", 0.05], ["parry_window", "add", 0.03]],
+		"desc": "A gate-guard's polearm: made for holding a line.", "recipe": {"grave_iron": 6, "soul_glass": 3, "embers": 150}},
+	"hearthbow": {"name": "Hearthbow", "slot": "weapon", "arch": "bow", "icon": "wpn_bow", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"rootwood": 4, "spore_silk": 1, "embers": 80}},
+	"splitwood_bow": {"name": "Splitwood Bow", "slot": "weapon", "arch": "bow", "icon": "wpn_splitbow", "tint": Color(1.0, 0.9, 0.6),
+		"mods": [["projectiles", "add", 1.0], ["weapon_damage", "add", -0.12]],
+		"desc": "Two strings, two arrows, one draw.", "recipe": {"rootwood": 6, "spore_silk": 4, "embers": 160}},
+	"long_rimebow": {"name": "Long Rimebow", "slot": "weapon", "arch": "bow", "icon": "wpn_rimebow", "tint": Color(0.72, 0.9, 1.0),
+		"mods": [["pierce", "add", 1.0], ["chill_chance", "add", 0.15], ["weapon_damage", "add", 0.08], ["attack_speed", "add", -0.06]],
+		"desc": "A long draw; its arrows pass through and leave frost.", "recipe": {"rootwood": 5, "soul_glass": 4, "embers": 160}},
+	"emberwright_tome": {"name": "Emberwright's Tome", "slot": "weapon", "arch": "tome", "icon": "wpn_tome", "mods": [["weapon_damage", "add", 0.06]],
+		"recipe": {"soul_glass": 3, "bone_dust": 3, "embers": 80}},
+	"codex_of_echoes": {"name": "Codex of Echoes", "slot": "weapon", "arch": "tome", "icon": "wpn_codex", "tint": Color(0.7, 1.0, 0.95),
+		"mods": [["chain", "add", 1.0], ["ability_damage", "add", 0.06]],
+		"desc": "Every word it speaks is answered.", "recipe": {"soul_glass": 6, "spore_silk": 2, "embers": 160}},
+	"grimoire_of_ash": {"name": "Grimoire of Ash", "slot": "weapon", "arch": "tome", "icon": "wpn_grimoire", "tint": Color(1.0, 0.78, 0.6),
+		"mods": [["fire_damage", "add", 0.15], ["burn_chance", "add", 0.12]],
+		"desc": "Its pages are always smouldering.", "recipe": {"soul_glass": 4, "ember_core": 1, "embers": 150}},
+
+	# ================= unique weapons (learned from blueprints) =================
+	"thousandth_cut": {"name": "The Thousandth Cut", "slot": "weapon", "arch": "sword", "icon": "wpn_thousandth", "unique": true,
+		"tint": Color(0.85, 0.7, 1.0), "glow": 1.8, "flags": {"thousand_cuts": 1},
+		"mods": [["attack_speed", "add", 0.25], ["crit_chance", "add", 0.04]],
+		"desc": "Every third blow in a row flings a spectral knife at another foe. Each blow is lighter (30% less damage).",
+		"recipe": {"grave_iron": 8, "soul_glass": 4, "warden_sigil": 1, "embers": 350}},
+	"quakeheart": {"name": "Quakeheart", "slot": "weapon", "arch": "hammer", "icon": "wpn_quakeheart", "unique": true,
+		"tint": Color(1.0, 0.75, 0.5), "glow": 1.6, "flags": {"counterweight": 1},
+		"mods": [["weapon_damage", "add", 0.1], ["parry_window", "add", 0.04]],
+		"desc": "Every successful Ward unleashes your charged slam at once.",
+		"recipe": {"grave_iron": 10, "ember_core": 2, "warden_sigil": 1, "embers": 350}},
+	"hundred_embers": {"name": "Wand of a Hundred Embers", "slot": "weapon", "arch": "staff", "icon": "wpn_hundred", "unique": true,
+		"tint": Color(1.0, 0.85, 0.5), "glow": 2.0, "flags": {"seeking": 1},
+		"mods": [["projectiles", "add", 2.0], ["weapon_damage", "add", -0.1]],
+		"desc": "Two more bolts with every cast, and everything you loose bends toward the nearest foe.",
+		"recipe": {"rootwood": 8, "ember_core": 3, "bloom_heart": 1, "embers": 380}},
+	"gloamfang": {"name": "Gloamfang", "slot": "weapon", "arch": "daggers", "icon": "wpn_gloamfang", "unique": true,
+		"tint": Color(0.8, 0.55, 1.0), "glow": 1.8, "flags": {"crit_knives": 1},
+		"mods": [["crit_chance", "add", 0.08]],
+		"desc": "Critical hits fling a spectral knife at another foe nearby.",
+		"recipe": {"soul_glass": 8, "spore_silk": 4, "eclipse_shard": 1, "embers": 380}},
+	"searing_pike": {"name": "Searing Pike", "slot": "weapon", "arch": "spear", "icon": "wpn_pike", "unique": true,
+		"tint": Color(1.0, 0.7, 0.55), "glow": 1.6, "flags": {"searing_edge": 1, "thermal_shock": 1},
+		"mods": [["fire_damage", "add", 0.15], ["frost_damage", "add", 0.15]],
+		"desc": "Melee hits can Burn; fire on a chilled foe (or frost on a burning one) erupts in scalding steam.",
+		"recipe": {"grave_iron": 6, "sun_gold": 3, "bloom_heart": 1, "embers": 360}},
+	"windreturn": {"name": "Windreturn", "slot": "weapon", "arch": "bow", "icon": "wpn_windreturn", "unique": true,
+		"tint": Color(0.75, 1.0, 0.9), "glow": 1.6, "flags": {"proj_return": 1},
+		"mods": [["pierce", "add", 1.0], ["attack_speed", "add", 0.08]],
+		"desc": "Everything you loose turns back at the end of its flight and strikes again on the way home.",
+		"recipe": {"rootwood": 8, "spore_silk": 4, "eclipse_shard": 1, "embers": 380}},
+	"hollow_index": {"name": "Index of Hollow Words", "slot": "weapon", "arch": "tome", "icon": "wpn_index", "unique": true,
+		"tint": Color(0.7, 0.95, 1.0), "glow": 1.8, "flags": {"hollow_index": 1},
+		"mods": [["chain", "add", 2.0], ["cooldown", "more", -0.1]],
+		"desc": "Its motes leap through two more foes, and each one that lands hurries your spells twice as much.",
+		"recipe": {"soul_glass": 8, "sun_gold": 2, "eclipse_shard": 1, "embers": 380}},
+
+	# ================= boss legendary weapons =================
+	"wardenfang": {"name": "Wardenfang", "slot": "weapon", "arch": "daggers", "icon": "wpn_wardenfang", "legendary": true,
+		"tint": Color(0.7, 0.95, 1.0), "glow": 2.2, "flags": {"shadowdancer": 1},
+		"mods": [["crit_chance", "add", 0.06], ["dodge_charges", "add", 1.0], ["weapon_damage", "add", 0.1]],
+		"desc": "The Gloam Warden's paired fangs. Every dodge leaves a shade where you stood that bursts a moment later.",
+		"salvage": {"warden_sigil": 1}},
+	"bloomstring": {"name": "Bloomstring", "slot": "weapon", "arch": "bow", "icon": "wpn_bloomstring", "legendary": true,
+		"tint": Color(1.0, 0.75, 0.6), "glow": 2.2, "flags": {"wildfire": 1},
+		"mods": [["projectiles", "add", 1.0], ["burn_chance", "add", 0.2], ["weapon_damage", "add", 0.06]],
+		"desc": "Strung with the Hollow Bloom's last tendril. Fire leaps from the burning to their neighbours.",
+		"salvage": {"bloom_heart": 1}},
+	"sunfall_glaive": {"name": "Sunfall Glaive", "slot": "weapon", "arch": "spear", "icon": "wpn_sunglaive", "legendary": true,
+		"tint": Color(1.0, 0.88, 0.55), "glow": 2.4, "flags": {"searing_edge": 1, "combustion": 1},
+		"mods": [["weapon_damage", "add", 0.2], ["fire_damage", "add", 0.2]],
+		"desc": "The Ashen King's glaive. Its cuts can Burn, and the burning burst when they fall.",
+		"salvage": {"eclipse_shard": 1}},
 }
+
+## Each boss's legendary weapon (beside its legendary armour).
+const BOSS_WEAPONS := {"ossuary": "wardenfang", "rootmire": "bloomstring", "throne": "sunfall_glaive"}
 
 ## Affixes rolled onto rare, epic and set pieces (values at level 1, tier 1).
 const AFFIXES := [
@@ -284,6 +409,15 @@ const AFFIXES := [
 	["kindle_max", "add", 8.0], ["kindle_gain", "inc", 0.06], ["ability_damage", "add", 0.06], ["dodge_recharge", "more", -0.05],
 	["ember_gain", "add", 0.06], ["crit_mult", "add", 0.1], ["thorns", "add", 4.0], ["flask_heal", "add", 0.04],
 ]
+
+## Affixes rolled onto weapons (melee and ranged pools share the first part).
+const WEAPON_AFFIXES := [
+	["weapon_damage", "add", 0.05], ["attack_speed", "add", 0.04], ["crit_chance", "add", 0.02], ["crit_mult", "add", 0.1],
+	["fire_damage", "add", 0.07], ["frost_damage", "add", 0.07], ["burn_chance", "add", 0.07], ["chill_chance", "add", 0.08],
+	["poise_damage", "add", 0.15], ["kindle_gain", "inc", 0.06], ["ability_damage", "add", 0.05],
+]
+const WEAPON_AFFIXES_RANGED := [["pierce", "add", 1.0], ["chain", "add", 1.0]]
+const WEAPON_AFFIXES_MELEE := [["melee_damage", "add", 0.06], ["life_on_kill", "add", 2.0]]
 
 ## Bases that drop in each region (sets, uniques and legendaries drop separately).
 const REGION_BASES := {
@@ -328,13 +462,40 @@ static func make_item(base_id: String, rarity: String, level: int, rng: RandomNu
 	elif b.has("set"):
 		rarity = "set"
 	var affixes: Array = []
-	var pool := AFFIXES.duplicate()
+	var pool := affix_pool(base_id)
 	for i in int(RARITY[rarity].affixes):
 		if pool.is_empty():
 			break
 		var a: Array = pool.pop_at(rng.randi_range(0, pool.size() - 1))
-		affixes.append([a[0], a[1], float(a[2]) * rng.randf_range(0.8, 1.2)])
+		var v := float(a[2]) if a[0] in INTEGRAL else float(a[2]) * rng.randf_range(0.8, 1.2)
+		affixes.append([a[0], a[1], v])
 	return {"uid": 0, "base": base_id, "rarity": rarity, "level": clampi(level, 1, MAX_LEVEL), "tier": clampi(tier, 1, MAX_TIER), "affixes": affixes}
+
+
+## What an item of this base can roll: weapons their own pool (with the
+## ranged or melee extras), the rest the gear pool.
+static func affix_pool(base_id: String) -> Array:
+	var b := base(base_id)
+	if b.get("slot", "") != "weapon":
+		return AFFIXES.duplicate()
+	var out := WEAPON_AFFIXES.duplicate()
+	out.append_array(WEAPON_AFFIXES_RANGED if String(b.get("arch", "")) in RANGED else WEAPON_AFFIXES_MELEE)
+	return out
+
+
+## The archetype a weapon item fights as ("" for anything else).
+static func arch_of(item: Dictionary) -> String:
+	return String(base(String(item.get("base", ""))).get("arch", ""))
+
+
+## Weapon bases of one archetype that drop as loot (plain and variants).
+static func weapon_bases(arch := "") -> Array:
+	var out: Array = []
+	for k in BASES:
+		var b: Dictionary = BASES[k]
+		if b.get("slot", "") == "weapon" and b.has("recipe") and not b.get("unique", false) and (arch == "" or b.get("arch", "") == arch):
+			out.append(k)
+	return out
 
 
 static func roll_rarity(rng: RandomNumberGenerator, luck := 0.0) -> String:
@@ -357,18 +518,24 @@ static func mods_of(item: Dictionary) -> Array:
 	var b := base(String(item.get("base", "")))
 	if b.is_empty():
 		return []
-	var k := (1.0 + 0.12 * (int(item.get("level", 1)) - 1)) * tier_mult(int(item.get("tier", 1)))
+	var lvl_k := 1.0 + 0.12 * (int(item.get("level", 1)) - 1)
+	var k := lvl_k * tier_mult(int(item.get("tier", 1)))
+	# a weapon's identity (and any weapon damage, which multiplies everything
+	# else) grows gently with the tier; its rolled affixes grow like any gear's
+	var kw := lvl_k * (1.0 + 0.05 * (int(item.get("tier", 1)) - 1))
+	var is_weapon: bool = b.get("slot", "") == "weapon"
 	var rar_k := float(RARITY.get(item.get("rarity", "common"), RARITY.common).mult)
 	var out: Array = []
 	for m in b.mods:
 		var v := float(m[2])
-		var integral: bool = m[0] in ["dodge_charges", "flask_charges"]
+		var integral: bool = m[0] in INTEGRAL
 		if integral or (v < 0.0 and not m[0] in ["dodge_recharge", "cooldown", "ability_cost"]):
 			out.append([m[0], m[1], v])
 		else:
-			out.append([m[0], m[1], v * k * rar_k])
+			out.append([m[0], m[1], v * (kw if is_weapon or m[0] == "weapon_damage" else k) * rar_k])
 	for a in item.get("affixes", []):
-		out.append([a[0], a[1], float(a[2]) * k])
+		var av := float(a[2])
+		out.append([a[0], a[1], av if a[0] in INTEGRAL else av * (kw if a[0] == "weapon_damage" else k)])
 	# tier might: gear from harder tiers hits harder, so damage keeps pace
 	# with the health of what lives there (always the last entry)
 	if tier_might(item) > 0.0:
@@ -376,7 +543,10 @@ static func mods_of(item: Dictionary) -> Array:
 	return out
 
 
+## (Weapons carry their tier in their weapon damage instead.)
 static func tier_might(item: Dictionary) -> float:
+	if base(String(item.get("base", ""))).get("slot", "") == "weapon":
+		return 0.0
 	return 0.04 * (int(item.get("tier", 1)) - 1)
 
 
@@ -531,11 +701,22 @@ static func enemy_drops(enemy_id: String, region: String) -> Array:
 	return out
 
 
+const WEAPON_DROP_CHANCE := 0.16
+
 ## A random piece of plain gear for a region, depth and difficulty tier; from
-## Tier II up some drops are set pieces instead.
-static func random_drop(region: String, depth: int, rng: RandomNumberGenerator, luck := 0.0, tier := 1) -> Dictionary:
+## Tier II up some drops are set pieces instead, and some are weapons (half of
+## them of the archetype in `favour`: the finder's own).
+static func random_drop(region: String, depth: int, rng: RandomNumberGenerator, luck := 0.0, tier := 1, favour := "") -> Dictionary:
 	if tier >= 2 and rng.randf() < 0.03 + 0.025 * tier:
 		return random_set_piece(rng, depth, tier)
+	# about one find in six is a weapon; half of those of the arm in hand
+	if rng.randf() < WEAPON_DROP_CHANCE:
+		var arch := favour if favour != "" and rng.randf() < 0.5 else ""
+		var wpool := weapon_bases(arch)
+		if wpool.is_empty():
+			wpool = weapon_bases()
+		var wb: String = wpool[rng.randi_range(0, wpool.size() - 1)]
+		return make_item(wb, roll_rarity(rng, luck + 0.03 * (tier - 1)), clampi(depth, 1, MAX_LEVEL), rng, tier)
 	var pool: Array = REGION_BASES.get(region, REGION_BASES.ossuary)
 	var b: String = pool[rng.randi_range(0, pool.size() - 1)]
 	return make_item(b, roll_rarity(rng, luck + 0.03 * (tier - 1)), clampi(depth, 1, MAX_LEVEL), rng, tier)

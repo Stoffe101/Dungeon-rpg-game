@@ -49,7 +49,7 @@ static func apply(preset: String) -> bool:
 		Profile.add_xp(Combat.xp_to_next(Profile.level()))
 	Profile.data.skills = tree
 	Profile.unlock_weapon(String(p.weapon))
-	Profile.data.equipped.weapon = String(p.weapon)
+	Profile.choose_weapon(String(p.weapon))
 	Profile.data.equipped.slots = (p.slots as Array).duplicate()
 	Profile._changed()
 	print("[dev] build=%s: level %d, %d nodes, spells %s, %s" % [preset, Profile.level(), tree.size(), str(Profile.slots()), p.weapon])

@@ -29,7 +29,7 @@ func _ready() -> void:
 			scene = a.substr(6)
 		elif a.begins_with("weapon="):
 			Profile.unlock_weapon(a.substr(7))
-			Profile.data.equipped.weapon = a.substr(7)
+			Profile.choose_weapon(a.substr(7))
 		elif a.begins_with("skills="):
 			# dev: skills=all grants levels and allocates the whole tree
 			for i in 120:

@@ -148,8 +148,9 @@ func _one_mote(d: Vector2, target: Actor, big: bool, element: String, group: Dic
 		return h
 	pr.on_hit_fn = func(proj: Projectile, _t: Actor, _res) -> void:
 		# each word that lands hurries the spells
+		var hurry := COOLDOWN_PER_HIT * (2.0 if player.stats.has("hollow_index") else 1.0)
 		for i in player.ability_cd.size():
-			player.ability_cd[i] = maxf(0.0, player.ability_cd[i] - COOLDOWN_PER_HIT)
+			player.ability_cd[i] = maxf(0.0, player.ability_cd[i] - hurry)
 		player.gain_kindle(1.5)
 		if big:
 			_glyph_burst(proj.pos, proj.damage * 0.6, col)

@@ -302,7 +302,8 @@ static func describe_mod(m: Array) -> String:
 		"chill_power": "Chill strength", "status_duration": "status duration", "move_speed": "movement speed", "dodge_distance": "dodge distance",
 		"armor": "armor", "parry_window": "Ward window", "kindle_gain": "Kindle gained", "summon_damage": "wisp damage", "ember_gain": "Embers found",
 		"flask_heal": "flask healing", "kindle_max": "maximum Kindle", "max_hp": "maximum health",
-		"xp_gain": "Memories gained", "heal_mult": "healing received",
+		"xp_gain": "Memories gained", "heal_mult": "healing received", "weapon_damage": "weapon damage",
+		"projectile_damage": "projectile damage",
 	}
 	match stat:
 		"max_hp":
