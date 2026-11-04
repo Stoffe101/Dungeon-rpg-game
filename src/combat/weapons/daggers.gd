@@ -158,7 +158,8 @@ func release_charge() -> void:
 # --- Gloam Kris ---------------------------------------------------------------------
 
 func _mark(a: Actor) -> void:
-	var n := mini(MARKS_MAX, int(a.get_meta("gloam_marks", 0)) + 1)
+	var add := 2 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") else 1
+	var n := mini(MARKS_MAX, int(a.get_meta("gloam_marks", 0)) + add)
 	a.set_meta("gloam_marks", n)
 	a.set_meta("gloam_mark_t", player.stage.elapsed)
 	player.stage.fx.motes(a.pos, 1.4, Color(0.7, 0.45, 1.0), n, 0.5, 0.5, 0.25)

@@ -565,3 +565,38 @@ func test_migration_v9_remembers_settled_runs() -> void:
 	var m := Profile.migrate(d)
 	eq(int(m.version), Profile.VERSION, "migrated to the current version")
 	check(m.has("settled_runs") and (m.settled_runs as Array).is_empty(), "v10: no co-op runs banked yet")
+
+
+func test_loadouts_and_v12() -> void:
+	# an old (v11) save gains three empty loadouts
+	var old := Profile.fresh()
+	old["version"] = 11
+	old.erase("loadouts")
+	var m := Profile.migrate(old)
+	eq(int(m.version), Profile.VERSION, "migrated to the current version")
+	eq((m.loadouts as Array).size(), 3, "with three empty loadouts")
+	# a build saved and worn again
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var helm := Profile.add_item(ItemDB.make_item("grave_iron_helm", "rare", 1, rng, 1))
+	var bow := Profile.add_item(ItemDB.make_item("splitwood_bow", "rare", 1, rng, 1))
+	Profile.equip(int(helm.uid))
+	Profile.equip(int(bow.uid))
+	Profile.data.skills = BuildPresets.nodes_of("knives")     # Gloam Knives learned
+	Profile.data.equipped.slots = ["flare", "knives", ""]
+	Profile.save_loadout(0)
+	eq(int(Profile.loadout(0).pieces), 2, "the loadout remembers two pieces")
+	# something else on
+	Profile.unequip("head")
+	Profile.choose_weapon("sword")
+	Profile.data.equipped.slots = ["flare", "", ""]
+	var gone := Profile.wear_loadout(0)
+	eq(gone, 0, "nothing of it is gone")
+	eq(int(Profile.equipped().get("head", {}).get("uid", -1)), int(helm.uid), "the helm is back on")
+	eq(Profile.equipped_weapon(), "bow", "and the bow")
+	eq(String(Profile.data.equipped.slots[1]), "knives", "and its spells")
+	# a piece salvaged since: worn without it, and told
+	Profile.unequip("head")
+	Profile.salvage(int(helm.uid))
+	eq(Profile.wear_loadout(0), 1, "one piece of it is gone")

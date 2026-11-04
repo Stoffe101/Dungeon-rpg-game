@@ -692,6 +692,10 @@ func die(killer: Node) -> void:
 		stage.fx.shake(0.3)
 	if pl and by_player:
 		var st := pl.stats
+		if pl.hearthfire_t > 0.0 and st.has("hearthforged") and pl.hearthfire_bonus < 5.0:
+			# Hearthforged: every foe felled feeds the form a second
+			pl.hearthfire_t += 1.0
+			pl.hearthfire_bonus += 1.0
 		if st.v("life_on_kill") > 0.0:
 			pl.heal(st.v("life_on_kill"))
 		if st.v("kindle_on_kill") > 0.0:

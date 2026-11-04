@@ -92,7 +92,7 @@ func _hundredth() -> void:
 ## One ember bolt of a volley.
 func _bolt(d: Vector2, group: Dictionary) -> void:
 	if form == "hundred":
-		_embers += 1
+		_embers += 2 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") and _embers % 100 != 99 else 1
 		player.form_meter = float(_embers % 100) / 100.0
 		if _embers % 100 == 0:
 			_hundredth()

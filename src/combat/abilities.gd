@@ -608,7 +608,7 @@ static func _beam(pl: Player, power: float, dir0: Vector2) -> bool:
 			if not is_instance_valid(pl) or not pl.alive:
 				return
 			var aim := pl.aim if dir0 == Vector2.ZERO or power >= 0.99 else dir0
-			var ramp := 1.0 + 1.2 * float(k) / maxf(1.0, ticks - 1)
+			var ramp := 1.0 + 1.2 * minf(1.0, float(k) / maxf(1.0, ticks - 1) * (1.5 if pl.stats.has("steady_pour") else 1.0))
 			_beam_tick(pl, aim, float(d.range) * pl.stats.v("area"), float(d.damage) * ramp, k, col, ab, pw, well)
 			if side:
 				for s in [-0.24, 0.24]:
@@ -753,6 +753,15 @@ static func _orb_burst(pl: Player, proj: Projectile, p: Vector2) -> void:
 	st.fx.shake(0.15 + 0.25 * age)
 	Audio.play_at("orb_burst", p, -1.0 + 3.0 * age, 1.15 - 0.25 * age)
 	st.strike_props_circle(p, r, pl, true)
+	if pl.stats.has("detonator"):
+		for a in st.in_circle(pl.team, p, r):
+			if int(a.get_meta("knives_in", 0)) > 0:
+				knives_detonate(pl, a)
+			if int(a.get_meta("gloam_marks", 0)) > 0:
+				tear_marks(pl, a)
+		for w in st.props.duplicate():
+			if is_instance_valid(w) and w.kind == "icewall" and w.pos.distance_to(p) <= r:
+				_rimewall_shatter(pl, [w], float(GearDB.ability("rimewall").damage), "rimewall")
 	for a in st.in_circle(pl.team, p, r):
 		var h := _hit(pl, dmg, ["fire"])
 		h.burn = 1 + int(2.0 * age)
@@ -802,7 +811,7 @@ static func _rimewall(pl: Player, power: float) -> bool:
 		if blocked:
 			continue
 		taken[t] = true
-		var seg := Prop.make(st, "icewall", t, {})
+		var seg := Prop.make(st, "icewall", t, {"bastion": pl.stats.has("frozen_bastion")})
 		segs.append(seg)
 		made += 1
 	if made == 0:
@@ -853,7 +862,7 @@ static func _rimewall_shatter(pl: Player, segs: Array, dmg: float, ab: String, g
 				continue
 			hit[a.get_instance_id()] = true
 			var h := _hit(pl, dmg, ["frost"])
-			h.chill = 0.5
+			h.chill = 1.0 if pl.stats.has("frozen_bastion") and a.status.chill > 0.0 else 0.5
 			h.knockback = (a.pos - p).normalized() * 4.0
 			h.poise = 20.0
 			pl.deal_hit(a, h)
@@ -870,6 +879,7 @@ static func _hearthfire(pl: Player, power: float) -> bool:
 	var dur: float = float(d.duration) * (1.0 if power >= 0.99 else 0.5)
 	pl.hearthfire_t = maxf(pl.hearthfire_t, dur)
 	pl.hearthfire_power = _power
+	pl.hearthfire_bonus = 0.0
 	pl.status.chill = 0.0
 	pl.status.snare_t = 0.0
 	var col := Color(1.0, 0.6, 0.25)
@@ -939,6 +949,9 @@ static func _knife_lodge(pl: Player, t: Actor, power: float, ab: String) -> void
 	t.set_meta("knives_ab", ab)
 	var stamp := pl.stage.elapsed
 	t.set_meta("knives_t", stamp)
+	if pl.stats.has("shadow_cutlery"):
+		t.set_meta("gloam_marks", mini(5, int(t.get_meta("gloam_marks", 0)) + 1))
+		t.set_meta("gloam_mark_t", stamp)
 	pl.stage.fx.motes(t.pos, 1.2, Color(0.72, 0.5, 1.0), 1, 0.3, 0.8, 0.2)
 	var st := pl.stage
 	st.after(2.5, func() -> void:
@@ -968,3 +981,18 @@ static func knives_detonate(pl: Player, t: Actor) -> void:
 	pl.stage.fx.burst(t.pos, 0.9, col, 6 + 3 * n, 3.0 + 0.4 * n, 0.3, 0.0)
 	pl.stage.fx.ring(t.pos, 0.5 + 0.12 * n, col, 0.2, 0.2)
 	Audio.play_at("gloam_tear", t.pos, -6.0 + 0.5 * n, 1.3)
+	if pl.stats.has("shadow_cutlery"):
+		tear_marks(pl, t)
+
+
+## Gloam marks on a foe (the Gloam Kris, Shadow Cutlery) torn open by a spell.
+static func tear_marks(pl: Player, t: Actor) -> void:
+	var m := int(t.get_meta("gloam_marks", 0))
+	t.set_meta("gloam_marks", 0)
+	if m <= 0 or not t.alive:
+		return
+	var h := Combat.player_hit(pl, pl.stats, 6.0 * m, ["shadow", "ability"])
+	h.proc = false
+	h.poise = 5.0 * m
+	pl.deal_hit(t, h)
+	pl.stage.fx.number(t.pos, 2.2, "%d MARKS" % m, Color(0.85, 0.65, 1.0))

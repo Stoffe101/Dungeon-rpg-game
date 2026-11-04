@@ -101,6 +101,7 @@ var form_meter := 0.0         # the weapon form's gauge, 0..1 (heat, nocked arro
 var channel_t := 0.0          # pouring a Soulfire Beam: slow, no weapon
 var hearthfire_t := 0.0       # Hearthfire Form
 var hearthfire_power := 1.0
+var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
 var rush_refund := 0.0        # Ember Rush through the burning: part of its cooldown back
 var _orb_cast_t := 0.0        # co-op client: a Cinder Orb of its own still drifting (a press bursts it)
@@ -526,7 +527,7 @@ func _move_mult() -> float:
 		mult *= 0.35
 	if flask_t > 0.0:
 		mult *= 0.45
-	if channel_t > 0.0:
+	if channel_t > 0.0 and not stats.has("steady_pour"):
 		mult *= 0.45
 	if hearthfire_t > 0.0:
 		mult *= 1.25
@@ -1225,6 +1226,8 @@ func _flow(t: Actor, finisher: bool) -> void:
 	momentum = mini(8, momentum + 1)
 	_momentum_t = 1.5
 	cuts += 1
+	if hearthfire_t > 0.0 and stats.has("hearthforged") and weapon and weapon.form == "thousandth" and (cuts + 1) % THOUSANDTH != 0:
+		cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
 		spectral_knife(t)
 	if weapon and weapon.form == "thousandth":

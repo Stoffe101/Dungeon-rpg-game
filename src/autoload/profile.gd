@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 11
+const VERSION := 12
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -66,6 +66,7 @@ static func fresh() -> Dictionary:
 		"difficulty": {"unlocked": 2, "selected": 1, "cleared": 0},
 		"shop": {"stock": [], "for_run": -1},
 		"descent": {"region": "ossuary", "omens": []},
+		"loadouts": [{}, {}, {}],
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
 		"identity": "",
@@ -247,6 +248,11 @@ static func migrate(d: Dictionary) -> Dictionary:
 				sl.append("")
 			out.equipped["slots"] = sl
 		v = 11
+	if v < 12:
+		# v12: three saved loadouts (a Hearthtree page, spells, worn gear, weapon)
+		if not (out.get("loadouts") is Array):
+			out["loadouts"] = [{}, {}, {}]
+		v = 12
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -422,6 +428,67 @@ func switch_page(i: int) -> void:
 
 func skill_page() -> int:
 	return int(data.get("skill_page", 0))
+
+
+# --- loadouts: a whole build in one click ----------------------------------------------
+
+const LOADOUTS := 3
+
+
+func loadout(i: int) -> Dictionary:
+	var ls: Array = data.get("loadouts", [])
+	return ls[i] if i >= 0 and i < ls.size() and ls[i] is Dictionary else {}
+
+
+## Remembers the build being worn: the Hearthtree page, the spells, every
+## worn piece (by uid) and the weapon's archetype.
+func save_loadout(i: int) -> void:
+	if i < 0 or i >= LOADOUTS:
+		return
+	if not (data.get("loadouts") is Array):
+		data["loadouts"] = [{}, {}, {}]
+	while (data.loadouts as Array).size() < LOADOUTS:
+		data.loadouts.append({})
+	var gear := {}
+	for slot in ItemDB.SLOTS:
+		var it: Variant = equipped().get(slot)
+		if it is Dictionary and not (it as Dictionary).is_empty():
+			gear[slot] = int(it.uid)
+	data.loadouts[i] = {"page": skill_page(), "slots": slots().duplicate(), "gear": gear, "weapon": equipped_weapon(),
+		"spells": slots().filter(func(s): return s != "").size(), "pieces": gear.size()}
+	_changed()
+
+
+## Puts a saved build back on (in the sanctuary): its page, its spells and
+## what of its gear is still owned. Returns how many pieces are gone.
+func wear_loadout(i: int) -> int:
+	var l := loadout(i)
+	if l.is_empty():
+		return 0
+	switch_page(int(l.get("page", 0)))
+	var sl: Array = (l.get("slots", ["flare", "", ""]) as Array).duplicate()
+	while sl.size() < 3:
+		sl.append("")
+	data.equipped.slots = sl
+	var gear: Dictionary = l.get("gear", {})
+	var missing := 0
+	for slot in ItemDB.SLOTS:
+		var it: Variant = equipped().get(slot)
+		var want := int(gear.get(slot, -1))
+		if it is Dictionary and not (it as Dictionary).is_empty() and int(it.uid) != want:
+			unequip(slot)
+	for slot in gear:
+		var uid := int(gear[slot])
+		if find_item(uid).is_empty():
+			missing += 1
+			continue
+		var cur: Variant = equipped().get(slot)
+		if not (cur is Dictionary and int(cur.get("uid", -1)) == uid):
+			equip(uid)
+	if not gear.has("weapon"):
+		choose_weapon(String(l.get("weapon", equipped_weapon())))
+	_changed()
+	return missing
 
 
 func weapon_level(id: String) -> int:

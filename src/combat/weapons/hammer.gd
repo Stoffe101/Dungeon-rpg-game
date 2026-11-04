@@ -121,7 +121,8 @@ func _aftershocks(c: Vector2, r: float, dmg: float) -> void:
 ## Emberforge Mallet: blows that land heat it; hot, they throw molten sparks.
 func _heat_up(hits: int, p: Vector2) -> void:
 	if hits > 0:
-		heat = minf(100.0, heat + HEAT_PER_HIT * hits)
+		var forged := 2.0 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") else 1.0
+		heat = minf(100.0, heat + HEAT_PER_HIT * hits * forged)
 		_heat_idle = 0.0
 	if heat >= HEAT_SPARKS:
 		var dmg: float = float(def.damage[0]) * 0.3

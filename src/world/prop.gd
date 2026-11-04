@@ -227,6 +227,7 @@ func _build() -> void:
 				stage.set_tile_solid(tile, true)
 				_solid_tiles.append(tile)
 			_light(Color(0.6, 0.85, 1.0), 0.5, 3.0, Vector3(0, 0.8 * Iso.SQ2, 0.2))
+			ticks = data.get("bastion", false)
 		"landmark":
 			# a region's great centrepiece (DungeonGen._landmark), three tiles wide
 			var ld := DungeonGen.landmark_def(String(data.get("id", "colossus")))
@@ -377,6 +378,12 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
 	elif kind == "glowcap" and randf() < dt * 1.5:
 		stage.fx.motes(pos + Vector2(randf_range(-0.4, 0.4), 0), 0.8, _flame_col, 1, 0.5, 1.6, 0.2)
+	elif kind == "icewall" and data.get("bastion", false) and fmod(_t, 1.0) < dt and not Net.is_client():
+		# Frozen Bastion: the wall chills what stands beside it
+		for a in stage.hostiles(Actor.Team.PLAYER):
+			if a.pos.distance_to(pos) < 1.4:
+				a.status.apply_chill(0.3)
+		stage.fx.motes(pos, 0.4, Color(0.7, 0.9, 1.0), 4, 0.6, 0.6, 0.6)
 	elif kind == "landmark" and randf() < dt * (6.0 if used else 2.5):
 		stage.fx.motes(pos + Vector2(randf_range(-1.0, 1.0), -0.2), 1.6, _flame_col.lightened(0.2), 1, 0.7, 1.4, 0.35)
 	elif kind == "fountain" and not used and randf() < dt * 6.0:
