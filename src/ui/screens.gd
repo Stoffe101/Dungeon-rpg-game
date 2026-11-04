@@ -997,7 +997,10 @@ static func descent(ui: UIRoot) -> Control:
 	if Omens.any_unlocked():
 		v.add_child(_omen_picker())
 	v.add_child(UIKit.label("LOADOUT", 8, UIKit.C_GOLD, true))
-	v.add_child(UIKit.label("Weapon: %s +%d" % [GearDB.weapon(Profile.equipped_weapon()).name, Profile.weapon_level(Profile.equipped_weapon())], 8))
+	var wi := Profile.weapon_item()
+	var arch_name := String(GearDB.weapon(Profile.equipped_weapon()).name)
+	var wline := ("Weapon: %s (%s) +%d" % [ItemDB.item_name(wi), arch_name, Profile.weapon_level(Profile.equipped_weapon())]) if not wi.is_empty() 		else ("Weapon: %s +%d" % [arch_name, Profile.weapon_level(Profile.equipped_weapon())])
+	v.add_child(UIKit.label(wline, 8, ItemDB.color(wi) if not wi.is_empty() else UIKit.C_TEXT))
 	var avail := SkillDB.abilities(Profile.skills())
 	var row := UIKit.hbox(4)
 	v.add_child(row)

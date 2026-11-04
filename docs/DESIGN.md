@@ -563,6 +563,71 @@ opens the way down), and one more Omen read in at every depth. The deepest depth
 is remembered. It is the place builds are tested against rising pressure, and
 where Omens, Grudges, runes and co-op meet.
 
+## Evolution pass: builds, weapons, fair co-op, depths, the workshop
+
+**Projectile builds.** Every projectile the Kindled looses (bow arrows, staff
+bolts, tome motes, the new Gloam Knives, wisp and lantern bolts, Thousand
+Cuts' knives) goes through `Volley`: +projectiles fans more shots, pierce,
+chain (leap to the next foe in sight), fork (split in two at half damage on the
+first hit) and return (turn back at the end of the flight and strike again on
+the way home). A volley strikes each foe once, so more projectiles widen the
+reach of a shot rather than multiplying single-target damage. Whole-number
+modifiers never scale with item level or tier.
+
+**Spells and the third slot.** Four spells: Gloam Knives (a cheap, quick fan),
+Hearth Lantern (a planted light that shoots, feeds Kindle and shelters - a
+place for a party to hold), Ember Rush (a melee dash that cuts a line and stops
+at walls) and Rekindle (wards everyone in the light, restores Kindle, raises the
+fallen). Each has Rune of Many / Echoes / Well effects. A third spell slot opens
+at level 5 (C; pad RB, which Attack gave up - RT attacks). The hotbar is one
+framed plate: three spells, a hearth notch, the flask; keys in the corners,
+costs inside, seconds over long cooldowns, a flash when a spell comes back.
+
+**Hearthtree build paths.** Each branch gained a second layer beside its first
+notable: Blade (Ember Rush, Momentum, keystone Thousand Cuts), Pyre
+(Splintering Flame, keystone Ember Hail), Rime (Returning Frost), Gloam (Gloam
+Knives, Fan of Shadows, Ricochet), Bulwark (Rekindle, Retribution, keystone
+Last Light), Kindle (Hearth Lantern, Lanternwright, Hearthbond, keystone
+Spellblade). Keystones ask a price (Thousand Cuts: 30% less per hit; Ember Hail:
+25% less per shot; Last Light: 40% less health; Spellblade: 15% dearer spells).
+
+**Weapons as loot.** Weapons are items in a seventh gear slot. Each base is a
+variant of an archetype (the archetype is the moveset): a plain form, two
+variants with an identity (the heavy Gravecleaver, the quick Duelist's Sabre,
+the forked Splitbranch Staff, the frost Long Rimebow...), a unique per
+archetype from blueprints (keystone-grade mechanics without the price: the
+Thousandth Cut, Quakeheart, the Wand of a Hundred Embers, Gloamfang, the
+Searing Pike, Windreturn, the Index of Hollow Words) and a legendary per boss
+(Wardenfang, Bloomstring, the Sunfall Glaive). The forge's archetype levels
+(+10, Temper, Masterwork, Ascend) apply to every variant; the item's own level
+is tempered at the smithy like gear. About one find in six is a weapon, half of
+them of the finder's archetype. Weapon damage multiplies the forge's scale, so
+it and a weapon's identity grow gently with the tier (`kw` in
+`ItemDB.mods_of`), and weapons carry no extra tier might.
+
+**Fair co-op.** A party meets more foes (+30% per extra Kindled, each with +35%
+health, bosses +50%) and each is worth less (`Party.reward_share`), so a
+player's whole take grows by only +12% per friend: playing together is
+rewarding, not a multiplier. Foes hit 10% harder per extra Kindled. The
+scaling evaluation (`-- scaling`) measured both: see STATUS.
+
+**Depths you can read.** Every depth has a name and a mood (the Upper Crypts,
+the Charnel Galleries, the Warden's Deep...); the title card, floor banner, HUD
+and map say "Depth 2 of 3", "Guardian Depth" (and who waits) or, in the Hollow
+Below, how far the next Echo is. On a guardian's floor its lair is on the map
+from the start, an ember at the screen's edge leans toward its door, and the
+floor trembles when it stirs.
+
+**Room variety.** Six new combat-room shapes (pillar ring, chasm with bridges,
+hall of columns, broken dividing wall, L-shaped room, sinkholes) and six
+hand-made rooms (two per region, mirrored at random) among the procedural ones.
+
+**The workshop.** The forge grows in three levels: rebuilt (furnace, anvil,
+smith); a quench trough and tool wall (tempering 15% cheaper, crafting a little
+rarer); a master's workshop (bellows, banner, grindstone; tempering 30%
+cheaper, crafted gear tempered once). The smith's hammer strikes are the
+sparks; crafting flares the anvil and the quench barrel hisses.
+
 ## Decisions log
 
 - **3D + sprites over pure 2D**: real lighting/shadows are central to the light
@@ -603,6 +668,20 @@ where Omens, Grudges, runes and co-op meet.
   `tools/audio/import_licensed.py` converts it into the gitignored
   `assets/audio/licensed/`; those sounds override generated ones of the same
   name, and a fresh clone falls back to the generated set.
+- **One strike per foe per volley.** Without it, +projectiles would multiply
+  single-target damage (every arrow of a fan into one boss); with it, more
+  projectiles mean reach and crowd control, and keystones that add shots ask a
+  per-shot price.
+- **Weapons as archetype variants, forge levels per archetype.** The forge's
+  years of work on "the sword" should not vanish when a better sword drops: the
+  archetype's level stays, the item adds identity. Found weapons can always be
+  wielded (they teach their archetype).
+- **Co-op rewards per Kindled, not per party.** Each Kindled's take is its own
+  roll and its own share; a bigger party sees more foes, each worth less, so no
+  party size pays more than playing well does. Measured, not assumed.
+- **The third spell slot at level 5, on RB.** A new player learns two spells
+  first; the pad's attack moved to RT alone (one-time fix for players who had
+  rebound Attack before).
 - **A level cap instead of an endless tree**: with the whole tree reachable,
   progression ended in sameness. The cap keeps the build a choice; Renown, feats,
   tiers, gear and the forge carry the long tail without breaking it.

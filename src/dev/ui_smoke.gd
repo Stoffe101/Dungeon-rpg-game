@@ -242,10 +242,13 @@ func _run() -> void:
 
 ## Advances a dialogue with the confirm button until it closes.
 func _finish_dialogue() -> void:
-	for i in 16:
+	# pressed at a person's pace: at smoke frame rates a few frames are a few
+	# milliseconds, and a conversation ignores presses that come too soon
+	for i in 24:
 		if not ui.has_modal():
 			return
 		await _pad(JOY_BUTTON_A)
+		await get_tree().create_timer(0.08, true).timeout
 	await _close_all()
 
 

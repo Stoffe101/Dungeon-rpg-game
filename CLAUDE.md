@@ -60,7 +60,10 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
   peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
   `scenario=journey|bestiary|stairs|talk|partyesc role=host|guest guests=N stay=S` (docs/TESTING.md),
-  `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`.
+  `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
+  `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost, `src/dev/build_presets.gd`),
+  `cast=1,3` (with `hitlab`: cast those spell slots at the nearest foe, full Kindle), `forge=0..3` (workshop level),
+  `scaling` (party-size scaling evaluation, `src/dev/scaling_eval.gd`; `seeds= secs= tier= depth= comps=`).
   (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args and the testing stockpile work in debug
   builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
@@ -95,6 +98,14 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `-s res://tools/art/preview_gear.gd -- outfits=a+b,c+d`. Player layers them (`refresh_paperdoll`).
 - Ember Runes: `src/data/runes.gd`; generic runes act in `Player.deal_hit` via the hit's `"ab"` meta,
   Many/Echoes/Well inside `Abilities`. Weapons: bow (draw/steady shot), tome (motes, inscribe).
+- Projectiles a Kindled looses go through `Volley.fire` / `Volley.shape` (projectiles, pierce, chain, fork,
+  return; one strike per foe per volley). Three spell slots (the third opens at level 5); spells live in
+  `Abilities.cast` (knives, lantern -> `LanternTotem`, rush, rekindle are the newest).
+- Weapon items: the `"weapon"` gear slot; a base's `arch` is its moveset (`ItemDB.arch_of`), the forge's level
+  for that archetype still applies; `Profile.choose_weapon` changes archetype. `weapon_damage` multiplies
+  `Weapon.damage_scale`. Whole-number stats are in `ItemDB.INTEGRAL` (never scaled).
+- Co-op rewards: `Party.reward_share` (more foes, each worth less), `_coop_scale` (health, damage); measure
+  with `-- scaling`. Depth names/lines: `Delve.depth_title` / `depth_short` (regions and the Hollow Below).
 - The Hollow Below (endless): `src/data/delve.gd`; `region=delve depth=N` dev args.
 - Omens live in `src/data/omens.gd` (costs applied in `Omens.apply` / Dungeon hooks, rewards banked
   in `Game.end_run`). Transitions: `UIRoot.title_card(title, sub, mid, extra)`; `Game.begin_descent`.
@@ -135,7 +146,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v10 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v11 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
@@ -170,7 +181,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

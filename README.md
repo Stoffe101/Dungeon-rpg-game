@@ -17,7 +17,9 @@ remembers who hurts it.
 | ![Echo of a Fallen Kindled](docs/screenshots/echo.png) | ![Trial of the Undervault](docs/screenshots/trial.png) |
 | ![The satchel](docs/screenshots/satchel.png) | ![The smithy](docs/screenshots/smithy.png) |
 | ![The Ashen King's Eclipse](docs/screenshots/ashen_king.png) | ![The wardrobe](docs/screenshots/wardrobe.png) |
-| ![Difficulty tiers](docs/screenshots/descent.png) | ![The Sunken Throne](docs/screenshots/sunken_throne.png) |
+| ![Difficulty tiers and the three-spell loadout](docs/screenshots/descent.png) | ![The Sunken Throne](docs/screenshots/sunken_throne.png) |
+| ![A guardian's floor](docs/screenshots/guardian_depth.png) | ![The smith's workshop, level 1 and 3](docs/screenshots/workshop.png) |
+| ![Gloam Knives](docs/screenshots/spells_knives.png) | ![Weapon and gear icons](docs/screenshots/item_icons.png) |
 
 ## Features
 
@@ -57,6 +59,20 @@ remembers who hurts it.
   to frost or shadow, burst, siphon or pull - each rune reads differently in each spell.
 - Seven weapons, including the Hearthbow (timed Steady Shots) and the
   Emberwright's Tome (a spellcaster's book that hurries your spells).
+- **Weapons as loot**: 31 weapon items - variants of each weapon with their own
+  identity (the heavy Gravecleaver, the forked Splitbranch Staff, the frost Long
+  Rimebow...), a build-defining unique per weapon and a legendary per guardian.
+  The forge's levels for a weapon carry over to every variant.
+- **Projectile builds**: more projectiles, piercing, chaining, splitting and
+  returning shots for everything you loose, and new spells - Gloam Knives,
+  Hearth Lantern, Ember Rush, Rekindle - in three spell slots.
+- **Hearthtree build paths** with new keystones (Thousand Cuts, Ember Hail,
+  Last Light, Spellblade) and co-op support (Hearthbond, Rekindle).
+- **A party you can read**: cards for every friend (health, Kindle, level,
+  downed and revive state), names that never pile up, your own Kindled marked;
+  shared XP and personal loot tuned so no party size pays more than playing well.
+- Depths with names and moods, a clear "Depth 2 of 3 / Guardian Depth", hand-made
+  rooms among the generated ones, and a smith's workshop that grows with you.
 - **Armour you can see**: every helm, chest, glove and boot is drawn on the
   Kindled; the wardrobe can show any piece you own, or hide it.
 - **The Hollow Below**: an endless descent with an Echo of a guardian every

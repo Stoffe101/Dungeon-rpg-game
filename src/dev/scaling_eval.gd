@@ -193,7 +193,9 @@ func _report() -> void:
 			r.embers_room / maxf(0.1, float(solo.get("embers_room", r.embers_room)))])
 	var txt := "\n".join(lines)
 	print(txt)
-	var f := FileAccess.open("res://captures/scaling_eval.md", FileAccess.WRITE)
+	# beside the dev profiles (game code never writes into the project)
+	var f := FileAccess.open("user://scaling_eval.md", FileAccess.WRITE)
 	if f:
 		f.store_string(txt + "\n")
 		f.close()
+		print("[scaling] written to ", ProjectSettings.globalize_path("user://scaling_eval.md"))

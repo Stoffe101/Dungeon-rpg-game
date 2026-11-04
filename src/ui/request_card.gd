@@ -79,6 +79,10 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	if not visible:
 		return
+	# never taller than what it holds (answers, rows and buttons come and go)
+	var want := get_combined_minimum_size()
+	if size.y > want.y + 0.5:
+		size = Vector2(W, want.y)
 	var vp := get_viewport_rect().size
 	# under the currency (sanctuary) or the map (below), never over either
 	var y := 50.0 if not (Game.stage is Dungeon) else 84.0
