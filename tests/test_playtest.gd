@@ -342,3 +342,24 @@ func test_every_room_opens_across_many_floors() -> void:
 	check(rooms > 60, "fought %d rooms" % rooms)
 	eq(outside, 0, "no foe spawned outside its arena")
 	check(stuck.is_empty(), "every room opened (stuck: %s)" % str(stuck))
+
+
+# --- a guest at the host's forge -------------------------------------------------------
+
+func test_a_guest_works_at_the_hosts_forge_with_their_own_purse() -> void:
+	Profile.data = Profile.fresh()
+	eq(Profile.building("forge"), 0, "the guest has no forge of their own")
+	var item := ItemDB.make_item("grave_iron_helm", "rare", 2, RandomNumberGenerator.new(), 1)
+	var own_cost := ItemDB.temper_cost(item)
+	# standing in a host's camp with a level-3 workshop
+	Profile.visiting = {"forge": 3}
+	eq(Profile.facility("forge"), 3, "the camp's forge is the one at hand")
+	check(int(ItemDB.temper_cost(item).embers) < int(own_cost.embers), "and its workshop's discount applies")
+	eq(Profile.building("forge"), 0, "but no forge becomes the guest's own")
+	Profile.visiting = {}
+	eq(Profile.facility("forge"), 0, "home again: their own (none)")
+	# a host whose forge is a ruin, a guest with one: the camp decides
+	Profile.data.sanctuary["forge"] = 2
+	Profile.visiting = {"forge": 0}
+	eq(Profile.facility("forge"), 0, "a ruined host forge is a ruin for the guest too")
+	Profile.visiting = {}

@@ -647,7 +647,7 @@ static func temper_cost(item: Dictionary) -> Dictionary:
 			out[k] = 1
 	out["embers"] = 60 * lvl * int(ceil(tier_mult(int(item.get("tier", 1)))))
 	# a bigger workshop tempers for less (forge level 2: 15%, 3: 30%)
-	var fl := Profile.building("forge")
+	var fl := Profile.facility("forge")
 	if fl >= 2:
 		out["embers"] = int(round(int(out.embers) * (1.0 - 0.15 * (mini(fl, 3) - 1))))
 	return out

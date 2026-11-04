@@ -50,6 +50,7 @@ func attach(m: Control, v: PixelView, u: UIRoot) -> void:
 
 
 func _clear_stage() -> void:
+	Profile.visiting = {}     # (a visited camp's facilities stay in that camp)
 	if stage:
 		stage.queue_free()
 		stage = null

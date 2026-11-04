@@ -232,7 +232,32 @@ func _make_slot(i: int) -> Control:
 	cost.size = Vector2(21, 10)
 	cost.name = "Cost"
 	c.add_child(cost)
+	# hovered: what the spell in it does, with this build's numbers (SpellUI)
+	c.mouse_filter = Control.MOUSE_FILTER_STOP
+	c.mouse_entered.connect(func() -> void: _slot_tip(c))
+	c.mouse_exited.connect(func() -> void:
+		if _tip:
+			_tip.visible = false)
 	return c
+
+
+var _tip: GearUI.FloatTip
+
+
+func _slot_tip(c: Control) -> void:
+	if _tip == null:
+		_tip = GearUI.FloatTip.new()
+		_tip.top_level = true
+		add_child(_tip)
+	var id := String(c.get_meta("spell", ""))
+	var body: Control
+	if id != "":
+		body = SpellUI.tip(id)
+	else:
+		body = UIKit.para(String(c.get_meta("note", "")), 160, UIKit.C_DIM)
+	if body:
+		_tip.show_content(body, c.global_position + Vector2(0, -6))
+		_tip.place.call_deferred(c.global_position + Vector2(c.size.x * 0.5, -_tip.size.y - 14))
 
 
 ## Keys as short as the slot corner allows ("Space" -> "Spc").
@@ -261,7 +286,8 @@ func _update_spell_slot(pl: Player, i: int) -> void:
 		key_l.text = ""
 		cost_l.text = "Lv%d" % Player.THIRD_SLOT_LEVEL
 		cost_l.add_theme_color_override("font_color", UIKit.C_DIM)
-		slot.tooltip_text = "A third spell slot opens at level %d." % Player.THIRD_SLOT_LEVEL
+		slot.set_meta("spell", "")
+		slot.set_meta("note", "A third spell slot opens at level %d (you are level %d)." % [Player.THIRD_SLOT_LEVEL, Profile.level()])
 		return
 	if id == "":
 		ic.texture = UIKit.icon("lock")
@@ -269,18 +295,21 @@ func _update_spell_slot(pl: Player, i: int) -> void:
 		cd.size.y = 0
 		secs.text = ""
 		cost_l.text = ""
-		slot.tooltip_text = "No spell in this slot. Pick one in the Descent loadout; the Hearthtree teaches more."
+		slot.set_meta("spell", "")
+		slot.set_meta("note", "No spell in this slot. Choose one in the Descent loadout at the Gate; the Hearthtree teaches more.")
 		return
 	var d := GearDB.ability(id)
 	ic.texture = UIKit.icon(d.icon)
-	var cost: float = d.cost * pl.stats.v("ability_cost")
+	# the cast's own numbers: the build, and the runes set in this spell
+	var nums := SpellUI.numbers(id, pl)
+	var cost: float = nums.cost
 	cost_l.text = str(int(round(cost)))
 	var left: float = pl.ability_cd[i] if i < pl.ability_cd.size() else 0.0
 	var is_ready := left <= 0.0
 	var afford := pl.kindle >= cost or pl.stats.has("bonfire_soul")
 	ic.modulate = Color(1, 1, 1, 1) if is_ready and afford else Color(0.5, 0.46, 0.52, 1)
 	cost_l.add_theme_color_override("font_color", UIKit.C_EMBER if afford else UIKit.C_BAD)
-	var full: float = float(d.cooldown) * pl.stats.v("cooldown")
+	var full: float = nums.cd
 	cd.size.y = roundf(20.0 * clampf(left / maxf(full, 0.01), 0.0, 1.0))
 	# seconds only for real waits (a knife flurry's half-second would flicker)
 	if left > 0.0 and full >= 1.5:
@@ -290,7 +319,7 @@ func _update_spell_slot(pl: Player, i: int) -> void:
 	if float(_cd_was[i]) > 0.0 and is_ready and full >= 1.5:
 		_ready_flash(slot)
 	_cd_was[i] = left
-	slot.tooltip_text = "%s  -  %d Kindle, %s s cooldown\n%s" % [d.name, int(round(cost)), str(snappedf(full, 0.1)), d.desc]
+	slot.set_meta("spell", id)
 
 
 ## A spell back off cooldown: a short warm flash and a pop.

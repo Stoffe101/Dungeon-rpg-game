@@ -650,6 +650,21 @@ func building(id: String) -> int:
 	return int(data.sanctuary.get(id, 0))
 
 
+## The camp this Kindled stands in when it is someone else's (a guest in the
+## host's sanctuary: Hub sets it, empty at home and below).
+var visiting := {}
+
+
+## A facility as it stands where this Kindled is: a guest at the host's camp
+## works at the host's forge (its level: what it can craft, the tempering
+## discount) - paying with their own Embers and materials, and gaining no
+## building of their own by it. At home (and below), their own.
+func facility(id: String) -> int:
+	if not visiting.is_empty():
+		return int(visiting.get(id, 0))
+	return building(id)
+
+
 func building_cost(id: String) -> Dictionary:
 	var b: Dictionary = SANCTUARY[id]
 	var lvl := building(id)

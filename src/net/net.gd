@@ -414,6 +414,7 @@ func leave(keep_lobby := false) -> void:
 	peer = null
 	multiplayer.multiplayer_peer = null
 	roster.clear()
+	_host_where = ""
 	proposal = {}
 	camp = {}
 	_camp_sent = {}
@@ -684,6 +685,7 @@ func _rejoined(params: Dictionary, run_data: Dictionary) -> void:
 func set_where(w: String) -> void:
 	_where_me = w
 	_where_set = true
+	_following = false
 	if is_host() and roster.has(1):
 		roster[1]["where"] = w
 		_broadcast_roster()
@@ -785,7 +787,33 @@ func _roster(r: Dictionary) -> void:
 		roster_changed.emit()
 		for pid in roster:
 			if old.has(pid) and old[pid].get("sheet") != roster[pid].get("sheet"):
-				sheet_changed.emit(int(pid)))
+				sheet_changed.emit(int(pid))
+		_follow_host())
+
+
+var _following := false
+var _host_where := ""          # where the host was at the last roster (a guest follows a change)
+
+
+## A guest still at the title screen follows the host into the shared
+## sanctuary as soon as the host is there (the host's "Begin together", or a
+## host already in camp when the guest joins): nobody has to close the party
+## screen and press Continue on their own. Their own Kindled, as ever.
+func _follow_host() -> void:
+	if not is_client() or not roster.has(1):
+		return
+	var hw := String(roster[1].get("where", "menu"))
+	var was := _host_where
+	_host_where = hw
+	# only when the host *goes* in (or is in when we join): a guest who walks
+	# back to the title screen on purpose is not pulled into camp again
+	if _where_me != "menu" or _following or hw == "menu" or hw == was:
+		return
+	_following = true
+	if Game.ui:
+		Game.ui.toast("%s's sanctuary - you follow with your own Kindled." % name_of(1), Color(0.75, 0.95, 0.9))
+		Game.ui.leave_main_menu()
+		Game.ui.fade(Game.goto_hub)
 
 
 @rpc("any_peer", "reliable")

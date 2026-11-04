@@ -156,6 +156,9 @@ func _open_dev_screen(what: String) -> void:
 			ui.forge()
 		"descent":
 			ui.descent_prompt()
+		"spellpick":
+			ui.descent_prompt()
+			ui.open(Screens.spell_picker(ui, 1, func() -> void: pass))
 		"settings", "controls":
 			ui.settings()
 			# dev: page=<audio|display|gameplay|access|coop|controls>

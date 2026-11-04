@@ -92,6 +92,8 @@ func own_camp() -> bool:
 
 func build(v: PixelView, at := Vector2(-1, -1)) -> void:
 	camp = current_camp()
+	# a guest's facilities are the host's camp while they stand in it
+	Profile.visiting = {} if own_camp() or menu_mode else camp.duplicate()
 	var g := TileGrid.new(MAP[0].length(), MAP.size())
 	for y in MAP.size():
 		var row: String = MAP[y]
@@ -686,16 +688,22 @@ func request(what: String, prop: Prop) -> void:
 		"rack":
 			Game.ui.weapon_select()
 		"forge", "forge_ruin":
-			# a guest at the host's forge uses (or rebuilds) their own
-			if Profile.building("forge") > 0:
+			# the forge of the camp you stand in: a guest works at the host's
+			# (with their own Embers and materials); only your own camp's ruin
+			# can be rebuilt
+			if Profile.facility("forge") > 0:
 				Game.ui.forge()
-			else:
+			elif own_camp():
 				Game.ui.sanctuary_build("forge")
-		"smith":
-			if Profile.building("forge") > 0:
-				Game.ui.smithy()
 			else:
-				Game.ui.toast("Your own camp needs its forge rebuilt first.", UIKit.C_DIM)
+				Game.ui.toast("%s's forge lies in ruins - it is theirs to rebuild." % Net.name_of(1), UIKit.C_DIM)
+		"smith":
+			if Profile.facility("forge") > 0:
+				Game.ui.smithy()
+			elif own_camp():
+				Game.ui.toast("The smith needs a forge: rebuild it first.", UIKit.C_DIM)
+			else:
+				Game.ui.toast("%s's camp has no working forge yet." % Net.name_of(1), UIKit.C_DIM)
 		"peddler":
 			Game.ui.peddler()
 		"apothecary", "memorial":

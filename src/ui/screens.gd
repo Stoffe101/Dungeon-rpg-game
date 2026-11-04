@@ -766,9 +766,12 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 	var v := UIKit.vbox(5)
 	p.add_child(v)
 	v.add_child(_title("Weapon Rack" if equip_only else "The Ashen Forge"))
-	var forge_built := Profile.building("forge") > 0
+	var forge_built := Profile.facility("forge") > 0
 	if not forge_built:
 		v.add_child(UIKit.para("The forge lies cold. Rebuild it in the sanctuary to temper and craft weapons.", 300, UIKit.C_DIM))
+	elif not equip_only and not Profile.visiting.is_empty():
+		# a guest at the host's forge: its workshop is the host's to grow
+		v.add_child(UIKit.para("%s's workshop (level %d). You work with your own Embers and materials." % [Net.name_of(1), Profile.facility("forge")], 300, UIKit.C_SOUL))
 	elif not equip_only:
 		v.add_child(_workshop_row(ui))
 	# the rack on the left, the chosen weapon on the anvil to the right
@@ -1001,27 +1004,7 @@ static func descent(ui: UIRoot) -> Control:
 	var arch_name := String(GearDB.weapon(Profile.equipped_weapon()).name)
 	var wline := ("Weapon: %s (%s) +%d" % [ItemDB.item_name(wi), arch_name, Profile.weapon_level(Profile.equipped_weapon())]) if not wi.is_empty() 		else ("Weapon: %s +%d" % [arch_name, Profile.weapon_level(Profile.equipped_weapon())])
 	v.add_child(UIKit.label(wline, 8, ItemDB.color(wi) if not wi.is_empty() else UIKit.C_TEXT))
-	var avail := SkillDB.abilities(Profile.skills())
-	var row := UIKit.hbox(4)
-	v.add_child(row)
-	for i in 3:
-		if i == 2 and Profile.level() < Player.THIRD_SLOT_LEVEL:
-			row.add_child(UIKit.label("(3rd: Lv %d)" % Player.THIRD_SLOT_LEVEL, 8, UIKit.C_DIM))
-			continue
-		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_%d" % (i + 1)), 8, UIKit.C_DIM))
-		var ob := OptionButton.new()
-		var cur: String = Profile.slots()[i]
-		var opts := [""] + avail
-		for k in opts.size():
-			ob.add_item("(none)" if opts[k] == "" else String(GearDB.ability(opts[k]).name), k)
-			if opts[k] == cur:
-				ob.select(k)
-		var slot := i
-		ob.item_selected.connect(func(k: int) -> void:
-			Profile.set_slot(slot, opts[k])
-			if Game.stage and Game.stage.player:
-				Game.stage.player.ability_slots = Profile.slots())
-		row.add_child(ob)
+	v.add_child(spell_row(ui, p))
 	var row2 := UIKit.hbox(8)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var party := Net.active() and Net.party_size() > 1
@@ -1049,6 +1032,95 @@ static func descent(ui: UIRoot) -> Control:
 	row2.add_child(UIKit.button("Not yet", func() -> void: ui.close_top(), 70))
 	v.add_child(row2)
 	go.call_deferred("grab_focus")
+	return _center(p)
+
+
+## The three spell slots as cards (icon, key, name, Kindle and rest): hover or
+## focus one for what it does with this build; press it to choose its spell
+## in the picker. The third slot, before level 5, is a sealed well that says
+## when it opens. `host` holds the tooltip.
+static func spell_row(ui: UIRoot, host: Control) -> HBoxContainer:
+	var row := UIKit.hbox(4)
+	var tip := GearUI.FloatTip.new()
+	tip.top_level = true
+	host.add_child(tip)
+	var fill := func(again: Callable) -> void:
+		for c in row.get_children():
+			row.remove_child(c)
+			c.queue_free()
+		for i in 3:
+			if i == 2 and Profile.level() < Player.THIRD_SLOT_LEVEL:
+				row.add_child(SpellUI.locked_card(Player.THIRD_SLOT_LEVEL, 96))
+				continue
+			var id: String = Profile.slots()[i]
+			var card := SpellUI.card(id, HUD.short_key(Settings.describe_action("ability_%d" % (i + 1))), 96)
+			var slot := i
+			card.pressed.connect(func() -> void:
+				Audio.ui("ui_click")
+				tip.visible = false
+				ui.open(spell_picker(ui, slot, func() -> void: again.call(again))))
+			if id != "":
+				card.mouse_entered.connect(func() -> void: tip.show_content(SpellUI.tip(id), card.get_global_mouse_position()))
+				card.focus_entered.connect(func() -> void: tip.show_content(SpellUI.tip(id), card.global_position + Vector2(card.size.x, 0)))
+			card.mouse_exited.connect(func() -> void: tip.visible = false)
+			card.focus_exited.connect(func() -> void: tip.visible = false)
+			row.add_child(card)
+	fill.call(fill)
+	return row
+
+
+## Choosing a slot's spell: every spell this Kindled knows as a card (and an
+## empty one), what the focused card does on the right, the slot's current
+## spell lit. Mouse, keys and pad alike; Esc/B goes back unchanged.
+static func spell_picker(ui: UIRoot, slot: int, done: Callable) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	var key := Settings.describe_action("ability_%d" % (slot + 1))
+	v.add_child(UIKit.label("A SPELL FOR %s" % key.to_upper(), 16, UIKit.C_GOLD, true))
+	v.add_child(UIKit.label("The Hearthtree teaches more. Runes are set at the Gate.", 8, UIKit.C_DIM))
+	var h := UIKit.hbox(6)
+	v.add_child(h)
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 3)
+	grid.add_theme_constant_override("v_separation", 3)
+	h.add_child(grid)
+	var detail := UIKit.panel("DarkPanel")
+	detail.custom_minimum_size = Vector2(186, 120)
+	h.add_child(detail)
+	var show := func(id: String) -> void:
+		for c in detail.get_children():
+			c.queue_free()
+		if id == "":
+			var e := UIKit.vbox(2)
+			e.add_child(UIKit.label("EMPTY", 8, UIKit.C_GOLD, true))
+			e.add_child(UIKit.para("Leave this slot empty.", 170, UIKit.C_DIM))
+			detail.add_child(e)
+		else:
+			detail.add_child(SpellUI.tip(id, 170))
+	var cur: String = Profile.slots()[slot]
+	var first: Button = null
+	for id in [""] + SkillDB.abilities(Profile.skills()):
+		var sid: String = id
+		var card := SpellUI.card(sid, "", 104, sid == cur)
+		card.pressed.connect(func() -> void:
+			Profile.set_slot(slot, sid)
+			if Game.stage and Game.stage.player:
+				Game.stage.player.ability_slots = Profile.slots()
+			Audio.ui("ui_click")
+			ui.close_top()
+			done.call())
+		card.mouse_entered.connect(func() -> void: show.call(sid))
+		card.focus_entered.connect(func() -> void: show.call(sid))
+		grid.add_child(card)
+		if sid == cur or first == null:
+			first = card
+	show.call(cur)
+	var back := UIKit.button("Back", func() -> void: ui.close_top(), 60)
+	v.add_child(back)
+	if first:
+		first.call_deferred("grab_focus")
 	return _center(p)
 
 
