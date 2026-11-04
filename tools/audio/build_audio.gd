@@ -511,6 +511,15 @@ func _sfx() -> void:
 	fx("hearthfire_end", 0.9, func(s):
 		s.tone(0.0, 0.2, 180.0, 55.0, "sine", 0.32, 0.001, 4.0)
 		s.noise(0.0, 0.7, 0.7, 3000.0, 500.0, 150.0, 0.003, 2.2))
+	# elites: a Frenzied foe erupting; a Shepherd's shield washing over its kin
+	fx("frenzy", 0.8, func(s):
+		s.tone(0.0, 0.6, 140.0, 95.0, "saw", 0.3, 0.02, 1.8, 0.08, 14.0, 900.0)
+		s.noise(0.0, 0.5, 0.5, 1500.0, 600.0, 200.0, 0.01, 2.0, 24.0)
+		s.tone(0.0, 0.15, 200.0, 80.0, "sine", 0.25, 0.001, 5.0))
+	fx("shepherd", 0.9, func(s):
+		s.pad(0.0, 0.8, [midi(62), midi(69), midi(74)], 0.08, 2600.0, 0.05, 0.6)
+		s.bell(0.0, 0.7, midi(86), 0.08, [[1.0, 1.0, 3.0], [2.0, 0.4, 5.0]])
+		s.noise(0.0, 0.5, 0.2, 3000.0, 6000.0, 1500.0, 0.05, 2.0))
 	# Ember Rush: a chained rush (its cooldown comes back)
 	fx("rush_chain", 0.4, func(s):
 		s.bell(0.0, 0.35, 1175.0, 0.1, [[1.0, 1.0, 5.0], [2.0, 0.4, 7.0]])

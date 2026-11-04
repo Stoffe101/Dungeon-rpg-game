@@ -891,6 +891,11 @@ func _tele(ev: Array) -> void:
 	params["progress"] = 0.0
 	var n := stage.fx.shape(int(ev[2]), ev[3], ev[4], ev[5], Enemy.TELE_COLOR, Enemy.TELE_EDGE, dur + 0.05, params)
 	teles[int(ev[1])] = n
+	if ev.size() > 8:
+		# the foe winding up glows on this screen too
+		var who = replicas.get(int(ev[8]))
+		if who is Enemy and is_instance_valid(who):
+			(who as Enemy).begin_tell(dur)
 	var start := stage.elapsed
 	var st := stage
 	var data: Dictionary = stage.fx._shapes[stage.fx._shapes.size() - 1]

@@ -217,6 +217,8 @@ const AFFIXES := {
 	"molten": {"name": "Molten", "color": Color(1.0, 0.5, 0.15), "desc": "Leaves a trail of burning ground. Don't chase it - make it come to you."},
 	"splitting": {"name": "Splitting", "color": Color(0.6, 0.95, 0.5), "desc": "Splits into two lesser copies when it dies."},
 	"gloom": {"name": "Gloom", "color": Color(0.6, 0.45, 0.9), "desc": "Wrapped in darkness: near it your lantern dims and Kindle comes at half the rate."},
+	"frenzied": {"name": "Frenzied", "color": Color(1.0, 0.35, 0.3), "desc": "Wounded to half, it erupts: faster, and it strikes faster. Finish it quickly or keep away."},
+	"shepherd": {"name": "Shepherd", "color": Color(0.5, 0.95, 0.85), "desc": "Every few seconds it gathers soul-light and shields the foes around it (a ring warns first). Kill it first."},
 }
 
 

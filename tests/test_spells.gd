@@ -211,3 +211,57 @@ func test_new_spells_are_in_the_tree() -> void:
 				found = true
 		check(found, "%s is learned in the Hearthtree" % sp)
 		check(GearDB.ability(sp).has("icon"), "%s has an icon" % sp)
+
+
+func test_foes_read_and_strike_fairly() -> void:
+	# a foe's blow lands on every Kindled its telegraph covered
+	var st := _stage()
+	var a := _player(st, ["", "", ""])
+	var b := Player.new()
+	b.pos = Vector2(6.0, 8.6)
+	b.input_enabled = false
+	b.peer_id = 2
+	st.add_actor(b)
+	b.setup_from(RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""]))
+	b.invuln_t = 0.0
+	a.invuln_t = 0.0
+	var e := _foe(st, Vector2(7.0, 8.2))
+	_run(st, 0.2)
+	a.invuln_t = 0.0
+	b.invuln_t = 0.0
+	a.dodge_age = 99.0
+	b.dodge_age = 99.0
+	var ha := a.hp
+	var hb := b.hp
+	e.strike_circle(e.pos, 2.0, 10.0)
+	check(a.hp < ha and b.hp < hb, "a slam covering both Kindled strikes both (%.0f, %.0f)" % [ha - a.hp, hb - b.hp])
+	# its body tells the blow coming (a foe far off, so it does not strike on its own)
+	var far := _foe(st, Vector2(21, 12))
+	_run(st, 1.5)
+	far.telegraph(Fx.Shape.DISC, far.pos, Vector2.RIGHT, Vector2(3, 3), 0.6)
+	_run(st, 0.4)
+	check(far.sprite.highlight.a > 0.15, "a foe winding up glows (%.2f)" % far.sprite.highlight.a)
+	_run(st, 0.6)
+	eq(far.sprite.highlight.a, 0.0, "and stops once it has struck")
+	st.queue_free()
+
+
+func test_new_elite_affixes() -> void:
+	var st := _stage()
+	_player(st, ["", "", ""])
+	var f := _foe(st, Vector2(9, 8), 200.0)
+	f.make_elite("frenzied")
+	_run(st, 1.5)
+	f.speed = 2.0
+	f.hp = f.max_hp * 0.55
+	var s0 := f.speed
+	var h := Hit.make(null, f.max_hp * 0.12, ["melee"])
+	h.can_crit = false
+	f.take_hit(h)
+	check(f.speed > s0 * 1.3, "a Frenzied foe at half health erupts (speed %.1f -> %.1f)" % [s0, f.speed])
+	var g := _foe(st, Vector2(12, 8))
+	g.make_elite("shepherd")
+	var kin := _foe(st, Vector2(13, 8))
+	_run(st, 6.0)
+	check(kin.shield > 0.0, "a Shepherd shields the foes around it (%.0f)" % kin.shield)
+	st.queue_free()
