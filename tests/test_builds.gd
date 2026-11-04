@@ -492,3 +492,17 @@ func test_landmarks() -> void:
 	Profile.note_seen("landmarks", "colossus")
 	Profile.note_seen("landmarks", "sundisc")
 	eq(Feats.progress("wonders"), 2, "two different landmarks")
+
+
+func test_hollow_cycles() -> void:
+	# the first pass through the three regions is plain; after it, the next
+	# region's foes bleed in and every pass is darker
+	eq(Delve.cycle(9), 0, "depth 9 is the first pass")
+	eq(Delve.cycle(10), 1, "depth 10 begins the second")
+	eq(Delve.bleed_region(5), "", "no bleed on the first pass")
+	eq(Delve.region_for(10), "ossuary", "the second pass starts in the Ossuary")
+	eq(Delve.bleed_region(10), "rootmire", "where the Rootmire's dead walk")
+	eq(Delve.bleed_region(25), "ossuary", "the Throne takes the Ossuary's")
+	check(Delve.gloom(10) < Delve.gloom(9), "darker on the second pass")
+	check(Delve.gloom(200) >= 0.55, "never black")
+	check(String(Delve.depth_title("ossuary", 10, true)[1]).contains("Rootmire"), "the title card says who walks here")

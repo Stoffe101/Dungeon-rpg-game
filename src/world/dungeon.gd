@@ -228,6 +228,9 @@ func _environment() -> void:
 	var tint: Color = fd[1]
 	env.ambient_light_color = region.ambient.lerp(Color(tint.r, tint.g, tint.b), 0.35 if tint.a > 0.0 else 0.0)
 	env.ambient_light_energy = [0.84, 0.78, 0.7][Delve.floor_index(layout.depth, run.delve if run else false)]
+	if run and run.delve:
+		# every pass through the regions, the Hollow is darker
+		env.ambient_light_energy *= Delve.gloom(layout.depth)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -619,13 +622,21 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 
 
 func _spawn_wave(r: Room) -> void:
-	var ids: Array = r.encounter[wave] if wave < r.encounter.size() else []
+	var ids: Array = (r.encounter[wave] as Array).duplicate() if wave < r.encounter.size() else []
 	var spots := r.spawns.filter(func(t): return grid.at(t.x, t.y) == TileGrid.FLOOR)
 	spots.shuffle()
 	var far: Array = spots.filter(func(t): return (Vector2(t) + Vector2(0.5, 0.5)).distance_to(player.pos) > 4.5)
 	if far.size() >= ids.size():
 		spots = far
 	var elite_done := false
+	# past the first pass, the Hollow's regions bleed together: one foe of
+	# the next region takes a place in some fights
+	var bleed := Delve.bleed_region(layout.depth) if run.delve else ""
+	if bleed != "" and not ids.is_empty() and rng.randf() < 0.45:
+		var guest := EnemyDB.party_extras(rng, bleed, layout.depth, [], 1)
+		var slot := ids.find(ids.filter(func(i): return not EnemyDB.get_def(String(i)).has("pack")).front()) if ids.any(func(i): return not EnemyDB.get_def(String(i)).has("pack")) else -1
+		if not guest.is_empty() and slot >= 0:
+			ids[slot] = guest[0]
 	var n_own := ids.size()
 	if players.size() > 1:
 		# about 30% more foes per extra Kindled, chosen for what they add

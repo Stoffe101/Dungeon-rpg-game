@@ -38,6 +38,25 @@ static func next_omen(rng: RandomNumberGenerator, active: Array) -> String:
 	return String(pool[rng.randi_range(0, pool.size() - 1)])
 
 
+## How many times the descent has already passed through all three regions
+## (0 on depths 1-9). Each pass the Hollow is darker, and the regions bleed
+## into each other: foes of the next region walk this one's halls.
+static func cycle(depth: int) -> int:
+	return maxi(0, (depth - 1) / 9)
+
+
+## The region whose foes bleed into this depth ("" on the first pass).
+static func bleed_region(depth: int) -> String:
+	if cycle(depth) < 1:
+		return ""
+	return ORDER[(ORDER.find(region_for(depth)) + 1) % ORDER.size()]
+
+
+## How much darker the Hollow is on this pass (ambient light multiplier).
+static func gloom(depth: int) -> float:
+	return maxf(0.55, 1.0 - 0.15 * cycle(depth))
+
+
 ## Which of its region's three floors a depth is (0..2).
 static func floor_index(depth: int, delve: bool) -> int:
 	return (depth - 1) % 3 if delve else clampi(depth - 1, 0, 2)
@@ -59,9 +78,11 @@ static func depth_title(region: String, depth: int, delve: bool) -> Array:
 	var pre := (nm + "  -  ") if nm != "" else ""
 	var boss_name := String(EnemyDB.get_def(String(EnemyDB.REGIONS.get(region, {}).get("boss", ""))).get("name", "the guardian"))
 	if delve:
+		var bleed := bleed_region(depth)
+		var also := ("  The %s's dead walk here too." % String(EnemyDB.REGIONS[bleed].name).trim_prefix("The ")) if bleed != "" else ""
 		if is_boss_depth(depth):
-			return [pre + "Depth %d" % depth, "An Echo of %s waits here. The Hollow Below has no floor." % boss_name]
-		return [pre + "Depth %d" % depth, "No floor below. An Echo waits in %d." % (3 - depth % 3)]
+			return [pre + "Depth %d" % depth, "An Echo of %s waits here. The Hollow Below has no floor.%s" % [boss_name, also]]
+		return [pre + "Depth %d" % depth, "No floor below. An Echo waits in %d.%s" % [3 - depth % 3, also]]
 	var total := int(EnemyDB.REGIONS.get(region, {}).get("depths", 3))
 	if depth >= total:
 		return [pre + "Depth %d of %d  -  Guardian Depth" % [depth, total], "%s waits." % boss_name]
