@@ -1203,19 +1203,41 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 			stage.fx.kick(h.from_dir, 2.5 if res.crit or finisher else 1.2)
 			if weapon:
 				weapon.hit_flash()
+		# each weapon lands with its own sound; a crit rings over it
+		Audio.play(_impact_sound(h), -4.0 if not res.crit else -2.0, randf_range(0.93, 1.07))
 		if res.crit:
 			stage.fx.burst(t.pos, 0.8, Color(1.0, 0.9, 0.5), 6, 5.0, 0.2, 0.0, h.from_dir, 0.5)
 			stage.hitstop(0.06)
 			Settings.rumble(0.35, 0.25, 0.08)
-			Audio.play("crit", -3.0, randf_range(0.95, 1.05))
+			Audio.play("crit", -5.0, randf_range(0.95, 1.05))
 		else:
 			Settings.rumble(0.18, 0.0, 0.05)
-			Audio.play("hit", -4.0, randf_range(0.9, 1.1))
 		if not t.alive and h.has_tag("melee"):
-			# killing blows land a beat harder
+			# killing blows land a beat harder (a hammer's hardest of all)
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
+			if weapon and weapon.id == "hammer":
+				stage.fx.burst(t.pos, 0.3, Color(0.7, 0.66, 0.6), 10, 5.0, 0.5, 9.0, h.from_dir, 1.0, 2.5)
+				stage.fx.shake(0.18)
 			stage.fx.kick(h.from_dir, 2.0)
 	return res
+
+
+## What a hit sounds like: a blade slices, a hammer crunches, a point punches
+## in, an arrow thunks, a spell or bolt pops.
+func _impact_sound(h: Hit) -> String:
+	if h.has_tag("melee") and weapon and not h.has_tag("ability"):
+		match weapon.id:
+			"hammer":
+				return "hit_blunt"
+			"spear":
+				return "hit_pierce"
+			"sword", "daggers":
+				return "hit_slash"
+	if h.has_tag("ranged") and weapon and weapon.id == "bow" and not h.has_tag("ability"):
+		return "hit_arrow"
+	if h.has_tag("ranged") or h.has_tag("ability"):
+		return "hit_magic"
+	return "hit"
 
 
 ## Momentum and Thousand Cuts: weapon hits in quick succession build up.
