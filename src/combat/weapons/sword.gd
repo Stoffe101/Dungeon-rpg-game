@@ -129,7 +129,7 @@ func _sunder(a: Actor, h: Hit) -> void:
 	if float(a.get_meta("sunder_t", -99.0)) < player.stage.elapsed - 3.0:
 		n = 1     # the count fades if the cleaver stops coming
 	a.set_meta("sunder_t", player.stage.elapsed)
-	if n >= SUNDER_AT:
+	if n >= (SUNDER_AT - 1 if player.stats.has("mastery_sword") else SUNDER_AT):
 		n = 0
 		h.expose = maxf(h.expose, SUNDER_TIME)
 		h.poise *= 1.5
@@ -162,7 +162,8 @@ func _grave_drop() -> void:
 
 
 func _execute(a: Actor, h: Hit) -> void:
-	if a.hp_ratio() <= 0.25 and not (a is Enemy and (a as Enemy).def.get("boss", false)):
+	var line := 0.35 if player.stats.has("mastery_sword") else 0.25
+	if a.hp_ratio() <= line and not (a is Enemy and (a as Enemy).def.get("boss", false)):
 		h.amount *= 2.5
 		h.forced_crit = true
 		player.stage.fx.number(a.pos, 2.6, "EXECUTED", Color(0.85, 0.9, 1.0), true)
@@ -180,6 +181,9 @@ func _thrust() -> void:
 	if riposte:
 		# the riposte: a flash of a lunge, always true
 		riposte = false
+		if player.stats.has("mastery_sword"):
+			# Blade Mastery: the answer gives back a dodge
+			player.dodge_charges = minf(player.stats.v("dodge_charges"), player.dodge_charges + 1.0)
 		player.push += aim_dir * 6.5
 		rng += 1.4
 		dmg *= 2.2

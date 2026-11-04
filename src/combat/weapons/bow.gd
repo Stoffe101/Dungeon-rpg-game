@@ -14,6 +14,11 @@ const TIRE := 1.2         # past this the arm tires
 ##     a trail of frost where it flew.
 const NOCK_EVERY := 0.25
 const NOCK_MAX := 5
+
+
+## Quiver Lore (Hearthtree): the Splitwood nocks seven.
+func nock_max() -> int:
+	return NOCK_MAX + (2 if player and player.stats and player.stats.has("mastery_bow") else 0)
 var _cool := 0.0
 var _nocked := 1
 
@@ -44,7 +49,7 @@ func update(dt: float) -> void:
 		visual.set_instance_shader_parameter("flash", Color(1.0, 0.85, 0.45, 0.7 * k * (0.6 + 0.4 * sin(phase_t * 40.0))))
 	if form == "volley":
 		if phase == Phase.CHARGE:
-			var n := mini(NOCK_MAX, 1 + int(phase_t * speed() / NOCK_EVERY))
+			var n := mini(nock_max(), 1 + int(phase_t * speed() / NOCK_EVERY))
 			if n > _nocked:
 				_nocked = n
 				player.cosmetic(func() -> void:
@@ -52,7 +57,7 @@ func update(dt: float) -> void:
 					Audio.play("nock", -8.0, 0.9 + 0.06 * n))
 		else:
 			_nocked = 1
-		player.form_meter = float(_nocked) / NOCK_MAX if phase == Phase.CHARGE else 0.0
+		player.form_meter = float(_nocked) / nock_max() if phase == Phase.CHARGE else 0.0
 	swing = 0.0
 
 
@@ -117,7 +122,7 @@ func predict_charge() -> void:
 
 
 func release_charge() -> void:
-	var nocked := mini(NOCK_MAX, 1 + int(phase_t * speed() / NOCK_EVERY))
+	var nocked := mini(nock_max(), 1 + int(phase_t * speed() / NOCK_EVERY))
 	var over := phase_t - charge_time / speed()
 	var perfect := over <= PERFECT
 	var tired := over > TIRE
@@ -134,7 +139,7 @@ func release_charge() -> void:
 			var d := aim_dir.rotated(deg_to_rad((i - (n - 1) * 0.5) * 8.0))
 			_one_arrow(d, dmg * 0.48, 1, perfect, group)
 		player.stage.fx.burst(player.pos + aim_dir * 0.6, 0.6, Color(1.0, 0.85, 0.6), 4 + 2 * n, 3.0, 0.15, 0.0, aim_dir, 0.7)
-		if n >= NOCK_MAX:
+		if n >= nock_max():
 			player.stage.fx.number(player.pos, 2.2, "VOLLEY", Color(1.0, 0.9, 0.6))
 	elif form == "glacial" and perfect:
 		_ice_spear(aim_dir, dmg * 1.15)

@@ -122,7 +122,7 @@ func _root(a: Actor, _h: Hit) -> void:
 	if a is Enemy and (a as Enemy).def.get("boss", false):
 		a.status.apply_snare(ROOT_TIME)     # a guardian is only slowed
 	else:
-		a.status.apply_root(ROOT_TIME)
+		a.status.apply_root(ROOT_TIME * (1.5 if player.stats.has("mastery_spear") else 1.0))
 	player.stage.fx.burst(a.pos, 0.2, Color(0.5, 0.75, 0.3), 8, 2.0, 0.5, 6.0, Vector2.ZERO, PI, 1.5)
 	player.stage.fx.ring(a.pos, 0.7, Color(0.55, 0.85, 0.35), 0.3, 0.2)
 	Audio.play_at("root", a.pos, -6.0, randf_range(0.95, 1.1))
@@ -281,7 +281,7 @@ func _sunfall(at: Vector2) -> void:
 	player.set_meta("legend_moments", int(player.get_meta("legend_moments", 0)) + 1)
 	var st := player.stage
 	var col := Color(1.0, 0.8, 0.4)
-	var r := 3.2 * player.stats.v("area")
+	var r := 3.2 * player.stats.v("area") * (1.25 if player.stats.has("mastery_spear") else 1.0)
 	st.fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), Color(1.0, 0.7, 0.3, 0.25), Color(1.0, 0.9, 0.55, 1.0), 0.45, {"glow": 1.8})
 	var pl := player
 	var dmg: float = def.charged * 0.9 * damage_scale()

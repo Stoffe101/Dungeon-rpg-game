@@ -120,7 +120,7 @@ func _bolt(d: Vector2, group: Dictionary) -> void:
 	pr.with_light(Color(1.0, 0.55, 0.25), 0.7, 2.2)
 	Volley.shape(pr, player, group)
 	if form == "branch":
-		pr.fork = maxi(pr.fork, 1)     # every bolt forks on its first foe
+		pr.fork = maxi(pr.fork, 2 if player.stats.has("mastery_staff") else 1)     # every bolt forks on its first foe (twice, with mastery)
 
 
 ## Rimewood: a shard of frost that shatters into splinters where it strikes.

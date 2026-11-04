@@ -102,7 +102,7 @@ func on_active() -> void:
 func _aftershocks(c: Vector2, r: float, dmg: float) -> void:
 	var st := player.stage
 	var me: WeakRef = weakref(self)
-	for k in 2:
+	for k in (3 if player.stats.has("mastery_hammer") else 2):
 		var rr := r * (1.3 + 0.35 * k)
 		var pitch := 1.0 - 0.08 * k
 		st.after(0.32 * (k + 1), func() -> void:
@@ -122,6 +122,8 @@ func _aftershocks(c: Vector2, r: float, dmg: float) -> void:
 func _heat_up(hits: int, p: Vector2) -> void:
 	if hits > 0:
 		var forged := 2.0 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") else 1.0
+		if player.stats.has("mastery_hammer"):
+			forged *= 1.5     # Earthshaker: the Mallet heats half as fast again
 		heat = minf(100.0, heat + HEAT_PER_HIT * hits * forged)
 		_heat_idle = 0.0
 	if heat >= HEAT_SPARKS:

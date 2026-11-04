@@ -19,6 +19,11 @@ const GLYPH_LIFE := 8.0
 const GLYPH_R := 1.5
 const BREATH_EVERY := 0.1
 const BREATH_RANGE := 3.4
+
+
+## Inkbound (Hearthtree): the Grimoire breathes a third further.
+func breath_range() -> float:
+	return BREATH_RANGE * (1.3 if player and player.stats and player.stats.has("mastery_tome") else 1.0)
 var _glyphs: Array = []
 var _orbit := 0.0
 var _glyph_clear := 0.0
@@ -276,7 +281,7 @@ func _echo(ability: String) -> void:
 	Audio.play("echo_cast", -2.0)
 	st.after(0.35, func() -> void:
 		if is_instance_valid(pl) and pl.alive:
-			Abilities.cast(pl, ability, 0.45))
+			Abilities.cast(pl, ability, 0.65 if pl.stats.has("mastery_tome") else 0.45))
 
 
 # --- Grimoire of Ash ------------------------------------------------------------------
@@ -314,7 +319,7 @@ func _breathe(dt: float) -> void:
 		elif element == "shadow":
 			h.expose = 0.6
 	var opts := {"each": touch}
-	var hits := arc_hit(player.pos, d, BREATH_RANGE * player.stats.v("area"), deg_to_rad(26.0), def.damage[0] * 0.42, tags, 0.6, 2.0, opts)
+	var hits := arc_hit(player.pos, d, breath_range() * player.stats.v("area"), deg_to_rad(26.0), def.damage[0] * 0.42, tags, 0.6, 2.0, opts)
 	if hits > 0:
 		for i in player.ability_cd.size():
 			player.ability_cd[i] = maxf(0.0, player.ability_cd[i] - COOLDOWN_PER_HIT * 0.25)

@@ -345,3 +345,32 @@ func test_uniques_are_themselves() -> void:
 	_run(st3, 0.6)
 	check(f.hp < after_lunge, "and the sun falls after it (%.0f -> %.0f)" % [after_lunge, f.hp])
 	st3.queue_free()
+
+
+## The weapon masteries (Hearthtree notables) change their forms.
+func test_weapon_masteries_change_their_forms() -> void:
+	for id in ["m_sword", "m_hammer", "m_daggers", "m_spear", "m_bow", "m_staff", "m_tome"]:
+		check(not SkillDB.node(id).is_empty(), "%s is on the Hearthtree" % id)
+	var st := _stage()
+	var pk := _player(st, "gloam_kris")
+	eq(pk.weapon.marks_max(), 5, "a Kris foe holds five marks")
+	pk.stats.add_flag("mastery_daggers")
+	eq(pk.weapon.marks_max(), 7, "with Night's Tally, seven")
+	st.queue_free()
+	var st2 := _stage()
+	var pb := _player(st2, "splitwood_bow")
+	eq(pb.weapon.nock_max(), 5, "the Splitwood nocks five")
+	pb.stats.add_flag("mastery_bow")
+	eq(pb.weapon.nock_max(), 7, "with Quiver Lore, seven")
+	st2.queue_free()
+	# the Gravecleaver: two blows Sunder with the mastery
+	var st3 := _stage()
+	var ps := _player(st3, "gravecleaver")
+	ps.stats.add_flag("mastery_sword")
+	var e := _foe(st3, Vector2(6.2, 7))
+	for k in 2:
+		var h := Hit.make(ps, 1.0, ["melee"])
+		ps.weapon._sunder(e, h)
+		if k == 1:
+			check(h.expose > 0.0, "the second blow Sunders")
+	st3.queue_free()
