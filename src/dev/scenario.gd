@@ -65,6 +65,8 @@ func _run() -> void:
 			await party_hud()
 		"facing":
 			await facing()
+		"landmark":
+			await landmark()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -260,19 +262,22 @@ func talk_checks(tag: String) -> void:
 	Capture.save_now("e2e/05_dialogue_closed_%s" % _tag())
 	# Esc closes at once, and the next F talks again
 	await wait(0.4)
+	# (waits on the result, not a fixed time: four game windows on one PC run
+	# each other slow, and the dialogue can open half a second after F)
 	tap("interact")
-	await wait(0.4)
-	expect(Game.ui.modal_of("dialogue") != null, "[%s] F talks again" % tag)
+	if not await until(func() -> bool: return Game.ui.modal_of("dialogue") != null, 2.0, "[%s] F talks again" % tag):
+		return
+	await wait(0.2)
 	tap("pause")
-	await wait(0.4)
-	expect(Game.ui.modal_of("dialogue") == null and Game.ui.layer_count() == 0, "[%s] one Esc closes it" % tag)
+	await until(func() -> bool: return Game.ui.modal_of("dialogue") == null and Game.ui.layer_count() == 0, 2.0, "[%s] one Esc closes it" % tag)
 	await wait(0.5)
 	expect(Game.ui.modal_of("dialogue") == null, "[%s] and it does not reopen" % tag)
 	# a click on the Keeper
 	await wait(0.4)
 	await click_world(keeper.pos + Vector2(0, -0.3))
-	await wait(0.5)
-	expect(Game.ui.modal_of("dialogue") != null, "[%s] a click on the Keeper talks" % tag)
+	# (out of reach - a crowd of Kindled round the Keeper - the click first
+	# walks the Kindled over, then talks)
+	await until(func() -> bool: return Game.ui.modal_of("dialogue") != null, 3.0, "[%s] a click on the Keeper talks" % tag)
 	tap("pause")
 	await wait(0.4)
 	expect(Game.ui.layer_count() == 0, "[%s] closed again" % tag)
@@ -557,6 +562,54 @@ func facing() -> void:
 	await wait(0.6)
 	if party:
 		await _others_face("below")
+
+
+## A landmark in a party (dev switch `landmark`: every floor has one): the
+## host brings everyone to it (its fight counted as won), the first guest
+## walks up and presses F, and every machine checks it answered - its sprite
+## woken and, for the Bone Colossus, every room on that machine's own map.
+func landmark() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending, 90.0, "below together")
+	await wait(1.0)
+	_strip_bot()
+	var d := dun()
+	var lm: Prop = null
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "landmark":
+			lm = p
+	expect(lm != null, "this floor has a landmark")
+	if lm == null:
+		return
+	var lid := String(lm.data.get("id", ""))
+	if role == "host":
+		var r := d.layout.room_at_point(lm.pos)
+		r.cleared = true
+		var k := 0
+		for pl in d.players:
+			pl.pos = d.random_floor_near(lm.pos + Vector2(-2.0 + 2.0 * k, 2.6), 0.4)
+			pl.vel = Vector2.ZERO
+			k += 1
+	var me := Net.my_id() == _first_guest()
+	if not await until(func() -> bool: return d.player.pos.distance_to(lm.pos) < 4.0, 20.0, "brought to the landmark"):
+		return
+	await wait(1.2)
+	var m: Dictionary = d.fx._marks.get(lm.get_instance_id(), {})
+	expect(not m.is_empty() and (m.name as Label).text == lm.label_name() and lm.label_name() != "", "its name is over it here (%s)" % lm.label_name())
+	if me:
+		# walk the last step on my own keys, then F
+		await walk_to(lm.pos + Vector2(0, 1.4), 0.5, 6.0)
+		release_all()
+		await wait(0.4)
+		var near := d.nearest_interactable(d.player.pos)
+		expect(near == lm, "the landmark is what F would use (%s)" % (near.kind if near else "nothing"))
+		tap("interact")
+	var state: String = {"colossus": "woken", "heartroot": "fed", "sundisc": "lit"}.get(lid, "")
+	await until(func() -> bool: return lm.sprite.anim == state, 10.0, "%s answers on this screen" % lm.label_name())
+	if lid == "colossus":
+		expect(d.remembered(), "every room is on this machine's map")
+	if role == "host":
+		Net.i.dev_shot("landmark/%s_answered" % lid)
+	await wait(2.5)
 
 
 ## Every machine walks its own way (host left, guests right) for two seconds;

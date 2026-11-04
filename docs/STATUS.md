@@ -4,6 +4,57 @@ Last updated: 2026-11-04.
 
 ## Implemented
 
+- **Development pass: feel, atmosphere, smart co-op (branch
+  feature/feel-and-atmosphere)** - details in DESIGN, "Development pass".
+  - *Facing (top priority)*: W/A/S/D and diagonals turn and animate the
+    Kindled; it keeps its facing when it stops; a fight (attack, charge,
+    stick aim) faces the aim, walking faces the walk, a moved mouse faces the
+    pointer, a dodge faces where it goes. Hysteresis stops flicker on
+    diagonals; the idle weapon follows the facing; armour layers mirror with
+    the body. In co-op each Kindled sends its facing (protocol 7), so hosts
+    and guests draw every Kindled turned the way its owner sees it.
+  - *Smarter co-op*: foes share themselves out over a party (pressed Kindled
+    are less inviting, a lone one is prey, ranged and support foes care
+    little for distance); a party's extra foes are chosen by role (flankers
+    and marksmen, within the role caps) and come from the far side; 3-4
+    Kindled meet a closing wave; guardians gain less health per friend (+40%)
+    but a quicker tempo and a call for help beside whoever stands farthest.
+    Rewards are shared by worth, not by count.
+  - *Interactables*: names over chests, shrines, wells, landmarks...
+    in category colours (treasure gold, magic teal, bargains rose, the way
+    onward pale gold), the action line on the one F would use, a soft
+    highlight pulse; Settings > Accessibility > Object names (all / nearest /
+    off).
+  - *Urns*: three materials by region, crack-and-shatter with shards left on
+    the floor, dust, three takes of a break sound per material; now and then a
+    glinting urn that always pays; every attack type breaks them (blades,
+    projectiles, spells, explosions, foes' blasts); rewards from the floor's
+    own rng (no farming).
+  - *Audio*: each region's walking music has a combat layer in step with it
+    that swells with the fight; the Hollow Below and the two later guardians
+    have their own music; stings for elites and a cleared fight; ambient
+    one-shots per region; a master limiter, an SFX compressor, warnings on
+    their own voices, music ducked under heavy fighting. All original
+    (generated in tools/audio/build_audio.gd).
+  - *Depths look deeper*: second and third depth floor/wall textures per
+    region (bones, then soul-light seams; spore caps, then the Bloom's veins;
+    ash, then gold inlay and a sun mosaic).
+  - *Landmarks*: a rare fight around a region's great centrepiece (the Bone
+    Colossus reveals the depth's map, hidden rooms too; the Heart-Root trades
+    15% health for a relic, once per Kindled; the Fallen Sun-Disc restores the
+    party and leaves a Sunshard), a banner on entry, minimap icons, the
+    "Wonders of the Deep" feat.
+  - *Loot*: legendary/set/unique finds hang turning in the air before they
+    fall; each grade lands with its own sound; notable finds show their name
+    on the floor (only to whoever they are for).
+  - *Guardians arrive*: the room trembles, light gathers under a widening
+    sigil, then a shockwave, a breath of slow motion, and the camera leans
+    toward it on every screen.
+  - *The Hollow Below* changes each pass through the regions: foes of the
+    next region bleed in and it gets darker.
+  - *The smith's anvil* rings on every blow (three takes), bellows breathe and
+    the fire flares.
+
 - **Evolution pass (branch feature/evolution-builds)**: builds, weapons, fair
   co-op, readable depths and a real workshop (details in DESIGN, "Evolution
   pass").
@@ -236,6 +287,19 @@ Last updated: 2026-11-04.
 
 ## Known issues / limitations
 
+- Development pass: nothing in its audio has been listened to by a person -
+  levels, balance and the low end are set by measurement
+  (tools/audio/analyze.py, bus recordings with `audiorec`), which is not the
+  same as hearing it. Co-op difficulty is measured with bots on one PC
+  (3 seeds x 240 s per party, Tier III): damage taken per Kindled per room is
+  now in the solo band (parties 11-28%, solo 16-32%), XP per Kindled is
+  1.03-1.59x solo; Embers per Kindled read 1.4-2.2x but that number divides
+  by rooms cleared, which varies 1.3-7.3 between runs (too noisy to tune
+  from). A 4-player melee bot party once took 89 s per room. Landmarks,
+  urns, loot hang and the guardian entrance are seen in captures, not played
+  by a person. All multiplayer checks ran as separate local processes, not on
+  two PCs or over Steam.
+
 - Evolution pass: the new spells, keystones, weapon variants and the co-op
   damage scaling are tuned by tests, bots and formulas only. With weapons as a
   seventh gear slot a full epic L5 kit has ~16% more offense at Tier I and
@@ -298,6 +362,12 @@ Last updated: 2026-11-04.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. This pass with people: docs/TESTING.md "Human playtest: the development
+   pass" - facing on keyboard, mouse and pad (and on a friend's screen), a
+   listening pass on headphones and speakers (music layers, urns, drops,
+   guardian arrival, anvil), 2-4 player difficulty and whether parties feel
+   hunted rather than swarmed, landmarks and urn rewards.
 
 0. The evolution pass with people: docs/TESTING.md "Human playtest: the
    evolution pass" (spells and hotbar on keyboard and pad, build feel, weapon

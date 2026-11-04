@@ -9,6 +9,8 @@
 #   GODOT=/path/to/godot tools/dev/e2e.sh [players=2] [scenario=journey] [netsim per guest ...]
 #   e.g. tools/dev/e2e.sh 4 journey typical moderate stress
 #
+# XARGS="..." adds dev switches to every process (e.g. XARGS=landmark: every
+# floor has its region's landmark - every machine must generate the same floor).
 # RES=WxH sets the window size (default 960x540). DEVNET=1 skips the party
 # screen: the host hosts and proposes by itself, guests join and accept (for
 # scenarios that test something after the party has formed: partyhud,
@@ -32,6 +34,7 @@ W=${RES%x*}
 H=${RES#*x}
 OUTFITS=(emberwrought rimeguard gloamweave verdant)
 LIMIT=${LIMIT:-600}
+XARGS=${XARGS:-}
 HOST_NET=""
 GUEST_NET=""
 if [ "${DEVNET:-0}" = "1" ]; then
@@ -39,7 +42,7 @@ if [ "${DEVNET:-0}" = "1" ]; then
 	GUEST_NET="net=join:127.0.0.1 autoaccept"
 fi
 timeout "$LIMIT" "$GODOT" --resolution "$RES" --position 0,0 --path . -- scene=hub scenario="$SCEN" role=host guests=$((N - 1)) \
-	name=Host profile=e2e_host.json seed=7 wear=${OUTFITS[0]} $HOST_NET > "$OUT/host.log" 2>&1 &
+	name=Host profile=e2e_host.json seed=7 wear=${OUTFITS[0]} $HOST_NET $XARGS > "$OUT/host.log" 2>&1 &
 PIDS=($!)
 sleep 2
 for ((k = 1; k < N; k++)); do
@@ -49,7 +52,7 @@ for ((k = 1; k < N; k++)); do
 	X=$(((k % 2) * W))
 	Y=$(((k / 2) * (H + 40)))
 	timeout "$LIMIT" "$GODOT" --resolution "$RES" --position "$X,$Y" --path . -- scene=hub scenario="$SCEN" role=guest \
-		name=Guest$k profile=e2e_guest$k.json wear=${OUTFITS[$k]} $EXTRA $GUEST_NET > "$OUT/guest$k.log" 2>&1 &
+		name=Guest$k profile=e2e_guest$k.json wear=${OUTFITS[$k]} $EXTRA $GUEST_NET $XARGS > "$OUT/guest$k.log" 2>&1 &
 	PIDS+=($!)
 	sleep 1
 done

@@ -226,7 +226,7 @@ func _build() -> void:
 			_flame_col = ld.get("light", Color(0.4, 0.95, 0.85))
 			# lit from above and behind, so the light is around it, not on it
 			_light(_flame_col, float(ld.get("energy", 0.9)), 7.5, Vector3(0, 2.4 * Iso.SQ2, -0.6))
-			interact_radius = 2.4
+			interact_radius = 1.6
 			ticks = true
 			var foot: Array = []
 			for dx in [-1, 0, 1]:

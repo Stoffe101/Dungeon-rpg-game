@@ -1664,7 +1664,7 @@ func _landmark_answer(prop: Prop, who: Player) -> void:
 			fx.flash_light(prop.pos, 2.0, col, 5.0, 12.0, 1.2)
 			fx.ring(prop.pos, 3.0, col, 0.9, 0.3)
 			fx.motes(prop.pos, 1.6, col, 30, 2.0, 1.4, 0.6)
-			Audio.play_at("warden_call", prop.pos, -6.0, 1.3)
+			Audio.play_at("colossus_wake", prop.pos, -3.0, 1.0, 400)
 			Events.banner.emit("The Colossus Remembers", "Every hall of this depth is on your map")
 			minimap_changed.emit()
 		"heartroot":

@@ -380,6 +380,17 @@ func _sfx() -> void:
 	# epic one with a rising pair over a soft shimmer; a legendary (set,
 	# unique) one first rises humming into the air (drop_rise), then strikes
 	# the floor with a thump, a metal ring and a cascade with a long tail
+	# the Bone Colossus wakes: a long breath through an old skull, bone
+	# grinding, and the soul-light in its eyes ringing up
+	fx("colossus_wake", 2.6, func(s):
+		s.noise(0.0, 1.6, 0.4, 500.0, 1100.0, 140.0, 0.5, 1.2, 3.0)
+		s.tone(0.0, 1.5, 98.0, 82.0, "saw", 0.12, 0.4, 1.2, 0.02, 2.0, 500.0)
+		for k in 6:
+			s.noise(0.15 + k * 0.17, 0.06, 0.2, 2200.0, 900.0, 300.0, 0.003, 6.0)
+		var notes := [69, 76, 81, 88]
+		for k in notes.size():
+			s.bell(0.7 + k * 0.16, 1.7 - k * 0.2, midi(notes[k]), 0.1, [[1.0, 1.0, 2.0], [2.0, 0.4, 3.0], [3.0, 0.2, 5.0]])
+		s.pad(0.6, 1.9, [midi(57), midi(64), midi(69)], 0.08, 1600.0, 0.6, 0.9))
 	fx("drop_rare", 0.7, func(s):
 		s.tone(0.0, 0.05, 260.0, 140.0, "sine", 0.25, 0.001, 7.0)
 		s.noise(0.0, 0.02, 0.25, 6000.0, 4000.0, 2500.0, 0.0005, 9.0)

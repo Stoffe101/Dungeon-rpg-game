@@ -25,9 +25,9 @@ cross-machine test plan are in [STEAM.md](STEAM.md).
 
 | Message | Direction | Rate / channel | Content |
 |---|---|---|---|
-| input (`_n_input`) | client -> host | every frame something changes, at least 60/s; unreliable, ordered | the floor it belongs to, sequence id, move, aim, aim point, attack held, press counters (a lost packet never loses a press), measured round trip, attack hold time, where the client's prediction stood |
+| input (`_n_input`) | client -> host | every frame something changes, at least 60/s (and at once when the facing turns more than 0.3 rad); unreliable, ordered | the floor it belongs to, sequence id, move, aim, aim point, attack held, press counters (a lost packet never loses a press), measured round trip, attack hold time, where the client's prediction stood, and (protocol 7) the way its Kindled faces (`look`, indices 13-14: the host draws a guest's Kindled turned the way its owner sees it, instead of guessing from its movement) |
 | snapshot (`_snapz`) | host -> each client | 30/s; unreliable, ordered; zstd chunks below one packet | floor id, host clock, chunk counter; actor rows that changed near that client (each refreshed every half second); every Kindled's HUD state; nearby shots and moving pickups; for the receiving client: the newest input the host has applied and for how long |
-| events (`_events`) | host -> clients | every frame something happened; reliable | spawns and removals, prop changes, seals, rooms, telegraphs, effects, positional sounds, banners and toasts, votes |
+| events (`_events`) | host -> clients | every frame something happened; reliable | spawns and removals, prop changes (a landmark's answer travels as its prop state: anim, used, lit), seals, rooms, telegraphs, effects (urn debris included), positional sounds, banners and toasts, votes, `look` (the camera leaning toward an arriving guardian) |
 | ask / offer / tell | both | reliable | a guest's requests (interact, buy, pact, vote...) and the host's answers |
 | ping / pong | client <-> host | twice a second | round trip and jitter for the overlay and lag compensation |
 | hello / roster / where / rejoin / checkpoint / run end | both | reliable | joining (protocol and game version checked), the party (and where each one is: menu, sanctuary, below, summary), returning after a drop, settlement |

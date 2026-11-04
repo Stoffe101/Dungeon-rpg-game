@@ -33,6 +33,8 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Run tests (exit code 0 = pass): `"$GODOT" --headless --path . res://tests/test_runner.tscn`
 - Balance report (gear power vs difficulty tiers): `"$GODOT" --headless --path . res://tools/dev/power_report.tscn`
 - After rebuilding art, run `--import` again or the game keeps showing the old textures.
+- Audio measurement (not listening): `python tools/audio/analyze.py <wav...>` (peak, RMS, centroid, low/high
+  energy share, clipping). Never claim a sound was heard; music layers are `<name>_combat` (same length).
 - Licensed sounds: `python tools/audio/import_licensed.py <Minifantasy_Creatures_SFX_v3.0.zip>`
   writes the gitignored `assets/audio/licensed/` (never commit those: no redistribution, public repo).
   A name there overrides `assets/audio/sfx/`; `<name>_2`... are random takes. Creature voices are
@@ -45,9 +47,10 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `tier=N` (open and select a difficulty tier), `kit=N` (wear random epic gear of item tier N),
   `unlock=all` (open every region and tier), `wear=<set or base ids>`, `look=<look id>`,
   `hearthcall` (start a Hearthcall a second after the floor loads), `audiolog` (print every sound played),
-  `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`,
+  `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`, `landmark` (every floor has its
+  region's landmark), `urnlab`, `proplab`, `audiorec=S` (record the buses to `user://audio_rec/`), `perflog` (frame-time p50/p95/p99/worst every 10 s),
   `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
-  `search=<text>`), `warp=boss|event`, `pad` (act as if a
+  `search=<text>`), `warp=boss|event|landmark`, `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
@@ -59,7 +62,8 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
   peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
-  `scenario=journey|bestiary|stairs|talk|partyesc role=host|guest guests=N stay=S` (docs/TESTING.md),
+  `scenario=journey|bestiary|stairs|talk|partyesc|partyhud|facing|landmark role=host|guest guests=N stay=S`
+  (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost, `src/dev/build_presets.gd`),
   `cast=1,3` (with `hitlab`: cast those spell slots at the nearest foe, full Kindle), `forge=0..3` (workshop level),
@@ -181,7 +185,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

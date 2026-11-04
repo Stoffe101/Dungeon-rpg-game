@@ -98,7 +98,8 @@ func _ready() -> void:
 		light.omni_range = 2.5
 		light.position = Vector3(0, 0.4, 0)
 		add_child(light)
-	_name_tag()
+	# (deferred: whoever spawns a find sets its owner just after)
+	_name_tag.call_deferred()
 	_sync()
 
 
@@ -249,7 +250,7 @@ func tick(dt: float) -> void:
 	var rad := pl.stats.v("pickup_radius")
 	if kind == "heal" and pl.hp >= pl.max_hp:
 		rad = 0.0
-	if age > 0.45 and (d < rad or magnet):
+	if age > 0.45 and _hang <= 0.0 and (d < rad or magnet):
 		var spd := 6.0 + (12.0 if magnet else 0.0) + age * 2.0
 		pos = pos.move_toward(pl.pos, spd * dt)
 		height = move_toward(height, 0.5, dt * 2.0)

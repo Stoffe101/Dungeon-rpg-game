@@ -193,10 +193,33 @@ func _open_dev_screen(what: String) -> void:
 				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"]})
 
 
+var _frames: PackedFloat32Array = []
+var _perf_t := 0.0
+
+
 func _process(_d: float) -> void:
 	fps_label.visible = bool(Settings.get_value("show_fps", false))
 	if fps_label.visible:
 		fps_label.text = "%d fps" % Engine.get_frames_per_second()
+	if "perflog" in Dev.args():
+		_perf(_d)
+
+
+## Dev (`perflog`): every 10 s, how long frames took - the median, the slow
+## ones (95th, 99th percentile) and the worst - and what was on screen.
+func _perf(dt: float) -> void:
+	_frames.append(dt * 1000.0)
+	_perf_t += dt
+	if _perf_t < 10.0:
+		return
+	var f := _frames.duplicate()
+	f.sort()
+	var n := f.size()
+	var st = Game.stage
+	print("[perf] frames %d  p50 %.1f ms  p95 %.1f  p99 %.1f  worst %.1f  actors %d  particles %d  stage %s" % [n, f[n / 2], f[int(n * 0.95)], f[int(n * 0.99)], f[n - 1],
+		st.actors.size() if st else 0, st.fx._p_count if st and st.fx else 0, "-" if st == null else String(st.name)])
+	_frames.clear()
+	_perf_t = 0.0
 
 
 func _notification(what: int) -> void:

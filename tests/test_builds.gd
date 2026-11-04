@@ -506,3 +506,61 @@ func test_hollow_cycles() -> void:
 	check(Delve.gloom(10) < Delve.gloom(9), "darker on the second pass")
 	check(Delve.gloom(200) >= 0.55, "never black")
 	check(String(Delve.depth_title("ossuary", 10, true)[1]).contains("Rootmire"), "the title card says who walks here")
+
+
+func _landmark_floor(region: String) -> Dungeon:
+	DungeonGen.force_landmark = true
+	var lay := DungeonGen.generate(11, 2, region, false)
+	DungeonGen.force_landmark = false
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(11, region, "sword", 0, ["flare", "", ""]), null)
+	d.player.autopilot = true     # relic choices take the first offer
+	return d
+
+
+func _landmark_of(d: Dungeon) -> Prop:
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "landmark":
+			return p
+	return null
+
+
+func test_landmark_answers() -> void:
+	Profile.data = Profile.fresh()
+	# the Bone Colossus: every room of the depth on the map
+	var d := _landmark_floor("ossuary")
+	var lm := _landmark_of(d)
+	check(lm != null and lm.interactable(), "the Colossus stands ready")
+	check(not d.remembered(), "the map is not yet known")
+	d.request("landmark", lm)
+	check(d.remembered() and lm.used and not lm.interactable(), "it remembers the depth, once")
+	d.queue_free()
+	# the Heart-Root: 15% of a Kindled's health for a relic, once each
+	d = _landmark_floor("rootmire")
+	lm = _landmark_of(d)
+	var pl := d.player
+	var hp0 := pl.hp
+	var relics0 := pl.run.relics.size()
+	d.request("landmark", lm)
+	check(absf(pl.hp - (hp0 - pl.max_hp * 0.15)) < 1.0, "it takes 15% of my health (%.0f -> %.0f)" % [hp0, pl.hp])
+	eq(pl.run.relics.size(), relics0 + 1, "and gives me a relic")
+	var hp1 := pl.hp
+	d.request("landmark", lm)
+	eq(pl.hp, hp1, "a second offering takes nothing")
+	eq(pl.run.relics.size(), relics0 + 1, "and gives nothing")
+	d.queue_free()
+	# the Fallen Sun-Disc: the party warmed, a Sunshard at its foot
+	d = _landmark_floor("throne")
+	lm = _landmark_of(d)
+	pl = d.player
+	pl.pos = d.random_floor_near(lm.pos + Vector2(0, 2.0), 0.5)
+	pl.kindle = 0.0
+	pl.hp = pl.max_hp * 0.4
+	d.request("landmark", lm)
+	check(pl.kindle >= pl.kindle_max() - 0.01, "Kindle full")
+	check(pl.hp > pl.max_hp * 0.7, "a third of my health back")
+	check(d.pickups.any(func(k): return is_instance_valid(k) and k.kind == "sunshard"), "a Sunshard left at its foot")
+	check(lm.used, "once")
+	d.queue_free()
