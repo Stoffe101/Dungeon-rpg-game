@@ -16,6 +16,8 @@ func _ready() -> void:
 	add_child(ui)
 	Game.attach(self, view, ui)
 	add_child(Capture.from_args())
+	if "perflog" in Dev.args():
+		get_tree().process_frame.connect(_perf_tick)
 	fps_label = UIKit.label("", 8, UIKit.C_DIM, true)
 	fps_label.position = Vector2(4, 0)
 	ui.root.add_child(fps_label)
@@ -195,18 +197,27 @@ func _open_dev_screen(what: String) -> void:
 
 var _frames: PackedFloat32Array = []
 var _perf_t := 0.0
+var _perf_last := 0
 
 
 func _process(_d: float) -> void:
 	fps_label.visible = bool(Settings.get_value("show_fps", false))
 	if fps_label.visible:
 		fps_label.text = "%d fps" % Engine.get_frames_per_second()
-	if "perflog" in Dev.args():
-		_perf(_d)
+
 
 
 ## Dev (`perflog`): every 10 s, how long frames took - the median, the slow
 ## ones (95th, 99th percentile) and the worst - and what was on screen.
+## (timed from the tree's frame signal and the clock, so it keeps counting
+## while a screen pauses the tree - the sanctuary keeps living under one)
+func _perf_tick() -> void:
+	var now := Time.get_ticks_usec()
+	if _perf_last > 0:
+		_perf((now - _perf_last) / 1000000.0)
+	_perf_last = now
+
+
 func _perf(dt: float) -> void:
 	_frames.append(dt * 1000.0)
 	_perf_t += dt

@@ -24,6 +24,8 @@ var spawn_t := 0.7
 var speed := 2.5
 var damage := 10.0
 var attack_rate := 1.0
+var tempo := 1.0             # a party's guardian rests less between attacks (Dungeon._coop_scale):
+                             # its cooldowns run faster, its wind-ups (and their telegraphs) do not
 var xp := 5
 var embers := 2
 var room_id := -1

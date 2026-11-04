@@ -534,7 +534,10 @@ func _music_watch(real: float) -> void:
 		_amb_t = randf_range(7.0, 16.0)
 		var pool: Array = AMB_ONESHOTS.get(layout.region, AMB_ONESHOTS.ossuary)
 		var at := player.pos + Vector2.from_angle(randf() * TAU) * randf_range(5.0, 10.0)
+		# every machine has its own (never sent on: a guest would hear the host's too)
+		Net.mute += 1
 		Audio.play_at(String(pool[randi() % pool.size()]), at, -8.0, randf_range(0.9, 1.1), 500)
+		Net.mute -= 1
 
 
 const AMB_ONESHOTS := {"ossuary": ["amb_drip", "amb_chain", "amb_stone", "amb_whisper"], "rootmire": ["amb_drip", "amb_creak", "amb_bubble", "amb_stone"],
@@ -712,7 +715,7 @@ func _coop_scale(e: Enemy) -> void:
 	e.max_hp *= 1.0 + (0.4 if is_boss else 0.35) * extra
 	e.hp = e.max_hp
 	if is_boss:
-		e.attack_rate *= 1.0 + 0.07 * extra
+		e.tempo = 1.0 + 0.07 * extra
 	# a party splits the blows and raises its fallen: each foe hits a little
 	# harder so each Kindled is pressed about as hard as alone (measured with
 	# src/dev/scaling_eval.gd: without this a party member took about half

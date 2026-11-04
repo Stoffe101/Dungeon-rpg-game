@@ -40,7 +40,7 @@ func hit_color() -> Color:
 
 
 func behave(dt: float) -> void:
-	cooldown -= dt * attack_rate
+	cooldown -= dt * attack_rate * tempo
 	if phase == 2:
 		summon_t -= dt
 		if summon_t <= 0.0:

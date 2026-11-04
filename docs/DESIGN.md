@@ -648,8 +648,10 @@ keep a target for a second or so unless another is clearly better. A party's
 extra foes are picked for what they add - flankers and marksmen in turn,
 inside the role caps, never pack summoners - and placed on the far side;
 three or four Kindled meet one more short closing wave. Guardians gain less
-health per friend (+40%), a quicker tempo (+7% per friend) and a call for help:
-every 9-16 s foes of the region rise (marked first) beside whoever stands
+health per friend (+40%), shorter rests between attacks (+7% per friend; wind-ups
+and their warnings unchanged) and a call for help:
+every 14 s (two Kindled), 12 s (three) or 10 s (four) foes of the region rise
+(marked first) beside whoever stands
 farthest from it. No role is required; every check is about position.
 Rewards follow worth, not count (Party.wave_share): each wave pays a Kindled
 what its own foes are worth, +12% per friend, whatever pricier extras came
@@ -664,9 +666,9 @@ old prompt returns).
 
 **Urns are worth breaking, not farming.** Each region has its own make (clay,
 root-bound, gilded), its own break sound (three takes) and shards that stay on
-the floor. Most hold a little or nothing; one in twenty or so glints and always
-pays (Embers, a region material, sometimes an Ember Core) - rarer near the
-top. Drops come from the floor's rng, and urns never return, so there is
+the floor. Most hold a little or nothing; a glinting one (8% of urns at depth
+1, rising to 18% by depth 6) always pays: Embers, a region material and
+sometimes an Ember Core. Drops come from the floor's rng, and urns never return, so there is
 nothing to farm. Every attack breaks them.
 
 **Music follows the fight.** Each region's loop has a combat layer of the same
@@ -689,7 +691,7 @@ caps, then the Bloom's red veins; the Throne ash and scorch, then gold inlay
 and a sun in the floor.
 
 **Landmarks.** A floor sometimes holds its region's great centrepiece in the
-middle of one fight (16% at depth 1, rising to 36%): the Bone Colossus, a
+middle of one fight (20% of floors at depth 1, 4% more each depth, at most 36%): the Bone Colossus, a
 half-buried warden's skull whose eyes still hold soul-light; the Heart-Root,
 the dead tree's heart held in an arch of roots; the Fallen Sun-Disc, the
 sun-king's cracked emblem. Each tells something and does something once you
@@ -714,8 +716,8 @@ camera leaning toward it (on every screen) and its name.
 
 **The Hollow Below changes on each pass.** After the first nine depths the
 regions bleed together (foes of the next region take places in some fights;
-the title card says whose dead walk there) and every pass is darker (x0.85
-ambient, never below 0.55), so the lantern matters more the deeper it goes.
+the title card says whose dead walk there) and every pass is darker (85%,
+then 70%, then 55% of the light, no darker), so the lantern matters more the deeper it goes.
 
 **The workshop sounds like one.** The smith's hammer rings on the anvil on
 every blow (three takes of a hammer biting hot iron), every fourth blow lands
