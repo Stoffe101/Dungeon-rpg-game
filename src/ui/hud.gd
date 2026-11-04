@@ -413,7 +413,7 @@ func _process(_delta: float) -> void:
 	# interaction prompt
 	var near := st.nearest_interactable(pl.pos) if pl.alive else null
 	# (dungeon objects carry their own name and action over them: Fx.beacon)
-	if near and not Game.ui.has_modal() and not (st is Dungeon and near.label_name() != ""):
+	if near and not Game.ui.has_modal() and not (st is Dungeon and near.label_name() != "" and String(Settings.get_value("world_names", "all")) != "off"):
 		prompt_lbl.text = "[%s] %s" % [Settings.describe_action("interact"), near.prompt()]
 	else:
 		prompt_lbl.text = ""

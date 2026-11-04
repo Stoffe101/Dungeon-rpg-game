@@ -221,6 +221,15 @@ func _run() -> void:
 		while ui.card_pending:
 			await _wait()
 		await _close_all()
+		# a feat earned by the expedition can open its card a moment later:
+		# let late screens arrive and close them too before talking
+		for guard in 4:
+			await _wait(20)
+			if not ui.has_modal() and not ui.card_pending:
+				break
+			while ui.card_pending:
+				await _wait()
+			await _close_all()
 		hub.player.pos = w.pos + Vector2(0.5, 0.0)
 		hub.player.try_interact()
 		await _wait(4)

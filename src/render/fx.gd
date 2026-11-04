@@ -496,7 +496,8 @@ func _update_beacon(m: Dictionary, who: Node, nearest: Node) -> void:
 		(m.act as Label).text = act
 	(m.act as Label).visible = near
 	l.set_meta("prio", near)
-	l.visible = a > 0.01
+	var mode := String(Settings.get_value("world_names", "all"))
+	l.visible = a > 0.01 and mode != "off" and (near or mode == "all")
 	l.modulate.a = a if near else a * 0.7
 	l.reset_size()
 	var sp := view.world_to_internal(Iso.to_world(who.get("pos"), m.height))
@@ -536,7 +537,7 @@ func _update_marks() -> void:
 			var h: float = float(m.height) + float(who.get("height"))
 			var dd: float = (stg.player.pos as Vector2).distance_to(who.get("pos")) if stg and stg.player else 99.0
 			l.modulate.a = clampf((float(m.fade) - dd) / 3.0, 0.0, 1.0)
-			l.visible = l.modulate.a > 0.01
+			l.visible = l.modulate.a > 0.01 and String(Settings.get_value("world_names", "all")) != "off"
 			var sp2 := view.world_to_internal(Iso.to_world(who.get("pos"), h))
 			var sz2 := l.get_minimum_size()
 			l.position = Vector2(roundf(sp2.x - sz2.x * 0.5), roundf(sp2.y - sz2.y))
