@@ -15,6 +15,7 @@ const PLAYER_BASE := {
 	"crit_chance": 0.05,
 	"crit_mult": 1.75,
 	"attack_speed": 1.0,
+	"weapon_damage": 1.0,      # the weapon item's own might (Weapon.damage_scale)
 	"dodge_charges": 2.0,
 	"dodge_recharge": 1.1,
 	"dodge_distance": 3.4,
@@ -53,6 +54,11 @@ const PLAYER_BASE := {
 	"area": 1.0,
 	"summon_damage": 0.0,
 	"projectile_speed": 1.0,
+	"projectiles": 0.0,       # extra shots per volley (Volley)
+	"pierce": 0.0,
+	"chain": 0.0,
+	"fork": 0.0,
+	"projectile_damage": 0.0,
 	"heal_mult": 1.0,
 }
 

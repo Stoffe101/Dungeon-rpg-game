@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 10
+const VERSION := 11
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -53,7 +53,7 @@ static func fresh() -> Dictionary:
 		"feats": {},
 		"respecs": 0,
 		"weapons": {"sword": {"unlocked": true, "level": 0}, "hammer": {"unlocked": false, "level": 0}, "staff": {"unlocked": false, "level": 0}},
-		"equipped": {"weapon": "sword", "slots": ["flare", ""]},
+		"equipped": {"weapon": "sword", "slots": ["flare", "", ""]},
 		"sanctuary": {"hearth": 1, "forge": 0, "apothecary": 0, "shrine": 0},
 		"unlocks": {},
 		"grudges": [],
@@ -238,6 +238,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("settled_runs"):
 			out["settled_runs"] = []
 		v = 10
+	if v < 11:
+		# v11: a third spell slot; weapons are items (inventory.equipped.weapon,
+		# absent until one is found - the forge's archetype stays as it was)
+		if out.get("equipped") is Dictionary:
+			var sl: Array = (out.equipped as Dictionary).get("slots", ["flare", ""])
+			while sl.size() < 3:
+				sl.append("")
+			out.equipped["slots"] = sl
+		v = 11
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -332,6 +341,29 @@ func spend(kind: String, amount: int) -> bool:
 
 
 ## Adds experience; returns the number of levels gained.
+## Co-op guest: experience the host has credited to this Kindled during
+## expedition `run_id` (`total` so far) is added as it comes, and remembered
+## per run (in the save), so a settlement or a checkpoint never pays it twice.
+func live_xp(run_id: String, total: int) -> void:
+	if run_id == "":
+		return
+	var book: Dictionary = data.get("coop_xp", {})
+	var had := int(book.get(run_id, 0))
+	if total > had:
+		book[run_id] = total
+		data["coop_xp"] = book
+		add_xp(total - had)
+
+
+## What the settlement of `run_id` still owes in experience (and forget the run).
+func xp_still_owed(run_id: String, total: int) -> int:
+	var book: Dictionary = data.get("coop_xp", {})
+	var had := int(book.get(run_id, 0))
+	book.erase(run_id)
+	data["coop_xp"] = book
+	return maxi(0, total - had)
+
+
 func add_xp(amount: int) -> int:
 	var gained := 0
 	if level() >= MAX_LEVEL:
@@ -430,27 +462,52 @@ func forge_cost(id: String) -> Dictionary:
 	return cost
 
 
+## The archetype the Kindled fights with: the weapon item's, else the one
+## taken up at the forge.
 func equipped_weapon() -> String:
+	var arm := ItemDB.arch_of(weapon_item())
+	if arm != "":
+		return arm
 	var w: String = data.equipped.get("weapon", "sword")
 	return w if weapon_unlocked(w) else "sword"
 
 
+func weapon_item() -> Dictionary:
+	var it: Variant = equipped().get("weapon")
+	return it if it is Dictionary else {}
+
+
+## Takes up an archetype at the forge; a weapon item of another archetype goes
+## back in the bag.
+func choose_weapon(id: String) -> void:
+	data.equipped.weapon = id
+	var arm := ItemDB.arch_of(weapon_item())
+	if arm != "" and arm != id:
+		unequip("weapon")
+	_changed()
+
+
 func slots() -> Array:
-	var s: Array = data.equipped.get("slots", ["flare", ""]).duplicate()
+	var s: Array = data.equipped.get("slots", ["flare", "", ""]).duplicate()
+	while s.size() < 3:
+		s.append("")
 	var avail := SkillDB.abilities(skills())
 	for i in s.size():
 		if s[i] != "" and not avail.has(s[i]):
 			s[i] = ""
-	if s[0] == "" and s[1] != "flare":
+	if s[0] == "" and not s.has("flare"):
 		s[0] = "flare"
 	return s
 
 
 func set_slot(i: int, ability: String) -> void:
-	var s: Array = data.equipped.get("slots", ["flare", ""])
-	var other := 1 - i
-	if s[other] == ability:
-		s[other] = s[i]
+	var s: Array = data.equipped.get("slots", ["flare", "", ""])
+	while s.size() < 3:
+		s.append("")
+	# a spell sits in one slot only: taking it elsewhere swaps the two
+	for other in s.size():
+		if other != i and ability != "" and s[other] == ability:
+			s[other] = s[i]
 	s[i] = ability
 	data.equipped.slots = s
 	_changed()
@@ -461,8 +518,11 @@ func set_slot(i: int, ability: String) -> void:
 const SANCTUARY := {
 	"hearth": {"name": "The Last Hearth", "max": 4, "costs": [{}, {"embers": 120}, {"embers": 300, "sunshards": 1}, {"embers": 600, "sunshards": 2}],
 		"desc": "Feed the Hearth. Each level grants +10 maximum health and lights more of the sanctuary."},
-	"forge": {"name": "Ashen Forge", "max": 1, "costs": [{"embers": 80}],
-		"desc": "Rebuild the forge to temper weapons and craft new ones."},
+	"forge": {"name": "Ashen Forge", "max": 3, "costs": [{"embers": 80}, {"embers": 300, "grave_iron": 6}, {"embers": 650, "soul_glass": 6, "sunshards": 1}],
+		"desc": "Rebuild the forge to temper weapons and craft new ones.",
+		"levels": ["The forge burns again: temper and forge weapons, craft and temper gear.",
+			"A quench trough and a wall of tools: tempering gear costs 15% fewer Embers, and crafted gear rolls a little rarer.",
+			"A master's workshop - bellows, a grindstone, the smith's banner: tempering costs 30% fewer Embers and crafted gear comes off the anvil already tempered once."]},
 	"apothecary": {"name": "Ember Apothecary", "max": 3, "costs": [{"embers": 100}, {"embers": 250}, {"embers": 450, "sunshards": 1}],
 		"desc": "Distil hearth-light: +1 flask charge at level 1 and 3, stronger flasks at level 2."},
 	"shrine": {"name": "Shrine of Memory", "max": 1, "costs": [{"embers": 150, "sunshards": 1}],
@@ -774,6 +834,11 @@ func equip(uid: int) -> bool:
 	if old is Dictionary and not (old as Dictionary).is_empty():
 		bag().append(old)
 	equipped()[slot] = it
+	var arch := ItemDB.arch_of(it)
+	if arch != "":
+		# a found weapon teaches its archetype: wield it at once
+		unlock_weapon(arch)
+		data.equipped.weapon = arch
 	_changed()
 	return true
 

@@ -19,9 +19,37 @@ func _wait(frames := 6) -> void:
 		await get_tree().process_frame
 
 
+## Layout: every visible piece of the top screen lies inside the window (at
+## this resolution and UI scale), unless it scrolls inside a ScrollContainer.
+func _check_fits(label: String) -> void:
+	if ui.modals.is_empty():
+		return
+	var top: Control = ui.modals[ui.modals.size() - 1]
+	var vr := get_viewport().get_visible_rect().grow(1.0)
+	var bad: Array = []
+	_walk_fits(top, vr, bad)
+	if bad.is_empty():
+		print("[smoke] ok: %s fits %dx%d (ui scale %d)" % [label, int(vr.size.x), int(vr.size.y), Settings.effective_ui_scale()])
+	else:
+		push_error("[smoke] FAILED: %s runs off the screen at ui scale %d: %s" % [label, Settings.effective_ui_scale(), ", ".join(bad.slice(0, 3))])
+
+
+func _walk_fits(n: Node, vr: Rect2, bad: Array) -> void:
+	for c in n.get_children():
+		if not (c is Control) or not (c as Control).is_visible_in_tree():
+			continue
+		var r := (c as Control).get_global_rect()
+		if r.size.x > 0.0 and r.size.y > 0.0 and not vr.encloses(r):
+			bad.append("%s %s" % [c.name, str(r)])
+		if c is ScrollContainer:
+			continue     # its contents scroll: they may be longer than the window
+		_walk_fits(c, vr, bad)
+
+
 func _press_all(label: String) -> void:
 	if ui.modals.is_empty():
 		return
+	_check_fits(label)
 	var top: Control = ui.modals[ui.modals.size() - 1]
 	var buttons: Array = []
 	_collect(top, buttons)
@@ -188,8 +216,9 @@ func _run() -> void:
 	_expect(not hub.residents.is_empty(), "residents live in the sanctuary")
 	if not hub.residents.is_empty():
 		var w: Wanderer = hub.residents[0]
-		# (a title card still covering the last scene change holds the hands)
-		while ui.card_pending or ui.has_modal():
+		# (a title card still covering the last scene change holds the hands;
+		# a screen left open - the expedition's summary - is closed here)
+		while ui.card_pending:
 			await _wait()
 		await _close_all()
 		hub.player.pos = w.pos + Vector2(0.5, 0.0)
@@ -213,10 +242,13 @@ func _run() -> void:
 
 ## Advances a dialogue with the confirm button until it closes.
 func _finish_dialogue() -> void:
-	for i in 16:
+	# pressed at a person's pace: at smoke frame rates a few frames are a few
+	# milliseconds, and a conversation ignores presses that come too soon
+	for i in 24:
 		if not ui.has_modal():
 			return
 		await _pad(JOY_BUTTON_A)
+		await get_tree().create_timer(0.08, true).timeout
 	await _close_all()
 
 
@@ -331,6 +363,11 @@ func _pad_checks(d: Dungeon, pl: Player) -> void:
 	var spring := Prop.make(d, "spring", Vector2i(pl.pos) + Vector2i(1, 0))
 	pl.pos = spring.pos + Vector2(-0.9, 0.0)
 	pl.hp = pl.max_hp * 0.5
+	# the world ignores presses for 220 ms after a screen closes (so the press
+	# that closed it does not act too); at smoke-test frame rates a few frames
+	# are far shorter than that, so wait it out like a player would
+	while ui.just_closed():
+		await _wait(1)
 	await _pad(JOY_BUTTON_B)
 	_expect(Settings.using_pad, "pad detected")
 	_expect(spring.used, "B interacts with a nearby spring")

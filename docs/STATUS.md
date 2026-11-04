@@ -1,8 +1,43 @@
 # Status
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-04.
 
 ## Implemented
+
+- **Evolution pass (branch feature/evolution-builds)**: builds, weapons, fair
+  co-op, readable depths and a real workshop (details in DESIGN, "Evolution
+  pass").
+  - *Co-op party HUD*: a card per friend (portrait, seat colour, name, level,
+    health with numbers, barrier, Kindle; downed with bleed-out and revive
+    progress, fallen, link lost, at the menu / in camp / below). Names over
+    Kindled never pile up; your own Kindled wears a brighter, breathing ring.
+  - *Shared XP, personal loot*: XP is booked live for guests and never counted
+    twice; gear rolls per Kindled (weapons lean to each finder's archetype);
+    a bigger party meets more foes worth less each (+12% take per friend), and
+    foes hit 10% harder per extra Kindled. Measured by the new scaling
+    evaluation (below).
+  - *Projectile builds*: +projectiles, pierce, chain, fork, return for every
+    projectile; four spells (Gloam Knives, Hearth Lantern, Ember Rush,
+    Rekindle) with rune effects, sprites and sounds; a third spell slot at
+    level 5 (C / pad RB); a framed hotbar.
+  - *Hearthtree*: 16 new nodes in build paths per branch, 15 new icons.
+  - *Weapons as loot*: 31 weapon items (plain, variants, uniques from
+    blueprints, a legendary per guardian), forge levels per archetype carried
+    over, weapon tints in the world, 31 item icons, tooltips naming the
+    archetype; save v11.
+  - *Depths*: names and moods per depth, "Depth 2 of 3" / "Guardian Depth" /
+    Hollow Below wording everywhere, the guardian's lair on the map, an edge
+    pointer to it and a tremor as it stirs. Six new room shapes and six
+    hand-made rooms.
+  - *The workshop*: new furnace, anvil, quench barrel, tool rack, grindstone;
+    the forge grows in three levels with smithing perks; sparks on the
+    smith's strike; crafting flares the anvil.
+  - *Fixed on the way*: Momentum / Last Light / Hearthbond / shelter only
+    ticked in client prediction; a returning shot double-hit the foe it turned
+    on; the one-strike-per-volley rule never recorded strikes; a seal stepped
+    people onto the room's centre and parties spawned on one fallback spot
+    (both walked map cells as tiles); positive cost/cooldown text read
+    "-15% less"; two smoke-test timing bugs (see Validation).
 
 - **Co-op playtest repair pass (branch feature/coop-playtest-repair)**, after the
   first real two-PC playtest. Each reported problem was reproduced with
@@ -187,6 +222,7 @@ Last updated: 2026-11-03.
 | Latest round (satchel exterior, uniques, dungeon/camp visuals, bestiary) | Captured and viewed: the satchel opening (shut satchel, flap up, unfolding), every region before/after the visual pass (grime, decals, room lights), decal rows per region (a bug passed the Ossuary row to every region - fixed and re-checked), the camp centre with trophies, rugs and camp clutter, the forge-ruin sign near and far, the title screen, the Bestiary empty and after a Warden kill, the new item icons. The smoke test caught the cat stealing a resident's conversation (moved). |
 | Earlier round (playtest fixes, satchel, forge, progression, camp, audio) | Captured and viewed: the satchel opening sequence and the open bag, the new forge, Hearthcall from start to departure, the Feats screen and pause menu, the sanctuary with feat lanterns, wardrobe stand and the cat. Audio checked with `audiolog` bot runs: every played name resolves, voices fire on telegraphs/hits/deaths, spike traps only within earshot (was 176 plays across the map per run). UI smoke 34/34, seed-7 autopilot run clean. Not checked: the sounds themselves by ear. |
 | Tiers, Throne, gear | Bots with tier-matched epic gear (`kit=N`), Ossuary seed 11: Tier I/kit I and Tier IV/kit IV reach depth 2 alive (98 and 84 kills); Tier IV with Tier I gear dies at depth 2; fresh, ungeared characters died early on Tiers IV and VI (measured before the final curve tune). Tier VI with Tier VI gear reaches depth 2 and dies there after 90 kills (the bot never uses the Hearthtree or sanctuary, so it is weaker than a real Kindled at that point); one earlier Tier VI bot got stuck beside a foe it could not reach (bot pathing; foe diagnostics added to the bot log). Sunken Throne on Tier IV with Tier IV gear: clears depths 1-2 and dies in the first room of depth 3 (115 kills). A second god-mode King kill (seed 3, Tier I) after the poise change: Eclipse at 49%, victory opens Tier III. God-mode bot kills the Ashen King: Eclipse at 49%, victory banks the Sunfall Mantle, a set piece and a blueprint, and Tier II opens Tiers III-IV. Throne floors and the Rootmire/Ossuary at depth 3 run without script errors. Balance numbers from `tools/dev/power_report.tscn` (see DESIGN). |
+| Evolution pass | **Automated**: 117 tests (new: volleys, chain/fork/return, the four spells, Rekindle raising a downed friend, the build keystones, the third slot and its lock, tree layout/icons/reachability, the reward share, weapon items (bases, equipping, forge x item might, whole-number stats, drop shares), the v10->v11 migration, room variety and hand-made rooms, party spawn spots and seal step-out). UI smoke 44/44 at 1920x1080 (UI scale 2, 3) and 3440x1440 (3, 4), now also checking every screen it opens fits the window. Solo autopilot (seed 7): depth 1 cleared, depth 2 reached, no script errors, no stuck bot. **Party-size scaling evaluation** (bots with real builds, no godmode, Tier III depth 2, 3 seeds x 240 s): each Kindled earns 0.84-1.30x solo XP per room and 0.99-1.60x Embers per room; room time is noisy (bots stall); with the +10%/friend damage a 2-party takes about what solo does (27% of health per room), 3-4 parties less (15-26%); the table is written to `user://scaling_eval.md` (the dev user folder) on each run. **Separate processes, one PC, real windows**: 4 players `partyhud` (host 5/5, guests 6/6: cards, downed, level-up, names unstacked); 2 players `journey` locally (53/51) and under a typical simulated link (53/51, nothing frozen, p95 under 0.7 tiles). **Captured and viewed**: the hotbar (empty, locked, cooldowns, three spells), Gloam Knives and the Hearth Lantern in the hit lab, the Hearthtree with the new nodes, the satchel with a weapon item, the weapon icon atlas, the Descent loadout with three slots, a guardian floor (HUD, map, pointer), a hand-made room, the workshop at levels 1 and 3 with collision, the party menu and dialogue at 1080p, the 4-player sanctuary and fights on every machine, ultrawide 3440x1421. **Performance**: Ember Hail bow build pinned at 165 fps (vsync) at 1920x1080 and 3440x1440 (up to 307 particles). **Not verified**: two PCs, a real internet route, Steam joining, a physical gamepad, human play of any of it, audio by ear. |
 | Co-op playtest repair pass | 101 tests (new: proposals asked / answered / counted down / withdrawn / dropped, a stale acknowledgement ignored), UI smoke 34/34 (updated for the new settings), a solo autopilot run (seed 7: depth 1 cleared, depth 2 reached, no script errors), solo dialogue scenario 13/13. **Separate processes, one PC, real windows and real key presses / clicks** (docs/TESTING.md): 2-player journey 104/104 checks; 4-player journey 258/258; 4 players with guests on typical / moderate / stress links 256/258 (the 2 were the scenario's key-press budget, fixed); every foe kind, elite affix, a Grudge and the three guardians drawn whole on a guest's screen (36/36) and gone when felled; the stairs freeze reproduced with the old code under a 100 ms link (23 frozen windows) and gone with the fix; a guest crashing and taking its seat back, then the host crashing and the guest banking its checkpoint. **Captured and viewed** (both sides of each moment): the shared sanctuary with 2 and 4 players in their own outfits, a live helm hidden, conversations open and closed on host and guest, the request card (received, declined, counting down), fights with foes on both screens, depth 2 with four players, home again; the party screen (start, hosting, full), Settings at 1920x1080 and 3440x1440 and UI scales 2 and 3, the campfire with the collision overlay before and after. Not verified: two PCs, a real internet route, Steam joining, a human at the controls, a physical gamepad. |
 | Steam & responsive co-op pass | 100 tests (new: prediction tracks the host's movement through a swing and a dodge within 0.02 tiles, reconciliation slides and jumps, a late dodge turns a waiting blow (perfect, counted), the bow lines up the owner's hold, the network simulator keeps order and loses packets, the personal merchant, one bargain each and one relic pick per offer, party votes, recording across floors, settlement once with the party's deeds, guests' Grudges for their owner, the v9->v10 migration, a returning guest's seat, readiness, LAN play without GodotSteam, allies' particle scaling). UI smoke 34/34. **Real separate processes, one machine, simulated links** (table in docs/NETWORK.md): 2 players under all six conditions (local to stress: measured round trip = simulated + 15-24 ms, others drawn 64-104 ms behind, snapshot loss = simulated loss, ~28 KB/s down and ~9 KB/s up per guest, prediction error p50 0.01-0.05 tiles); 4 players with three guests on typical/moderate/stress links at once; stairs and Hearthcall votes passing with a guest's agreement over 60-100 ms links, both settling the same outcome; a guest killed mid-run and restarted with the same profile taking its seat back with its run; the host quitting mid-floor and the guest banking its depth checkpoint. Found and fixed by these runs: guests got no host events from depth 2 on (recording switched off by the old floor), events sent before a guest built a floor were lost (now kept and replayed), the simulator reordering a burst, ENet's throttle dropping snapshots on localhost, an unsaved identity (a restarted guest was a stranger), a Hearthcall broken by the previous frame's walk, the network overlay drawn off-screen. **Steam (GodotSteam 4.23.2, one PC, one account, Spacewar)**: initialisation, a private lobby (data round trip, owner), a hosted session and the LAN fallback (Steam closed, no App ID) - in the editor and in an exported debug build; the friends list read (nobody invited). Found and fixed: the game crashed on quit while hosting over Steam (Steam shut down under a live peer), a Steam client messaging a host it had not reached, private lobbies advertising "Join game", and the exported game failing to start (game code preloaded the palette from `tools/`, which exports leave out). **Windows builds** exported with the official templates: release (runs headless with isolated user data, GodotSteam loads, dev switches ignored) and debug (the bot played depth 1 at 165 fps, capture viewed); no licensed sounds or steam_appid.txt inside. Performance with four players: host window 3440x1440 164-165 fps, guest window 1920x1080 165 fps. Captured and viewed: a guest's 1080p view with both Kindled, name tags, sealed room and the overlay (`docs/screenshots/coop_netdiag.png`). Not verified: two machines, a real internet route, a second player joining over Steam (needs a second Steam account on another PC), the Steam overlay and launch-from-invite (need the game started by Steam), human play. |
 | Buildcraft & co-op pass | 84 tests (new: seals blocking/nudging/release on a real headless Dungeon, co-op downed/revive/wipe and shared vs instanced pickups, every armour base has a sheet following every body animation and the wardrobe override, all runes in a headless fight and the v8->v9 migration, Bow steady shot and Tome cooldowns/inscription, outer keystones, the Hollow Below). UI smoke 34/34. **Co-op with real separate instances on one machine (localhost)**: 2 players (descend together, Hearthcall ends the run for both, the client banks its own share, a client leaving mid-fight, the host leaving, Tome host + Bow guest fighting together, remote armour and weapon visible) and 4 players (host + 3 clients on the same floor, 16 actors everywhere, no script errors). Found and fixed by these runs: snapshots above the MTU (now compressed chunks), freed replicas assigned to typed variables, a co-op spawn inside a pillar, a virtual adapter shown as the LAN address. Captured and viewed: seals in all three regions, armour outfits across poses and in play (found and fixed dithered/see-through layers and the silhouette pass mistaking armour for a wall), the co-op party screen, the rune screen, Bow and Tome fights, the outer keystones in the tree, an Echo of the Gloam Warden in the Hollow Below. Bots: Bow (Rootmire Tier II) and Tome (Throne Tier II) runs without script errors. 3440x1440 (real `--resolution`): 165 fps throughout. Not verified: co-op across two machines or the internet; human play of any of it. |
@@ -199,6 +235,18 @@ Last updated: 2026-11-03.
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
+
+- Evolution pass: the new spells, keystones, weapon variants and the co-op
+  damage scaling are tuned by tests, bots and formulas only. With weapons as a
+  seventh gear slot a full epic L5 kit has ~16% more offense at Tier I and
+  ~30% at Tier VIII than before (power report); the tier suggestion counts it.
+  Co-op parties of 3-4 are still somewhat safer per Kindled than solo in the
+  bot evaluation. Equipping a different kind of weapon is refused below (only
+  variants of the expedition's weapon can be taken up). Another Kindled's
+  weapon tint changes only on the next floor if they swap variants mid-floor.
+  The smoke test's request check needed paced presses (fixed); its pad check
+  failed on the pre-session commit too in this environment (fixed in the
+  test, not the game).
 
 - Co-op: the fixes for the first two-PC playtest are verified with separate
   windows on one PC (localhost and simulated links), not yet by the two of you
@@ -250,6 +298,11 @@ Last updated: 2026-11-03.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. The evolution pass with people: docs/TESTING.md "Human playtest: the
+   evolution pass" (spells and hotbar on keyboard and pad, build feel, weapon
+   variants, guardian clarity, the workshop, 2-4 player readability and
+   difficulty). Then tune co-op damage for 3-4 players from real play.
 
 1. The two-PC human playtest in docs/TESTING.md (sanctuary, conversations,
    proposal, foes, regrouping, stairs, drops) - then the LAN / internet / Steam

@@ -38,6 +38,40 @@ static func portrait(sheet: Dictionary, size := 56) -> Control:
 	return box
 
 
+## Head and shoulders from a character sheet, `size` UI pixels square (a 16
+## pixel crop of the body and its armour, drawn whole pixels): the party HUD.
+static func head(sheet: Dictionary, size := 16) -> Control:
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(size, size)
+	box.size = box.custom_minimum_size
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.clip_contents = true
+	var info := SpriteLib.get_sheet("player")
+	var a: Dictionary = info.anims.get("idle_down", info.anims.values()[0])
+	var crop := Rect2(8, float(a.row) * info.frame_size.y + 3, 16, 16)
+	var body := AtlasTexture.new()
+	body.atlas = info.texture
+	body.region = crop
+	var layers: Array = [body]
+	for t in GearLooks.portrait_layers(sheet.get("equipped", {}), sheet.get("shown", {})):
+		var at: AtlasTexture = (t as AtlasTexture).duplicate()
+		at.region = Rect2(at.region.position + Vector2(8, 3), Vector2(16, 16))
+		layers.append(at)
+	var look := String(sheet.get("look", ""))
+	for k in layers.size():
+		var tr := TextureRect.new()
+		tr.texture = layers[k]
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		tr.size = Vector2(size, size)
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if k == 0:
+			tr.material = Looks.canvas_material(look if look != "" else "kindled")
+		box.add_child(tr)
+	return box
+
+
 static func slot_button(item: Dictionary, size := 24, empty_icon := "") -> Button:
 	var b := Button.new()
 	b.custom_minimum_size = Vector2(size, size)
@@ -81,6 +115,12 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 	v.add_child(head)
 	var kind := "Unique" if b.get("unique", false) else String(ItemDB.RARITY[item.rarity].name)
 	v.add_child(UIKit.label("%s %s   Level %d/%d   Tier %s" % [kind, ItemDB.SLOT_NAMES[b.slot], int(item.level), ItemDB.MAX_LEVEL, Difficulty.roman(int(item.get("tier", 1)))], 8, UIKit.C_DIM))
+	if b.has("arch"):
+		# a weapon: whose moves it fights with, and the forge's work on them
+		var arch := String(b.arch)
+		var fl := Profile.weapon_level(arch)
+		v.add_child(UIKit.para("Fights as the %s%s" % [String(GearDB.weapon(arch).get("name", arch)),
+			("  (forge +%d: +%d%% damage)" % [fl, int(round(fl * GearDB.FORGE_DAMAGE_PER_LEVEL * 100.0))]) if fl > 0 else ""], width, UIKit.C_EMBER))
 	var mods := ItemDB.mods_of(item)
 	var nb := (b.mods as Array).size()
 	var might := ItemDB.tier_might(item)
@@ -172,7 +212,7 @@ static func stat_lines() -> Array:
 	if Game.run and Game.stage is Dungeon:
 		RelicDB.apply(Game.run.relics, st)
 	var pct := func(v: float) -> String: return "%+d%%" % int(round(v * 100.0))
-	return [
+	var out := [
 		["Max health", str(int(round(st.v("max_hp"))))],
 		["Armor", "%d%%" % int(round(st.v("armor") * 100.0))],
 		["All damage", pct.call(st.v("damage"))],
@@ -193,6 +233,18 @@ static func stat_lines() -> Array:
 		["Embers found", "%d%%" % int(round(st.v("ember_gain") * 100.0))],
 		["Memories", "%d%%" % int(round(st.v("xp_gain") * 100.0))],
 	]
+	# the weapon item's might, and projectile modifiers once there are any
+	out.insert(3, ["Weapon damage", pct.call(st.v("weapon_damage") - 1.0)])
+	var shots: Array = []
+	for k in [["projectiles", "+%d shot"], ["pierce", "pierce %d"], ["chain", "chain %d"], ["fork", "split %d"]]:
+		var n := int(round(st.v(k[0])))
+		if n > 0:
+			shots.append(String(k[1]) % n)
+	if not shots.is_empty() or st.has("proj_return"):
+		if st.has("proj_return"):
+			shots.append("return")
+		out.append(["Projectiles", ", ".join(shots)])
+	return out
 
 
 static func stats_panel(width := 140, variation := "DarkPanel") -> PanelContainer:

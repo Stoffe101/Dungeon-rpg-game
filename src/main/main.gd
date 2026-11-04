@@ -29,7 +29,7 @@ func _ready() -> void:
 			scene = a.substr(6)
 		elif a.begins_with("weapon="):
 			Profile.unlock_weapon(a.substr(7))
-			Profile.data.equipped.weapon = a.substr(7)
+			Profile.choose_weapon(a.substr(7))
 		elif a.begins_with("skills="):
 			# dev: skills=all grants levels and allocates the whole tree
 			for i in 120:
@@ -41,6 +41,12 @@ func _ready() -> void:
 					if Profile.allocate(id):
 						changed = true
 			Profile.data.equipped.slots = ["cinder_lance", "frost_sigil"] if a.substr(7) == "all" else Profile.data.equipped.slots
+		elif a.begins_with("forge="):
+			# dev: forge=0..3 sets the workshop's level (the camp shows it)
+			Profile.data.sanctuary["forge"] = clampi(int(a.substr(6)), 0, int(Profile.SANCTUARY.forge.max))
+		elif a.begins_with("build="):
+			# dev: build=knives|lantern|rush|hail|bulwark|frost|starter (src/dev/build_presets.gd)
+			BuildPresets.apply(a.substr(6))
 		elif a.begins_with("grudge="):
 			var rng := RandomNumberGenerator.new()
 			Profile.record_grudge(a.substr(7), 60, 1, rng)
@@ -113,6 +119,8 @@ func _ready() -> void:
 			_open_dev_screen.call_deferred(a.substr(5))
 		elif a == "uismoke":
 			add_child(preload("res://src/dev/ui_smoke.gd").new())
+		elif a == "scaling":
+			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 

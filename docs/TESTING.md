@@ -40,7 +40,10 @@ Steam's relay. A human pair on two PCs is still needed (see below).
 | Tool | What it does |
 |---|---|
 | `tools/dev/run_tests.sh` | Unit and simulation tests (headless). Fails on any script error. |
-| `-- uismoke profile=smoke.json` | Opens every screen and presses its buttons, including synthetic gamepad checks. |
+| `-- uismoke profile=smoke.json` | Opens every screen and presses its buttons, including synthetic gamepad checks, and checks every visible piece of each screen lies inside the window. Run it with `--resolution 1920x1080` / `3440x1440` and `set=ui_scale:2..4`. |
+| `-- scaling profile=scaling_eval.json [seeds= secs= tier= depth= comps=]` | Party-size scaling: 1-4 bot Kindled with real builds (no godmode) fight through real floors in one process; prints and writes `user://scaling_eval.md` (room time, damage taken, downs, wipes, XP and Embers per room, each against solo). Measures the host's rules, not the network. |
+| `-- build=<preset>` | Makes the dev profile a whole build (level, Hearthtree, spells, weapon): starter, knives, lantern, rush, hail, bulwark, frost (`src/dev/build_presets.gd`). |
+| `-- hitlab cast=1,3,2` | Foes beside the Kindled, full Kindle, the spell slots cast in turn at the nearest foe (aim held for captures). `forge=0..3` sets the workshop's level. |
 | `tools/dev/e2e.sh [n] [scenario] [netsim...]` | n real windows (host + guests), fresh dev profiles, distinct outfits, the scenario played on each. Prints every check, every failure and every script error, then runs the comparison. |
 | `tools/dev/e2e_compare.py logs...` | From the `[probe]` lines: how far each machine's picture of every other Kindled is from where its owner had it, per sanctuary and floor (p50 / p95 tiles), and any FROZEN stretch (the owner walked more than 2 tiles in 2 s, the picture stayed put, and they ended apart). Teleports such as being drawn into a room are not counted. |
 | `tools/dev/e2e_recovery.sh` | A guest killed mid-expedition and restarted (it must take its seat back), then the host killed (the guest must bank its depth checkpoint once). |
@@ -69,6 +72,9 @@ Steam's relay. A human pair on two PCs is still needed (see below).
   first. It found the "frozen after the stairs" race: the old code fails it
   under `netsim=moderate`.
 - `talk`: the dialogue checks alone (solo).
+- `partyhud` (with `DEVNET=1`): the party cards in the sanctuary and below
+  (names, levels, health with numbers, Kindle), a fight, a downed guest with
+  the bleed-out and revive line, and a level-up seen by every guest.
 - `partyesc`: the party screen opened, hosted from, closed with Esc.
 
 A scenario prints `[scenario] ok/FAIL ...` lines, `[probe] {...}` lines four
@@ -111,3 +117,35 @@ Two people, each on their own PC. For a LAN game, both on the same network:
 Note anything odd with the F3 overlay on: its round trip, loss and
 corrections help diagnose it. Keep both machines' `[net]` and `[steam]` log
 lines (in the `--verbose` console, or run from a terminal).
+
+## Human playtest: the evolution pass
+
+What bots and scripts cannot judge. Use a fresh dev profile
+(`-- profile=play_evo.json`), or `build=<preset>` to start with a build.
+
+1. **Spells and the hotbar.** At level 5 the third slot opens (C; pad RB).
+   Set three spells at the Descent loadout. In a fight: are the keys, costs and
+   cooldown seconds readable at a glance? Is the "ready" flash noticeable but
+   not distracting? On a pad, does RT attack and RB cast without fumbling?
+2. **Build feel** (`build=knives`, `rush`, `hail`, `lantern`, `bulwark`):
+   - Gloam Knives with Fan of Shadows and Ricochet: does the fan feel worth a
+     slot? Are the knives easy to see?
+   - Ember Rush + Momentum + Thousand Cuts: does the speed-up feel earned?
+   - Ember Hail: more shots, each weaker - does it feel stronger or weaker?
+   - Hearth Lantern: is standing in its light rewarding? Is it readable which
+     lantern is yours in co-op?
+   - Last Light: does losing Kindle instead of health read clearly?
+3. **Weapons.** Find and wield a variant (Gravecleaver, Splitwood Bow...):
+   is the difference noticeable? Is the tooltip clear that the forge's
+   levels still count? Is the variant's tint visible in the world?
+4. **Depths.** Do the title cards and the HUD make it obvious how far the
+   guardian is? On the guardian's floor: is the edge pointer helpful or
+   intrusive? Does the tremor land as anticipation?
+5. **The workshop** (`forge=1`, `2`, `3`): does it look like a smithy? Are
+   the sparks in time with the hammer? Is the forge screen's expand option
+   easy to find?
+6. **Co-op with 2-4 people.** Are the party cards readable at a glance in a
+   fight? Can everyone find their own Kindled in a crowd (the brighter double
+   ring)? Do names stay readable when everyone stands at the fire? Does a
+   party fight feel as tense as playing alone (foes hit 10% harder per extra
+   Kindled)? Do rare-find toasts from friends feel nice or noisy?

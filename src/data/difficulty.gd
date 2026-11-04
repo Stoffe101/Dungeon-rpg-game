@@ -136,7 +136,7 @@ static func power() -> int:
 	Profile.apply_gear(st)
 	var crit := clampf(st.v("crit_chance"), 0.0, 1.0)
 	var offense := (1.0 + st.v("melee_damage") + st.v("damage") + 0.5 * (st.v("fire_damage") + st.v("frost_damage") + st.v("ability_damage")))
-	offense *= (1.0 + crit * (st.v("crit_mult") - 1.0)) * st.v("attack_speed") * st.v("damage_more")
+	offense *= (1.0 + crit * (st.v("crit_mult") - 1.0)) * st.v("attack_speed") * st.v("damage_more") * st.v("weapon_damage")
 	var defense := st.v("max_hp") / maxf(0.2, 1.0 - clampf(st.v("armor"), 0.0, 0.75))
 	var base_off := 1.0 + 0.05 * 0.75
 	return int(round(100.0 * sqrt((offense / base_off) * (defense / 100.0))))

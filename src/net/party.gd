@@ -18,6 +18,34 @@ extends RefCounted
 
 const VOTED := ["stairs", "hearthstone", "trial"]
 const VOTE_TIME := 30.0
+## Each extra Kindled brings about 30% more foes per fight (Dungeon._spawn_wave).
+const FOES_PER_EXTRA := 0.3
+## ...and each Kindled still gains this much more per floor than alone (the
+## pleasure of company), not twice or four times as much.
+const BONUS_PER_EXTRA := 0.12
+
+
+## What each wave foe pays every Kindled in a party of `n` (experience, Embers,
+## the chance of materials): the extra foes a party faces are shared out, so a
+## floor is worth about 12% more per extra Kindled to each of them, not 30%.
+## Bosses, chests and events are not divided (there is one of each either way).
+static func reward_share(n: int) -> float:
+	if n <= 1:
+		return 1.0
+	return (1.0 + BONUS_PER_EXTRA * (n - 1)) / (1.0 + FOES_PER_EXTRA * (n - 1))
+
+
+## A friend found something worth hearing about: the rest of the party is told
+## (the finder has their own banner); nobody else can take it - it is theirs.
+static func announce_find(st: Stage, finder: Player, item: Dictionary) -> void:
+	if not Net.active() or Net.party_size() <= 1:
+		return
+	var text := "%s found %s (%s)" % [Net.name_of(finder.peer_id), ItemDB.item_name(item), ItemDB.RARITY[item.rarity].name]
+	var col := ItemDB.color(item)
+	if Net.recording:
+		Net.rec(["not", finder.peer_id, ["toast", text, col]])
+	if finder != st.player and Game.ui:
+		Game.ui.toast(text, col)
 
 
 ## The host's answer to someone using a prop in a shared expedition. False:

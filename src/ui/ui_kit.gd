@@ -302,7 +302,8 @@ static func describe_mod(m: Array) -> String:
 		"chill_power": "Chill strength", "status_duration": "status duration", "move_speed": "movement speed", "dodge_distance": "dodge distance",
 		"armor": "armor", "parry_window": "Ward window", "kindle_gain": "Kindle gained", "summon_damage": "wisp damage", "ember_gain": "Embers found",
 		"flask_heal": "flask healing", "kindle_max": "maximum Kindle", "max_hp": "maximum health",
-		"xp_gain": "Memories gained", "heal_mult": "healing received",
+		"xp_gain": "Memories gained", "heal_mult": "healing received", "weapon_damage": "weapon damage",
+		"projectile_damage": "projectile damage",
 	}
 	match stat:
 		"max_hp":
@@ -326,11 +327,19 @@ static func describe_mod(m: Array) -> String:
 		"dodge_iframes":
 			return "Dodge invulnerability %+.2fs" % v if op == "add" else "%s dodge invulnerability" % pct
 		"dodge_recharge":
-			return "Dodges recharge %d%% faster" % int(round(-v * 100.0))
+			return ("Dodges recharge %d%% faster" if v < 0.0 else "Dodges recharge %d%% slower") % int(round(absf(v) * 100.0))
 		"ability_cost":
-			return "Abilities cost %d%% less" % int(round(-v * 100.0))
+			return ("Spells cost %d%% less Kindle" if v < 0.0 else "Spells cost %d%% more Kindle") % int(round(absf(v) * 100.0))
 		"cooldown":
-			return "%d%% shorter cooldowns" % int(round(-v * 100.0))
+			return ("%d%% shorter cooldowns" if v < 0.0 else "%d%% longer cooldowns") % int(round(absf(v) * 100.0))
+		"projectiles":
+			return "%+d projectile%s on everything you fire" % [int(v), "" if absi(int(v)) == 1 else "s"]
+		"pierce":
+			return "Projectiles pierce %+d more foe%s" % [int(v), "" if absi(int(v)) == 1 else "s"]
+		"chain":
+			return "Projectiles chain to %+d more foe%s" % [int(v), "" if absi(int(v)) == 1 else "s"]
+		"fork":
+			return "Projectiles split in two on their first hit" if int(v) <= 1 else "Projectiles split %d times" % int(v)
 		"damage_taken":
 			return "Take %s damage" % pct
 	var n: String = names.get(stat, stat.replace("_", " "))

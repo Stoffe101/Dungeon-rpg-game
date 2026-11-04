@@ -291,8 +291,8 @@ func _doll_panel() -> PanelContainer:
 	var eq := Profile.equipped()
 	for slot in DOLL:
 		var b: Button
-		if slot == "weapon":
-			b = _weapon_button()
+		if slot == "weapon" and Profile.weapon_item().is_empty():
+			b = _weapon_button()     # the plain archetype from the forge
 		else:
 			var it: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
 			b = GearUI.slot_button(it, 26, _empty_icon(slot))
@@ -314,7 +314,7 @@ func _doll_panel() -> PanelContainer:
 
 
 func _empty_icon(slot: String) -> String:
-	return {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem"}.get(slot, "bag")
+	return {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem", "weapon": "wpn_sword"}.get(slot, "bag")
 
 
 func _weapon_button() -> Button:
@@ -559,8 +559,18 @@ func _input(event: InputEvent) -> void:
 
 func _equip(uid: int) -> void:
 	_focus_uid = uid
+	# below, the weapon in hand is the expedition's: another variant of it can
+	# be taken up, another kind of weapon waits for the Hearth
+	var arch := ItemDB.arch_of(Profile.find_item(uid))
+	var st := Game.stage
+	if arch != "" and st is Dungeon and st.player and st.player.weapon and st.player.weapon.id != arch:
+		Audio.ui("deny")
+		Game.ui.toast("A different kind of weapon is taken up at the Hearth, not below.", UIKit.C_DIM)
+		return
 	if Profile.equip(uid):
 		Audio.play("clank", -4.0, 1.1)
+		if arch != "" and st and st.player and st.player.weapon and st.player.weapon.id == arch:
+			st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
 
 
 func _unequip(slot: String, uid: int) -> void:

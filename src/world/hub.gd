@@ -40,6 +40,12 @@ var _steam_t := 0.0
 var _spark_t := 0.0
 var _fly_t := 0.0
 var forge_prop: Prop
+var anvil_prop: Prop        # the smith's anvil: sparks when the hammer lands
+var smith_prop: Prop
+var quench_prop: Prop
+var _smith_frame := -1
+var _strikes := 0
+var _smoke_t := 0.0
 var gate_prop: Prop
 var _gate_t := 0.0
 var _hum_t := 0.0
@@ -124,6 +130,8 @@ func build(v: PixelView, at := Vector2(-1, -1)) -> void:
 		var r := RunState.create(0, "ossuary", Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 		player.setup_from(r)
 		player.kindle = player.kindle_max()
+		if Net.active() and Net.party_size() > 1:
+			player.set_seat(Net.color_of(Net.my_id()), true)     # find yourself among the party
 		view.focus = Iso.to_world(player.pos)
 		_spawn_dummies()
 		_spawn_residents()
@@ -174,9 +182,19 @@ func _place() -> void:
 	gate_prop = Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.2,
 		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.4})
 	if int(camp.forge) > 0:
-		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.6, "solid": true,
-			"light": [Color(1.0, 0.5, 0.25), 1.6, 6.0], "light_h": 0.8})
-		Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
+		# the workshop grows with the forge's level (Profile.SANCTUARY.forge):
+		# furnace, anvil and smith; a quench barrel and a tool rack; then a
+		# master's bellows, banner and grindstone
+		var fl := int(camp.forge)
+		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "l3" if fl >= 3 else "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.8, "solid": true,
+			"solid_tiles": [Vector2i(8, 8), Vector2i(10, 8)], "light": [Color(1.0, 0.5, 0.25), 1.8, 7.0], "light_h": 0.9})
+		smith_prop = Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
+		anvil_prop = Prop.make(self, "anvil", Vector2i(12, 9), {"sheet": "anvil", "anim": "idle", "solid": true})
+		if fl >= 2:
+			quench_prop = Prop.make(self, "quench", Vector2i(14, 8), {"sheet": "quench", "anim": "idle", "solid": true})
+			Prop.make(self, "tool_rack", Vector2i(6, 9), {"sheet": "tool_rack", "solid": true})
+		if fl >= 3:
+			Prop.make(self, "grindstone", Vector2i(13, 11), {"sheet": "grindstone", "anim": "spin", "solid": true})
 	else:
 		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
 	# the rack fills as weapons are forged
@@ -252,7 +270,7 @@ func _camp() -> void:
 	_spot(Vector2(27.5, 6.3), "idle", "posts")
 	_spot(Vector2(18.6, 5.0), "idle", "descent")
 	if int(camp.forge) > 0:
-		_spot(Vector2(11.6, 10.6), "idle", "forge")
+		_spot(Vector2(10.4, 10.6), "idle", "forge")
 	if int(camp.shrine) > 0:
 		_spot(Vector2(31.8, 15.3), "idle", "memorial")
 
@@ -518,18 +536,62 @@ func _spawn_dummies() -> void:
 		add_actor(d)
 
 
+## The workshop at work: sparks and a clank as the smith's hammer lands on
+## the anvil (his strike frame), smoke from the chimney, the fire breathing.
+func _workshop(real: float) -> void:
+	if forge_prop == null:
+		return
+	if smith_prop and smith_prop.sprite and anvil_prop:
+		var f := smith_prop.sprite.frame_i
+		if f != _smith_frame:
+			_smith_frame = f
+			if f == 3:
+				_strikes += 1
+				var at := anvil_prop.pos + Vector2(-0.2, -0.1)
+				fx.burst(at, 0.55, Color(1.0, 0.72, 0.32), 6 + (_strikes % 3) * 2, 3.2, 0.3, 7.0, Vector2.UP, 1.3)
+				if anvil_prop.sprite:
+					anvil_prop.sprite.play("struck", true)
+				if _strikes % 2 == 0:
+					Audio.play_at("clank", at, -16.0, randf_range(1.1, 1.3), 300)
+			elif f == 5 and anvil_prop.sprite and anvil_prop.sprite.anim == "struck":
+				anvil_prop.sprite.play("idle")
+	# chimney smoke, thicker for a master's workshop
+	_smoke_t += real
+	var every := 0.45 if int(camp.forge) >= 3 else 0.7
+	if _smoke_t > every:
+		_smoke_t = 0.0
+		fx.motes(forge_prop.pos + Vector2(randf_range(-0.15, 0.15), -0.2), 2.6, Color(0.42, 0.4, 0.44), 1, 0.25, 2.4, 0.2)
+	# the fire breathes
+	if forge_prop.light:
+		var t := Time.get_ticks_msec() / 1000.0
+		forge_prop.light.light_energy = 1.7 + 0.22 * sin(t * 6.3) + 0.12 * sin(t * 15.7)
+
+
+## Crafting feedback in the world: the smith's anvil flares and the quench
+## barrel hisses when something is made or tempered (SmithyUI, the forge).
+func workshop_flare(big := false) -> void:
+	if anvil_prop == null:
+		return
+	var at := anvil_prop.pos + Vector2(-0.2, -0.1)
+	fx.burst(at, 0.6, Color(1.0, 0.75, 0.35), 24 if big else 14, 4.5, 0.45, 8.0, Vector2.UP, 1.4)
+	fx.flash_light(at, 0.8, Color(1.0, 0.65, 0.3), 3.0 if big else 2.0, 5.0, 0.35)
+	if anvil_prop.sprite:
+		anvil_prop.sprite.play("struck", true)
+	Audio.play_at("clank", at, -6.0, 0.9, 120)
+	if quench_prop and quench_prop.sprite:
+		quench_prop.sprite.play("steam", true)
+		get_tree().create_timer(0.6).timeout.connect(func() -> void:
+			if is_instance_valid(quench_prop) and quench_prop.sprite:
+				quench_prop.sprite.play("idle"))
+		fx.motes(quench_prop.pos + Vector2(0, -0.2), 1.4, Color(0.85, 0.85, 0.9), 8, 0.4, 1.6, 0.3)
+
+
 func _stage_process(real: float) -> void:
 	_steam_t += real
 	if cookpot and _steam_t > 0.22:
 		_steam_t = 0.0
 		fx.motes(cookpot.pos + Vector2(randf_range(-0.2, 0.2), 0), 1.0, Color(0.7, 0.68, 0.72), 1, 0.4, 1.8, 0.15)
-	# the forge is never quite quiet while the smith is about
-	_spark_t += real
-	if forge_prop and _spark_t > 1.7:
-		_spark_t = randf_range(-0.6, 0.0)
-		var anvil := forge_prop.pos + Vector2(0.9, 0.4)
-		fx.burst(anvil, 0.5, Color(1.0, 0.7, 0.3), 8, 3.5, 0.35, 6.0, Vector2.UP, 1.2)
-		Audio.play_at("clank", anvil, -14.0, randf_range(1.1, 1.3), 300)
+	_workshop(real)
 	# moths and fireflies drift around the lit lanterns
 	_fly_t += real
 	if _fly_t > 0.5 and not lit_lanterns.is_empty():

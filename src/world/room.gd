@@ -25,6 +25,7 @@ var encounter: Array = []            # enemy ids per wave: [[...], [...]]
 var elite_affix := ""
 var grudge := false
 var event := ""
+var authored := ""                   # a hand-made room's id (DungeonGen.AUTHORED), else procedural
 
 # runtime
 var visited := false

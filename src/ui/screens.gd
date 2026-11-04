@@ -733,6 +733,34 @@ class _Rebind:
 
 # --- sanctuary ------------------------------------------------------------------------------
 
+## The workshop's level and, while it can grow, what the next level brings.
+static func _workshop_row(ui: UIRoot) -> Control:
+	var d: Dictionary = Profile.SANCTUARY.forge
+	var lvl := Profile.building("forge")
+	var levels: Array = d.get("levels", [])
+	var box := UIKit.vbox(2)
+	box.add_child(UIKit.label("WORKSHOP  %d / %d" % [lvl, int(d.max)], 8, UIKit.C_GOLD, true))
+	if lvl >= int(d.max):
+		box.add_child(UIKit.para(String(levels[lvl - 1]) if lvl - 1 < levels.size() else "", 300, UIKit.C_DIM))
+		return box
+	box.add_child(UIKit.para("Next: " + (String(levels[lvl]) if lvl < levels.size() else ""), 300, UIKit.C_TEXT))
+	var row := UIKit.hbox(6)
+	var cost := Profile.building_cost("forge")
+	row.add_child(GearUI.cost_row(cost))
+	var b := UIKit.button("Expand the workshop", func() -> void:
+		if Profile.upgrade_building("forge"):
+			Audio.play("forge", 0.0, 0.9)
+			Profile.save_profile()
+			Game.ui.toast("The workshop grows: %s" % ("a quench trough and tools" if Profile.building("forge") == 2 else "a master's workshop"), Color(1.0, 0.75, 0.4))
+			if Game.stage is Hub and not Net.active():
+				Game.goto_hub()     # the camp is rebuilt with its new pieces (a party sees it next time)
+			ui.close_all(), 120)
+	b.disabled = not Profile.can_pay(cost)
+	row.add_child(b)
+	box.add_child(row)
+	return box
+
+
 static func forge(ui: UIRoot, equip_only: bool) -> Control:
 	var p := UIKit.panel()
 	var v := UIKit.vbox(5)
@@ -741,6 +769,8 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 	var forge_built := Profile.building("forge") > 0
 	if not forge_built:
 		v.add_child(UIKit.para("The forge lies cold. Rebuild it in the sanctuary to temper and craft weapons.", 300, UIKit.C_DIM))
+	elif not equip_only:
+		v.add_child(_workshop_row(ui))
 	# the rack on the left, the chosen weapon on the anvil to the right
 	var cols := UIKit.hbox(8)
 	v.add_child(cols)
@@ -799,7 +829,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 		detail.add_child(row)
 		if unlocked:
 			var e := UIKit.button("Equip", func() -> void:
-				Profile.data.equipped.weapon = id
+				Profile.choose_weapon(id)
 				Profile.save_profile()
 				if Game.stage and Game.stage.player:
 					Game.stage.player.set_weapon(id, Profile.weapon_level(id))
@@ -813,6 +843,8 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 						if Profile.upgrade_weapon(id):
 							Audio.play("forge", 0.0)
 							Profile.save_profile()
+							if Game.stage is Hub:
+								(Game.stage as Hub).workshop_flare(true)
 							if Game.stage and Game.stage.player and Profile.equipped_weapon() == id:
 								Game.stage.player.set_weapon(id, Profile.weapon_level(id))
 						ctx.rebuild.call(), 84)
@@ -965,12 +997,18 @@ static func descent(ui: UIRoot) -> Control:
 	if Omens.any_unlocked():
 		v.add_child(_omen_picker())
 	v.add_child(UIKit.label("LOADOUT", 8, UIKit.C_GOLD, true))
-	v.add_child(UIKit.label("Weapon: %s +%d" % [GearDB.weapon(Profile.equipped_weapon()).name, Profile.weapon_level(Profile.equipped_weapon())], 8))
+	var wi := Profile.weapon_item()
+	var arch_name := String(GearDB.weapon(Profile.equipped_weapon()).name)
+	var wline := ("Weapon: %s (%s) +%d" % [ItemDB.item_name(wi), arch_name, Profile.weapon_level(Profile.equipped_weapon())]) if not wi.is_empty() 		else ("Weapon: %s +%d" % [arch_name, Profile.weapon_level(Profile.equipped_weapon())])
+	v.add_child(UIKit.label(wline, 8, ItemDB.color(wi) if not wi.is_empty() else UIKit.C_TEXT))
 	var avail := SkillDB.abilities(Profile.skills())
 	var row := UIKit.hbox(4)
 	v.add_child(row)
-	for i in 2:
-		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_1" if i == 0 else "ability_2"), 8, UIKit.C_DIM))
+	for i in 3:
+		if i == 2 and Profile.level() < Player.THIRD_SLOT_LEVEL:
+			row.add_child(UIKit.label("(3rd: Lv %d)" % Player.THIRD_SLOT_LEVEL, 8, UIKit.C_DIM))
+			continue
+		row.add_child(UIKit.label("%s:" % Settings.describe_action("ability_%d" % (i + 1)), 8, UIKit.C_DIM))
 		var ob := OptionButton.new()
 		var cur: String = Profile.slots()[i]
 		var opts := [""] + avail

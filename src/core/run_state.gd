@@ -28,7 +28,7 @@ var second_wind_used := false
 var phoenix_used := false
 var weapon_id := "sword"
 var weapon_level := 0
-var abilities: Array = ["flare", ""]
+var abilities: Array = ["flare", "", ""]
 var result := ""            # "", "extracted", "died", "victory"
 var killer_id := ""
 var rng := RandomNumberGenerator.new()
@@ -56,6 +56,8 @@ static func create(seed_v: int, region_id: String, weapon: String, wlevel: int, 
 	r.weapon_id = weapon
 	r.weapon_level = wlevel
 	r.abilities = slots.duplicate()
+	while r.abilities.size() < 3:
+		r.abilities.append("")
 	r.rng.seed = seed_v * 7919 + 13
 	return r
 

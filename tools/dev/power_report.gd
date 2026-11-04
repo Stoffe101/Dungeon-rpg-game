@@ -41,7 +41,7 @@ func _stats() -> Stats:
 func _offense() -> float:
 	var st := _stats()
 	var crit := clampf(st.v("crit_chance"), 0.0, 1.0)
-	return (1.0 + st.v("melee_damage") + st.v("damage")) * (1.0 + crit * (st.v("crit_mult") - 1.0)) * st.v("attack_speed") * st.v("damage_more")
+	return (1.0 + st.v("melee_damage") + st.v("damage")) * (1.0 + crit * (st.v("crit_mult") - 1.0)) * st.v("attack_speed") * st.v("damage_more") * st.v("weapon_damage")
 
 
 func _defense() -> float:

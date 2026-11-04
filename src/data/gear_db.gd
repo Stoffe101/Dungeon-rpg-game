@@ -139,6 +139,26 @@ const ABILITIES := {
 		"desc": "Summon a hearth-wisp that hunts enemies with ember bolts for 18s.",
 		"damage": 7.0, "duration": 18.0,
 	},
+	"knives": {
+		"name": "Gloam Knives", "cost": 10.0, "cooldown": 0.42, "icon": "knives",
+		"desc": "Cut five knives from your lantern's shadow and fling them in a fan. Cheap and quick: a caster's blade. Shaped by every projectile modifier you carry.",
+		"damage": 7.0, "count": 5, "range": 9.0,
+	},
+	"lantern": {
+		"name": "Hearth Lantern", "cost": 45.0, "cooldown": 16.0, "icon": "lantern",
+		"desc": "Plant a lantern at the cursor for 12s. It looses ember bolts at foes, and every Kindled in its light regains Kindle and takes 10% less damage.",
+		"damage": 8.0, "duration": 12.0, "radius": 3.5,
+	},
+	"rush": {
+		"name": "Ember Rush", "cost": 22.0, "cooldown": 3.0, "icon": "rush",
+		"desc": "Burst toward the cursor as a streak of fire, cutting and burning everything in your path. Counts as a melee strike.",
+		"damage": 22.0, "range": 6.0,
+	},
+	"rekindle": {
+		"name": "Rekindle", "cost": 40.0, "cooldown": 24.0, "icon": "rekindle",
+		"desc": "Hearth-light floods out around you: you and every ally in it gain a ward of 25% of health and 20 Kindle, and fallen allies in it get back up.",
+		"radius": 4.0, "ward": 0.25,
+	},
 }
 
 

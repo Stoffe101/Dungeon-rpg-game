@@ -171,6 +171,47 @@ const NODES := [
 		"mods": [["cooldown", "more", 0.25]],
 		"desc": "Your spells deal 8% more damage for every Ember Rune set in your spells. Spell cooldowns are 25% longer."},
 
+	# ---------------- Build paths (the second layer of each branch) ----------------
+	# each branch gains a spell or a mechanic that changes how a build plays,
+	# reached beside its first notable and ending in a keystone with a price
+	{"id": "b_rush", "name": "Ember Rush", "branch": "blade", "kind": "ability", "at": [3, 1.6], "links": ["b2r", "b_mo"], "ability": "rush",
+		"desc": "Unlocks Ember Rush: burst toward the cursor as a streak of fire, cutting and burning everything in your path."},
+	{"id": "b_mo", "name": "Momentum", "branch": "blade", "kind": "notable", "at": [4, 1.8], "links": ["b8"], "flags": {"momentum": 1},
+		"desc": "Each weapon hit builds Momentum (up to 8; it fades 1.5s after your last hit): +4% attack speed per stack. At 8, your combo finisher also looses a cutting wave."},
+	{"id": "b8", "name": "Thousand Cuts", "branch": "blade", "kind": "keystone", "at": [5.6, 2.3], "links": [], "flags": {"thousand_cuts": 1},
+		"mods": [["attack_speed", "more", 0.5]],
+		"desc": "You attack 50% faster, but your weapon hits deal 30% less damage. Every third hit in a row flings a spectral knife at another foe."},
+	{"id": "p_fork", "name": "Splintering Flame", "branch": "pyre", "kind": "notable", "at": [4, -1.8], "links": ["p3l", "p8"], "mods": [["fork", "add", 1.0]],
+		"desc": "Your projectiles split in two when they first strike a foe; the halves fly on at 50% damage."},
+	{"id": "p8", "name": "Ember Hail", "branch": "pyre", "kind": "keystone", "at": [5.4, -2.0], "links": [], "flags": {"ember_hail": 1},
+		"mods": [["projectiles", "add", 2.0]],
+		"desc": "Everything you fire looses 2 more projectiles, but each deals 25% less damage."},
+	{"id": "r_ret", "name": "Returning Frost", "branch": "rime", "kind": "notable", "at": [4, 1.9], "links": ["r3r"], "flags": {"proj_return": 1},
+		"mods": [["chill_chance", "add", 0.1]],
+		"desc": "Your projectiles turn back at the end of their flight and strike again on the way home. +10% chill chance."},
+	{"id": "gk", "name": "Gloam Knives", "branch": "gloam", "kind": "ability", "at": [4, -1.9], "links": ["g3l", "g_fan"], "ability": "knives",
+		"desc": "Unlocks Gloam Knives: fling a fan of five shadow knives. Cheap and quick, and shaped by every projectile modifier you carry."},
+	{"id": "g_fan", "name": "Fan of Shadows", "branch": "gloam", "kind": "notable", "at": [5, -2.1], "links": ["g_ric"], "mods": [["projectiles", "add", 1.0]],
+		"desc": "Everything you fire looses 1 more projectile."},
+	{"id": "g_ric", "name": "Ricochet", "branch": "gloam", "kind": "notable", "at": [6, -2.0], "links": [], "mods": [["chain", "add", 2.0]],
+		"desc": "Your projectiles leap from a struck foe to the next one nearby, up to 2 times."},
+	{"id": "w_rk", "name": "Rekindle", "branch": "bulwark", "kind": "ability", "at": [4, 1.9], "links": ["w3r", "w_ret"], "ability": "rekindle",
+		"desc": "Unlocks Rekindle: hearth-light floods out around you, warding you and every ally in it, restoring Kindle and raising the fallen."},
+	{"id": "w_ret", "name": "Retribution", "branch": "bulwark", "kind": "notable", "at": [5, 2.1], "links": ["w8"], "flags": {"retribution": 1},
+		"desc": "Damage you take is stored (up to your maximum health). Your next successful Ward releases it, doubled, as a shockwave around you."},
+	{"id": "w8", "name": "Last Light", "branch": "bulwark", "kind": "keystone", "at": [6, 2.2], "links": [], "flags": {"last_light": 1},
+		"mods": [["max_hp", "more", -0.4]],
+		"desc": "Your Kindle takes blows before your health does, and after 2s unhurt it refills quickly. 40% less maximum health."},
+	{"id": "k_lan", "name": "Hearth Lantern", "branch": "kindle", "kind": "ability", "at": [4, -1.8], "links": ["k3l", "k_hb", "k_lw"], "ability": "lantern",
+		"desc": "Unlocks Hearth Lantern: plant a lantern that looses ember bolts at foes; every Kindled in its light regains Kindle and takes less damage."},
+	{"id": "k_lw", "name": "Lanternwright", "branch": "kindle", "kind": "notable", "at": [4.4, -2.9], "links": [], "flags": {"lanternwright": 1},
+		"desc": "Your Hearth Lanterns burn 50% longer and fire twice as fast, and two of them can stand at once."},
+	{"id": "k_hb", "name": "Hearthbond", "branch": "kindle", "kind": "notable", "at": [5, -2.0], "links": ["k8"], "flags": {"hearthbond": 1},
+		"desc": "You and every Kindled within 5 paces of you gain 2 Kindle a second. When an ally near you is struck, you gain 4 Kindle."},
+	{"id": "k8", "name": "Spellblade", "branch": "kindle", "kind": "keystone", "at": [6, -1.9], "links": [], "flags": {"spellblade": 1},
+		"mods": [["ability_cost", "more", 0.15]],
+		"desc": "Each spell you cast charges your next 3 weapon hits with its element: +40% damage, and they Burn, Chill or Expose. Spells cost 15% more Kindle."},
+
 	# ---------------- Hybrids (between branches) ----------------
 	{"id": "x_bp", "name": "Searing Edge", "branch": "blade|pyre", "kind": "hybrid", "links": [], "mods": [["fire_damage", "add", 0.1]], "flags": {"searing_edge": 1},
 		"desc": "Melee hits have a 20% chance to Burn. +10% fire damage."},
@@ -197,6 +238,9 @@ const ICONS := {
 	"x_bp": "flame", "x_pr": "prism", "x_rg": "snow", "x_gw": "dodge", "x_wk": "kindle", "x_kb": "sword",
 	"b_m": "sword", "p_m": "flame", "r_m": "snow", "g_m": "feather", "w_m": "shield", "k_m": "wick",
 	"b7": "hammer", "p7": "coal", "r7": "hourglass", "g7": "gloamstep", "w7": "shield", "k7": "sigil",
+	"b_rush": "rush", "b_mo": "momentum", "b8": "cuts", "p_fork": "splinter", "p8": "hail", "r_ret": "return",
+	"gk": "knives", "g_fan": "fan", "g_ric": "ricochet", "w_rk": "rekindle", "w_ret": "retribution", "w8": "lastlight",
+	"k_lan": "lantern", "k_lw": "lanterns", "k_hb": "bond", "k8": "spellblade",
 }
 const STAT_ICONS := {
 	"melee_damage": "sword", "attack_speed": "hourglass", "crit_chance": "eye", "crit_mult": "gem_red", "poise_damage": "hammer",
@@ -205,7 +249,8 @@ const STAT_ICONS := {
 	"move_speed": "boot", "dodge_recharge": "dodge", "dodge_distance": "feather", "dodge_iframes": "mask", "dodge_charges": "dodge",
 	"max_hp": "heart", "armor": "shield", "parry_window": "mirror", "thorns": "fork",
 	"kindle_max": "wick", "kindle_gain": "kindle", "ability_cost": "candle", "ability_damage": "prism", "cooldown": "hourglass",
-	"kindle_on_kill": "skull",
+	"kindle_on_kill": "skull", "projectiles": "fan", "pierce": "lance", "chain": "ricochet", "fork": "splinter",
+	"projectile_damage": "bow",
 }
 
 static var _by_id: Dictionary = {}

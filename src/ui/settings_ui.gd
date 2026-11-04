@@ -308,7 +308,7 @@ func _controls() -> void:
 	_rows.add_child(head)
 	var groups := [
 		["MOVE", [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"], ["dodge", "Dodge"]]],
-		["FIGHT", [["attack", "Attack"], ["ward", "Ward"], ["ability_1", "Ability 1"], ["ability_2", "Ability 2"], ["flask", "Flask"]]],
+		["FIGHT", [["attack", "Attack"], ["ward", "Ward"], ["ability_1", "Spell 1"], ["ability_2", "Spell 2"], ["ability_3", "Spell 3"], ["flask", "Flask"]]],
 		["EXPLORE", [["interact", "Interact / talk"], ["map", "Map"], ["inventory", "Satchel"], ["hearthcall", "Hearthcall (go home)"]]],
 		["PARTY", [["party_yes", "Ready / agree"], ["party_no", "Not now"]]],
 	]

@@ -61,6 +61,8 @@ func _run() -> void:
 			await stairs_only()
 		"bestiary":
 			await bestiary()
+		"partyhud":
+			await party_hud()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -450,6 +452,49 @@ func below() -> void:
 	await wait(2.0)
 	if role == "host":
 		Net.i.dev_shot("e2e/18_second_expedition")
+	await wait(2.0)
+
+
+## The party HUD on every screen: in the sanctuary, below in a fight, with a
+## Kindled down (then raised), and after a level gained mid-expedition.
+func party_hud() -> void:
+	await until(func() -> bool: return hub() != null and hub().sync != null and hub().sync.others.size() >= (guests if role == "host" else 1), 40.0, "the party gathered")
+	await _skip_intro()
+	await wait(1.5)
+	if role == "host":
+		Net.i.dev_shot("hud/01_sanctuary")
+	if not await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending, 60.0, "below together"):
+		return
+	await wait(1.0)
+	var hud: HUD = Game.ui.hud
+	expect(hud.party != null and hud.party.visible, "the party cards are on screen")
+	expect(hud.party != null and hud.party._cards.size() == Net.party_size() - 1, "one card for every other Kindled")
+	dun().player.add_child(Bot.new())
+	await until(func() -> bool: return dun().active_room != null or _enemies().size() > 0, 60.0, "a fight")
+	await wait(2.0)
+	if role == "host":
+		Net.i.dev_shot("hud/02_fight")
+	await wait(1.0)
+	# a Kindled goes down (the host decides), then gets up again
+	if role == "host":
+		var g := _first_guest()
+		for pl in dun().players:
+			if pl.peer_id == g and pl.alive:
+				pl._go_down()
+		await wait(1.2)
+		Net.i.dev_shot("hud/03_downed")
+		await wait(0.6)
+		for pl in dun().players:
+			if pl.peer_id == g and pl.downed:
+				pl.revive_k = 1.0
+		# the host gains a level: everyone's card for the host says so
+		Profile.add_xp(Combat.xp_to_next(Profile.level()))
+		await wait(2.0)
+		Net.i.dev_shot("hud/04_level_up")
+	else:
+		await wait(4.5)
+		var host_lv := int(Net.i.roster.get(1, {}).get("sheet", {}).get("level", 0))
+		expect(host_lv >= 2, "the host's new level reached my screen (Lv %d)" % host_lv)
 	await wait(2.0)
 
 

@@ -98,6 +98,23 @@ func _mote() -> void:
 	var element := inscribed if inscribed_n > 0 else ""
 	if inscribed_n > 0:
 		inscribed_n -= 1
+	# one mote, or a few (extra projectiles), each seeking its own foe
+	var dirs := Volley.directions(player, d, 1, 0.22)
+	var foes: Array = []
+	if dirs.size() > 1:
+		foes = st.hostiles(player.team).filter(func(a): return a.pos.distance_to(player.pos) < 9.0 and st.grid.line_clear(player.pos, a.pos))
+		foes.sort_custom(func(a, b): return a.pos.distance_to(player.pos) < b.pos.distance_to(player.pos))
+	var group := {}
+	for k in dirs.size():
+		var tk: Actor = target if foes.is_empty() else foes[k % foes.size()]
+		_one_mote(dirs[k], tk, big, element, group)
+	if _n % 2 == 0:
+		Audio.play("orb", -12.0, randf_range(1.6, 1.9))
+	player.on_weapon_strike(0, false)
+
+
+func _one_mote(d: Vector2, target: Actor, big: bool, element: String, group: Dictionary) -> void:
+	var st := player.stage
 	var pr := Projectile.create(st, "proj_mote", player.pos + d * 0.5, d * 13.0 * player.stats.v("projectile_speed"), player.team)
 	pr.source = player
 	pr.damage = def.damage[0] * damage_scale() * (1.4 if element != "" else 1.0) * (2.0 if big else 1.0)
@@ -131,14 +148,13 @@ func _mote() -> void:
 		return h
 	pr.on_hit_fn = func(proj: Projectile, _t: Actor, _res) -> void:
 		# each word that lands hurries the spells
+		var hurry := COOLDOWN_PER_HIT * (2.0 if player.stats.has("hollow_index") else 1.0)
 		for i in player.ability_cd.size():
-			player.ability_cd[i] = maxf(0.0, player.ability_cd[i] - COOLDOWN_PER_HIT)
+			player.ability_cd[i] = maxf(0.0, player.ability_cd[i] - hurry)
 		player.gain_kindle(1.5)
 		if big:
 			_glyph_burst(proj.pos, proj.damage * 0.6, col)
-	if _n % 2 == 0:
-		Audio.play("orb", -12.0, randf_range(1.6, 1.9))
-	player.on_weapon_strike(0, false)
+	Volley.shape(pr, player, group)
 
 
 ## Masterwork: every fifth mote is a glyph that bursts where it lands.

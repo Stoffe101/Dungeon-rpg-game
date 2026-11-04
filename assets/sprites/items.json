@@ -2,16 +2,16 @@
 	"cell": 16,
 	"icons": {
 		"anvil": [
-			6,
-			9
+			7,
+			12
 		],
 		"avarice_lantern": [
 			7,
 			6
 		],
 		"bag": [
-			5,
-			9
+			6,
+			12
 		],
 		"band": [
 			7,
@@ -30,12 +30,12 @@
 			0
 		],
 		"bloom_heart": [
-			3,
-			9
+			4,
+			12
 		],
 		"bone_dust": [
-			5,
-			8
+			6,
+			11
 		],
 		"boots": [
 			1,
@@ -90,12 +90,12 @@
 			6
 		],
 		"eclipse_shard": [
-			4,
-			9
+			5,
+			12
 		],
 		"ember_core": [
-			1,
-			9
+			2,
+			12
 		],
 		"ember_crown": [
 			4,
@@ -158,8 +158,8 @@
 			1
 		],
 		"grave_iron": [
-			6,
-			8
+			7,
+			11
 		],
 		"greaves": [
 			2,
@@ -286,48 +286,48 @@
 			0
 		],
 		"rootwood": [
-			8,
-			8
+			9,
+			11
 		],
 		"rune_chain": [
-			9,
-			9
+			0,
+			13
 		],
 		"rune_echo": [
-			0,
-			10
+			1,
+			13
 		],
 		"rune_gloam": [
-			2,
-			10
+			3,
+			13
 		],
 		"rune_gravity": [
-			5,
-			10
+			6,
+			13
 		],
 		"rune_haste": [
-			6,
-			10
+			7,
+			13
 		],
 		"rune_might": [
-			7,
-			10
+			8,
+			13
 		],
 		"rune_rime": [
-			1,
-			10
+			2,
+			13
 		],
 		"rune_siphon": [
-			4,
-			10
+			5,
+			13
 		],
 		"rune_split": [
-			8,
-			9
+			9,
+			12
 		],
 		"rune_volatile": [
-			3,
-			10
+			4,
+			13
 		],
 		"sandals": [
 			4,
@@ -338,8 +338,8 @@
 			1
 		],
 		"scroll": [
-			7,
-			9
+			8,
+			12
 		],
 		"signet": [
 			8,
@@ -350,16 +350,16 @@
 			2
 		],
 		"soul_glass": [
-			7,
-			8
+			8,
+			11
 		],
 		"spell_circlet": [
 			4,
 			6
 		],
 		"spore_silk": [
-			9,
-			8
+			0,
+			12
 		],
 		"still_sandals": [
 			9,
@@ -370,8 +370,8 @@
 			6
 		],
 		"sun_gold": [
-			0,
-			9
+			1,
+			12
 		],
 		"sunfall_mantle": [
 			3,
@@ -426,8 +426,132 @@
 			2
 		],
 		"warden_sigil": [
+			3,
+			12
+		],
+		"wpn_bloomstring": [
+			4,
+			11
+		],
+		"wpn_bow": [
+			0,
+			10
+		],
+		"wpn_cleaver": [
+			6,
+			8
+		],
+		"wpn_codex": [
+			4,
+			10
+		],
+		"wpn_daggers": [
+			4,
+			9
+		],
+		"wpn_gloamfang": [
+			9,
+			10
+		],
+		"wpn_grimoire": [
+			5,
+			10
+		],
+		"wpn_hammer": [
+			8,
+			8
+		],
+		"wpn_hundred": [
+			8,
+			10
+		],
+		"wpn_index": [
+			2,
+			11
+		],
+		"wpn_kris": [
+			5,
+			9
+		],
+		"wpn_mallet": [
+			0,
+			9
+		],
+		"wpn_maul": [
+			9,
+			8
+		],
+		"wpn_partisan": [
+			9,
+			9
+		],
+		"wpn_pike": [
+			0,
+			11
+		],
+		"wpn_quakeheart": [
+			7,
+			10
+		],
+		"wpn_rimebow": [
+			2,
+			10
+		],
+		"wpn_rimestaff": [
 			2,
 			9
+		],
+		"wpn_rootspear": [
+			8,
+			9
+		],
+		"wpn_sabre": [
+			7,
+			8
+		],
+		"wpn_shivs": [
+			6,
+			9
+		],
+		"wpn_spear": [
+			7,
+			9
+		],
+		"wpn_splitbow": [
+			1,
+			10
+		],
+		"wpn_splitstaff": [
+			3,
+			9
+		],
+		"wpn_staff": [
+			1,
+			9
+		],
+		"wpn_sunglaive": [
+			5,
+			11
+		],
+		"wpn_sword": [
+			5,
+			8
+		],
+		"wpn_thousandth": [
+			6,
+			10
+		],
+		"wpn_tome": [
+			3,
+			10
+		],
+		"wpn_wardenfang": [
+			3,
+			11
+		],
+		"wpn_windreturn": [
+			1,
+			11
 		],
 		"wraps": [
 			7,

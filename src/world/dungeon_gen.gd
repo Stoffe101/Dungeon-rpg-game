@@ -21,6 +21,97 @@ const DOOR_ROWS := [4, 7]
 const GW := 7
 const GH := 6
 const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+## Hand-made rooms (22x12, a single cell), mixed into the procedural ones:
+## . floor, # wall, o pillar, ~ pit, space void. Doors are kept clear after.
+const AUTHORED := {
+	"ossuary_chapel": [
+		"......................",
+		".o..o..o......o..o..o.",
+		"......................",
+		"......####..####......",
+		"......#........#......",
+		".........~~~~.........",
+		".........~~~~.........",
+		"......#........#......",
+		"......####..####......",
+		"......................",
+		".o..o..o......o..o..o.",
+		"......................",
+	],
+	"ossuary_ossuary": [
+		"......................",
+		"..##....##....##....##",
+		"......................",
+		"..o................o..",
+		"......~~~....~~~......",
+		"......~~~....~~~......",
+		"......................",
+		"..o................o..",
+		"......................",
+		"##....##....##....##..",
+		"......................",
+		"......................",
+	],
+	"root_hollow": [
+		"  ..................  ",
+		" .....##......##..... ",
+		".....##..~~~~..##.....",
+		"....##..~~~~~~..##....",
+		"......................",
+		"..o......~~.......o...",
+		"......................",
+		"....##..~~~~~~..##....",
+		".....##..~~~~..##.....",
+		" .....##......##..... ",
+		"  ..................  ",
+		"......................",
+	],
+	"root_tangle": [
+		"......................",
+		"...##.......##........",
+		"....##.....##...o.....",
+		".....##...##..........",
+		"......................",
+		".o.......~~~......o...",
+		".........~~~..........",
+		"......................",
+		"..........##...##.....",
+		"....o....##.....##....",
+		".........#.......#....",
+		"......................",
+	],
+	"throne_colonnade": [
+		"......................",
+		"..o...o...o...o...o...",
+		"......................",
+		"......................",
+		"..~~~~..........~~~~..",
+		"..~~~~...####...~~~~..",
+		"..~~~~...####...~~~~..",
+		"......................",
+		"......................",
+		"..o...o...o...o...o...",
+		"......................",
+		"......................",
+	],
+	"throne_court": [
+		"......................",
+		".~~..............~~...",
+		".~~...o......o...~~...",
+		"......................",
+		".......########.......",
+		"......................",
+		"......................",
+		".......########.......",
+		"......................",
+		".~~...o......o...~~...",
+		".~~..............~~...",
+		"......................",
+	],
+}
+const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary"], "rootmire": ["root_hollow", "root_tangle"],
+	"throne": ["throne_colonnade", "throne_court"]}
+
 
 
 class Layout:
@@ -371,6 +462,11 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 	var layout := PackedByteArray()
 	var best := PackedByteArray()
 	var stamps_for := _stamp_pool(r)
+	# now and then a single-cell fight takes place in a hand-made room
+	var authored := ""
+	var made: Array = AUTHORED_BY_REGION.get(lay.region, [])
+	if w == 22 and h == 12 and (r.type == Room.Type.COMBAT or r.type == Room.Type.ELITE) and not made.is_empty() and rng.randf() < 0.22:
+		authored = String(made[rng.randi_range(0, made.size() - 1)])
 	for attempt in 12:
 		layout.resize(w * h)
 		layout.fill(TileGrid.FLOOR)
@@ -379,6 +475,9 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 			n = 1
 		var pool := stamps_for.duplicate()
 		_shuffle(pool, rng)
+		if authored != "" and attempt == 0:
+			_stamp_authored(authored, layout, w, h, rng.randf() < 0.5)
+			n = 0
 		for i in mini(n, pool.size()):
 			_stamp(pool[i], layout, w, h, rng)
 		for kr in keep:
@@ -388,6 +487,8 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 						layout[yy * w + xx] = TileGrid.FLOOR
 		if _valid(layout, w, h, r):
 			best = layout.duplicate()
+			if authored != "" and attempt == 0:
+				r.authored = authored
 			break
 	if best.is_empty():
 		best.resize(w * h)
@@ -406,9 +507,10 @@ static func _stamp_pool(r: Room) -> Array:
 	match r.type:
 		Room.Type.COMBAT, Room.Type.ELITE:
 			var big := r.cells.size() > 1
-			var pool := ["pillars4", "pillar_rows", "center_pit", "corners", "center_block", "alcoves", "cross", "twin_pits", "diag_pillars"]
+			var pool := ["pillars4", "pillar_rows", "center_pit", "corners", "center_block", "alcoves", "cross", "twin_pits", "diag_pillars",
+				"ring_pillars", "chasm", "pillar_grid", "split_wall", "l_room", "islands"]
 			if big:
-				pool.append_array(["pit_ring", "pillar_rows", "center_pit"])
+				pool.append_array(["pit_ring", "pillar_rows", "center_pit", "chasm", "ring_pillars"])
 			return pool
 		Room.Type.BOSS:
 			return ["octagon"]
@@ -419,6 +521,17 @@ static func _stamp_pool(r: Room) -> Array:
 		Room.Type.MERCHANT, Room.Type.STAIRS:
 			return ["alcoves", "corners"]
 	return ["pillars4"]
+
+
+## A hand-made room, mirrored left-right half the time.
+static func _stamp_authored(id: String, L: PackedByteArray, w: int, h: int, mirror: bool) -> void:
+	var rows: Array = AUTHORED[id]
+	for y in mini(h, rows.size()):
+		var row := String(rows[y])
+		for x in mini(w, row.length()):
+			var ch := row[(row.length() - 1 - x) if mirror else x]
+			var t: int = {".": TileGrid.FLOOR, "#": TileGrid.WALL, "o": TileGrid.PILLAR, "~": TileGrid.PIT, " ": TileGrid.VOID}.get(ch, TileGrid.FLOOR)
+			_put(L, w, h, x, y, t)
 
 
 static func _put(layout: PackedByteArray, w: int, h: int, x: int, y: int, t: int) -> void:
@@ -512,6 +625,72 @@ static func _stamp(kind: String, L: PackedByteArray, w: int, h: int, rng: Random
 			for x in range(2, w - 2, 5):
 				_put(L, w, h, x, 0, TileGrid.VOID)
 				_put(L, w, h, x + 1, 0, TileGrid.VOID)
+		"ring_pillars":
+			# an arena: a loose ring of pillars around the middle
+			var n := rng.randi_range(6, 8)
+			var rx := w * 0.3
+			var ry := h * 0.3
+			var a0 := rng.randf() * TAU
+			for i in n:
+				var a := a0 + TAU * i / n
+				_put(L, w, h, int(round(w * 0.5 - 0.5 + cos(a) * rx)), int(round(h * 0.5 - 0.5 + sin(a) * ry)), TileGrid.PILLAR)
+		"chasm":
+			# a rift across the room, crossed by one or two bridges
+			var vertical := rng.randf() < 0.5
+			var thick := rng.randi_range(2, 3)
+			var span := w if not vertical else h
+			var across := h if not vertical else w
+			var c0 := across / 2 - thick / 2
+			var bridges: Array = [span / 2] if rng.randf() < 0.5 else [span / 4, span - span / 4]
+			for s in range(2, span - 2):
+				var on_bridge := false
+				for b in bridges:
+					if absi(s - int(b)) <= 1:
+						on_bridge = true
+				if on_bridge:
+					continue
+				for k in thick:
+					if vertical:
+						_put(L, w, h, c0 + k, s, TileGrid.PIT)
+					else:
+						_put(L, w, h, s, c0 + k, TileGrid.PIT)
+		"pillar_grid":
+			# a hall of columns
+			var sx := rng.randi_range(4, 5)
+			var sy := 3
+			for y in range(3, h - 2, sy):
+				for x in range(3, w - 2, sx):
+					_put(L, w, h, x, y, TileGrid.PILLAR)
+		"split_wall":
+			# a broken wall down the middle: two halves joined by gaps
+			var x0 := w / 2
+			var gaps: Array = [h / 4, h - 1 - h / 4]
+			for y in range(1, h - 1):
+				var gap := false
+				for g in gaps:
+					if absi(y - int(g)) <= 1:
+						gap = true
+				if not gap:
+					_put(L, w, h, x0, y, TileGrid.WALL)
+		"l_room":
+			# one corner of the room missing entirely
+			var cx := rng.randi_range(0, 1)
+			var cy := rng.randi_range(0, 1)
+			var lw := w / 2 - 2
+			var lh := h / 2 - 1
+			var x0 := 0 if cx == 0 else w - lw
+			var y0 := 0 if cy == 0 else h - lh
+			for y in range(y0, y0 + lh):
+				for x in range(x0, x0 + lw):
+					_put(L, w, h, x, y, TileGrid.VOID)
+		"islands":
+			# scattered sinkholes
+			for i in rng.randi_range(3, 5):
+				var x0 := rng.randi_range(3, w - 5)
+				var y0 := rng.randi_range(2, h - 4)
+				for y in range(y0, y0 + 2):
+					for x in range(x0, x0 + 2):
+						_put(L, w, h, x, y, TileGrid.PIT)
 		"octagon":
 			var c := mini(9, w / 4)
 			for y in h:

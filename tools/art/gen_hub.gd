@@ -180,29 +180,8 @@ static func _gate(i: int, mode: int) -> Px:
 
 
 
+## The ruined forge (the working one is tools/art/gen_workshop.gd).
 static func _forge(dir: String) -> void:
-	var s := Sheet.new(36, 30, Vector2i(18, 28))
-	var fr: Array = []
-	for i in 4:
-		var c := Px.new(36, 30)
-		# furnace
-		c.paint(c.mask().rect(2, 4, 16, 24), Pal.EARTH, 2, true)
-		c.paint(c.mask().rect(4, 0, 12, 6), Pal.EARTH, 3)
-		var mouth := c.mask().ellipse(10.0, 18.0, 5.0, 5.0).rect(5, 18, 10, 6)
-		c.fill_lit(mouth, Pal.EMBER[2])
-		c.fill_lit(c.mask().ellipse(10.0, 20.0, 3.4, 3.0), Pal.EMBER[3 + (i % 2)])
-		c.lit(9 + i % 2, 19, Pal.EMBER[5])
-		# anvil
-		c.paint(c.mask().poly(V([[20, 18], [34, 18], [32, 21], [22, 21]])), Pal.STEEL, 3, true)
-		c.paint(c.mask().rect(25, 21, 4, 5), Pal.STEEL, 2)
-		c.paint(c.mask().rect(22, 26, 10, 2), Pal.STEEL, 1)
-		if i == 1:
-			c.lit(27, 16, Pal.GOLD[4])
-			c.lit(30, 15, Pal.EMBER[4])
-		c.outline(Pal.INK)
-		fr.append(c)
-	s.add("idle", fr, 5.0)
-	s.save(dir, "forge")
 	var r := Px.new(36, 26)
 	for k in 9:
 		var x := 2 + (k * 7) % 28

@@ -156,6 +156,8 @@ func _describe(a: Actor) -> Dictionary:
 			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
+		if a.has_method("light_spec"):
+			d["light"] = a.call("light_spec")    # a Hearth Lantern glows on every screen
 	return d
 
 
@@ -222,11 +224,11 @@ func _send_snapshots() -> void:
 				p.downed, q(p.bleed_t), q(p.revive_k), q(p.look.x), q(p.look.y), q(p.aim.x), q(p.aim.y),
 				int(w.phase) if w else 0, q(w.swing) if w else 0.0, q(w.aim_dir.x) if w else 1.0, q(w.aim_dir.y) if w else 0.0, w.charged if w else false,
 				p.hearthcall_t, p.run.embers if p.run else 0, p.run.sunshards if p.run else 0, p.run.relics if p.run else [],
-				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0, q(p.hurt_t), q(p.status.speed_mult())])
+				p.ward_t > 0.0, p.dodge_t > 0.0, p.run.xp_gained if p.run else 0, q(p.hurt_t), q(p.status.speed_mult()), q(p.stats.v("kindle_max")), q(p.ability_cd[2] if p.ability_cd.size() > 2 else 0.0), p.momentum])
 	var prs: Array = []
 	for pr in stage.projectiles:
 		if is_instance_valid(pr) and pr.net_id != 0:
-			prs.append([pr.net_id, q(pr.pos.x), q(pr.pos.y), q(pr.height)])
+			prs.append([pr.net_id, q(pr.pos.x), q(pr.pos.y), q(pr.height), q(pr.vel.x), q(pr.vel.y)])
 	_key_phase = (_key_phase + 1) % KEY_EVERY
 	for pid in Net.i.present():
 		if int(pid) != 1:
@@ -813,6 +815,7 @@ func _spawn_replica(id: int, d: Dictionary) -> void:
 		var o := ReplicaActor.new()
 		o.sheet_name = String(d.sheet)
 		o.radius = float(d.radius)
+		o.light = d.get("light", [])
 		a = o
 	a.net_id = id
 	a.pos = d.pos
@@ -947,6 +950,8 @@ func apply_snapshot(d: Dictionary) -> void:
 			if pr.pos.distance_to(to) > 0.6:
 				pr.pos = to
 			pr.height = float(p[3])
+			if p.size() > 5:
+				pr.vel = Vector2(p[4], p[5])     # it chained, turned back or was turned
 	for p in d.get("pk", []):
 		var pk = picks.get(int(p[0]))
 		if is_instance_valid(pk):
@@ -968,6 +973,10 @@ func _apply_own(pl: Player, p: Array) -> void:
 	for k in 2:
 		if not pl.held_local("a%d" % k):
 			pl.ability_cd[k] = float(p[3 + k])
+	if p.size() > 28 and not pl.held_local("a2"):
+		pl.ability_cd[2] = float(p[28])
+	if p.size() > 29:
+		pl.momentum = int(p[29])     # its weapon's pace (Momentum) is the host's
 	if not pl.held_local("dodge"):
 		pl.dodge_charges = float(p[5])
 	pl.downed = bool(p[6])
@@ -995,6 +1004,9 @@ func _apply_own(pl: Player, p: Array) -> void:
 		Game.run.embers = int(p[19])
 		Game.run.sunshards = int(p[20])
 		Game.run.xp_gained = int(p[24])
+		# experience lands as it is earned, as it does for the host (a guest
+		# levels up mid-expedition); the settlement adds only what is left
+		Profile.live_xp(Game.run.run_id, Game.run.xp_gained)
 		if Game.run.relics != p[21]:
 			Game.run.relics = (p[21] as Array).duplicate()
 			pl.rebuild_stats()
@@ -1006,6 +1018,8 @@ func _apply_other(pl: Player, p: Array) -> void:
 	pl.flask = int(p[2])
 	pl.ability_cd[0] = float(p[3])
 	pl.ability_cd[1] = float(p[4])
+	if p.size() > 28:
+		pl.ability_cd[2] = float(p[28])
 	pl.dodge_charges = float(p[5])
 	pl.downed = bool(p[6])
 	pl.bleed_t = float(p[7])
@@ -1019,6 +1033,10 @@ func _apply_other(pl: Player, p: Array) -> void:
 		pl.weapon.charged = bool(p[17])
 	pl.hearthcall_t = float(p[18])
 	pl.ward_t = 0.1 if bool(p[22]) else 0.0
+	if p.size() > 27:
+		pl.kindle_cap = float(p[27])
+	if p.size() > 29:
+		pl.momentum = int(p[29])
 
 
 func _apply_row(a: Actor, e: Array, own: bool) -> void:
@@ -1097,7 +1115,15 @@ func on_offer(kind: String, args: Array) -> void:
 class ReplicaActor:
 	extends Actor
 	var sheet_name := ""
+	var light: Array = []    # [colour, energy, range, height] (Hearth Lantern)
 
 	func _ready() -> void:
 		team = Team.NEUTRAL
 		build_visual(sheet_name, "")
+		if light.size() >= 4:
+			var l := OmniLight3D.new()
+			l.light_color = light[0]
+			l.light_energy = float(light[1])
+			l.omni_range = float(light[2])
+			l.position = Vector3(0, float(light[3]) * Iso.SQ2, 0)
+			visual.add_child(l)

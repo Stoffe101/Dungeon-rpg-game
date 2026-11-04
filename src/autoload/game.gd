@@ -193,14 +193,13 @@ func descend() -> void:
 		stage.fx.motes(pl.pos, 0.2, Color(1.0, 0.75, 0.4), 10, 1.2, 0.8, 0.4)
 		Audio.play("gate_flare", -10.0, 1.3)
 	var next := run.depth + 1
-	var reg: Dictionary = EnemyDB.REGIONS[Delve.region_for(next) if run.delve else run.region]
-	var sub := "Depth %d" % next
-	if (Delve.is_boss_depth(next) if run.delve else next >= int(reg.depths)):
-		sub += "  -  %s%s waits below" % ["an Echo of " if run.delve else "", String(EnemyDB.get_def(String(reg.boss)).name)]
-	ui.title_card(Delve.NAME if run.delve else String(reg.name), sub, func() -> void:
+	var reg_id: String = Delve.region_for(next) if run.delve else run.region
+	var reg: Dictionary = EnemyDB.REGIONS[reg_id]
+	var words := Delve.depth_title(reg_id, next, run.delve)
+	ui.title_card(Delve.NAME if run.delve else String(reg.name), words[0], func() -> void:
 		transitioning = false
 		if run != null and run.result == "":
-			_enter_depth(run.depth + 1))
+			_enter_depth(run.depth + 1), words[1])
 
 
 ## From the Descent screen (or, in a party, once everyone agreed to the
@@ -219,14 +218,14 @@ func begin_descent(region: String, tier := -1, omens: Variant = null) -> void:
 	var t := tier if tier >= 1 else Difficulty.selected()
 	var seed_v := debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
 	var rid := new_run_id()
-	var sub := "Depth 1"
+	var sub := String(Delve.depth_title(Delve.region_for(1) if region == "delve" else region, 1, region == "delve")[0])
 	if Net.is_host():
 		Net.i.proposal = {}
 		Net.i.expedition += 1
 		# the party goes down together: same seed, region, tier and Omens
 		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": t, "omens": oms, "run_id": rid, "exp": Net.i.expedition})
 		if Net.party_size() > 1:
-			sub = "Depth 1  -  with %s" % party_names()
+			sub += "  -  with %s" % party_names()
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
 		ui.title_card(String(reg.name), sub, func() -> void:
 			transitioning = false
@@ -272,8 +271,9 @@ func begin_coop_client(params: Dictionary) -> void:
 	if stage is Hub:
 		wait = (stage as Hub).flare_gate()
 	var omens: Array = params.get("omens", [])
+	var first := String(Delve.depth_title(Delve.region_for(1) if String(params.region) == "delve" else String(params.region), 1, String(params.region) == "delve")[0])
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
-		ui.title_card(String(reg.name), "Depth 1  -  with %s" % party_names(), func() -> void:
+		ui.title_card(String(reg.name), first + "  -  with %s" % party_names(), func() -> void:
 			run = RunState.create(int(params.seed), String(params.region), Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 			run.run_id = String(params.get("run_id", ""))
 			run.tier = int(params.tier)
@@ -285,13 +285,12 @@ func begin_coop_client(params: Dictionary) -> void:
 func descend_client(depth: int) -> void:
 	if run == null:
 		return
-	var reg: Dictionary = EnemyDB.REGIONS[Delve.region_for(depth) if run.delve else run.region]
-	var sub := "Depth %d" % depth
-	if (Delve.is_boss_depth(depth) if run.delve else depth >= int(reg.depths)):
-		sub += "  -  %s waits below" % String(EnemyDB.get_def(String(reg.boss)).name)
-	ui.title_card(String(reg.name), sub, func() -> void:
+	var reg_id: String = Delve.region_for(depth) if run.delve else run.region
+	var reg: Dictionary = EnemyDB.REGIONS[reg_id]
+	var words := Delve.depth_title(reg_id, depth, run.delve)
+	ui.title_card(Delve.NAME if run.delve else String(reg.name), words[0], func() -> void:
 		if run != null:
-			_enter_depth(depth))
+			_enter_depth(depth), words[1])
 
 
 ## Client: the host settled the expedition; bank this Kindled's share here
@@ -306,8 +305,9 @@ func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
 	r.result = ""
 	run = r
 	coop_checkpoint = {}
-	# memories, kills, guardians and Grudges were never banked live on this machine
-	Profile.add_xp(r.xp_gained)
+	# kills, guardians and Grudges were never banked live on this machine;
+	# experience was, as it came (Profile.live_xp): only the rest is added
+	Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
 	Profile.bank_shared(r)
 	end_run(outcome, killer)
 
@@ -350,7 +350,7 @@ func abandon_coop_run() -> void:
 		if Profile.first_settlement(r.run_id):
 			r.result = ""
 			run = r
-			Profile.add_xp(r.xp_gained)
+			Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
 			Profile.bank_shared(r)
 			print("[game] the host is gone: banking the checkpoint from depth %d" % r.depth)
 			end_run("extracted")

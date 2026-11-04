@@ -203,6 +203,14 @@ the host keeps the one proposal (`Expedition`, src/net/expedition.gd):
 
 ## Joining, transitions, drops
 
+- Protocol 6 (evolution pass): the input presses include the third spell
+  (`a3`); every Kindled's row carries its Kindle maximum (27), third cooldown
+  (28) and Momentum (29, so a guest's predicted swings keep the host's pace);
+  shots carry their velocity (returning, chaining and forked shots turn); an
+  actor that glows (the Hearth Lantern) sends its light with `actor+`; a
+  Kindled's rare find is told to the rest of the party as a toast (`not`).
+  Guests' XP is booked live on their own machine (`Profile.live_xp`) and only
+  the rest is added at settlement (`xp_still_owed`), so nothing counts twice.
 - `_hello` carries the protocol and game version; different builds are refused
   with a message naming both versions.
 - **Floors start together**: every message names its floor; a guest keeps what

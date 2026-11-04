@@ -735,3 +735,26 @@ func test_outer_keystones() -> void:
 	for k in ["b7", "p7", "r7", "g7", "w7", "k7"]:
 		check(SkillDB.node(k).get("kind", "") == "keystone", "%s is a keystone" % k)
 		check(not SkillDB.path_to(k, ["hearth"]).is_empty(), "%s can be reached from the Hearth" % k)
+
+
+## The party appears side by side on open floor, and anyone stepped out of a
+## closing seal lands on floor inside the room, whatever the room's shape.
+func test_party_spots_and_floor_inside() -> void:
+	Profile.data = Profile.fresh()
+	for seed_v in [7, 11, 23, 41]:
+		var d := _dungeon(seed_v)
+		var start := d.layout.room(d.layout.start_id)
+		var spots := d.party_spots(start, 4)
+		eq(spots.size(), 4, "four spots in the start room (seed %d)" % seed_v)
+		for i in spots.size():
+			var p: Vector2 = spots[i]
+			check(start.contains_tile(Vector2i(floori(p.x), floori(p.y))), "spot %d is in the start room" % i)
+			check(not d.grid.box_blocked(p, 0.45), "spot %d is open floor" % i)
+			for j in range(i + 1, spots.size()):
+				check(p.distance_to(spots[j]) >= 0.9, "spots %d and %d are apart" % [i, j])
+		for r in d.layout.rooms:
+			var q := d._floor_inside(r, r.center())
+			var t := Vector2i(floori(q.x), floori(q.y))
+			eq(d.grid.at(t.x, t.y), TileGrid.FLOOR, "room %d: the nearest floor is floor" % r.id)
+			eq(d.grid.room_of[t.y * d.grid.width + t.x], r.id, "room %d: and inside the room" % r.id)
+		d.queue_free()

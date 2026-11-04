@@ -21,7 +21,7 @@ signal camp_changed
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 5
+const PROTOCOL := 6
 ## How long a seat waits for a Kindled that lost the link, and how long that
 ## Kindled keeps trying to reach the host again (seconds).
 const SEAT_WAIT := 60.0
@@ -29,7 +29,7 @@ const RECONNECT_TRY := 30.0
 ## Each seat's colour: nameplates, map markers and the ring under each Kindled.
 const COLORS := [Color(1.0, 0.72, 0.35), Color(0.45, 0.82, 1.0), Color(0.62, 1.0, 0.5), Color(1.0, 0.52, 0.78)]
 ## The order of the press counters in an input packet.
-const PRESS_KEYS := ["attack", "dodge", "ward", "a1", "a2", "flask", "home", "interact"]
+const PRESS_KEYS := ["attack", "dodge", "ward", "a1", "a2", "flask", "home", "interact", "a3"]
 ## Named conditions for netsim= (round trip ms, loss %, jitter ms).
 const SIM_PRESETS := {
 	"local": [5.0, 0.0, 1.0], "excellent": [30.0, 0.0, 3.0], "typical": [60.0, 0.5, 6.0],

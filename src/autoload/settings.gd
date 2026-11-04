@@ -44,11 +44,13 @@ var DEFAULT_BINDINGS := {
 	"aim_down": [_joy_axis(JOY_AXIS_RIGHT_Y, 1.0)],
 	"aim_left": [_joy_axis(JOY_AXIS_RIGHT_X, -1.0)],
 	"aim_right": [_joy_axis(JOY_AXIS_RIGHT_X, 1.0)],
-	"attack": [_mouse(MOUSE_BUTTON_LEFT), _joy_button(JOY_BUTTON_RIGHT_SHOULDER), _joy_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
+	# (pad: RT attacks; RB is the third spell)
+	"attack": [_mouse(MOUSE_BUTTON_LEFT), _joy_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
 	"ward": [_mouse(MOUSE_BUTTON_RIGHT), _joy_axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 	"dodge": [_key(KEY_SPACE), _key(KEY_SHIFT), _joy_button(JOY_BUTTON_A)],
 	"ability_1": [_key(KEY_Q), _joy_button(JOY_BUTTON_X)],
 	"ability_2": [_key(KEY_E), _joy_button(JOY_BUTTON_Y)],
+	"ability_3": [_key(KEY_C), _joy_button(JOY_BUTTON_RIGHT_SHOULDER)],
 	"flask": [_key(KEY_R), _joy_button(JOY_BUTTON_LEFT_SHOULDER)],
 	"interact": [_key(KEY_F), _joy_button(JOY_BUTTON_B)],
 	"map": [_key(KEY_TAB), _joy_button(JOY_BUTTON_BACK)],
@@ -131,6 +133,11 @@ func load_settings() -> void:
 			var evs: Variant = cf.get_value("bindings", action)
 			if evs is Array:
 				bindings_override[action] = evs
+	# bindings v2: pad RB left Attack to become the third spell. A player who
+	# rebound Attack before then carries RB in their own list: take it out once.
+	if int(cf.get_value("meta", "binds_v", 1)) < 2 and bindings_override.has("attack") and not bindings_override.has("ability_3"):
+		bindings_override["attack"] = (bindings_override["attack"] as Array).filter(func(d) -> bool:
+			return not (d is Dictionary and String(d.get("t", "")) == "jb" and int(d.get("b", -1)) == JOY_BUTTON_RIGHT_SHOULDER))
 
 
 func save_settings() -> void:
@@ -139,6 +146,7 @@ func save_settings() -> void:
 		cf.set_value("options", k, values[k])
 	for a in bindings_override:
 		cf.set_value("bindings", a, bindings_override[a])
+	cf.set_value("meta", "binds_v", 2)
 	cf.save(path)
 
 

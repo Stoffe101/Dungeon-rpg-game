@@ -19,6 +19,9 @@ var _log_t := 0.0
 var _goal := Vector2.ZERO
 var _stuck_total := 0.0
 var _dumped := false
+## Scaling evaluation (src/dev/scaling_eval.gd): fight and explore only - no
+## chests, altars, shrines or stairs, which would open screens or end the floor.
+var eval_mode := false
 
 
 func _dump_area() -> void:
@@ -123,7 +126,7 @@ func _fight(t: Actor, _delta: float) -> void:
 	var d := t.pos.distance_to(pl.pos)
 	pl.aim_point = t.pos
 	pl.aim = (t.pos - pl.pos).normalized()
-	var ranged := pl.weapon and pl.weapon.id == "staff"
+	var ranged := pl.weapon and ["staff", "bow", "tome"].has(pl.weapon.id)
 	var want := 6.0 if ranged else 1.4
 	var to := (t.pos - pl.pos).normalized()
 	if d > want + 0.3:
@@ -156,14 +159,27 @@ func _fight(t: Actor, _delta: float) -> void:
 					pl.press("dodge")
 				_dodge_cd = 0.6
 				break
-	# abilities
-	for i in 2:
-		var id: String = pl.ability_slots[i] if i < pl.ability_slots.size() else ""
-		if id == "" or pl.ability_cd[i] > 0.0:
+	# spells: each when it suits what it does (all three slots)
+	for i in pl.ability_slots.size():
+		var id: String = pl.ability_slots[i]
+		if id == "" or i >= pl.ability_cd.size() or pl.ability_cd[i] > 0.0 or not pl.slot_open(i):
 			continue
 		var cost: float = GearDB.ability(id).cost * pl.stats.v("ability_cost")
-		if pl.kindle >= cost and d < 3.5:
-			pl.press("a1" if i == 0 else "a2")
+		if pl.kindle < cost:
+			continue
+		var use := d < 3.5
+		match id:
+			"knives", "cinder_lance", "frost_sigil":
+				use = d < 7.0
+			"rush", "gloamstep":
+				use = d > 2.5 and d < 6.0
+			"lantern", "aegis", "wisp":
+				use = d < 6.0
+			"rekindle":
+				use = d < 5.0 and (pl.hp < pl.max_hp * 0.6 or st.players.any(func(o): return o != pl and o.downed and o.pos.distance_to(pl.pos) < 4.0))
+		if use:
+			pl.press("a%d" % (i + 1))
+			break
 
 
 func _explore(_delta: float) -> void:
@@ -245,6 +261,8 @@ func _next_room_point(d: Dungeon) -> Vector2:
 
 ## Co-op client: props belong to the host, so the bot asks like a player would.
 func _use(p: Prop, pl: Player) -> void:
+	if eval_mode:
+		return
 	if pl.controller == Player.Ctrl.REPLICA:
 		pl.try_interact()
 	else:

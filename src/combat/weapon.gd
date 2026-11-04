@@ -46,7 +46,15 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	p.visual.add_child(visual)
 	visual.set_instance_shader_parameter("frame", Vector2.ZERO)
 	# forged weapons burn brighter: masterworks glow, ascended ones blaze
-	visual.set_instance_shader_parameter("glow_mult", 2.6 if lvl >= 10 else (1.7 if lvl >= 7 else 1.0))
+	var glow := 2.6 if lvl >= 10 else (1.7 if lvl >= 7 else 1.0)
+	# a weapon item of this archetype shows as itself: its metal, its glow
+	var it := p.weapon_item()
+	if ItemDB.arch_of(it) == weapon_id:
+		var b := ItemDB.base(String(it.base))
+		if b.has("tint"):
+			visual.set_instance_shader_parameter("tint", b.tint)
+		glow = maxf(glow, float(b.get("glow", 1.0)))
+	visual.set_instance_shader_parameter("glow_mult", glow)
 
 
 func free_visual() -> void:
@@ -55,7 +63,7 @@ func free_visual() -> void:
 
 
 func speed() -> float:
-	return maxf(0.2, player.stats.v("attack_speed"))
+	return maxf(0.2, player.stats.v("attack_speed") * player.flow_speed())
 
 
 func tempered() -> bool:
@@ -70,8 +78,12 @@ func ascended() -> bool:
 	return level >= 10
 
 
+## The forge level of the archetype times the weapon item's own might.
 func damage_scale() -> float:
-	return 1.0 + GearDB.FORGE_DAMAGE_PER_LEVEL * level
+	var k := 1.0 + GearDB.FORGE_DAMAGE_PER_LEVEL * level
+	if player and player.stats:
+		k *= maxf(0.1, player.stats.v("weapon_damage"))
+	return k
 
 
 # --- input -------------------------------------------------------------------

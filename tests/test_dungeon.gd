@@ -208,3 +208,27 @@ func test_tier_might() -> void:
 	var last: Array = ItemDB.mods_of(hi).back()
 	eq(last[0], "damage", "tier might is the last mod")
 	eq(ItemDB.mods_of(lo).size() + 1, ItemDB.mods_of(hi).size(), "only higher tiers carry it")
+
+
+## Variety: hand-made rooms turn up among the procedural ones, and every room
+## (whatever its shape) still lets its doors reach each other.
+func test_room_variety_and_authored_rooms() -> void:
+	var authored := {}
+	var rooms := 0
+	for region in ["ossuary", "rootmire", "throne"]:
+		for s in range(1, 41):
+			var lay := DungeonGen.generate(s * 13, 1 + s % 3, region, false)
+			check(lay != null, "%s seed %d generates" % [region, s])
+			if lay == null:
+				continue
+			for r in lay.rooms:
+				rooms += 1
+				if r.authored != "":
+					authored[r.authored] = true
+					check((DungeonGen.AUTHORED_BY_REGION[region] as Array).has(r.authored), "%s is one of %s's rooms" % [r.authored, region])
+	check(authored.size() >= 5, "hand-made rooms appear (%d kinds in %d rooms)" % [authored.size(), rooms])
+	for id in DungeonGen.AUTHORED:
+		var rows: Array = DungeonGen.AUTHORED[id]
+		eq(rows.size(), 12, "%s is 12 rows" % id)
+		for row in rows:
+			eq(String(row).length(), 22, "%s rows are 22 wide" % id)

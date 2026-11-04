@@ -1,0 +1,19 @@
+{
+	"anims": {
+		"spin": {
+			"fps": 8.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		22,
+		20
+	],
+	"origin": [
+		11,
+		19
+	]
+}

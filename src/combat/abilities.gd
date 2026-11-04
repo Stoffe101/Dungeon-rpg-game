@@ -30,9 +30,32 @@ static func cast(pl: Player, id: String, power := 1.0, at := Vector2.INF, dir :=
 			ok = _aegis(pl, power)
 		"wisp":
 			ok = _wisp(pl, power)
+		"knives":
+			ok = _knives(pl, at, dir)
+		"lantern":
+			ok = _lantern(pl, power)
+		"rush":
+			ok = _rush(pl, power < 1.0)
+		"rekindle":
+			ok = _rekindle(pl, power, at)
 	_ab = ""
 	_power = 1.0
+	if ok:
+		_spellblade(pl, id)
 	return ok
+
+
+## Spellblade (keystone): a spell charges the weapon - the next three weapon
+## hits carry its element and strike harder (Player._deal_hit spends them).
+static func _spellblade(pl: Player, id: String) -> void:
+	if not pl.stats.has("spellblade") or _power < 0.99:
+		return
+	pl.spellblade_n = 3
+	pl.spellblade_el = {"frost_sigil": "frost", "gloamstep": "shadow", "knives": "shadow"}.get(id, "fire")
+	var col: Color = {"frost": Color(0.6, 0.85, 1.0), "shadow": Color(0.7, 0.45, 0.95)}.get(pl.spellblade_el, Color(1.0, 0.6, 0.3))
+	pl.stage.fx.ring(pl.pos, 0.9, col, 0.25, 0.2)
+	if pl.weapon and pl.weapon.visual:
+		pl.weapon.visual.set_instance_shader_parameter("flash", Color(col.r, col.g, col.b, 0.8))
 
 
 ## After a cast: the Rune of Echoes schedules the spell again, weaker.
@@ -61,6 +84,18 @@ static func echo(pl: Player, id: String, at: Vector2, dir: Vector2, target: Vect
 					cast(pl, "wisp", 0.6))
 		"aegis":
 			pl.aegis_echo = true
+		"knives":
+			st.after(0.28, func() -> void:
+				if is_instance_valid(pl) and pl.alive:
+					cast(pl, "knives", 0.6, at, dir))
+		"lantern":
+			pass    # the lantern flares as it gutters (LanternTotem.flare_out)
+		"rush":
+			pass    # the trail bursts (in _rush)
+		"rekindle":
+			st.after(3.0, func() -> void:
+				if is_instance_valid(pl) and pl.alive:
+					cast(pl, "rekindle", 0.5))
 
 
 static func _hit(pl: Player, base: float, tags: Array) -> Hit:
@@ -235,18 +270,35 @@ static func _sigil_at(pl: Player, target: Vector2, r: float, pulses: int, dmg: f
 		_power = 1.0
 
 
+## Where a blink or a rush of `rng` tiles toward the cursor ends: the farthest
+## open spot along the way. Deterministic, so a co-op guest predicts the same
+## spot the host will choose (its Kindled moves at once, nothing to correct).
+static func dash_dest(pl: Player, rng: float, through_foes := true) -> Vector2:
+	var st := pl.stage
+	var from := pl.pos
+	var want := pl.pos + (pl.aim_point - pl.pos).limit_length(rng)
+	var steps := 24
+	if not through_foes:
+		# a rush stops at walls (it cannot pass through them as a blink can)
+		var dest2 := from
+		for i in range(1, steps + 1):
+			var c2 := from.lerp(want, float(i) / steps)
+			if st.grid.box_blocked(c2, pl.box()):
+				break
+			dest2 = c2
+		return dest2
+	for i in range(steps, 0, -1):
+		var c := from.lerp(want, float(i) / steps)
+		if not st.grid.box_blocked(c, pl.box()):
+			return c
+	return from
+
+
 static func _gloamstep(pl: Player, is_echo: bool) -> bool:
 	var d := GearDB.ability("gloamstep")
 	var st := pl.stage
 	var from := pl.pos
-	var want := pl.pos + (pl.aim_point - pl.pos).limit_length(d.range)
-	var dest := from
-	var steps := 24
-	for i in range(steps, 0, -1):
-		var c := from.lerp(want, float(i) / steps)
-		if not st.grid.box_blocked(c, pl.box()):
-			dest = c
-			break
+	var dest := dash_dest(pl, d.range)
 	st.fx.burst(from, 0.6, Color(0.6, 0.35, 0.8), 16, 3.0, 0.4, -1.0)
 	st.fx.ghost(pl.sprite, pl.global_position + pl.sprite.position, Color(0.55, 0.3, 0.75), 0.5)
 	pl.pos = dest
@@ -309,6 +361,181 @@ static func _aegis(pl: Player, power: float) -> bool:
 	pl.stage.fx.ring(pl.pos, 1.4, Color(1.0, 0.85, 0.45), 0.3, 0.3)
 	pl.stage.fx.burst(pl.pos, 0.8, Color(1.0, 0.85, 0.5), 16, 3.0, 0.4, 0.0)
 	Audio.play("aegis", 0.0)
+	return true
+
+
+## Gloam Knives: a fan of spectral knives (five, plus the Kindled's extra
+## projectiles, three more with the Rune of Many). One knife per foe per throw.
+static func _knives(pl: Player, at: Vector2, dir0: Vector2) -> bool:
+	var d := GearDB.ability("knives")
+	var from := pl.pos if at == Vector2.INF else at
+	var aim := pl.aim if dir0 == Vector2.ZERO else dir0
+	var base: int = int(d.count) + (3 if Runes.has(pl, "knives", "split") else 0)
+	var col := Runes.tint(pl, "knives", Color(0.72, 0.5, 1.0))
+	var ab := _ab
+	var power := _power
+	var back := Runes.has(pl, "knives", "gravity")
+	Volley.fire(pl, "proj_knife", from, aim, 22.0 * pl.stats.v("projectile_speed"), base, func(pr: Projectile, _dir: Vector2) -> void:
+		pr.damage = float(d.damage)
+		pr.tags = ["ability", "shadow"]
+		pr.radius = 0.22
+		pr.life = float(d.range) / 22.0
+		pr.height = 0.7
+		pr.knockback = 1.2
+		pr.spin = true
+		pr.reflectable = false
+		pr.returning = back
+		pr.trail_color = col
+		pr.trail_rate = 26.0
+		pr.make_hit_fn = func(proj: Projectile, _t: Actor) -> Hit:
+			var was := _ab
+			var wp := _power
+			_ab = ab
+			_power = power
+			var h := _hit(pl, proj.damage, ["shadow"])
+			_ab = was
+			_power = wp
+			h.knockback = proj.vel.normalized() * proj.knockback
+			h.from_dir = proj.vel.normalized()
+			h.poise = 3.0
+			return h, 0.12)
+	pl.stage.fx.burst(from + aim * 0.5, 0.7, col, 6, 3.0, 0.2, 0.0, aim, 0.7)
+	Audio.play("knives", -4.0, randf_range(0.95, 1.1))
+	return true
+
+
+## Hearth Lantern: a lantern planted at the cursor (two at 60% with the Rune of
+## Many). Lanternwright: two may burn at once, they fire faster and last longer.
+static func _lantern(pl: Player, power: float) -> bool:
+	var d := GearDB.ability("lantern")
+	var st := pl.stage
+	var wright := pl.stats.has("lanternwright")
+	var target := pl.pos + (pl.aim_point - pl.pos).limit_length(6.0)
+	if st.grid.box_blocked(target, 0.3):
+		target = st.random_floor_near(pl.pos + pl.aim * 1.5, 1.0)
+	var spots: Array = [target]
+	var each := 1.0
+	if Runes.has(pl, "lantern", "split"):
+		var side := pl.aim.orthogonal() * 1.4
+		spots = [st.random_floor_near(target + side, 0.4), st.random_floor_near(target - side, 0.4)]
+		each = 0.6
+	# only so many burn at once: the oldest gutters
+	var mine: Array = st.actors.filter(func(a): return a is LanternTotem and (a as LanternTotem).owner_player == pl and a.alive)
+	var cap := (2 if wright else 1) * spots.size()
+	while mine.size() + spots.size() > cap and not mine.is_empty():
+		(mine.pop_front() as LanternTotem).duration = 0.0
+	for p: Vector2 in spots:
+		var t := LanternTotem.new()
+		t.owner_player = pl
+		t.pos = p
+		t.damage = float(d.damage) * _power * each
+		t.duration = float(d.duration) * (1.5 if wright else 1.0) * power
+		t.fire_every = 0.3 if wright else 0.6
+		t.light_r = float(d.radius) * pl.stats.v("area") * Runes.area_mult(pl, "lantern")
+		t.flare_out = Runes.has(pl, "lantern", "echo")
+		t.draws_in = Runes.has(pl, "lantern", "gravity")
+		st.add_actor(t)
+		st.fx.ring(p, 1.2, LanternTotem.LIGHT_COL, 0.3, 0.25)
+		st.fx.motes(p, 0.6, LanternTotem.LIGHT_COL, 14, 1.6, 0.8, 0.4)
+	Audio.play("lantern", -2.0)
+	return true
+
+
+## Ember Rush: a streak of fire toward the cursor; everything in the path is cut
+## (a melee hit: melee builds feed it) and set alight.
+static func _rush(pl: Player, is_echo: bool) -> bool:
+	var d := GearDB.ability("rush")
+	var st := pl.stage
+	var from := pl.pos
+	var dest := dash_dest(pl, float(d.range) * pl.stats.v("area"), false)
+	if dest.distance_to(from) < 0.6:
+		return false
+	var col := Runes.tint(pl, "rush", Color(1.0, 0.6, 0.28))
+	# the trail of afterimages, then the Kindled where the streak ends
+	for k in 4:
+		st.fx.ghost(pl.sprite, pl.global_position + pl.sprite.position, col, 0.25 + k * 0.08)
+	pl.pos = dest
+	pl.invuln_t = maxf(pl.invuln_t, 0.25)
+	_rush_cut(pl, from, dest, float(d.damage) * _power, col)
+	if Runes.has(pl, "rush", "split"):
+		var side := (dest - from).normalized().orthogonal() * 1.1
+		for s in [-1.0, 1.0]:
+			_rush_cut(pl, from + side * s, dest + side * s, float(d.damage) * _power * 0.5, col)
+	if Runes.has(pl, "rush", "echo") and not is_echo:
+		var ab := _ab
+		var power := _power
+		st.after(0.5, func() -> void:
+			if not is_instance_valid(pl):
+				return
+			_ab = ab
+			_power = power * 0.6
+			for k in 5:
+				var p := from.lerp(dest, (k + 0.5) / 5.0)
+				st.fx.burst(p, 0.3, col, 6, 2.5, 0.35, 2.0)
+				for a in st.in_circle(pl.team, p, 1.0):
+					var h := _hit(pl, float(d.damage) * 0.35, ["fire"])
+					h.burn = 1
+					pl.deal_hit(a, h)
+			_ab = ""
+			_power = 1.0)
+	st.fx.burst(dest, 0.5, col, 16, 4.0, 0.35, 1.0)
+	st.fx.flash_light(dest, 0.6, col, 2.2, 4.0, 0.25)
+	st.fx.shake(0.12)
+	Audio.play("ember_rush", -2.0)
+	return true
+
+
+static func _rush_cut(pl: Player, from: Vector2, to: Vector2, dmg: float, col: Color) -> void:
+	var st := pl.stage
+	var dir := (to - from).normalized()
+	var gravity := Runes.has(pl, "rush", "gravity")
+	for k in 6:
+		st.fx.burst(from.lerp(to, k / 5.0), 0.4, col, 3, 2.0, 0.25, 0.0, dir, 0.6)
+	for a in st.in_line(pl.team, from, to, 0.8):
+		var h := _hit(pl, dmg, ["melee", "fire"])
+		h.burn = 1
+		h.from_dir = dir
+		h.poise = 20.0
+		h.knockback = (to - a.pos) * 3.0 if gravity else dir * 5.0
+		pl.deal_hit(a, h)
+
+
+## Rekindle: hearth-light floods out; every Kindled in it is warded and fed
+## Kindle, the downed get back up. (Rune of the Well: foes are drawn in.)
+static func _rekindle(pl: Player, power: float, at: Vector2) -> bool:
+	var d := GearDB.ability("rekindle")
+	var st := pl.stage
+	var c := pl.pos if at == Vector2.INF else at
+	var r: float = float(d.radius) * pl.stats.v("area") * Runes.area_mult(pl, "rekindle")
+	var col := Color(1.0, 0.85, 0.5)
+	st.fx.ring(c, r, col, 0.35, 0.35)
+	st.fx.ring(c, r * 0.55, Color(1.0, 0.95, 0.75), 0.25, 0.25)
+	st.fx.motes(c, 0.3, col, 30, r * 0.6, 1.2, r * 0.8)
+	st.fx.flash_light(c, 1.0, col, 3.5, r * 2.2, 0.5)
+	Audio.play("rekindle", -1.0)
+	for ally in st.players:
+		if not is_instance_valid(ally) or ally.pos.distance_to(c) > r + ally.radius:
+			continue
+		if ally.downed:
+			ally.revive(0.3 * power)
+			st.fx.number(ally.pos, 2.4, "REKINDLED", col, true)
+		elif ally.alive:
+			var ward: float = ally.max_hp * float(d.ward) * power
+			ally.barrier = maxf(ally.barrier, ward)
+			ally.barrier_t = 5.0
+			ally.gain_kindle(20.0 * power)
+			st.fx.ring(ally.pos, 1.0, col, 0.3, 0.2)
+	if Runes.has(pl, "rekindle", "split") and power >= 0.99:
+		var ahead := pl.pos + pl.aim * 2.5
+		st.after(0.4, func() -> void:
+			if is_instance_valid(pl) and pl.alive:
+				_rekindle(pl, 0.5, ahead))
+	if Runes.has(pl, "rekindle", "gravity"):
+		for a in st.in_circle(pl.team, c, r + 2.0):
+			var h := _hit(pl, 6.0, ["fire"])
+			h.knockback = (c - a.pos).normalized() * 8.0
+			h.poise = 40.0
+			pl.deal_hit(a, h)
 	return true
 
 

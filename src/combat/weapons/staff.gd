@@ -46,7 +46,17 @@ func start_strike(_i: int) -> void:
 func on_active() -> void:
 	_cool = 0.18 / speed()
 	var spread := deg_to_rad(randf_range(-4.0, 4.0))
-	var d := aim_dir.rotated(spread)
+	var d0 := aim_dir.rotated(spread)
+	var group := {}
+	for d: Vector2 in Volley.directions(player, d0, 1, 0.14):
+		_bolt(d, group)
+	Audio.play("bolt", -4.0, randf_range(0.92, 1.1))
+	player.stage.fx.burst(player.pos + d0 * 0.6, 0.6, Color(1.0, 0.75, 0.4), 3, 3.0, 0.15, 0.0, d0, 0.5)
+	player.on_weapon_strike(0, false)
+
+
+## One ember bolt of a volley.
+func _bolt(d: Vector2, group: Dictionary) -> void:
 	var pr := Projectile.create(player.stage, "proj_ember", player.pos + d * 0.5, d * 15.0 * player.stats.v("projectile_speed"), player.team)
 	pr.source = player
 	pr.damage = def.damage[0] * damage_scale()
@@ -65,9 +75,7 @@ func on_active() -> void:
 		if player.stats.has("forked_ember") and not proj.tags.has("forked"):
 			_fork(proj, target)
 	pr.with_light(Color(1.0, 0.55, 0.25), 0.7, 2.2)
-	Audio.play("bolt", -4.0, randf_range(0.92, 1.1))
-	player.stage.fx.burst(player.pos + d * 0.6, 0.6, Color(1.0, 0.75, 0.4), 3, 3.0, 0.15, 0.0, d, 0.5)
-	player.on_weapon_strike(0, false)
+	Volley.shape(pr, player, group)
 
 
 func _fork(proj: Projectile, target: Actor) -> void:

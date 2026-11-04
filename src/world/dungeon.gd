@@ -11,6 +11,7 @@ const REWARD_ICONS := {
 	"boss": "boss", "rest": "vigor", "secret": "chest",
 }
 
+var _favour := ""     # whose archetype a gear roll is for (weapon finds lean to it)
 var layout: DungeonGen.Layout
 var run: RunState
 var region: Dictionary
@@ -92,6 +93,22 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			e.pos = random_floor_near(player.pos + Vector2(1.8 + k * 0.8, -0.5 + k * 0.6), 0.6)
 			e.room_id = start.id
 			add_actor(e)
+		player.kindle = player.kindle_max()
+		for a in Dev.args():
+			if a.begins_with("cast="):
+				# dev: cast=1,3 casts those spell slots in turn at the nearest lab foe
+				# (the Kindled stops reading the mouse so the aim holds for captures)
+				var order: Array = Array(a.substr(5).split(","))
+				player.input_enabled = false
+				for k in order.size():
+					var slot := int(order[k])
+					after(1.0 + k * 0.8, func() -> void:
+						var t := nearest_hostile(player.team, player.pos, 14.0)
+						if t:
+							player.aim_point = t.pos
+							player.aim = (t.pos - player.pos).normalized()
+						player.kindle = player.kindle_max()
+						player.press("a%d" % slot))
 	if "coopdive" in Dev.args() and not replica:
 		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
@@ -123,6 +140,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				print("[dungeon] event room %d: %s" % [rm.id, rm.event])
+	if layout.boss_depth and is_inside_tree():
+		# the guardian's floor: a rumble from below once the title card lifts
+		get_tree().create_timer(4.5, false).timeout.connect(_guardian_stirs)
 	built = true
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
@@ -132,7 +152,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	var title: String = Delve.NAME if run.delve else String(region.name)
 	# a title card already named the place on the way down
 	if Game.ui == null or not Game.ui.card_pending:
-		Events.banner.emit(title, "Depth %d%s" % [lay.depth, ("  -  %s waits below" % String(EnemyDB.get_def(String(region.boss)).name)) if lay.boss_depth else ""])
+		Events.banner.emit(title, String(Delve.depth_title(lay.region, lay.depth, run.delve)[0]))
 		if not run.omens.is_empty() and lay.depth == 1:
 			after(2.6, func() -> void: Events.banner.emit("Omens", Omens.names(run.omens)))
 	if int(Profile.data.stats.get("runs", 0)) <= 2 and lay.depth == 1 and Game.ui:
@@ -172,8 +192,12 @@ func _environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.016, 0.014, 0.028)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = region.ambient
-	env.ambient_light_energy = 0.78
+	# each depth has its own mood: the region's ambient leaning toward the
+	# floor's tint, a little darker the deeper it goes
+	var fd := Delve.floor_def(layout.region, layout.depth, run.delve if run else false)
+	var tint: Color = fd[1]
+	env.ambient_light_color = region.ambient.lerp(Color(tint.r, tint.g, tint.b), 0.35 if tint.a > 0.0 else 0.0)
+	env.ambient_light_energy = [0.84, 0.78, 0.7][Delve.floor_index(layout.depth, run.delve if run else false)]
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -412,7 +436,7 @@ func _spawn_party(start: Room) -> void:
 		add_actor(pl)
 		pl.setup_from(Game.run_of(int(pid)))
 		var col := Net.color_of(int(pid))
-		pl.set_seat(col)
+		pl.set_seat(col, mine)
 		if mine:
 			player = pl
 		else:
@@ -531,6 +555,12 @@ func _spawn_wave(r: Room) -> void:
 		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
 		_scale(e, layout.depth, memory)
 		_coop_scale(e)
+		# a party shares out what its extra foes pay (Party.reward_share)
+		var share := Party.reward_share(players.size())
+		if share < 1.0:
+			e.xp = maxi(1, int(round(e.xp * share)))
+			e.embers = int(round(e.embers * share))
+			e.set_meta("share", share)
 		var swarm := EnemyDB.get_def(id).has("pack")
 		if r.type == Room.Type.ELITE and not elite_done and not swarm:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
@@ -563,6 +593,11 @@ func _coop_scale(e: Enemy) -> void:
 		return
 	e.max_hp *= 1.0 + (0.5 if e.def.get("boss", false) else 0.35) * extra
 	e.hp = e.max_hp
+	# a party splits the blows and raises its fallen: each foe hits a little
+	# harder so each Kindled is pressed about as hard as alone (measured with
+	# src/dev/scaling_eval.gd: without this a party member took about half
+	# the damage per room a solo Kindled did)
+	e.damage *= 1.0 + 0.1 * extra
 
 
 func _scale(e: Enemy, depth: int, memory: int) -> void:
@@ -717,7 +752,7 @@ func _spawn_reward(r: Room) -> void:
 
 func _open_spot(p: Vector2) -> Vector2:
 	var t := Vector2i(floori(p.x), floori(p.y))
-	for rad in 4:
+	for rad in 8:
 		for dy in range(-rad, rad + 1):
 			for dx in range(-rad, rad + 1):
 				var q := t + Vector2i(dx, dy)
@@ -841,8 +876,11 @@ func _pull_party_in(r: Room, by: Player = null) -> void:
 func party_spots(r: Room, n: int) -> Array:
 	var c := r.center() + Vector2(0, 2)
 	var tiles: Array = []
-	for t in r.cells:
-		tiles.append(t)
+	# the room's own floor tiles (r.cells are map cells, not tiles)
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if grid.room_of[y * grid.width + x] == r.id:
+				tiles.append(Vector2i(x, y))
 	tiles.sort_custom(func(a, b): return (Vector2(a) + Vector2(0.5, 0.5)).distance_squared_to(c) < (Vector2(b) + Vector2(0.5, 0.5)).distance_squared_to(c))
 	var inner := r.rect.grow(-1)
 	var out: Array = []
@@ -958,16 +996,19 @@ func visit_room(r: Room) -> void:
 
 ## The open floor of `r` nearest to `p` (for nudging anyone out of a seal).
 func _floor_inside(r: Room, p: Vector2) -> Vector2:
+	# the open floor tile of this room nearest to `p` (the room's own tiles:
+	# its centre may be a pit, a wall or a pillar)
 	var best := r.center()
 	var bd := INF
-	for t in r.cells:
-		if grid.at(t.x, t.y) != TileGrid.FLOOR:
-			continue
-		var c := Vector2(t) + Vector2(0.5, 0.5)
-		var d := c.distance_squared_to(p)
-		if d < bd and not grid.box_blocked(c, 0.4):
-			bd = d
-			best = c
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if grid.at(x, y) != TileGrid.FLOOR or grid.room_of[y * grid.width + x] != r.id:
+				continue
+			var c := Vector2(x, y) + Vector2(0.5, 0.5)
+			var d := c.distance_squared_to(p)
+			if d < bd and not grid.box_blocked(c, 0.4):
+				bd = d
+				best = c
 	return best
 
 
@@ -1008,10 +1049,25 @@ func _start_boss(r: Room) -> void:
 		Audio.play_music("boss", 0.5))
 
 
+## Anticipation on a guardian's floor: the ground shakes, something below
+## answers, and every Kindled is told who waits. Each machine does this
+## itself (nothing recorded for the network).
+func _guardian_stirs() -> void:
+	if not is_inside_tree() or boss != null or player == null:
+		return
+	var bname := String(EnemyDB.get_def(String(region.get("boss", ""))).get("name", "the guardian"))
+	Net.mute += 1
+	fx.shake(0.4)
+	Audio.play("boss_roar", -16.0, 0.55)
+	Net.mute -= 1
+	var echo := "An Echo of %s" % bname if run.delve else bname
+	Events.toast.emit("The floor trembles. %s stirs somewhere ahead." % echo, Color(1.0, 0.6, 0.5))
+
+
 ## Materials (and now and then gear) from a fallen enemy; elites and bosses
 ## drop more, and a boss's first defeat always yields its legendary.
 func _drop_loot(e: Enemy) -> void:
-	var mult := (2.0 if e.elite else 1.0) * Difficulty.material_mult(run.tier)
+	var mult := (2.0 if e.elite else 1.0) * Difficulty.material_mult(run.tier) * float(e.get_meta("share", 1.0))
 	if player and player.stats.has("avarice"):
 		mult *= 1.6
 	for d in ItemDB.enemy_drops(e.id, layout.region):
@@ -1024,7 +1080,7 @@ func _drop_loot(e: Enemy) -> void:
 		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		if rng.randf() < 0.3:
-			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier))
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier, _favour))
 	if e == boss:
 		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
 		_rune_drop(e.pos)
@@ -1032,21 +1088,33 @@ func _drop_loot(e: Enemy) -> void:
 		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
 		var leg: String = {"rootmire": "bloom_crown", "throne": "sunfall_mantle"}.get(layout.region, "gloamward_lantern")
 		var flag := "legendary_" + leg
-		if not Profile.data.flags.get(flag, false) or rng.randf() < 0.35:
+		var had_first := bool(Profile.data.flags.get(flag, false))
+		if not had_first or rng.randf() < 0.35:
 			Profile.data.flags[flag] = true
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(leg, "legendary", 1, rng, run.tier))
-		_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier))
+		# its legendary weapon: sure the first time it is due (the second
+		# victory), then now and then
+		var wleg: String = ItemDB.BOSS_WEAPONS.get(layout.region, "")
+		if wleg != "":
+			var wflag := "legendary_" + wleg
+			if (had_first and not Profile.data.flags.get(wflag, false)) or rng.randf() < 0.2:
+				Profile.data.flags[wflag] = true
+				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(wleg, "legendary", 1, rng, run.tier))
+		_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.25, run.tier, _favour))
 		if run.tier >= 2:
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_set_piece(rng, layout.depth, run.tier))
 
 
 ## A gear drop. Co-op: one roll for each Kindled, visible to and taken by its
-## owner only (nobody walks off with a friend's find).
+## owner only (nobody walks off with a friend's find). Weapon finds lean
+## toward the archetype the finder fights with (`_favour`).
 func _gear_drop(p: Vector2, roll: Callable) -> void:
 	if players.size() <= 1:
+		_favour = player.weapon.id if player and player.weapon else ""
 		Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
 		return
 	for pl in players:
+		_favour = pl.weapon.id if pl.weapon else ""
 		var pk := Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
 		pk.owner_peer = pl.peer_id
 
@@ -1087,11 +1155,11 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 		Pickup.spawn(self, "material", prop.pos, 1, {"id": "ember_core"})
 	var lucky := player != null and player.stats.has("lucky")
 	if rng.randf() < 0.25 + 0.25 * tier:
-		_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier))
+		_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.05 * tier + (0.15 if lucky else 0.0), run.tier, _favour))
 	if lucky:
 		# the Four-Leaf Ring: one more treasure, every time
 		if rng.randf() < 0.5:
-			_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier))
+			_gear_drop(prop.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.2, run.tier, _favour))
 		else:
 			Pickup.spawn(self, "material", prop.pos, 2, {"id": "ember_core"})
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
@@ -1173,7 +1241,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			Pickup.spawn(self, "sunshard", e.pos, 1)
 			if int(e.get_meta("grudge_level", 1)) >= 2:
 				# what it hoarded while it grew
-				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier))
+				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier, _favour))
 			run.grudges_settled.append(g.get("name", "?"))
 			Events.banner.emit("Grudge Settled", "%s returns to the dust." % g.get("name", "It"))
 		if e == boss:
@@ -1376,7 +1444,7 @@ func _light_sconce(prop: Prop) -> void:
 				if is_instance_valid(p) and not p.used:
 					p.interact(player)
 					# the reliquary keeps something better than a chest
-					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier))
+					_gear_drop(p.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.35, run.tier, _favour))
 					Pickup.spawn(self, "sunshard", p.pos, 1)
 					_rune_drop(p.pos))
 	if OS.is_debug_build():
@@ -1406,7 +1474,7 @@ func _rekindle_camp(prop: Prop) -> void:
 	Audio.play("ignite", -2.0, 0.8)
 	Audio.play("flask", -4.0, 0.9)
 	if rng.randf() < 0.55:
-		_gear_drop(prop.pos + Vector2(1.6, -0.4), func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier))
+		_gear_drop(prop.pos + Vector2(1.6, -0.4), func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.25, run.tier, _favour))
 	else:
 		for i in 6:
 			Pickup.spawn(self, "ember", prop.pos + Vector2(1.6, -0.4), 4 + layout.depth * 2)

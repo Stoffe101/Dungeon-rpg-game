@@ -79,6 +79,10 @@ func _ready() -> void:
 func _process(_d: float) -> void:
 	if not visible:
 		return
+	# never taller than what it holds (answers, rows and buttons come and go)
+	var want := get_combined_minimum_size()
+	if size.y > want.y + 0.5:
+		size = Vector2(W, want.y)
 	var vp := get_viewport_rect().size
 	# under the currency (sanctuary) or the map (below), never over either
 	var y := 50.0 if not (Game.stage is Dungeon) else 84.0
@@ -214,6 +218,7 @@ func _on_proposal() -> void:
 		if Net.is_host():
 			_buttons.add_child(UIKit.button("Cancel", func() -> void: Expedition.withdraw(), 50))
 	_show()
+	set_deferred("size", Vector2(W, 0))     # shrink to what it now holds
 	if fresh and not mine:
 		Audio.play("gate_hum", -6.0, 1.15)
 
@@ -239,6 +244,7 @@ func show_vote(id: int, title: String, body: String, yes: Array, present: Array,
 		_buttons.add_child(UIKit.button("Agree  [%s]" % _key("party_yes"), func() -> void: _answer(true), 80))
 		_buttons.add_child(UIKit.button("Not yet  [%s]" % _key("party_no"), func() -> void: _answer(false), 80))
 	_show()
+	set_deferred("size", Vector2(W, 0))     # shrink to what it now holds
 
 
 func end_vote(id: int) -> void:

@@ -12,12 +12,16 @@ src/data      content tables: SkillDB (Hearthtree), RelicDB, GearDB (weapons,
 src/world     TileGrid (collision/LOS), DungeonGen + Room (generation),
               Stage (simulation host), Dungeon / Hub (concrete stages),
               LevelBuilder (meshes), Prop, Pickup
-src/entities  Actor (base), Player, Enemy (+ enemies/*), Projectile, Hazard, Wisp
-src/combat    Weapon (+ weapons/sword|hammer|staff), Abilities
+src/entities  Actor (base), Player, Enemy (+ enemies/*), Projectile, Hazard, Wisp,
+              LanternTotem (the Hearth Lantern spell)
+src/combat    Weapon (+ weapons/*), Abilities, Volley (projectile modifiers:
+              count, pierce, chain, fork, return; one strike per foe per volley)
 src/render    PixelView (low-res viewport + camera), PixelSprite, SpriteLib, Fx
-src/ui        UIRoot (layers/modals), HUD, Minimap, SkillTreeUI, Screens, UIKit
+src/ui        UIRoot (layers/modals), HUD (hotbar), PartyFrames (co-op cards),
+              Minimap, SkillTreeUI, Screens, UIKit
 src/autoload  Events (signal bus), Settings, Profile (saves), Audio, Game (flow)
-src/dev       Capture (screenshots), Bot (autopilot playtests)
+src/dev       Capture (screenshots), Bot (autopilot playtests), Scenario (e2e),
+              BuildPresets (build=<preset>), ScalingEval (-- scaling)
 tools/        art/ and audio/ generators, dev/ helpers (all run headless)
 tests/        headless test runner + suites
 ```
@@ -93,3 +97,27 @@ other actor is a replica drawn in the past.
 `start_run()` -> `_enter_depth(n)` builds a `Dungeon` from `DungeonGen.generate`
 -> `descend()` -> ... -> `end_run(outcome)` settles currencies, Grudges and stats,
 saves, shows the summary -> `goto_hub()`.
+
+## Builds, weapons and rewards (evolution pass)
+
+- **Projectiles**: anything a Kindled looses is made with `Volley.fire` (or
+  shaped with `Volley.shape` after a weapon builds it). The player's stats
+  `projectiles`, `pierce`, `chain`, `fork` and the flags `proj_return`,
+  `ember_hail`, `seeking` decide the shot; `Projectile.group` (shared by a
+  volley) keeps one strike per foe. Chain/fork/return live in `Projectile`.
+- **Spells**: `Abilities.cast` (one function per spell). Three slots
+  (`Player.ability_slots`, `ability_cd`, `slot_open` for the level-5 lock);
+  the network presses are `a1..a3`, the third cooldown rides in the player
+  snapshot row (index 28) with Momentum (29).
+- **Weapon items**: `inventory.equipped.weapon` holds an item whose base names
+  its archetype (`ItemDB.arch_of`); `Profile.equipped_weapon()` prefers it,
+  `Profile.choose_weapon()` changes archetype at the forge. The stat
+  `weapon_damage` multiplies `Weapon.damage_scale()` (forge level x item).
+  Another Kindled's weapon item comes from their sheet (`Player.weapon_item`),
+  so tints and stats match on every machine.
+- **Co-op rewards**: `Dungeon._spawn_wave` scales foe count, `_coop_scale`
+  health and damage, `Party.reward_share` each foe's XP / Embers / loot odds;
+  gear rolls are per Kindled (`_gear_drop`, weapons leaning to each finder's
+  archetype through `_favour`).
+- **Depths**: `Delve.depth_title` / `depth_short` / `floor_def` describe any
+  depth (regions and the Hollow Below) for cards, banners, HUD and map.

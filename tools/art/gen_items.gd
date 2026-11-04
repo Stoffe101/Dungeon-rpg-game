@@ -42,6 +42,24 @@ const GEAR := {
 	"firebrand": ["gauntlets", "EMBER", "GOLD", true], "mirror_bracers": ["bracers", "STEEL", "FROST", true], "still_sandals": ["sandals", "SOUL", "GOLD", true],
 	"exec_ring": ["signet", "BLOOD", "STEEL", true], "clover4": ["ring", "MOSS", "GOLD", true], "grudge_locket": ["locket", "BLOOD", "BONE", true],
 	"flask_charm": ["battery", "BLOOD", "EMBER", true], "glass_lantern": ["lantern", "FROST", "EMBER", true],
+	# --- weapons: an archetype's silhouette in the variant's metal and accent ---
+	"wpn_sword": ["w_sword", "STEEL", "EMBER", false], "wpn_cleaver": ["w_cleaver", "STONE", "BLOOD", false],
+	"wpn_sabre": ["w_sabre", "STEEL", "GOLD", false], "wpn_hammer": ["w_hammer", "STEEL", "EMBER", false],
+	"wpn_maul": ["w_maul", "STONE", "BONE", false], "wpn_mallet": ["w_hammer", "GOLD", "EMBER", true],
+	"wpn_staff": ["w_staff", "WOOD", "EMBER", true], "wpn_rimestaff": ["w_staff", "FROST", "SOUL", true],
+	"wpn_splitstaff": ["w_forkstaff", "WOOD", "GOLD", true], "wpn_daggers": ["w_daggers", "STEEL", "GLOAM", false],
+	"wpn_kris": ["w_kris", "GLOAM", "SOUL", true], "wpn_shivs": ["w_daggers", "STEEL", "EMBER", true],
+	"wpn_spear": ["w_spear", "STEEL", "GOLD", false], "wpn_rootspear": ["w_spear", "WOOD", "MOSS", false],
+	"wpn_partisan": ["w_glaive", "STEEL", "SOUL", false], "wpn_bow": ["w_bow", "WOOD", "EMBER", false],
+	"wpn_splitbow": ["w_bow2", "WOOD", "GOLD", false], "wpn_rimebow": ["w_bow", "FROST", "SOUL", true],
+	"wpn_tome": ["w_tome", "BLOOD", "EMBER", true], "wpn_codex": ["w_tome", "SOUL", "SOUL", true],
+	"wpn_grimoire": ["w_tome", "STONE", "EMBER", true],
+	"wpn_thousandth": ["w_sabre", "GLOAM", "GLOAM", true], "wpn_quakeheart": ["w_maul", "EMBER", "GOLD", true],
+	"wpn_hundred": ["w_forkstaff", "GOLD", "EMBER", true], "wpn_gloamfang": ["w_kris", "GLOAM", "GLOAM", true],
+	"wpn_pike": ["w_spear", "EMBER", "FROST", true], "wpn_windreturn": ["w_bow", "MOSS", "SOUL", true],
+	"wpn_index": ["w_tome", "FROST", "SOUL", true],
+	"wpn_wardenfang": ["w_daggers", "FROST", "SOUL", true], "wpn_bloomstring": ["w_bow", "BLOOD", "EMBER", true],
+	"wpn_sunglaive": ["w_glaive", "GOLD", "EMBER", true],
 }
 
 const OTHER := ["bone_dust", "grave_iron", "soul_glass", "rootwood", "spore_silk", "sun_gold", "ember_core", "warden_sigil",
@@ -308,6 +326,93 @@ static func gear(arch: String, r: Array, a: Array, gem: bool) -> Px:
 			c.paint(c.mask().rect(6, 1, 4, 2), r, 4)
 			c.fill_lit(c.mask().rect(5, 7, 6, 7), a[3])
 			c.fill_lit(c.mask().rect(5, 9, 6, 5), a[4])
+		# --- weapons (drawn bottom-left to top-right, like the ability icons) ---
+		"w_sword":
+			c.paint(c.mask().poly(V([[3, 12], [11, 3], [13, 3], [13, 5], [4, 13]])), r, 3)
+			c.line(5, 11, 12, 4, r[4])
+			c.line(2, 10, 6, 14, a[3])
+			c.line(1, 15, 3, 13, Pal.WOOD[3])
+			gem_at = Vector2i(4, 12)
+		"w_cleaver":
+			c.paint(c.mask().poly(V([[3, 12], [9, 2], [14, 1], [14, 6], [5, 14]])), r, 3, true)
+			c.line(9, 3, 13, 2, r[4])
+			c.line(2, 10, 6, 14, a[3])
+			c.line(1, 15, 3, 13, Pal.WOOD[2])
+			gem_at = Vector2i(4, 12)
+		"w_sabre":
+			c.paint(c.mask().poly(V([[3, 12], [7, 7], [11, 3], [15, 1], [13, 5], [9, 9], [4, 13]])), r, 3)
+			c.line(5, 10, 12, 3, r[4])
+			c.line(2, 10, 6, 14, a[3])
+			c.line(1, 15, 3, 13, Pal.WOOD[3])
+			gem_at = Vector2i(4, 12)
+		"w_hammer":
+			c.line(3, 14, 10, 7, Pal.WOOD[3])
+			c.line(4, 14, 11, 7, Pal.WOOD[2])
+			c.paint(c.mask().poly(V([[7, 4], [11, 1], [15, 5], [11, 9]])), r, 3, true)
+			c.line(8, 4, 11, 2, r[4])
+			gem_at = Vector2i(11, 5)
+		"w_maul":
+			c.line(2, 15, 8, 9, Pal.WOOD[3])
+			c.line(3, 15, 9, 9, Pal.WOOD[2])
+			c.paint(c.mask().poly(V([[5, 6], [10, 1], [15, 6], [10, 11]])), r, 2, true)
+			c.line(6, 6, 10, 2, r[4])
+			c.line(8, 8, 12, 4, a[3])
+			gem_at = Vector2i(10, 6)
+		"w_staff", "w_forkstaff":
+			c.line(2, 15, 10, 7, Pal.WOOD[3])
+			c.line(3, 15, 11, 7, Pal.WOOD[2])
+			if arch == "w_forkstaff":
+				c.line(10, 7, 11, 2, r[3])
+				c.line(10, 7, 15, 6, r[3])
+				c.fill_lit(c.mask().ellipse(11.5, 2.5, 1.6, 1.6), a[3])
+				c.fill_lit(c.mask().ellipse(14.5, 5.5, 1.6, 1.6), a[3])
+				c.lit(11, 2, a[4])
+				c.lit(14, 5, a[4])
+			else:
+				c.paint(c.mask().rect(9, 6, 3, 2), r, 3)
+				c.fill_lit(c.mask().ellipse(12.5, 4.0, 2.6, 2.6), a[3])
+				c.lit(12, 3, a[4])
+		"w_daggers", "w_kris":
+			for k in 2:
+				var ox := 4 * k
+				if arch == "w_kris":
+					c.paint(c.mask().poly(V([[2 + ox, 12], [5 + ox, 9], [4 + ox, 7], [8 + ox, 5], [7 + ox, 3], [10 + ox, 1], [9 + ox, 5], [6 + ox, 8], [7 + ox, 10], [4 + ox, 13]])), r, 3)
+				else:
+					c.paint(c.mask().poly(V([[2 + ox, 12], [8 + ox, 4], [10 + ox, 2], [9 + ox, 6], [4 + ox, 13]])), r, 3)
+				c.line(1 + ox, 13, 3 + ox, 11, a[3])
+				c.line(0 + ox, 15, 2 + ox, 13, Pal.EARTH[3])
+			gem_at = Vector2i(9, 3)
+		"w_spear", "w_glaive":
+			c.line(1, 15, 10, 6, Pal.WOOD[3])
+			c.line(2, 15, 11, 6, Pal.WOOD[2])
+			if arch == "w_glaive":
+				c.paint(c.mask().poly(V([[8, 7], [10, 2], [15, 0], [15, 4], [11, 9]])), r, 3, true)
+			else:
+				c.paint(c.mask().poly(V([[10, 6], [12, 1], [15, 0], [14, 3], [9, 7]])), r, 3)
+			c.line(8, 7, 10, 9, a[3])
+			gem_at = Vector2i(12, 4)
+		"w_bow", "w_bow2":
+			var lb := c.mask().line(4, 1, 9, 4).line(9, 4, 11, 8).line(11, 8, 9, 12).line(9, 12, 4, 15)
+			lb.line(5, 1, 10, 4).line(5, 15, 10, 12)
+			c.paint(lb, r, 3)
+			for y in range(1, 16):
+				c.put(4, y, a[3] if y % 2 else a[2])
+			if arch == "w_bow2":
+				for y in range(2, 15):
+					c.put(6, y, a[4] if y % 2 else a[3])
+			c.line(4, 8, 13, 8, Pal.STEEL[3])
+			c.put(14, 8, Pal.STEEL[4])
+			gem_at = Vector2i(10, 8)
+		"w_tome":
+			c.paint(c.mask().poly(V([[1, 4], [8, 5], [15, 4], [15, 13], [8, 14], [1, 13]])), r, 2, true)
+			c.paint(c.mask().poly(V([[2, 4], [8, 5], [8, 13], [2, 12]])), Pal.BONE, 3)
+			c.paint(c.mask().poly(V([[8, 5], [14, 4], [14, 12], [8, 13]])), Pal.BONE, 4)
+			c.lit(11, 7, a[4])
+			c.lit(10, 8, a[3])
+			c.lit(12, 9, a[3])
+			c.line(3, 7, 6, 7, Pal.EARTH[2])
+			c.line(3, 9, 6, 9, Pal.EARTH[2])
+			gem_at = Vector2i(11, 11)
 	if gem and gem_at.x >= 0:
 		c.lit(gem_at.x, gem_at.y, a[4] if a.size() > 4 else a[3])
 		c.lit(gem_at.x - 1, gem_at.y, a[3])
