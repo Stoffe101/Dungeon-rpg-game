@@ -1,6 +1,6 @@
 ## The XP ledger: every change to this machine's experience during an
 ## expedition, with where it came from, written to
-## `user://ledger/<run id>.jsonl` (one JSON object a line). The host also
+## `user://ledger/<run id>_<name>.jsonl` (one JSON object a line). The host also
 ## writes what it awarded the party (every recipient and the multiplier).
 ## Two Kindled who played the same run compare their files with
 ## `python tools/dev/ledger_compare.py a.jsonl b.jsonl`: where their gains part
@@ -10,6 +10,7 @@ extends RefCounted
 
 static var _lines: PackedStringArray = []
 static var _run := ""
+static var _who := ""
 static var enabled := true
 
 
@@ -19,6 +20,7 @@ static func begin(run_id: String, who: String) -> void:
 		return
 	flush()
 	_run = run_id
+	_who = who
 	_add({"ev": "start", "who": who, "level": Profile.level(), "xp": int(Profile.data.get("xp", 0)), "total": Profile.total_xp(),
 		"xp_gain": _my_gain()})
 
@@ -68,7 +70,8 @@ static func flush() -> void:
 		_lines.clear()
 		return
 	DirAccess.make_dir_recursive_absolute("user://ledger")
-	var path := "user://ledger/%s.jsonl" % _run.validate_filename()
+	# one file per Kindled per run (two players on one PC keep theirs apart)
+	var path := "user://ledger/%s_%s.jsonl" % [_run.validate_filename(), _who.validate_filename()]
 	var f := FileAccess.open(path, FileAccess.READ_WRITE) if FileAccess.file_exists(path) else FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		_lines.clear()

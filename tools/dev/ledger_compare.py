@@ -1,6 +1,6 @@
 """Compare the XP ledgers of two (or more) Kindled who played the same run.
 
-Each machine writes user://ledger/<run id>.jsonl (src/net/ledger.gd): where its
+Each machine writes user://ledger/<run id>_<name>.jsonl (src/net/ledger.gd): where its
 Kindled started, every change to its experience (source and amount), what the
 host awarded the party, each floor and the settlement. Copy each player's file
 (Windows: %APPDATA%/Godot/app_userdata/Kindled Deep/ledger/) and run:

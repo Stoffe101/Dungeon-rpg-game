@@ -811,7 +811,7 @@ machines.
   shrine pact's Embers are its taker's.
 - **The XP ledger** (`src/net/ledger.gd`): every machine writes each change
   to its own experience (source, amount, level, total) and the host what it
-  awarded (base, multiplier, recipients) to `user://ledger/<run>.jsonl`;
+  awarded (base, multiplier, recipients) to `user://ledger/<run>_<name>.jsonl`;
   `tools/dev/ledger_compare.py a.jsonl b.jsonl` shows where two players'
   gains part ways, floor by floor.
 

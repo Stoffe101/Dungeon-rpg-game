@@ -125,7 +125,7 @@ generate the same floor).
 - `-- open=map explored` / `open=minimap explored`: the full map / minimap
   with every room walked; `open=spellpick`: the spell picker;
   `open=inventory saveload`: the Satchel with a saved loadout.
-- The XP ledger: every machine writes `user://ledger/<run id>.jsonl`;
+- The XP ledger: every machine writes `user://ledger/<run id>_<name>.jsonl`;
   `python tools/dev/ledger_compare.py host.jsonl guest.jsonl` shows where
   two players' gains part ways (Windows: %APPDATA%/Godot/app_userdata/
   Kindled Deep/ledger/, or the profile's folder).
