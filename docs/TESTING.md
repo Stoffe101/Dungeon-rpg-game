@@ -164,9 +164,25 @@ generate the same floor).
 - `-- scaling routes=,trial,vault,quiet sizes=1,4 comps=mixed seeds=3 secs=170
   tier=2 depth=2`: bots compare the ways (room time, health lost, deaths,
   Embers per floor, finds), solo and in a party.
+- `-- sitefind region=ossuary depth=2`: a seed for each form of each way and
+  each event, to walk into with `route=<way> seed=N warp=objective` (or
+  `warp=event`) and look at. `-- scene=hub open=chronicle sample` fills the
+  Chronicle screen.
+- `tools/dev/e2e.sh 4 sites` (DEVNET=1): every Kindled pings with their own key
+  and sees everyone's mark on the map, then the party answers a Hollow Altar by
+  vote; the host's Chronicle changes, a guest's own altar does not, and every
+  screen shows the answered altar.
 - `tests/test_evolution.gd` also pins: the altar due once an expedition,
   each answer's effect on later floors, Grudge history and lessons, the v14->v15
   migration, Fractures, milestones paying once, Omen caps and exclusions.
+- `tests/test_living.gd` plays the content rather than generating it: each
+  way's room begun and won on a real floor (the HUD's task gone after), a room
+  held while a seal stands, the Vigil fed and choked, ash in a Gauntlet, coffers
+  paying and sealing, altars, the Pale Bowl once a floor, a Grudge warding,
+  lunging, fleeing once and leaving its trophy, shatter between two Kindled, the
+  new uniques and deep hybrids, an Echo's pattern, a ping fading.
+- Rendered captures found what none of that could (see STATUS): after adding
+  anything visible, walk into it and look at the capture.
 
 ## Human playtest on two PCs
 
@@ -345,6 +361,36 @@ where. Two (or more) PCs, a whole expedition, then:
   forward to, rare enough to stay special? Foes' flinches and falls.
 - **The Hearthtree:** the seven weapon masteries - do they change how your
   weapon plays?
+
+## Human playtest: the living Undervault pass
+
+- **The stone:** do the walls read as solid rock now, and do floors stay quiet
+  enough that foes and drops stand out? Any cap, pit or doorway that looks wrong?
+  Look at the third depth of a region (the bright grid is gone: too plain now?).
+- **The Forked Descent:** is the choice still a choice when it does not come
+  every floor? Each way, several times: the Trial's three forms (seals, a
+  Champion, the falling ash), the Vault's three (keep the flame, choose one
+  coffer, a workshop), the Silent Passage. Does the Trial feel worth its danger?
+  Bots suggest it pays about 1.6x the plain way for about 3x the health lost.
+- **Hollow Altars:** read the three answers. Did you know what you were
+  choosing, and did the next expedition feel different? Let one rest at the
+  Shrine (the Chronicle) and check it changes back.
+- **The Breach:** break an altar, then take the third way. Fair, or a wall?
+- **Grudges:** die, come back. Does yours feel like it knows you (a red ward if
+  you stood and swung, a marked lunge if you kept away)? Hurt a level 2+ one
+  until it runs: do you want to chase it? Is the red trail on the floor visible?
+- **Events:** the Last Stand and the Lost Procession: does a room like that tell
+  you anything without words? The Pale Bowl: is the price clear?
+- **The Hollow Below:** a Fracture (two regions in one floor), an Echo's pattern
+  (is the mark readable before the blow?), the milestones, Omens that exclude
+  each other.
+- **Builds:** Furnace Heart, Perfect Answer, Shadowfrost, Hearth Anchor, the
+  three new uniques: does each change what you do, or only a number?
+- **In a party:** ping (G / D-pad right): do people use it? An altar vote: does
+  everyone understand it binds the host's world, and only theirs? Shatter a
+  friend's frozen foe.
+- **Words on screen:** do banners read over everything now? Do toasts stay out
+  of the way of the controls card?
 
 ## Human playtest: the expedition evolution pass
 

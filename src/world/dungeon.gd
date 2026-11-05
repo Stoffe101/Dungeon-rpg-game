@@ -2037,6 +2037,7 @@ func grudge_flees(e: Enemy) -> bool:
 		Pickup.spawn(self, "ember", e.pos, maxi(1, share / 6), {"src": "grudge"})
 	e.set_meta("grudge_embers", hoard - share)
 	fx.burst(e.pos, 0.9, GRUDGE_RED, 30, 4.0, 0.6, 4.0, Vector2.UP, 1.3)
+	Audio.play_at("grudge_flee", e.pos, -4.0)
 	Events.banner.emit("%s Flees" % e.display_name, "Wounded. It will be waiting further down")
 	Chronicle.note("%s fled, wounded, with what was left of your Embers." % e.display_name)
 	e.set_meta("fled", true)

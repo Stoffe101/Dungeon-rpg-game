@@ -787,7 +787,7 @@ func _draw_labels(counts: Dictionary) -> void:
 		var x0 := p.x - total_w * 0.5
 		var y_mid := p.y + dir.y * 6.0
 		if vertical:
-			x0 = p.x + _radius("keystone") * zoom + 8.0
+			x0 = p.x + (_radius("keystone") + 40.0) * zoom     # (clear of the tips beside it)
 			y_mid = p.y
 		elif dir.x < -0.3:
 			x0 = p.x - total_w + 6.0

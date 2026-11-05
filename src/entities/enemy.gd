@@ -213,7 +213,7 @@ func _grudge_tick(dt: float) -> void:
 		stage.fx.number(pos, 2.4, "WARDED", GRUDGE_RED)
 		if sprite:
 			sprite.flash(GRUDGE_RED, 0.4)
-		Audio.play_at("parry", pos, -8.0, 0.7)
+		Audio.play_at("grudge_ward", pos, -7.0)
 
 
 func _ready() -> void:

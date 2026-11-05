@@ -141,7 +141,7 @@ static func show_ping(st: Stage, peer: int, at: Vector2) -> void:
 	st.fx.ring(at, 1.4, col, 0.8, 0.25)
 	st.fx.ring(at, 0.7, col, 1.2, 0.25)
 	st.fx.number(at, 1.8, "%s: %s" % [Net.name_of(peer), text], col)
-	Audio.play_at("ui_click", at, -2.0, 1.4)
+	Audio.play_at("ping", at, -4.0)
 	if st is Dungeon:
 		(st as Dungeon).pings.append({"pos": at, "col": col, "t": 4.0})
 

@@ -4,6 +4,35 @@ Last updated: 2026-11-05.
 
 ## Implemented
 
+- **Living Undervault pass (branch feature/living-undervault)** - details in
+  DESIGN, "Living Undervault pass":
+  - *The stone*: every region's floors, wall faces, caps and columns redrawn
+    (`tools/art/gen_stone.gd`); quiet paving, rims that read, framed doorways,
+    the rock beyond a wall built and faded into the dark; the third depths'
+    glow in patches instead of a grid; region-specific authored rooms.
+  - *The Chronicle*: one Hollow Altar per region, answered Kindled, Broken or
+    Pact, each changing later expeditions and always reversible (Shrine of
+    Memory, for Embers); deeds and a story in words; the Keeper and the camp's
+    lamps answer it. The world of an expedition is the host's.
+  - *Grudges as rivals*: they remember your weapon and how often they killed
+    you, learn (a marked lunge or a red ward), flee once when grown and hurt,
+    scarred, dropping part of their hoard, wait further down, leave spoor, and
+    a settled one of level 3+ leaves a named trophy. A lair of their own.
+  - *Deep Events*: a data table of event rooms: the Hollow Altar, the Last
+    Stand, the Lost Procession, the Pale Bowl, the treasury's coffers.
+  - *The Forked Descent, grown*: not every floor forks; each way has three
+    forms; two rare third ways (the Breach, a Grudge's lair); arches told apart
+    by shape; balance measured with bots (DESIGN).
+  - *The Hollow Below*: Fractures, milestones, Echoes with a pattern per region,
+    Omens that change play (volatile, thin walls, the bleeding lantern), a cap
+    and exclusions.
+  - *Build depth*: four deep hybrids on the Hearthtree, three uniques that change
+    what you do, shatter between two Kindled.
+  - *Reading the screen*: banners on a dark band, named champions, toasts clear
+    of the controls card, party pings on the floor and the map.
+  - *Release*: the testing stockpile now needs the editor; debug exports (the
+    zips sent to playtesters) granted it before.
+  - Save v15, protocol 11.
 - **Expedition evolution pass (branch feature/expedition-evolution)** -
   details in DESIGN, "Expedition evolution pass":
   - *Everyday fixes*: one gear path (`Player.sync_gear`: a weapon of another
@@ -338,6 +367,7 @@ Last updated: 2026-11-05.
 
 | Kind | What |
 |---|---|
+| Living Undervault pass (2026-11-05) | **Unit tests**: 201 pass, 0 failures (20 new in tests/test_living.gd, which plays the content on real floors). **Separate processes on one PC**: 4-player journey 3 runs (two clean, 73+65+64+64; one with a guest's click on the Keeper timing out, 3 checks, not reproduced, its log lost), 3 players 64+59+58, 2 players with typical latency 55+53, stairs 2 typical 7+9 and 3 moderate 9+11+11, loot typical 12+11, partystart 4+4, `sites` (altar vote, pings) 4 players typical 6+8+8+8 and 2 local 6+8. **Solo**: UI smoke no failures, `scenario=talk` 13, autopilot no script errors. **Bots**: the ways compared (DESIGN). **Saves**: real files of v3-v14 and a copy of the real v13 save all reach v15 without errors, values kept (v3-v4 gain the editor's stockpile, never in an export); the real save was not written. **Performance** (solo bot, vsync off, RTX 5070): 1080p p50 3.2-3.3 ms, p99 4.1-5.2; 3440x1440 p50 3.2-3.4, p99 4.0-5.3. **Release**: release_check passes, both exports built and started in a scratch APPDATA, no script errors; a debug export's fresh profile has no stockpile. **Viewed**: every way's room, Last Stand, Procession, altar, the fork, Fracture, Echo, the Chronicle, the tree, sanctuary, regions and third depths, 3440x1440 at UI scale 3, 1080p at UI scale 2. **Audio**: eight new generated sounds measured with tools/audio/analyze.py, **not listened to**. **Not done**: two PCs, real Steam, human play. |
 | Expedition evolution pass (2026-11-05) | **Unit tests**: 176 pass, 0 failures (new in tests/test_evolution.gd: a weapon of another kind and another form in hand at once, a tempered blade taken up again, armour on and off, a talent point felt without a reload, no steering left, the Hearthtree key, the silhouette's instance slots, 90 floors walked - every door, room floor and usable prop reachable; it found a sarcophagus sealing a two-tile alcove and two stumps trapping a tile, both fixed in generation -, route floors walkable, the v13->v14 migration, reagents teaching and distilling, each tincture's effect, the fork's offer and each way's shape); a test file that fails to compile now fails the run instead of hanging it. **UI smoke**: 66 checks, 0 failures (the Apothecary raised and improved twice with the Kindled unmoved and the camp not reloaded, a hammer taken up in the sanctuary in hand at once, the Smithy scrolled 60 pieces deep keeping its place through a pick and a redraw, a tincture steeped, K opening and closing the Hearthtree). **Separate processes, real input, one PC (protocol 10)**: 4-player journey 73+65+64+64 and 2-player journey 55+53 (also under `netsim=typical`) - every machine voted a named way and arrived on it, floor for floor (Lost Vault 15 rooms, Trial of Ash 16); `scenario=loot` under `netsim=typical` 12+11; `scenario=partystart` 4+4; stairs under `netsim=typical` 7+9 - all passed, no script errors. **Solo autopilot**: a Trial of Ash floor (seals broken, the warded hall cleared) and a Lost Vault room (cleared with the flame unfed) without script errors. **Viewed in captures**: the orange artifact reproduced and gone (`docs/screenshots/evolution_kindled_artifact_before_after.png`), the silhouette behind a pillar before/after, `walllab` before/after in the Ossuary and after in the Rootmire and the Throne, the sanctuary under the new shading, the Apothecary at three levels in camp and its screen, the Smithy, the fork (braziers, names, hint), the Trial of Ash hall with its seals and HUD line, the Lost Vault's lantern, a guest's vote card naming the way. **Frame times** (`perflog`, V-Sync off, bot playing): 1920x1080 p50 3.7 ms, p95 4.3, p99 5.3; 3440x1440 over 60 s p50 5.1-5.3 ms, p95 5.8-6.3, p99 6.8-7.8; single worst frames 32-84 ms (loads and encounter starts). **Release check** passed. **Not done**: no human played; no two PCs or Steam; nothing listened to (no new sounds). |
 | Playtest foundations pass (2026-11-05) | **Unit tests**: 163 pass, 0 script errors in the run (new in tests/test_playtest.gd: steering, equal XP and Embers with personal bonuses, a friend's find invisible here, finds banked once and kept out of the settlement, a foe beyond a gate brought back, a room won while the host lies dead, bleeding out is death, a late Trial vote, 18 floors x every combat room fought to its end with parties of 1 and 4 - no foe outside its arena, every room opened -, corner rounding, interior walls, dressing footprints, attack turns, loadout checks, the guest at the host's forge, every foe script compiling, the v12->v13 migration; test_forms: the weapon masteries and the Thousandth Cut's buildup). **Separate processes, real input, one PC**: `scenario=loot` 2 players 11+10, 4 players 14+11+11+11, 2 players under `netsim=typical` 11+10 (only one's own find drawn, a guest is not sent another's, the find in the Satchel at once below, worn with a click, each save got exactly its run's XP, every run the same XP and Embers, the host sees guests wear their finds, every machine's map shows all four); `scenario=partystart` 4+4 (the guest follows the host from the title into camp without a click); regressions under protocol 9: 2-player journey 53+51, 4-player journey 71+63+62+62, stairs under `netsim=typical` 7+9 - all passed. **UI smoke**: 43 checks, 0 failures (its aim checks now use the scripted pointer; with the real cursor they failed at random while the PC was in use). **Solo autopilot** (seed 7): depths 1 and 2, no script errors. **Viewed in captures**: the full map (1080p, 3440x1440, a floor's start), the minimap, the Descent's spell cards and the picker (1080p and 960x540), the Satchel's loadout strip, the Hearthtree with a mastery hovered, the Ossuary before/after the light change, every foe sheet's new rows (husk, guard, skitter, bloat, duelist...), host and guest screens of private finds and of the 4-player map. **Measured**: `-- legendlab` (Thousandth Cut 2.5/min small fights, 4.5/min crowds; Hundred Embers ~7/min firing constantly; Sunfall every charged lunge). **Frame times** (1080p, bot fighting a crowd): this PC now runs at 60 Hz, so with V-Sync the old and new code both sit at p50 ~17 ms; with V-Sync off, old p50 5.2-5.4 ms, new 4.6-6.9 ms across runs on a PC in use - no reliable difference; the minimap costs ~0.1 ms a frame and bakes only when the map changes. **Not done**: no human played; no two PCs or Steam; the arena watchdog not seen in a real fight; no listening. |
 | Combat identity pass (2026-11-04) | **Unit tests**: 145 pass (every form's mechanic, the uniques' moments, each new spell and rework, foes striking all covered Kindled and their wind-up glow, Frenzied and Shepherd, synergy notables, loadouts and the v11->v12 migration, Urnlings). **UI smoke**: 43 checks at 1080p and 3440x1440 (the Satchel's loadout strip fits). **Rendered, bot fighting (`hitlab botcharge`)**: all 14 forms with no script errors; spells cast with `cast=` and build presets; uniques held; foes' wind-up glow and strike flash. **Separate processes, real input, one PC**: `scenario=spells` with `build=wall` (a guest's Rimewall rises and melts on both screens) and `build=pyreblade` (Hearthfire glow on both; the host's heat on the guest's gauge) - 6+6 checks each; regressions under protocol 8: 4-player journey 71+63+62+62, 2-player journey 53+51, facing 14+14, stairs under `netsim=typical` 7+9, 3-player bestiary - all passed. **Frame times** (`perflog`, 1080p, V-Sync 165 Hz, bot fighting a crowd with `build=beam|pyreblade|wall|shadow`): p50 6.1 ms, p95 6.2 ms, p99 at most 7.4 ms; single worst frames 12-62 ms, except ~230 ms stalls in the bot's own stuck-diagnostic dump (full path searches in src/dev/bot.gd, not game code - confirmed by timing the bot's frame and a run without the bot). **Audio events**: each weapon class plays its own impact (audio log). **Measured, not heard**: every new sound peaks at -1 dBFS without clipping; the hammer's crunch rebalanced to carry on small speakers. **Economy audit**: 12 seeds x 5 floors, exact (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
@@ -361,6 +391,24 @@ Last updated: 2026-11-05.
 
 ## Known issues / limitations
 
+- Living Undervault pass: nobody has played it. All balance numbers are bots'
+  or first guesses: the Breach and a Grudge's lair were started and won by
+  tests and captured, never measured in real combat; Echo patterns, Omens and
+  milestones the same. A party's route numbers are too noisy to tune from.
+- Not done in this pass, though the brief named them: new enemies, redrawn enemy
+  and boss animation, boss presentation, music, a full progression and build
+  diversity audit, a full economy audit, host migration (rejected for now, see
+  DESIGN), real Steam play and any two-PC test.
+- The Vigil lamps in the sanctuary were tested by logic only, not viewed.
+- One 4-player journey of three failed: a guest's click on the Keeper timed out
+  in a crowd (3 s). Two repeats were clean and the log was overwritten, so the
+  cause is unknown. It may be the test's short window; it may be a real walk-then-
+  talk failure in a crowd.
+- Frame stalls, solo bot: 40-80 ms frames around fights in every run, and a
+  220-270 ms frame in 3 of 4 runs at 3440x1440 (about 50 ms at 720p). Caught slow
+  frames spent 4-7 ms in game code and compiled no shaders, so the cost is in
+  rendering or the driver, but the largest stall was not caught in the probed
+  run. Cause unknown. Watch for it on the real ultrawide.
 - Expedition evolution pass: unit-tested, run as separate processes on one
   PC and inspected in captures; nobody has played it. To judge in play: the
   seals' ward (x0.35 damage on warded foes) and the flame's drain (about
@@ -471,7 +519,15 @@ Last updated: 2026-11-05.
 
 ## Next priorities
 
-0. This pass with people: docs/TESTING.md "Human playtest: the expedition
+0. This pass with people: docs/TESTING.md "Human playtest: the living
+   Undervault pass": the Forked Descent's forms, the altars, Grudges, the third
+   depths' floors, the Hollow, pings.
+1. The enemy pass this one postponed: redrawn animation for the foes seen most,
+   a boss presentation pass, one or two new foes per region once the old ones
+   read well on the new floors.
+2. Grow the Chronicle only from what play shows: what people remember from it.
+
+0. Earlier: docs/TESTING.md "Human playtest: the expedition
    evolution pass" - gear and upgrades in the sanctuary, the Smithy list,
    movement and facing, K, readable floors, the Apothecary and the Forked
    Descent alone and in a party.

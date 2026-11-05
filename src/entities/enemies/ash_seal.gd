@@ -33,7 +33,7 @@ func die(killer: Node) -> void:
 		return
 	stage.fx.burst(pos, 0.9, Color(1.0, 0.45, 0.25), 26, 4.0, 0.6, 5.0, Vector2.UP, 1.2)
 	stage.fx.ring(pos, 2.0, Color(1.0, 0.55, 0.3), 0.4, 0.25)
-	Audio.play_at("shatter", pos, -4.0, 0.75)
+	Audio.play_at("seal_break", pos, -3.0)
 	var st := stage
 	super.die(killer)
 	if st is Dungeon:

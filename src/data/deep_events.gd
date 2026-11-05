@@ -105,7 +105,7 @@ static func site_data(pd: Dictionary, region: String, world: Dictionary) -> Dict
 				"lines": String(Chronicle.ALTARS.get(region, {}).get("line", ""))}
 		"altar":
 			var s: Dictionary = Chronicle.STATES[choice]
-			return {"sheet": "altar_offering", "anim": choice, "label": String(s.verb), "prompt": "%s" % s.verb, "radius": 1.5, "col": s.color,
+			return {"sheet": "altar_offering", "anim": choice, "label": String(s.verb), "prompt": "Choose this", "radius": 1.5, "col": s.color,
 				"solid": true, "light": [s.color, 0.8, 3.0], "light_h": 0.8}
 		"dead_brazier":
 			return {"sheet": "dead_brazier", "anim": "dead", "label": "A Cold Brazier", "prompt": "Rekindle it", "radius": 1.5, "col": Color(1.0, 0.7, 0.4), "solid": true}
@@ -193,7 +193,7 @@ static func _altar(d: Dungeon, prop: Prop, state: String) -> void:
 			d.fx.ring(p.pos, 3.0, col, 0.6, 0.3)
 			d.fx.flash_light(p.pos, 1.4, col, 4.0, 9.0, 0.7)
 	d.fx.shake(0.25)
-	Audio.play("gate_flare", -3.0, 0.85)
+	Audio.play("altar_" + state, -2.0)
 	Events.banner.emit(String(s.name).to_upper(), String(s.done))
 	Net.rec(["wit", "altar_" + state])
 
@@ -231,7 +231,7 @@ static func _bowl(d: Dungeon, prop: Prop, who: Player) -> void:
 	var solo := d.players.size() <= 1
 	Pickup.spawn(d, "reagent", prop.pos + Vector2(0.8, 0.8), 1, {"id": id}, 0 if solo else who.peer_id)
 	d.fx.motes(who.pos, 0.6, Color(0.72, 0.62, 1.0), 16, 1.6, 0.9, 0.4)
-	Audio.play("blood_pact" if Audio.has_sound("blood_pact") else "flask", -4.0, 0.8)
+	Audio.play("blood_pact", -4.0)
 
 
 ## A treasury: the party chooses one, the others seal.

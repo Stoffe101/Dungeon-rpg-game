@@ -1112,6 +1112,40 @@ what you do: Mirror of the Deep (a Ward throws back your last spell), Ashwalker'
 Cinder (dodges leave burning ground), Stillwater Stone (stand still, gain a
 barrier). In a party, a friend's blow shatters what you froze: a bonus, never a need.
 
+### What the bots said about the ways
+Measuring runs (`-- scaling routes=`, Tier II, Ossuary depth 2, three seeds,
+three kinds of Kindled, 170 s cap). Bots never Ward against melee and only
+learned to break seals and feed the flame when told, so these are shapes, not
+truths:
+
+| Way | Embers a floor | Finds | Health lost a room | Wipes |
+|---|---|---|---|---|
+| Plain | 219-241 | 3.0-3.7 | 6-10% | 0 |
+| Trial of Ash | 357-385 | 5-8 | 27-36% | .33 |
+| Lost Vault | 205-229 | 3.7 | 21-24% | 0 |
+| Silent Passage | 144-163 | 1.3-3.7 | 10-15% | 0 |
+
+The first measurements misled in an instructive way. With seals not yet counted
+as foes, a room could end with one standing and the Trial looked cheap; counted,
+Trial rooms took 65 seconds, because the seals had too much health and the bot
+ground through warded foes instead of breaking them. The Vault paid less than
+the Trial for the same danger until its ordinary rooms were eased (foes x0.85).
+The question that mattered was whether any way is simply worse, and on these
+numbers none is: the Silent Passage's lower income is its price for safety, and
+the Vault's reward is a chance at what no other way has. A party's numbers were
+noisier still (bots hit the clock) and are not tuned from.
+
+### What the screen said
+Every new room was walked into and captured before calling it done, and that
+found six things no test could: rock past a wall was not built at all, so caps
+ended in black rectangles (now capped and faded in the world's own stepped
+dither); a champion had no name, on any machine; banners collided with world
+labels (a dark band under them now); the Warden's Deep and the Last Sun's Seat
+drew a bright grid over every floor (the seam glow predates the bigger paving,
+and runs in patches now); wall signs read as the letter K (four carved shapes);
+and toasts covered the controls card. The new tests caught one a capture would
+not have: the HUD's task line outliving the room it belonged to.
+
 ### Rejected or postponed
 - **Host migration**: the risk to a reliable floor is far larger than its value
   while disconnects already bank a checkpoint and a rejoin works. Postponed.
@@ -1123,6 +1157,7 @@ barrier). In a party, a friend's blow shatters what you froze: a bonus, never a 
   experimenting; altars that can always be re-answered do the same work.
 
 ## Decisions log
+- 2026-11-05 Living Undervault: one idea (the Undervault remembers, and you can see it) over many features; the world of an expedition is the host's, a guest only witnesses; answers at an altar are always reversible; a Grudge flees once and never from a last floor; events are data (`DeepEvents`); the rock beyond walls is built, not left black; the stockpile needs the editor, so a debug export starts like the real game; audio is measured for what it can tell (energy below 120 Hz disappears on small speakers), never called good.
 - 2026-11-05 Expedition evolution: one gear path (`Player.sync_gear`) instead of per-screen refreshes; facilities rebuilt in place by group; mouse steering removed (facing only); silhouette instance slots pinned; a dungeon grammar of rims, contact shadows and quiet floors; tinctures over flask stats; physical forked stairs over a route screen; objectives that cannot hold a room shut.
 
 - **Shared income is equal; gain bonuses are the party's.** The best XP / Ember

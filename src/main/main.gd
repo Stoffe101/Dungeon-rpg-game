@@ -182,6 +182,17 @@ func _open_dev_screen(what: String) -> void:
 				(sets[0] as SettingsUI)._open_page(pg)
 		"pause":
 			ui.pause_menu()
+		"chronicle":
+			if "sample" in Dev.args():
+				# dev: something for the screen to say (a dev profile only)
+				Chronicle.set_site("ossuary", "kindled")
+				Chronicle.set_site("rootmire", "broken")
+				Chronicle.set_site("throne", "pact")
+				Chronicle.mark("rifts_closed", 2)
+				Chronicle.mark("grudges_settled", 3)
+				Chronicle.note("Sarn the Patient is settled.")
+				Chronicle.note("A cold brazier lit again, among those who held the line.")
+			ui.open(Screens.chronicle(ui))
 		"feats":
 			ui.open(Screens.feats(ui))
 		"bestiary":
