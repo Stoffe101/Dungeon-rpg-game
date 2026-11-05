@@ -260,6 +260,10 @@ func _build() -> void:
 			# generic data-driven prop (used by the sanctuary)
 			if data.has("sheet"):
 				_sprite(String(data.sheet), float(data.get("h", 0.0)), float(data.get("z", 0.0)), String(data.get("anim", "")))
+				if data.has("ox"):
+					position = Iso.to_world(pos + Vector2(float(data.ox), 0.0), 0.0)
+				if data.get("low", false):
+					sprite.set_instance_shader_parameter("lead", 0.0)
 			if not data.get("light", []).is_empty():
 				var L: Array = data.light
 				_light(L[0], L[1], L[2], Vector3(0, float(data.get("light_h", 1.2)) * Iso.SQ2, 0.3))
@@ -286,6 +290,7 @@ func _flat(sheet: String, anim: String) -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(sheet, anim)
+	sprite.set_instance_shader_parameter("lead", 0.0)     # (it lies on the floor: no lead)
 	var info := sprite.sheet
 	var q := QuadMesh.new()
 	q.orientation = PlaneMesh.FACE_Y
@@ -780,6 +785,9 @@ func _clear_bramble(burnt: bool) -> void:
 		stage.request("secret", self)
 		return
 	sprite.play("burnt" if burnt else "burnt")
+	# what is left lies low and dark: plainly no longer a wall of thorns
+	sprite.scale = Vector3(1.0, 0.45, 1.0)
+	sprite.set_tint(Color(0.55, 0.5, 0.5, 1.0))
 	if not burnt:
 		stage.fx.burst(pos, 0.5, Color(0.45, 0.6, 0.3), 12, 4.0, 0.4, 6.0)
 	if kind == "root_node":

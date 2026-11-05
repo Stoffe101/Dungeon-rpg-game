@@ -88,6 +88,12 @@ var dir_name := "down"
 var remote_look := Vector2.ZERO    # host: the facing a guest's own machine chose (sent with its input)
 var _mouse_moved := false          # the pointer itself moved this frame (not the camera under it)
 var _last_mp := Vector2(-1, -1)
+# pointer steering (Settings "steer"): once the hand moves the mouse while W is
+# held, W walks toward the pointer (and A/S/D turn with it) until W is let go
+var _bled_out := false
+var steering := false
+var _steer_travel := 0.0
+var _steer_dir := Vector2.UP
 var hit_once := {}
 var dead_t := 0.0
 
@@ -269,7 +275,7 @@ func _sync_paperdoll() -> void:
 		l.visible = sprite.visible
 		l.scale = sprite.scale
 		l.position = sprite.position + Vector3(0, 0, float(l.get_meta("z", 0.004)))
-		for k in ["dissolve", "flash", "tint"]:
+		for k in ["dissolve", "flash", "tint", "lead"]:
 			var v: Variant = sprite.get_instance_shader_parameter(k)
 			if v != null:
 				l.set_instance_shader_parameter(k, v)
@@ -291,12 +297,14 @@ func set_weapon(id: String, level: int) -> void:
 	weapon = scr.new()
 	weapon.predicting = predicting
 	weapon.setup(self, id, level)
+	_weapon_sig = weapon_sig()
 
 
 ## Co-op: this (other) player's character sheet changed - new armour, a
 ## wardrobe pick, a hidden slot, another weapon. Drawn at once on every
-## machine; the host's copy also takes the new stats. Below, the weapon stays
-## the one the expedition began with.
+## machine; the host's copy also takes the new stats - and, below as in the
+## sanctuary, the weapon: a find taken up mid-expedition (another variant, or
+## another kind of weapon altogether) is what the host swings for them.
 func apply_sheet(sh: Dictionary) -> void:
 	if sh.is_empty():
 		return
@@ -304,8 +312,33 @@ func apply_sheet(sh: Dictionary) -> void:
 	rebuild_stats()
 	var wid := String(sh.get("weapon", ""))
 	var wl := int(sh.get("weapon_level", 0))
-	if stage is Hub and wid != "" and (weapon == null or weapon.id != wid or weapon.level != wl):
+	if wid != "" and (weapon == null or weapon.id != wid or weapon.level != wl or weapon_sig() != _weapon_sig):
 		set_weapon(wid, wl)
+		if run and not (stage is Hub):
+			run.weapon_id = wid
+			run.weapon_level = wl
+
+
+var _weapon_sig := ""
+
+
+## Which weapon item is in hand (its base and uid): a change means another
+## form, even of the same kind.
+func weapon_sig() -> String:
+	var it := weapon_item()
+	return "%s#%d" % [String(it.get("base", "")), int(it.get("uid", 0))] if not it.is_empty() else ""
+
+
+## Below, after the Satchel changed what this Kindled wields: take it up now.
+func take_up_weapon() -> void:
+	var wid := Profile.equipped_weapon()
+	var wl := Profile.weapon_level(wid)
+	if weapon and weapon.id == wid and weapon.level == wl and weapon_sig() == _weapon_sig:
+		return
+	set_weapon(wid, wl)
+	if run:
+		run.weapon_id = wid
+		run.weapon_level = wl
 
 
 ## Hides what the Kindled carries (the blade drawn beside the sprite), for
@@ -372,11 +405,15 @@ func _process(delta: float) -> void:
 		# Kindled that had just stopped toward the mouse
 		if _last_mp.x >= 0.0 and mp.distance_to(_last_mp) > 1.5:
 			_mouse_moved = true
+		var hand := mp.distance_to(_last_mp) if _last_mp.x >= 0.0 else 0.0
 		_last_mp = mp
 		aim_point = stage.view.screen_to_plane(mp, 0.6)
 		var d := aim_point - pos
 		if d.length() > 0.05:
 			aim = d.normalized()
+		move_in = steer(move_in, hand, d, delta)
+	else:
+		steering = false
 	# the press that closed a menu must not also act in the world (nor open the
 	# same conversation again straight away)
 	if Game.ui and (Engine.get_process_frames() - Game.ui.closed_frame <= 1 or Game.ui.just_closed()):
@@ -409,6 +446,35 @@ func _process(delta: float) -> void:
 		press("a3")
 	if Input.is_action_just_pressed("flask"):
 		press("flask")
+
+
+## Pointer steering: `raw` is the keys' walk, `hand` how far the hand moved the
+## mouse this frame (screen pixels, never the camera sliding under it), `to` the
+## pointer from the Kindled. "on": holding W and moving the mouse (a deliberate
+## sweep, not a twitch) turns W toward the pointer, and the other keys turn with
+## it (S backs away, A/D sidestep); it holds while W is held - letting the mouse
+## rest keeps walking where it points - and lets go with W, so keys alone always
+## walk the screen's way. "always": every walk is relative to the pointer. "off":
+## the screen's way. The result is what is predicted and sent to the host.
+func steer(raw: Vector2, hand: float, to: Vector2, delta: float) -> Vector2:
+	var mode := String(Settings.get_value("steer", "on"))
+	var fwd := raw.y < -0.5
+	if mode == "off" or raw.length() < 0.1 or (mode == "on" and not fwd):
+		steering = false
+		_steer_travel = 0.0
+		return raw
+	if not steering:
+		_steer_travel = maxf(0.0, _steer_travel - 60.0 * delta) + hand
+		if mode == "always" or _steer_travel > 22.0:
+			steering = true
+			_steer_dir = Vector2.UP if mode == "on" else (to.normalized() if to.length() > 0.05 else Vector2.UP)
+	if not steering:
+		return raw
+	# a pointer on (or almost on) the Kindled has no direction worth turning to
+	if to.length() > 0.8:
+		var k := 1.0 - exp(-14.0 * delta)
+		_steer_dir = _steer_dir.slerp(to.normalized(), k).normalized()
+	return raw.rotated(Vector2.UP.angle_to(_steer_dir))
 
 
 ## A button press: buffered for the simulation and counted for the network.
@@ -700,6 +766,12 @@ func _timers(dt: float) -> void:
 		if _momentum_t <= 0.0:
 			momentum = 0
 			cuts = 0
+	if blade_charge > 0.0:
+		_blade_idle += dt
+		if _blade_idle > 4.0:
+			blade_charge = maxf(0.0, blade_charge - dt * 2.0)
+			_blade_cued = blade_charge >= THOUSANDTH * 0.8
+			_legend_glow(blade_charge / THOUSANDTH)
 	# Last Light: unhurt for a breath, the lantern's flame comes back quickly
 	_calm_t += dt
 	if stats.has("last_light") and _calm_t > 2.0 and kindle < stats.v("kindle_max"):
@@ -1016,6 +1088,8 @@ func on_weapon_charged() -> void:
 
 
 func on_weapon_strike(_hits: int, _finisher: bool) -> void:
+	if _hits > 0 and weapon and weapon.form == "thousandth":
+		_gather_blade(2.0 if hearthfire_t > 0.0 and stats.has("hearthforged") else 1.0)
 	if stats.has("overflow") and kindle >= stats.v("kindle_max") - 0.01:
 		for i in 2:
 			var d := aim.rotated(randf_range(-0.6, 0.6))
@@ -1212,6 +1286,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 			Audio.play("crit", -5.0, randf_range(0.95, 1.05))
 		else:
 			Settings.rumble(0.18, 0.0, 0.05)
+		if t.alive and h.has_tag("melee") and weapon and weapon.form == "thousandth" and t is Enemy and ((t as Enemy).elite or (t as Enemy).def.get("boss", false)):
+			_gather_blade(1.0)     # a guardian's or an elite's hide feeds it twice over
+		if not t.alive and h.has_tag("melee") and weapon and weapon.form == "thousandth":
+			_gather_blade(1.0)     # a foe felled feeds the Thousandth Cut
 		if not t.alive and h.has_tag("melee"):
 			# killing blows land a beat harder (a hammer's hardest of all)
 			stage.hitstop(0.075 if (t is Enemy and (t as Enemy).elite) else 0.05)
@@ -1248,25 +1326,50 @@ func _flow(t: Actor, finisher: bool) -> void:
 	momentum = mini(8, momentum + 1)
 	_momentum_t = 1.5
 	cuts += 1
-	if hearthfire_t > 0.0 and stats.has("hearthforged") and weapon and weapon.form == "thousandth" and (cuts + 1) % THOUSANDTH != 0:
-		cuts += 1
 	if stats.has("thousand_cuts") and cuts % 3 == 0:
 		spectral_knife(t)
-	if weapon and weapon.form == "thousandth":
-		form_meter = float(cuts % THOUSANDTH) / THOUSANDTH
-		if cuts % THOUSANDTH == 0:
-			_thousandth_cut()
 	if stats.has("momentum") and momentum >= 8 and finisher and weapon:
 		stage.fx.ring(pos, 1.0, Color(1.0, 0.85, 0.45), 0.25, 0.2)
 		_combo_wave_at(aim)
 
 
-const THOUSANDTH := 30
+## The Thousandth Cut gathers with every swing that lands (not every foe one
+## sweep touches) and every foe it fells, and keeps what it gathered between
+## fights - it only fades after four seconds without a blow. Measured with
+## `-- legendlab` (src/dev/legend_lab.gd): as "thirty blows in a row" it came
+## after 48 s in small fights and 18 times a minute in a crowd.
+const THOUSANDTH := 70
+var blade_charge := 0.0
+var _blade_idle := 0.0
+var _blade_cued := false
+
+
+func _gather_blade(n: float) -> void:
+	blade_charge += n
+	_blade_idle = 0.0
+	if blade_charge >= THOUSANDTH:
+		blade_charge = 0.0
+		_blade_cued = false
+		_thousandth_cut()
+	elif blade_charge >= THOUSANDTH * 0.8 and not _blade_cued:
+		# nearly there: the blade hums (heard and seen by its wielder)
+		_blade_cued = true
+		Audio.play("glyph", -8.0, 1.4)
+	_legend_glow(blade_charge / THOUSANDTH)
+
+
+## A signature weapon brightens as its moment gathers (the HUD gauge says it
+## too, but the eye is on the blade).
+func _legend_glow(k: float) -> void:
+	form_meter = k
+	if weapon and weapon.visual:
+		weapon.visual.set_instance_shader_parameter("glow_mult", weapon._base_glow * (1.0 + 1.6 * clampf(k, 0.0, 1.0)))
 
 
 ## The Thousandth Cut (the unique blade): the thirtieth blow in a row is eight
 ## phantom cuts, one after another, through everything around the Kindled.
 func _thousandth_cut() -> void:
+	set_meta("legend_moments", int(get_meta("legend_moments", 0)) + 1)
 	var col := Color(0.85, 0.65, 1.0)
 	stage.fx.number(pos, 2.8, "THE THOUSANDTH CUT", col, true)
 	stage.fx.flash_light(pos, 1.0, col, 3.0, 6.0, 0.4)
@@ -1821,7 +1924,7 @@ func die(killer: Node) -> void:
 			deal_hit(a, h)
 		Audio.play("explode", 2.0)
 		return
-	if stage.players.size() > 1 and not downed:
+	if stage.players.size() > 1 and not downed and not _bled_out:
 		_go_down()
 		return
 	_deferred.clear()
@@ -1959,7 +2062,9 @@ func _bleed(dt: float) -> void:
 		downed = false
 		hp = 0.0
 		alive = true      # die() expects the living
+		_bled_out = true  # ...and must not lay them down again (it looped)
 		die(null)
+		_bled_out = false
 
 
 ## Back on their feet (from downed, or from a spectator at a room's end).

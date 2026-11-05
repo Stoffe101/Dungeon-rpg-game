@@ -21,7 +21,7 @@ signal camp_changed
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 8
+const PROTOCOL := 9
 ## How long a seat waits for a Kindled that lost the link, and how long that
 ## Kindled keeps trying to reach the host again (seconds).
 const SEAT_WAIT := 60.0
@@ -414,6 +414,7 @@ func leave(keep_lobby := false) -> void:
 	peer = null
 	multiplayer.multiplayer_peer = null
 	roster.clear()
+	_host_where = ""
 	proposal = {}
 	camp = {}
 	_camp_sent = {}
@@ -659,7 +660,7 @@ func _rejoin(old: int, new: int) -> void:
 	if not cp.is_empty():
 		rpc_id(new, "_checkpoint", cp)
 	if run_sync:
-		rpc_id(new, "_events", run_sync.floor_id, run_sync.world_dump())
+		rpc_id(new, "_events", run_sync.floor_id, run_sync.world_dump(new))
 	_status("%s found the party again." % String(entry.name))
 	Events.toast.emit("%s found the party again." % String(entry.name), Color(0.75, 0.95, 0.9))
 
@@ -684,6 +685,7 @@ func _rejoined(params: Dictionary, run_data: Dictionary) -> void:
 func set_where(w: String) -> void:
 	_where_me = w
 	_where_set = true
+	_following = false
 	if is_host() and roster.has(1):
 		roster[1]["where"] = w
 		_broadcast_roster()
@@ -785,7 +787,33 @@ func _roster(r: Dictionary) -> void:
 		roster_changed.emit()
 		for pid in roster:
 			if old.has(pid) and old[pid].get("sheet") != roster[pid].get("sheet"):
-				sheet_changed.emit(int(pid)))
+				sheet_changed.emit(int(pid))
+		_follow_host())
+
+
+var _following := false
+var _host_where := ""          # where the host was at the last roster (a guest follows a change)
+
+
+## A guest still at the title screen follows the host into the shared
+## sanctuary as soon as the host is there (the host's "Begin together", or a
+## host already in camp when the guest joins): nobody has to close the party
+## screen and press Continue on their own. Their own Kindled, as ever.
+func _follow_host() -> void:
+	if not is_client() or not roster.has(1):
+		return
+	var hw := String(roster[1].get("where", "menu"))
+	var was := _host_where
+	_host_where = hw
+	# only when the host *goes* in (or is in when we join): a guest who walks
+	# back to the title screen on purpose is not pulled into camp again
+	if _where_me != "menu" or _following or hw == "menu" or hw == was:
+		return
+	_following = true
+	if Game.ui:
+		Game.ui.toast("%s's sanctuary - you follow with your own Kindled." % name_of(1), Color(0.75, 0.95, 0.9))
+		Game.ui.leave_main_menu()
+		Game.ui.fade(Game.goto_hub)
 
 
 @rpc("any_peer", "reliable")
@@ -885,6 +913,25 @@ func _offer(kind: String, args: Array) -> void:
 	_through("rel", true, func() -> void:
 		if run_sync:
 			run_sync.on_offer(kind, args))
+
+
+## Host -> one guest: a find of their own (gear, a rune, a blueprint), for
+## their Satchel. Banked once by its drop id, then acknowledged; its moment
+## (the name rising, the chime) plays only here.
+@rpc("authority", "reliable")
+func _gift(fl: int, drop: String, kind: String, what: Variant, grade: int) -> void:
+	_through("rel", true, func() -> void:
+		var fresh := Profile.bank_find(kind, what, drop)
+		if fresh and run_sync and run_sync.floor_id == fl and Game.stage and Game.stage.player:
+			Pickup.found_fx(Game.stage, Game.stage.player, kind, what, grade)
+		if Game.run:
+			var seen := false
+			for f in Game.run.found:
+				if String(f.get("drop", "")) == drop:
+					seen = true
+			if not seen:
+				Game.run.found.append({"kind": kind, "what": what, "drop": drop})
+		Net.ask("gift_ok", [drop]))
 
 
 ## Host -> one client: a line meant for them alone ("Found: ...").

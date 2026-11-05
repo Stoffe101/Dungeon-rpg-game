@@ -68,7 +68,9 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
   `botcharge` (the bot holds every third attack), `economy` (exact co-op reward audit, `src/dev/economy_audit.gd`),
   `cast=1,3` (with `hitlab`: cast those spell slots at the nearest foe, full Kindle), `forge=0..3` (workshop level),
-  `scaling` (party-size scaling evaluation, `src/dev/scaling_eval.gd`; `seeds= secs= tier= depth= comps=`).
+  `scaling` (party-size scaling evaluation, `src/dev/scaling_eval.gd`; `seeds= secs= tier= depth= comps=`),
+  `legendlab` (signature weapon moments per minute, `src/dev/legend_lab.gd`; `secs= forms=`), `open=map|minimap explored`,
+  `open=spellpick`, `open=inventory saveload`, `scenario=loot` (private finds, live Satchel, equal XP on real machines).
   (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args and the testing stockpile work in debug
   builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
@@ -154,10 +156,17 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v12 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v13 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
+- Co-op income: every shared award goes through `Party.award_xp` / `award_embers` (equal for every
+  Kindled, the party's best gain bonus); never credit one run alone. The XP ledger (`Ledger`,
+  `tools/dev/ledger_compare.py`) records every change. A find of one's own is banked when taken
+  (`Pickup._take_find`, `Profile.bank_find`, guests via `NetRun.give` / `_gift`); record events for one
+  peer as `["own", peer, ev]`.
+- Foes appear through `stage.foe_spot` (inside a sealed room's arena, `Dungeon.arena_of`); a counted foe
+  outside the arena is brought back by `_watch_arena`. Attacks start only if `may_strike()` grants a turn.
 - Grudges: `Profile.record_grudge` / `age_grudges` (traits by level in `GRUDGE_TRAITS`); spawned by
   `Dungeon._spawn_grudge`, whose room is picked before props so its fires can burn red.
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
@@ -189,7 +198,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

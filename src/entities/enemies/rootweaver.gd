@@ -20,7 +20,7 @@ func behave(dt: float) -> void:
 		"drift":
 			kite(5.0, 9.0, speed, dt)
 			sprite.play("walk" if vel.length() > 0.3 else "idle")
-			if t and cast_cd <= 0.0 and dist_to_player() < 10.0:
+			if t and cast_cd <= 0.0 and dist_to_player() < 10.0 and may_strike("ranged"):
 				vel = Vector2.ZERO
 				aim_dir = dir_to_player()
 				sprite.play("cast")

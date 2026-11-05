@@ -233,7 +233,10 @@ func _environment() -> void:
 	var fd := Delve.floor_def(layout.region, layout.depth, run.delve if run else false)
 	var tint: Color = fd[1]
 	env.ambient_light_color = region.ambient.lerp(Color(tint.r, tint.g, tint.b), 0.35 if tint.a > 0.0 else 0.0)
-	env.ambient_light_energy = [0.84, 0.78, 0.7][Delve.floor_index(layout.depth, run.delve if run else false)]
+	# (raised from 0.84/0.78/0.70 by the second playtest: walls, floor and
+	# obstacles must read beyond the lantern - darkness for tension, not for
+	# hiding what blocks the way)
+	env.ambient_light_energy = [1.08, 1.0, 0.92][Delve.floor_index(layout.depth, run.delve if run else false)]
 	if run and run.delve:
 		# every pass through the regions, the Hollow is darker
 		env.ambient_light_energy *= Delve.gloom(layout.depth)
@@ -247,6 +250,7 @@ func _environment() -> void:
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.06
 	env.adjustment_saturation = 1.05
+	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	if view:
 		view.set_environment(env)
 
@@ -265,7 +269,13 @@ func _place_props() -> void:
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
-				extra["solid"] = true
+				if pd.get("wide", false):
+					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
+					extra["ox"] = 0.5
+				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+					extra["low"] = true      # underfoot: walked through, drawn behind whoever stands on it
+				else:
+					extra["solid"] = true
 			if pd.kind == "chest":
 				extra["tier"] = pd.get("tier", 1)
 				if pd.get("sealed", false):
@@ -409,13 +419,18 @@ func _stage_tick(dt: float) -> void:
 		return
 	if players.size() > 1:
 		_coop_tick(dt)
-	if player == null or not player.alive:
+	# the floor goes on while any Kindled stands: a host who bled out watches
+	# the others win the room that brings it back (this used to stop every
+	# wave and the room's clearing - the room stayed sealed for good)
+	var up := player != null and player.alive
+	if not up and active_players().is_empty():
 		return
 	run.elapsed += dt
-	var t := Vector2i(floori(player.pos.x), floori(player.pos.y))
-	var r := layout.room_at_tile(t)
-	if r and r != current_room:
-		_enter_room(r)
+	var t := Vector2i(floori(player.pos.x), floori(player.pos.y)) if player else Vector2i(-9999, -9999)
+	if up:
+		var r := layout.room_at_tile(t)
+		if r and r != current_room:
+			_enter_room(r)
 	# co-op: whoever steps in first starts the fight (not only this machine's Kindled)
 	for pl in active_players():
 		var pt := Vector2i(floori(pl.pos.x), floori(pl.pos.y))
@@ -426,7 +441,7 @@ func _stage_tick(dt: float) -> void:
 			if pl != player:
 				_start_encounter(pr, pl)
 				break
-	if current_room and not current_room.cleared and current_room.is_combat() and active_room == null:
+	if up and current_room and not current_room.cleared and current_room.is_combat() and active_room == null:
 		# start once the player is properly inside (not on the threshold)
 		var inner := current_room.rect.grow(-1)
 		if inner.has_point(t):
@@ -621,7 +636,12 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 		r.encounter = r.encounter.duplicate()
 		r.encounter.append(EnemyDB.party_extras(rng, layout.region, layout.depth, [], players.size()))
 	_pull_party_in(r, by if by else player)
+	# a new fight counts its own foes only (a split's halves or a riser from
+	# the last fight used to be carried in and could hold this room shut)
+	room_enemies.clear()
 	_set_gates(r, true)
+	_arena_room = -1
+	arena_of(r)
 	if r.type == Room.Type.BOSS:
 		_start_boss(r)
 		return
@@ -678,7 +698,9 @@ func _spawn_wave(r: Room) -> void:
 		var id: String = ids[i]
 		var t: Vector2i = spots[i % spots.size()] if not spots.is_empty() else Vector2i(r.center())
 		var e := _make_enemy(id)
-		e.pos = Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7))
+		# a spawn tile that is no longer open (a wall of ice, brambles), or the
+		# room's middle as a last resort, becomes the arena's nearest open spot
+		e.pos = arena_spot(r, Vector2(t) + Vector2(randf_range(0.3, 0.7), randf_range(0.3, 0.7)))
 		_scale(e, layout.depth, memory)
 		_coop_scale(e)
 		# a party shares out what its extra foes pay (Party.wave_share)
@@ -760,9 +782,13 @@ func _make_enemy(id: String) -> Enemy:
 
 
 func register_enemy(e: Enemy) -> void:
-	room_enemies.append(e)
 	# everything met goes in the bestiary: waves, bosses, summons, Grudges
 	Profile.note_seen("enemies", e.id)
+	if active_room == null:
+		return     # no fight to hold open: it roams the open floor
+	e.room_id = active_room.id
+	if not room_enemies.has(e):
+		room_enemies.append(e)
 
 
 func _spawn_grudge(r: Room) -> void:
@@ -775,7 +801,7 @@ func _spawn_grudge(r: Room) -> void:
 	grudge_spawned = true
 	var e := _make_enemy(g.enemy)
 	var t: Vector2i = r.spawns[rng.randi_range(0, r.spawns.size() - 1)] if not r.spawns.is_empty() else Vector2i(r.center())
-	e.pos = Vector2(t) + Vector2(0.5, 0.5)
+	e.pos = arena_spot(r, Vector2(t) + Vector2(0.5, 0.5))
 	_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
 	e.make_grudge(g)
 	e.room_id = r.id
@@ -790,7 +816,7 @@ func _spawn_grudge(r: Room) -> void:
 		# it does not come alone any more
 		for k in 2:
 			var kin := _make_enemy(EnemyDB._filler(layout.region))
-			kin.pos = random_floor_near(e.pos + Vector2.from_angle(TAU * k / 2.0) * 1.5, 0.6)
+			kin.pos = foe_spot(e.pos + Vector2.from_angle(TAU * k / 2.0) * 1.5, 0.6)
 			_scale(kin, layout.depth, int(Profile.data.world.get("memory", 0)))
 			kin.room_id = r.id
 			kin.spawn_t = 1.2
@@ -801,9 +827,13 @@ func _spawn_grudge(r: Room) -> void:
 	Audio.play("boss_roar", -6.0, 1.3)
 
 
-func _update_encounter(_dt: float) -> void:
+func _update_encounter(dt: float) -> void:
 	room_enemies = room_enemies.filter(func(e): return is_instance_valid(e) and e.alive)
-	if room_enemies.is_empty() and _rising == 0 and active_room.type != Room.Type.BOSS:
+	_watch_t -= dt
+	if _watch_t <= 0.0:
+		_watch_t = 0.5
+		_watch_arena(0.5)
+	if room_enemies.is_empty() and _rising == 0 and elapsed >= _clear_hold and active_room.type != Room.Type.BOSS:
 		wave += 1
 		if wave < active_room.encounter.size():
 			_spawn_wave(active_room)
@@ -811,8 +841,181 @@ func _update_encounter(_dt: float) -> void:
 			_room_cleared()
 
 
+# --- the arena: where a sealed fight is fought ---------------------------------------
+# (the second playtest's sealed room: a Bonecaller backed against a door raised
+# its husks in the passage between two closed gates - unreachable, and counted)
+
+var _arena := {}                 # tile -> true: the sealed room's floor the party can reach
+var _arena_room := -1
+var _clear_hold := 0.0           # (stage time) a split's halves are on their way: not won yet
+var _watch_t := 0.0
+var arena_fixes := 0             # foes the watchdog brought back (tests, the debug log)
+
+
+## The tiles of `r` its fight may use: the room's own tiles that the party
+## (or the room's middle) reaches across open floor - never the passage
+## between two gates, a neighbour's floor or a walled-off pocket. Ice walls
+## count as floor (they melt), so do pits (flyers hold them) and the small
+## solid props a foe walks around.
+func arena_of(r: Room) -> Dictionary:
+	if _arena_room == r.id and not _arena.is_empty():
+		return _arena
+	var temp := {}
+	for p in props:
+		if is_instance_valid(p) and p.kind == "icewall":
+			temp[p.tile] = true
+	var q: Array[Vector2i] = []
+	var out := {}
+	for p in active_players():
+		var pt := Vector2i(floori(p.pos.x), floori(p.pos.y))
+		if grid.room_at(pt.x, pt.y) == r.id and not out.has(pt):
+			out[pt] = true
+			q.append(pt)
+	var c := Vector2i(_floor_inside(r, r.center()))
+	if not out.has(c):
+		out[c] = true
+		q.append(c)
+	var head := 0
+	while head < q.size():
+		var t := q[head]
+		head += 1
+		for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var n := t + dv
+			if out.has(n) or grid.room_at(n.x, n.y) != r.id:
+				continue
+			var k := grid.at(n.x, n.y)
+			if k == TileGrid.WALL or k == TileGrid.VOID or k == TileGrid.GATE or (k == TileGrid.PILLAR and not temp.has(n)):
+				continue
+			out[n] = true
+			q.append(n)
+	_arena = out
+	_arena_room = r.id
+	return out
+
+
+func _open_in(ar: Dictionary, t: Vector2i) -> bool:
+	return ar.has(t) and grid.at(t.x, t.y) == TileGrid.FLOOR and not grid.box_blocked(Vector2(t) + Vector2(0.5, 0.5), 0.4)
+
+
+## The open arena spot nearest to `want` (itself when it is one).
+func arena_spot(r: Room, want: Vector2) -> Vector2:
+	var ar := arena_of(r)
+	var wt := Vector2i(floori(want.x), floori(want.y))
+	if _open_in(ar, wt):
+		return want if not grid.box_blocked(want, 0.3) else Vector2(wt) + Vector2(0.5, 0.5)
+	var seen := {wt: true}
+	var q: Array[Vector2i] = [wt]
+	var head := 0
+	while head < q.size() and head < 6000:
+		var t := q[head]
+		head += 1
+		for dv: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+			var n := t + dv
+			if seen.has(n) or not grid.inb(n.x, n.y):
+				continue
+			seen[n] = true
+			if _open_in(ar, n):
+				return Vector2(n) + Vector2(0.5, 0.5)
+			q.append(n)
+	return _floor_inside(r, r.center())
+
+
+## Where a foe may appear near `p` (summons, a split's halves, risers, adds, a
+## hop or a burrow's end): open floor near it - and while a room is sealed,
+## inside that room's arena.
+func foe_spot(p: Vector2, r: float, _room_id := -1) -> Vector2:
+	var want := random_floor_near(p, r)
+	if active_room == null:
+		return want
+	return arena_spot(active_room, want)
+
+
+var _door_tiles := {}
+
+
+## A doorway's tile (where a room's gate stands when sealed, and the passage
+## tiles of its door): Rimewall never raises ice there.
+func is_door_tile(t: Vector2i) -> bool:
+	if _door_tiles.is_empty():
+		for rid in gate_nodes:
+			for g in gate_nodes[rid]:
+				_door_tiles[g.get_meta("tile")] = true
+		for r in layout.rooms:
+			for dd in r.doors:
+				for dt in dd.tiles:
+					_door_tiles[dt] = true
+		_door_tiles[Vector2i(-1, -1)] = true    # (made)
+	return _door_tiles.has(t)
+
+
+var _drop_seq := 0
+
+
+## A fight is on around this machine's Kindled (host: an encounter; a guest:
+## its room's gates stand closed): the Satchel holds gear as it is.
+func fight_on() -> bool:
+	if not replica:
+		return active_room != null
+	var r := current_room
+	if r == null:
+		return false
+	for g in gate_nodes.get(r.id, []):
+		var t: Vector2i = g.get_meta("tile")
+		if grid.at(t.x, t.y) == TileGrid.GATE:
+			return true
+	return false
+
+
+## A find's id, unique within the expedition (run / depth / count): what the
+## Satchel banks once.
+func next_drop() -> String:
+	_drop_seq += 1
+	return "%s/%d/%d" % [run.run_id if run.run_id != "" else "solo", layout.depth, _drop_seq]
+
+
+## A split's halves (or the like) are on their way: the fight is not won yet.
+func hold_clear(sec: float) -> void:
+	_clear_hold = maxf(_clear_hold, elapsed + sec)
+
+
+## Every half second of a fight: a counted foe that has been outside the arena
+## for a moment and a half (raised beyond a gate, hopped into a passage, left
+## on a gate tile, knocked into a pocket) is brought back into the room. The
+## fight stays the fight - nothing is opened or won for it.
+func _watch_arena(step: float) -> void:
+	var r := active_room
+	if r == null:
+		return
+	var ar := arena_of(r)
+	for e: Enemy in room_enemies:
+		if not is_instance_valid(e) or not e.alive or e.state == "spawn" or e.ghost:
+			continue
+		var t := Vector2i(floori(e.pos.x), floori(e.pos.y))
+		var inside := ar.has(t) and grid.at(t.x, t.y) != TileGrid.GATE
+		if not inside and e.flying and grid.room_at(t.x, t.y) == r.id and grid.at(t.x, t.y) == TileGrid.PIT:
+			inside = true
+		var out := 0.0 if inside else float(e.get_meta("out_t", 0.0)) + step
+		e.set_meta("out_t", out)
+		if out >= 1.5:
+			_bring_back(e, arena_spot(r, e.pos), "outside")
+
+
+func _bring_back(e: Enemy, to: Vector2, why: String) -> void:
+	arena_fixes += 1
+	if OS.is_debug_build():
+		print("[dungeon] arena watchdog: %s (%s) room %d at %s -> %s" % [e.id, why, active_room.id if active_room else -1, e.pos, to])
+	fx.motes(e.pos, 0.4, Color(0.45, 1.0, 0.9), 8, 1.4, 0.6, 0.3)
+	fx.shape(Fx.Shape.SIGIL, to, Vector2.RIGHT, Vector2(1.6, 1.6), Color(0.3, 0.95, 0.85, 0.35), Color(0.5, 1.0, 0.9, 1.0), 0.5, {"glow": 1.4})
+	e.pos = to
+	e.vel = Vector2.ZERO
+	e.push = Vector2.ZERO
+	e.set_meta("out_t", 0.0)
+
+
 func _room_cleared() -> void:
 	var r := active_room
+	_arena_room = -1
+	_arena = {}
 	if OS.is_debug_build():
 		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
@@ -854,9 +1057,8 @@ func _finish_clear() -> void:
 	_set_gates(r, false)
 	for pk in pickups:
 		pk.magnet = true
-	var xpv := 6 + 3 * layout.depth
-	run.xp_gained += xpv
-	Profile.add_xp(xpv)
+	# every Kindled is credited the room (it used to go to the host alone)
+	Party.award_xp(self, 6 + 3 * layout.depth, "room")
 	_spawn_reward(r)
 
 
@@ -932,7 +1134,10 @@ func _seal(r: Room, closed: bool) -> void:
 	if closed:
 		# nobody is left standing inside a closing seal: step them into the room
 		for a in actors:
-			if a.alive and not a.flying and grid.box_blocked(a.pos, a.box()):
+			if not a.alive:
+				continue
+			var at := Vector2i(floori(a.pos.x), floori(a.pos.y))
+			if (not a.flying and grid.box_blocked(a.pos, a.box())) or grid.at(at.x, at.y) == TileGrid.GATE:
 				a.pos = _floor_inside(r, a.pos)
 	Audio.play("seal_close" if closed else "seal_open", -2.0)
 
@@ -1237,7 +1442,7 @@ func _guardian_call() -> void:
 		var n := players.size() - 1
 		var ids := EnemyDB.party_extras(rng, layout.region, maxi(layout.depth, 2), [], n)
 		for i in ids.size():
-			var at := random_floor_near(far.pos + Vector2.from_angle(rng.randf() * TAU) * 3.0, 1.5)
+			var at := foe_spot(far.pos + Vector2.from_angle(rng.randf() * TAU) * 3.0, 1.5)
 			fx.shape(Fx.Shape.SIGIL, at, Vector2.RIGHT, Vector2(1.6, 1.6), Color(1.0, 0.45, 0.4, 0.4), Color(1.0, 0.6, 0.5, 1.0), 1.0, {"glow": 1.5})
 			var id: String = ids[i]
 			after(0.9, func() -> void:
@@ -1322,8 +1527,7 @@ func _gear_drop(p: Vector2, roll: Callable) -> void:
 		return
 	for pl in players:
 		_favour = pl.weapon.id if pl.weapon else ""
-		var pk := Pickup.spawn(self, "gear", p, 1, {"item": roll.call()})
-		pk.owner_peer = pl.peer_id
+		Pickup.spawn(self, "gear", p, 1, {"item": roll.call()}, pl.peer_id)
 
 
 ## An Ember Rune: one roll for each Kindled (theirs alone, like gear).
@@ -1333,24 +1537,42 @@ func _rune_drop(p: Vector2) -> void:
 		Pickup.spawn(self, "rune", p, 1, {"id": ids[rng.randi_range(0, ids.size() - 1)]})
 		return
 	for pl in players:
-		var pk := Pickup.spawn(self, "rune", p, 1, {"id": ids[rng.randi_range(0, ids.size() - 1)]})
-		pk.owner_peer = pl.peer_id
+		Pickup.spawn(self, "rune", p, 1, {"id": ids[rng.randi_range(0, ids.size() - 1)]}, pl.peer_id)
 
 
-## A blueprint the Kindled doesn't have yet (else a few Ember Cores).
+## A blueprint the Kindled doesn't have yet (else a few Ember Cores). Co-op:
+## one for each Kindled, rolled against what *they* know (their sheet).
 func _maybe_blueprint(p: Vector2, chance: float) -> void:
 	if rng.randf() >= chance:
 		return
-	var have: Array = Profile.known_blueprints() + Profile.scrolls() + (run.loot.blueprints as Array)
-	var b := ItemDB.roll_blueprint(rng, have)
-	if b == "":
-		Pickup.spawn(self, "material", p, 3, {"id": "ember_core"})
-	elif players.size() <= 1:
-		Pickup.spawn(self, "blueprint", p, 1, {"id": b})
-	else:
-		for pl in players:
-			var pk := Pickup.spawn(self, "blueprint", p, 1, {"id": b})
-			pk.owner_peer = pl.peer_id
+	if players.size() <= 1:
+		var have: Array = Profile.known_blueprints() + Profile.scrolls() + _found_blueprints(run)
+		var b := ItemDB.roll_blueprint(rng, have)
+		if b == "":
+			Pickup.spawn(self, "material", p, 3, {"id": "ember_core"})
+		else:
+			Pickup.spawn(self, "blueprint", p, 1, {"id": b})
+		return
+	for pl in players:
+		var have2: Array = _found_blueprints(pl.run)
+		if pl.sheet.is_empty():
+			have2 += Profile.known_blueprints() + Profile.scrolls()
+		else:
+			have2 += (pl.sheet.get("known", []) as Array) + (pl.sheet.get("scrolls", []) as Array)
+		var b2 := ItemDB.roll_blueprint(rng, have2)
+		if b2 == "":
+			Pickup.spawn(self, "material", p, 3, {"id": "ember_core"})
+		else:
+			Pickup.spawn(self, "blueprint", p, 1, {"id": b2}, pl.peer_id)
+
+
+func _found_blueprints(r: RunState) -> Array:
+	var out: Array = (r.loot.get("blueprints", []) as Array).duplicate() if r else []
+	if r:
+		for f in r.found:
+			if String(f.get("kind", "")) == "blueprint":
+				out.append(f.what)
+	return out
 
 
 ## A chest's materials and its chance of gear.
@@ -1471,7 +1693,7 @@ func _rise_again(kind: String, at: Vector2, room: int) -> void:
 		e.summoned = true
 		e.xp = 1
 		e.embers = 0
-		e.pos = random_floor_near(at, 0.4)
+		e.pos = foe_spot(at, 0.4)
 		e.room_id = room
 		e.spawn_t = 0.45
 		add_actor(e)
@@ -1788,13 +2010,23 @@ func _open_secret(prop: Prop) -> void:
 func begin_trial(prop: Prop) -> void:
 	if prop.used:
 		return
+	var r := layout.room(prop.room_id)
+	# never over another fight (a vote can pass late), never without a Kindled
+	# in its room: either used to seal the wrong room for good
+	var inside := active_players().filter(func(p): return r.contains_tile(Vector2i(floori(p.pos.x), floori(p.pos.y))))
+	if active_room != null or inside.is_empty():
+		Events.toast.emit("The trial altar waits - finish the fight, and stand by it.", Color(1.0, 0.7, 0.5))
+		return
 	prop.used = true
 	prop.sprite.play("spent")
-	var r := layout.room(prop.room_id)
 	r.cleared = false
 	active_room = r
 	wave = 0
+	_pull_party_in(r, inside[0])
+	room_enemies.clear()
 	_set_gates(r, true)
+	_arena_room = -1
+	arena_of(r)
 	Audio.play("boss_roar", -6.0, 1.4)
 	Events.banner.emit("The Trial Begins", "Survive three waves")
 	_spawn_wave(r)

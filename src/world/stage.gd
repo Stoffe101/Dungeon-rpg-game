@@ -222,11 +222,12 @@ func _separate() -> void:
 			var d := b.pos - a.pos
 			var rr := a.radius + b.radius
 			var l2 := d.length_squared()
-			if l2 >= rr * rr or l2 < 0.00001:
+			if l2 >= rr * rr:
 				continue
 			var l := sqrt(l2)
+			var nrm := d / l if l2 >= 0.00001 else Vector2.from_angle(float((i * 7 + j * 13) % 16) / 16.0 * TAU)
+			# (two on the very same spot - a summon, a split - are parted too)
 			var push := (rr - l) * 0.5
-			var nrm := d / l
 			# another machine's Kindled (the shared sanctuary) is moved by its owner
 			# only: it eases a Kindled that stands in it aside, but never blocks
 			# one that is walking (a crowd at a door must not wall anyone in)
@@ -470,10 +471,20 @@ func request(_what: String, _prop: Prop) -> void:
 	pass
 
 
+## Where a foe may appear near `p` (summons, splits, adds, hops): open floor
+## near it. A Dungeon in a sealed fight keeps it inside the room (Dungeon.foe_spot).
+func foe_spot(p: Vector2, r: float, _room_id := -1) -> Vector2:
+	return random_floor_near(p, r)
+
+
 func random_floor_near(p: Vector2, r: float, tries := 20) -> Vector2:
 	for i in tries:
 		var q := p + Vector2(randf_range(-r, r), randf_range(-r, r))
 		var t := Vector2i(floori(q.x), floori(q.y))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and not grid.box_blocked(Vector2(t) + Vector2(0.5, 0.5), 0.4):
-			return Vector2(t) + Vector2(0.5, 0.5)
+			# a little off the tile's centre: two asked for near one spot do
+			# not land exactly on each other (and stack, unpartable)
+			var c := Vector2(t) + Vector2(0.5, 0.5)
+			var j := c + Vector2(randf_range(-0.12, 0.12), randf_range(-0.12, 0.12))
+			return j if not grid.box_blocked(j, 0.3) else c
 	return p

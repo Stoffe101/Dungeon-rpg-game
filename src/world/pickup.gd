@@ -18,6 +18,7 @@ var data: Dictionary = {}     # "material": {id}; "gear": {item}
 var beam: Node3D              # a pillar of light over notable loot
 var grade := 0                # 0 plain, 1 rare, 2 epic, 3 legendary / set / blueprint
 var owner_peer := 0           # co-op: 0 shared, else the one player who may take it
+var foreign := false          # someone else's own find: nothing of it shows on this machine
 var net_id := 0
 var replica := false
 var _announced := false
@@ -30,13 +31,14 @@ const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
-static func spawn(st: Stage, k: String, p: Vector2, amt: int, extra := {}) -> Pickup:
+static func spawn(st: Stage, k: String, p: Vector2, amt: int, extra := {}, owner := 0) -> Pickup:
 	var pk := Pickup.new()
 	pk.stage = st
 	pk.kind = k
 	pk.amount = amt
 	pk.data = extra
 	pk.pos = p
+	pk.owner_peer = owner
 	var a := randf() * TAU
 	pk.vel = Vector2.from_angle(a) * randf_range(1.0, 3.5)
 	pk.vz = randf_range(3.0, 5.0)
@@ -45,10 +47,26 @@ static func spawn(st: Stage, k: String, p: Vector2, amt: int, extra := {}) -> Pi
 	return pk
 
 
+## This machine's own seat (solo: 0 and 1 both mean "mine").
+func _me() -> int:
+	if stage and stage.player:
+		return stage.player.peer_id
+	return Net.my_id()
+
+
 func _ready() -> void:
 	sprite = PixelSprite.new()
 	add_child(sprite)
 	sprite.setup(SHEETS.get(kind, "pickup_ember"))
+	# another Kindled's own find: on this machine there is nothing to see or
+	# hear - no sprite, light, beam, name or chime (the host still carries it
+	# for its owner, who alone sees it fall and alone can take it)
+	foreign = owner_peer != 0 and owner_peer != _me()
+	if foreign:
+		visible = false
+		if kind == "gear":
+			grade = {"rare": 1, "epic": 2, "set": 3, "legendary": 3}.get(String(data.get("item", {}).get("rarity", "")), 0)
+		return
 	if kind == "rune":
 		var rc: Color = Runes.get_def(String(data.get("id", ""))).get("color", Color.WHITE)
 		light = OmniLight3D.new()
@@ -108,7 +126,7 @@ func _ready() -> void:
 func _name_tag() -> void:
 	if stage == null or stage.fx == null or not (stage is Dungeon):
 		return
-	if owner_peer != 0 and stage.player and stage.player.peer_id != owner_peer:
+	if foreign:
 		return
 	var text := ""
 	var col := Color.WHITE
@@ -175,6 +193,8 @@ func _land() -> void:
 
 
 func _land_fx() -> void:
+	if foreign:
+		return
 	if beam:
 		beam.visible = true
 		beam.scale = Vector3(1.0, 0.05, 1.0)
@@ -220,7 +240,11 @@ func _announce() -> void:
 	if not Net.recording or Net.i.run_sync == null:
 		return
 	net_id = Net.i.run_sync.next_proj_id()
-	Net.rec(["pick+", [net_id, kind, pos, height, Vector2.ZERO, amount, data, owner_peer]])
+	var ev := ["pick+", [net_id, kind, pos, height, Vector2.ZERO, amount, data, owner_peer]]
+	if owner_peer == 0:
+		Net.rec(ev)
+	elif owner_peer != Net.my_id():
+		Net.rec(["own", owner_peer, ev])     # sent to its owner alone
 
 
 ## Co-op client: sits where the host says (positions arrive in snapshots).
@@ -302,24 +326,29 @@ func _sync() -> void:
 func _collect(pl: Player) -> void:
 	stage.pickups.erase(self)
 	if net_id != 0 and Net.recording:
-		Net.rec(["pick-", net_id])
+		if owner_peer == 0:
+			Net.rec(["pick-", net_id])
+		elif owner_peer != Net.my_id():
+			Net.rec(["own", owner_peer, ["pick-", net_id]])
+	if kind in ["gear", "rune", "blueprint"]:
+		_take_find(pl)
+		queue_free()
+		return
 	var col: Color = COLORS.get(kind, Color.WHITE)
 	stage.fx.burst(pl.pos, 0.8, col, 4, 2.0, 0.25, 0.0)
 	# co-op: currency, memories, materials and Sunshards are shared - whoever
-	# picks them up, every Kindled's run is credited (each with their own bonuses)
+	# picks them up, every Kindled's run is credited the same (Party.award_*)
 	var party: Array = stage.players if kind in ["ember", "xp", "material", "sunshard"] and owner_peer == 0 else [pl]
 	match kind:
 		"ember":
-			for p in party:
-				p.run.embers += int(round(amount * p.stats.v("ember_gain")))
+			if owner_peer == 0:
+				Party.award_embers(stage, amount, String(data.get("src", "orb")))
+			else:
+				pl.run.embers += int(round(amount * pl.stats.v("ember_gain")))
+				Events.currency_changed.emit()
 			Audio.play("pickup_ember", -8.0, randf_range(1.0, 1.25))
-			Events.currency_changed.emit()
 		"xp":
-			for p in party:
-				var n2 := int(round(amount * p.stats.v("xp_gain")))
-				p.run.xp_gained += n2
-				if p.controller == Player.Ctrl.LOCAL:
-					Profile.add_xp(n2)
+			Party.award_xp(stage, amount, String(data.get("src", "orb")))
 			Audio.play("pickup_xp", -8.0, randf_range(0.95, 1.15))
 		"heal":
 			pl.heal(amount * pl.stats.v("heal_mult"))
@@ -330,41 +359,6 @@ func _collect(pl: Player) -> void:
 				p.run.add_material(mid, amount)
 			stage.fx.number(pl.pos, 2.0, "+%d %s" % [amount, ItemDB.MATERIALS[mid].name], Color(0.85, 0.82, 0.7))
 			Audio.play("pickup_xp", -6.0, 0.8)
-		"rune":
-			var rid := String(data.get("id", ""))
-			(pl.run.loot.get("runes", []) as Array).append(rid)
-			if not pl.run.loot.has("runes"):
-				pl.run.loot["runes"] = [rid]
-			var rd := Runes.get_def(rid)
-			var rc2: Color = rd.get("color", Color.WHITE)
-			stage.fx.number(pl.pos, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2, true)
-			stage.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
-			_tell(pl, "Rune found: %s - set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
-			Audio.play("learn", -4.0, 1.2)
-		"blueprint":
-			var bid := String(data.get("id", ""))
-			(pl.run.loot.blueprints as Array).append(bid)
-			stage.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)
-			stage.fx.ring(pl.pos, 1.6, Color(1.0, 0.75, 0.35), 0.4, 0.25)
-			stage.fx.flash_light(pl.pos, 1.0, Color(1.0, 0.75, 0.35), 3.0, 5.0, 0.4)
-			_tell(pl, "Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
-			Audio.play("learn", -2.0)
-		"gear":
-			var it: Dictionary = data.get("item", {})
-			(pl.run.loot.gear as Array).append(it)
-			var rc := ItemDB.color(it)
-			stage.fx.number(pl.pos, 2.4, ItemDB.item_name(it).to_upper(), rc, true)
-			stage.fx.ring(pl.pos, 1.2, rc, 0.3, 0.2)
-			if grade >= 2:
-				stage.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)
-				stage.fx.motes(pl.pos, 0.3, rc, 12 + 8 * grade, 1.8, 1.2, 0.5)
-				stage.fx.flash_light(pl.pos, 1.0, rc, 2.5 + grade, 6.0, 0.5)
-			if grade >= 3 and pl == stage.player and Game.ui:
-				Game.ui.banner(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
-			_tell(pl, "Found: %s %s - [%s] Satchel" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
-			if grade >= 2:
-				Party.announce_find(stage, pl, it)
-			Audio.play("relic", -4.0)
 		"sunshard":
 			for p in party:
 				p.run.sunshards += amount
@@ -374,3 +368,71 @@ func _collect(pl: Player) -> void:
 			Audio.play("pickup_sunshard", 0.0)
 			Events.currency_changed.emit()
 	queue_free()
+
+
+## A find of one's own (gear, a rune, a blueprint) goes into its finder's
+## Satchel the moment it is taken - inspected, compared and worn on the same
+## expedition. Gear, runes and blueprints were always kept, even on a death,
+## so nothing is risked by banking them at once; materials still ride with
+## the run (half are lost on a death). A guest's find is delivered to their
+## machine (NetRun.give: acknowledged, sent again after a rejoin, and banked
+## once by its drop id). Only the finder sees and hears it found.
+func _take_find(pl: Player) -> void:
+	var payload: Variant = data.get("item", {}) if kind == "gear" else String(data.get("id", ""))
+	var drop := String(data.get("drop", ""))
+	if drop == "" and stage is Dungeon:
+		drop = (stage as Dungeon).next_drop()
+	if kind == "gear":
+		payload = (payload as Dictionary).duplicate(true)
+		payload["drop"] = drop
+	if pl.run:
+		pl.run.found.append({"kind": kind, "what": payload, "drop": drop})
+	if pl.controller == Player.Ctrl.LOCAL:
+		Profile.bank_find(kind, payload, drop)
+		Net.mute += 1
+		found_fx(stage, pl, kind, payload, grade)
+		Net.mute -= 1
+	elif Net.active() and Net.i.run_sync:
+		Net.i.run_sync.give(pl, kind, payload, drop, grade)
+	elif pl.run:
+		# (no link: a stand-in Kindled in a test - its run carries it home)
+		var key: String = {"gear": "gear", "rune": "runes", "blueprint": "blueprints"}[kind]
+		(pl.run.loot[key] as Array).append(payload)
+	if kind == "gear" and grade >= 2:
+		Party.announce_find(stage, pl, payload)
+
+
+## The finder's own moment (only on their machine): the name rising, rings,
+## the chime, a banner for the great ones, and where it went.
+static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: int) -> void:
+	if st == null or pl == null or not is_instance_valid(pl):
+		return
+	match kind:
+		"rune":
+			var rd := Runes.get_def(String(what))
+			var rc2: Color = rd.get("color", Color.WHITE)
+			st.fx.number(pl.pos, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2, true)
+			st.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
+			Events.toast.emit("Rune found: %s - in your Satchel; set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
+			Audio.play("learn", -4.0, 1.2)
+		"blueprint":
+			var bid := String(what)
+			st.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)
+			st.fx.ring(pl.pos, 1.6, Color(1.0, 0.75, 0.35), 0.4, 0.25)
+			st.fx.flash_light(pl.pos, 1.0, Color(1.0, 0.75, 0.35), 3.0, 5.0, 0.4)
+			Events.toast.emit("Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
+			Audio.play("learn", -2.0)
+		"gear":
+			var it: Dictionary = what
+			var rc := ItemDB.color(it)
+			st.fx.number(pl.pos, 2.4, ItemDB.item_name(it).to_upper(), rc, true)
+			st.fx.ring(pl.pos, 1.2, rc, 0.3, 0.2)
+			if grade >= 2:
+				st.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)
+				st.fx.motes(pl.pos, 0.3, rc, 12 + 8 * grade, 1.8, 1.2, 0.5)
+				st.fx.flash_light(pl.pos, 1.0, rc, 2.5 + grade, 6.0, 0.5)
+			if grade >= 3 and Game.ui:
+				Game.ui.banner(ItemDB.item_name(it), "%s found" % ItemDB.RARITY[it.rarity].name)
+			Events.toast.emit("Found: %s %s - in your Satchel [%s]" % [ItemDB.RARITY[it.rarity].name, ItemDB.item_name(it), Settings.describe_action("inventory")], rc)
+			Audio.play("relic", -4.0)
+

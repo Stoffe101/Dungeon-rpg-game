@@ -23,7 +23,7 @@ func behave(dt: float) -> void:
 			var d := dist_to_player()
 			kite(3.0, 6.5, speed, dt)
 			sprite.play("walk" if vel.length() > 0.3 else "idle")
-			if whip_cd <= 0.0 and d < 2.6:
+			if whip_cd <= 0.0 and d < 2.6 and may_strike():
 				vel = Vector2.ZERO
 				aim_dir = dir_to_player()
 				facing = aim_dir

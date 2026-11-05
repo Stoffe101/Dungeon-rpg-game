@@ -31,7 +31,7 @@ func behave(dt: float) -> void:
 				sprite.play("cast")
 				Audio.play("chant", -6.0)
 				for i in 2:
-					var p := stage.random_floor_near(pos + Vector2.from_angle(randf() * TAU) * 2.0, 1.5)
+					var p := stage.foe_spot(pos + Vector2.from_angle(randf() * TAU) * 2.0, 1.5)
 					stage.fx.shape(Fx.Shape.SIGIL, p, Vector2.RIGHT, Vector2(1.8, 1.8), Color(0.3, 0.95, 0.8, 0.4), Color(0.5, 1.0, 0.9, 1.0), 0.95, {"glow": 1.4})
 					_pending.append(p)
 			elif orb_cd <= 0.0 and stage.grid.line_clear(pos, target().pos if target() else pos):

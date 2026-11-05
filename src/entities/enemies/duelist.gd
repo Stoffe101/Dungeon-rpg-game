@@ -28,7 +28,7 @@ func behave(dt: float) -> void:
 				vel = Vector2.ZERO
 				sprite.play("idle")
 			facing = dir_to_player()
-			if cooldown <= 0.0 and d < 4.5:
+			if cooldown <= 0.0 and d < 4.5 and may_strike():
 				if randf() < 0.45:
 					vel = Vector2.ZERO
 					set_state("stance")

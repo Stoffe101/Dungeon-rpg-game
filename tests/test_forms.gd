@@ -305,17 +305,25 @@ func test_uniques_are_themselves() -> void:
 	for id in ["thousandth_cut", "quakeheart", "hundred_embers", "gloamfang", "searing_pike", "windreturn", "hollow_index", "wardenfang", "bloomstring", "sunfall_glaive"]:
 		var spr := String(ItemDB.base(id).get("sprite", ""))
 		check(spr != "" and ResourceLoader.exists("res://assets/sprites/%s.png" % spr), "%s has its own sprite (%s)" % [id, spr])
-	# the Thousandth Cut: the thirtieth blow in a row is a flurry all around
+	# the Thousandth Cut: swings that land gather it; when full, a flurry all around
 	var st := _stage()
 	var pl := _player(st, "thousandth_cut")
 	eq(pl.weapon.form, "thousandth", "the Thousandth Cut counts its blows")
 	var e := _foe(st, Vector2(7.5, 7))
 	_run(st, 0.5)
-	pl.cuts = 29
+	pl.blade_charge = Player.THOUSANDTH - 1.0
 	var hp := e.hp
-	pl._flow(e, false)
+	pl.on_weapon_strike(1, false)
 	_run(st, 0.6)
-	check(e.hp < hp, "the thirtieth cut is a flurry that reaches it (%.0f -> %.0f)" % [hp, e.hp])
+	check(e.hp < hp, "the last swing it needs is a flurry that reaches it (%.0f -> %.0f)" % [hp, e.hp])
+	eq(pl.blade_charge, 0.0, "and it gathers anew")
+	# what it gathered keeps through a pause between fights (4 s), then fades
+	pl.on_weapon_strike(1, false)
+	pl.on_weapon_strike(1, false)
+	_run(st, 3.0)
+	near(pl.blade_charge, 2.0, 0.01, "kept through a short pause")
+	_run(st, 3.0)
+	check(pl.blade_charge < 2.0, "fading once the blade rests longer")
 	st.queue_free()
 	# the Wand of a Hundred Embers: the hundredth calls down a great one
 	var st2 := _stage()
@@ -336,4 +344,33 @@ func test_uniques_are_themselves() -> void:
 	var after_lunge := f.hp
 	_run(st3, 0.6)
 	check(f.hp < after_lunge, "and the sun falls after it (%.0f -> %.0f)" % [after_lunge, f.hp])
+	st3.queue_free()
+
+
+## The weapon masteries (Hearthtree notables) change their forms.
+func test_weapon_masteries_change_their_forms() -> void:
+	for id in ["m_sword", "m_hammer", "m_daggers", "m_spear", "m_bow", "m_staff", "m_tome"]:
+		check(not SkillDB.node(id).is_empty(), "%s is on the Hearthtree" % id)
+	var st := _stage()
+	var pk := _player(st, "gloam_kris")
+	eq(pk.weapon.marks_max(), 5, "a Kris foe holds five marks")
+	pk.stats.add_flag("mastery_daggers")
+	eq(pk.weapon.marks_max(), 7, "with Night's Tally, seven")
+	st.queue_free()
+	var st2 := _stage()
+	var pb := _player(st2, "splitwood_bow")
+	eq(pb.weapon.nock_max(), 5, "the Splitwood nocks five")
+	pb.stats.add_flag("mastery_bow")
+	eq(pb.weapon.nock_max(), 7, "with Quiver Lore, seven")
+	st2.queue_free()
+	# the Gravecleaver: two blows Sunder with the mastery
+	var st3 := _stage()
+	var ps := _player(st3, "gravecleaver")
+	ps.stats.add_flag("mastery_sword")
+	var e := _foe(st3, Vector2(6.2, 7))
+	for k in 2:
+		var h := Hit.make(ps, 1.0, ["melee"])
+		ps.weapon._sunder(e, h)
+		if k == 1:
+			check(h.expose > 0.0, "the second blow Sunders")
 	st3.queue_free()

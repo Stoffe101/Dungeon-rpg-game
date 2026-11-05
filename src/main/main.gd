@@ -125,6 +125,8 @@ func _ready() -> void:
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a == "economy":
 			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
+		elif a == "legendlab":
+			add_child(LegendLab.new())       # dev: how often signature weapon moments come
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 
@@ -156,6 +158,9 @@ func _open_dev_screen(what: String) -> void:
 			ui.forge()
 		"descent":
 			ui.descent_prompt()
+		"spellpick":
+			ui.descent_prompt()
+			ui.open(Screens.spell_picker(ui, 1, func() -> void: pass))
 		"settings", "controls":
 			ui.settings()
 			# dev: page=<audio|display|gameplay|access|coop|controls>
@@ -172,7 +177,22 @@ func _open_dev_screen(what: String) -> void:
 			ui.open(Screens.feats(ui))
 		"bestiary":
 			ui.open(Screens.bestiary(ui))
+		"map":
+			# the full map (with `explored`: every room walked, to see a whole floor)
+			await get_tree().create_timer(1.2).timeout
+			if Game.stage is Dungeon:
+				if Dev.args().has("explored"):
+					for r in (Game.stage as Dungeon).layout.rooms:
+						r.visited = true
+				ui.hud.toggle_big_map()
+		"minimap":
+			await get_tree().create_timer(1.2).timeout
+			if Game.stage is Dungeon and Dev.args().has("explored"):
+				for r in (Game.stage as Dungeon).layout.rooms:
+					r.visited = true
 		"inventory":
+			if Dev.args().has("saveload"):
+				Profile.save_loadout(0)     # (dev: a saved build to look at)
 			ui.inventory()
 		"wardrobe":
 			ui.inventory()

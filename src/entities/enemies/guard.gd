@@ -44,12 +44,12 @@ func behave(dt: float) -> void:
 			var d := dist_to_player()
 			var los := stage.grid.line_clear(pos, t.pos)
 			if cooldown <= 0.0 and los:
-				if d < 2.1:
+				if d < 2.1 and may_strike():
 					aim_dir = facing
 					set_state("bash_windup")
 					sprite.play("windup")
 					telegraph(Fx.Shape.CONE, pos, aim_dir, Vector2(4.0, 4.0), 0.6 / attack_rate, {"half_angle": deg_to_rad(45.0)})
-				elif d > 3.2 and d < 7.5 and absf(facing.angle_to(dir_to_player())) < 0.5:
+				elif d > 3.2 and d < 7.5 and absf(facing.angle_to(dir_to_player())) < 0.5 and may_strike():
 					aim_dir = facing
 					set_state("charge_windup")
 					sprite.play("windup")

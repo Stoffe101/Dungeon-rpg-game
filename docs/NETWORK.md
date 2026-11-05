@@ -332,6 +332,25 @@ Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
 controls. The human test plan is in docs/TESTING.md.
 
+## Protocol 9 (playtest foundations pass)
+
+- **Events for one peer:** an event recorded as `["own", peer, ev]` (a find
+  of that guest's own: `pick+`, `pick-`) is sent to that peer alone - the
+  host splits each frame's batch into the shared events (`rpc`) and one
+  batch per guest (`rpc_id`). Other guests never receive another's find; a
+  rejoining guest's `world_dump(peer)` holds only shared pickups and its own.
+- **`_gift(floor, drop, kind, what, grade)`** (host -> one guest, reliable):
+  a find the guest took, for its Satchel. The guest banks it once by drop id
+  (`Profile.bank_find`, the save's `delivered` book), plays the find's moment
+  and answers `Net.ask("gift_ok", [drop])`. The host keeps unacknowledged
+  gifts per peer (`NetRun.gifts`), moves them with a rejoin and sends them
+  again then and before `_run_end`.
+- A guest's sheet now carries `known` and `scrolls` (blueprints are rolled
+  against what that Kindled knows). A sheet that changes the weapon item
+  re-arms that Kindled on the host below too (`Player.apply_sheet`).
+- A guest at the title screen follows the host into camp when the roster
+  says the host went in (`Net._follow_host`); nothing new on the wire.
+
 ## Protocol 8 (combat identity pass)
 
 - Player rows gained index 30 (the weapon form's gauge, `form_meter`: heat,

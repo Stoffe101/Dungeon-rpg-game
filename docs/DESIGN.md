@@ -787,7 +787,132 @@ floors exactly (every foe felled, every drop taken) for parties of 1-4. It
 showed a big party's closing wave lifting XP to 1.4-1.8x solo; that wave now
 pays nothing, and every party size sits near +12% per friend from kills.
 
+## Playtest foundations pass: fair parties, rooms that open, a readable floor
+
+The second two-PC playtest (2026-11-04) found unequal progression, finds that
+were not private, loot that could not be worn until home, a room that never
+opened, foes behind a closed gate, a poor map, confusing collision, sprites
+cutting each other and an awkward spell picker. Each was reproduced in code
+before it was fixed; the tests that pin them down are in
+`tests/test_playtest.gd`, and `scenario=loot` checks the party ones on real
+machines.
+
+### Shared income (Party.award_xp / award_embers)
+- **Cause of the Lv 12 vs Lv 10 gap:** the room-clear experience
+  (6 + 3 x depth per room) went to the host's run and save only, and every
+  shared orb was scaled by each Kindled's *own* XP and Ember bonuses.
+- **Rule now:** every shared award - foes' memories and Embers, a room won,
+  a boss, a spring of memories - credits every Kindled of the party the same
+  amount, whoever felled the foe or walked over the find, standing, downed
+  or waiting to be rekindled. A gain bonus (Four-Leaf Ring, Lantern of
+  Avarice, an affix, a relic, a resident's gift) is the party's: the best in
+  the party lifts everyone. Two Kindled who start equal finish equal.
+- Personal spending (the merchant, pacts, the Echo) still parts balances; a
+  shrine pact's Embers are its taker's.
+- **The XP ledger** (`src/net/ledger.gd`): every machine writes each change
+  to its own experience (source, amount, level, total) and the host what it
+  awarded (base, multiplier, recipients) to `user://ledger/<run>_<name>.jsonl`;
+  `tools/dev/ledger_compare.py a.jsonl b.jsonl` shows where two players'
+  gains part ways, floor by floor.
+
+### Finds of one's own
+- A drop's owner is set before it exists. On every other machine it is not
+  drawn, lit, beamed, named or heard, and on guests' machines it does not
+  even arrive: events marked "own" go to that peer alone (NetRun flushes
+  them per peer; a rejoining guest's world dump holds only its own).
+- **The Satchel is live:** gear, runes and blueprints go into the finder's
+  Satchel the moment they are taken (they were always kept on a death, so
+  nothing is risked). The host banks its own; a guest's arrive as a
+  `_gift`, acknowledged, sent again after a rejoin and before the end, and
+  banked once by its drop id (`Profile.bank_find`, the save's `delivered`
+  book). The settlement no longer carries gear. Materials still ride with
+  the run (half lost on a death).
+- **Wearing finds below:** any find can be worn on the spot, a weapon of
+  another kind included (its form and moves at once; the host swings a
+  guest's new weapon from their sheet). While a room is sealed around you
+  the Satchel holds your gear as it is (no swapping mid-fight).
+- Blueprints are rolled per Kindled against what *they* know (their sheet).
+
+### Rooms that always open
+- **Cause of the sealed room:** a Bonecaller backed against a door raised
+  its husks up to ~3.5 tiles away with no room check - into the passage
+  between two closed gates, unreachable and counted. Also: the floor
+  stopped advancing while the host lay dead (no waves, no clearing), a late
+  Trial vote could seal another room over a fight, foes left from one fight
+  were counted in the next, flyers stayed on gate tiles, Rimewall could ice
+  a doorway, and bleeding out looped back to downed.
+- **The arena:** when a room seals, its reachable floor (flood-filled from
+  the party inside the room's own tiles) is the arena. Waves, summons,
+  splits, risers, adds and Grudges are placed inside it (`foe_spot`,
+  `arena_spot`). A watchdog brings a counted foe that stays outside it for
+  1.5 s back in (a sigil marks it) - the fight stays the fight; nothing is
+  opened or won on a timer.
+
+### Steering, the map, the guardian
+- **Pointer steering** (Settings > Gameplay, on by default): hold W and
+  move the mouse - a sweep, not a twitch - and W walks toward the pointer
+  (S backs away, A/D sidestep) until W is let go; keys alone walk the
+  screen's way. "Always" makes every walk relative to the pointer; pads
+  are untouched. The steered walk is what is predicted and sent to the host.
+- **The map** is drawn from the real floor plan (one pixel a tile, baked
+  when what is known changes): true room shapes, passages, pillars, closed
+  gates. The full map dims the world, fits everything known into most of
+  the screen in whole screen pixels, zooms with the wheel, and has its own
+  header (region / floor and depth / Tier) and key. Both maps show every
+  Kindled in their party colour (names on the full map); one off the
+  minimap shows as a pip on its edge.
+- The guardian's edge arrow is gone: its lair is on the map from the start.
+
+### A floor you can read
+- Walls inside a room are waist-high blocks (they were 8-px ledges that
+  read as steps). Wide dressing blocks the two tiles it covers; bone heaps
+  are walked through; burnt brambles lie low. Walking into the very edge of
+  a block rounds the corner.
+- Sprites lead slightly toward the camera in depth (never on screen), so a
+  body beside a pillar is no longer cut; actors differ by a hair so two in
+  one row do not flicker. Coincident actors are parted; spawns no longer
+  stack on tile centres.
+- Light: the banded falloff is lifted before quantising, ambient raised,
+  the vignette softened, and a Brightness setting.
+
+### Spells, the party screen, the forge
+- Spell cards and a picker replace the default dropdowns; one tooltip
+  (`SpellUI`) everywhere, with the cast's own numbers (build and runes).
+- The host's "Begin together" takes the party into the host's sanctuary;
+  guests follow automatically. "New Kindled" resets only that player's save.
+- A guest at the host's camp works at the host's forge (`Profile.facility`):
+  its workshop level, the guest's own purse, no building gained.
+
+### Combat priorities
+- **Signature moments** are measured with `-- legendlab`. The Thousandth Cut
+  now gathers per swing that lands and per foe felled (double on elites and
+  guardians), keeps its charge between fights and brightens the blade:
+  about 2.5 a minute in small fights, 4.5 in a crowd (it was 48 s to the
+  first in small fights, 18 a minute in crowds).
+- **Attack turns:** two foes at most wind up a melee blow on one Kindled at
+  once, two shots likewise; elites take a turn but count; guardians do not.
+- **Loadouts** are checked before they are worn and never half-change
+  without saying so; selling or salvaging a piece used by a loadout warns.
+- **Drawn falls:** every regular foe has hurt and death frames drawn from
+  its own body (crumble, topple, curl or melt).
+- **Weapon masteries:** seven Hearthtree notables, one per kind of weapon,
+  that change how its forms fight.
+
 ## Decisions log
+
+- **Shared income is equal; gain bonuses are the party's.** The best XP / Ember
+  bonus in a party applies to every Kindled's share (not each their own), so
+  equal starts end equal and a friend's lucky ring helps everyone (second
+  playtest: Lv 12 vs Lv 10).
+- **Finds are banked when taken.** Gear, runes and blueprints were never lost
+  on a death, so the Satchel holds them at once and they can be worn below;
+  only materials ride with the run. Guests' finds are acknowledged messages
+  banked once by drop id.
+- **Sealed fights have an arena and a watchdog, never a timer.** Placement
+  keeps foes inside the reachable room; a counted foe found outside is
+  brought back. Nothing opens because time passed.
+- **Foes take turns** (two wind-ups, two shots per Kindled) instead of
+  dealing less damage: crowds stay dangerous but readable.
 
 - **3D + sprites over pure 2D**: real lighting/shadows are central to the light
   theme. The sqrt(2) stretch keeps pixel art crisp. (Cost: tall pillars can hide

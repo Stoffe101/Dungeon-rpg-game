@@ -29,7 +29,7 @@ func behave(dt: float) -> void:
 			kite(5.0, 9.0, speed, dt)
 			sprite.play("idle")
 			var t := target()
-			if t and cooldown <= 0.0 and stage.grid.line_clear(pos, t.pos) and dist_to_player() < BEAM_LEN - 1.0:
+			if t and cooldown <= 0.0 and stage.grid.line_clear(pos, t.pos) and dist_to_player() < BEAM_LEN - 1.0 and may_strike("ranged"):
 				vel = Vector2.ZERO
 				aim_dir = dir_to_player()
 				facing = aim_dir

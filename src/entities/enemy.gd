@@ -286,6 +286,18 @@ func replica_present(dt: float) -> void:
 	super.replica_present(dt)
 
 
+## States in which a blow may show its drawn flinch (never over a wind-up or
+## an attack: a telegraph must stay readable).
+const FLINCH_STATES := ["idle", "chase", "float", "orbit", "wander", "kite", "walk", "hover", "circle", "approach", "stunned", "recover"]
+var _flinch_t := 0.0
+
+
+func hit_react(dir: Vector2, power := 1.0) -> void:
+	super.hit_react(dir, power)
+	if sprite and sprite.has_anim("hurt") and state in FLINCH_STATES and not def.get("boss", false):
+		_flinch_t = 0.16
+
+
 const SHEPHERD_R := 5.0
 const SHEPHERD_EVERY := 6.5
 var _frenzy := false
@@ -406,6 +418,10 @@ func think(dt: float) -> void:
 	if state == "stunned":
 		set_state("idle")
 	behave(dt)
+	if _flinch_t > 0.0:
+		_flinch_t -= dt
+		if state in FLINCH_STATES:
+			sprite.play("hurt")     # (sent on in snapshots: every screen shows it)
 
 
 ## Override per enemy type.
@@ -501,6 +517,43 @@ var _tell_dur := 0.0
 ## Its body tells the blow coming, not only the ground: it glows ever redder
 ## through the wind-up and flashes pale as the blow lands - in a crowd, the
 ## one about to strike stands out. (Co-op guests: NetRun._tele starts it.)
+# --- attack tokens ----------------------------------------------------------------
+# A crowd takes turns: at most STRIKERS foes wind up a melee blow on one
+# Kindled at once (and SHOOTERS a shot), so four claws never close at the same
+# instant with no way out. A foe refused a turn keeps closing in and asks
+# again; an elite always takes a turn (it still counts, so the rank and file
+# wait on it); a guardian has its own patterns and is not counted.
+
+const STRIKERS := 2
+const SHOOTERS := 2
+const TURN_TIME := 1.1             # how long a turn lasts (a wind-up and its blow)
+var _turn_target: Actor = null
+var _turn_kind := ""
+var _turn_until := -1.0
+
+
+## May this foe begin an attack of `kind` ("melee" or "ranged") on its target
+## now? Takes the turn if so.
+func may_strike(kind := "melee") -> bool:
+	var t := target()
+	if t == null or def.get("boss", false):
+		return true
+	if not elite:
+		var n := 0
+		for a in stage.actors:
+			if a == self or not (a is Enemy) or not a.alive:
+				continue
+			var o := a as Enemy
+			if o._turn_target == t and o._turn_kind == kind and stage.elapsed < o._turn_until:
+				n += 1
+		if n >= (STRIKERS if kind == "melee" else SHOOTERS):
+			return false
+	_turn_target = t
+	_turn_kind = kind
+	_turn_until = stage.elapsed + TURN_TIME / maxf(0.5, attack_rate)
+	return true
+
+
 func begin_tell(duration: float) -> void:
 	_tell_start = stage.elapsed
 	_tell_dur = maxf(duration, 0.05)
@@ -725,6 +778,8 @@ func _split() -> void:
 	var side := last_hit_from.orthogonal() if last_hit_from != Vector2.ZERO else Vector2.UP
 	st.fx.burst(at, 0.6, Color(0.6, 0.95, 0.5), 16, 4.0, 0.5, 6.0)
 	st.fx.number(at, 2.4, "SPLIT", Color(0.6, 0.95, 0.5))
+	if st.has_method("hold_clear"):
+		st.hold_clear(0.4)
 	st.after(0.15, func() -> void:
 		for k in 2:
 			var e: Enemy = load(EnemyDB.get_def(kind).script).new()
@@ -736,7 +791,7 @@ func _split() -> void:
 			e.xp = 2
 			e.embers = 1
 			e.spawn_t = 0.3
-			e.pos = st.random_floor_near(at + side * (0.7 if k == 0 else -0.7), 0.4)
+			e.pos = st.foe_spot(at + side * (0.7 if k == 0 else -0.7), 0.4)
 			e.room_id = room
 			st.add_actor(e)
 			if e.visual:

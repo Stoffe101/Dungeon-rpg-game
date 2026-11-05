@@ -25,6 +25,21 @@ instance uniform float dissolve = 0.0;
 instance uniform vec4 tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 instance uniform float glow_mult = 1.0;
 
+// Sprites lead a little toward the camera - in depth only (the view is
+// orthographic, nothing moves on screen): a body beside a pillar or a wall's end
+// is no longer cut by stone it merely overhangs, while anything a full tile
+// behind stone stays hidden. `lead` (per instance) is 0 for sprites lying flat
+// on the floor, and differs a hair between actors so two in one row never
+// flicker through each other.
+uniform float depth_lead = 0.8;
+instance uniform float lead = 1.0;
+
+void vertex() {
+	vec4 v = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
+	v.z += depth_lead * lead;
+	POSITION = PROJECTION_MATRIX * v;
+}
+
 const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
 float bayer4(vec2 p) {
@@ -91,8 +106,10 @@ void fragment() {
 	}
 }
 
+uniform float falloff = 0.62;     // (as world.gdshader: a longer reach before the last band)
+
 void light() {
-	float v = ATTENUATION;
+	float v = pow(ATTENUATION, falloff);
 	float d = (bayer4(FRAGCOORD.xy) - 0.5) * dither_strength;
 	float q = floor(v * bands + 0.5 + d) / bands;
 	DIFFUSE_LIGHT += max(q, 0.0) * LIGHT_COLOR / PI;

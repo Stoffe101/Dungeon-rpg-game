@@ -50,6 +50,7 @@ func attach(m: Control, v: PixelView, u: UIRoot) -> void:
 
 
 func _clear_stage() -> void:
+	Profile.visiting = {}     # (a visited camp's facilities stay in that camp)
 	if stage:
 		stage.queue_free()
 		stage = null
@@ -138,6 +139,11 @@ func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omen
 
 func _enter_depth(depth: int) -> void:
 	run.depth = depth
+	# the XP ledger (Ledger): where this Kindled stood, and each floor
+	if depth == 1 or Ledger._run != run.run_id:
+		Ledger.begin(run.run_id, String(Settings.get_value("player_name", "Kindled")))
+	Ledger.note("floor", {"xp_gained": run.xp_gained, "embers": run.embers})
+	Ledger.flush()
 	if run.delve:
 		# the Hollow Below: the region turns every three depths, a guardian's
 		# Echo every third, and each new depth reads another Omen
@@ -308,7 +314,7 @@ func end_coop_client(outcome: String, killer: String, data: Dictionary) -> void:
 	coop_checkpoint = {}
 	# kills, guardians and Grudges were never banked live on this machine;
 	# experience was, as it came (Profile.live_xp): only the rest is added
-	Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
+	Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained), "settle")
 	Profile.bank_shared(r)
 	end_run(outcome, killer)
 
@@ -351,7 +357,7 @@ func abandon_coop_run() -> void:
 		if Profile.first_settlement(r.run_id):
 			r.result = ""
 			run = r
-			Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained))
+			Profile.add_xp(Profile.xp_still_owed(r.run_id, r.xp_gained), "checkpoint")
 			Profile.bank_shared(r)
 			print("[game] the host is gone: banking the checkpoint from depth %d" % r.depth)
 			end_run("extracted")
@@ -438,9 +444,13 @@ func end_run(outcome: String, killer_id := "") -> void:
 					if pl.peer_id == int(pid):
 						own_killer = pl.last_attacker_id
 			if Net.i.present().has(pid):
+				# finds still on their way first (banked once by drop id)
+				if Net.i.run_sync:
+					Net.i.run_sync.resend_gifts(int(pid))
 				Net.i.rpc_id(int(pid), "_run_end", outcome, own_killer, cr.to_dict())
 	run.result = outcome
 	run.killer_id = killer_id
+	Profile.data["last_run"] = run.run_id     # (the Satchel marks this run's finds)
 	var delve_best := Delve.best()
 	if run.delve:
 		Profile.data.world["delve_best"] = maxi(delve_best, run.depth)
@@ -450,7 +460,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 	var omen_xp := int(round(run.xp_gained * Omens.bonus(run.omens, "xp")))
 	s.embers_kept = int(s.embers_kept) + omen_embers
 	if omen_xp > 0:
-		Profile.add_xp(omen_xp)
+		Profile.add_xp(omen_xp, "omens")
 	Profile.add_currency("embers", int(s.embers_kept))
 	if int(s.sunshards) > 0:
 		Profile.add_currency("sunshards", int(s.sunshards))
@@ -489,9 +499,11 @@ func end_run(outcome: String, killer_id := "") -> void:
 	for r in spoils.get("runes", []):
 		Profile.add_rune(String(r))
 	var feats := Feats.check()
+	Ledger.note("settled", {"xp_gained": run.xp_gained, "omen_xp": omen_xp, "embers_kept": int(s.embers_kept)})
+	Ledger.finish(outcome)
 	Profile.save_profile()
 	var summary := {
-		"loot": spoils, "loot_found": run.loot.duplicate(true),
+		"loot": spoils, "loot_found": run.found_summary(),
 		"outcome": outcome, "depth": run.depth, "kills": run.kills, "rooms": run.rooms_cleared,
 		"time": run.elapsed, "xp": run.xp_gained, "relics": run.relics.duplicate(),
 		"embers_kept": s.embers_kept, "embers_lost": s.embers_lost, "bonus": s.bonus,

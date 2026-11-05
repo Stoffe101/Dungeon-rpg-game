@@ -64,6 +64,7 @@ func on_active() -> void:
 
 ## The Hundredth Ember: a great one falls at the cursor and bursts.
 func _hundredth() -> void:
+	player.set_meta("legend_moments", int(player.get_meta("legend_moments", 0)) + 1)
 	var st := player.stage
 	var at := player.pos + (player.aim_point - player.pos).limit_length(8.0)
 	var col := Color(1.0, 0.6, 0.22)
@@ -93,7 +94,7 @@ func _hundredth() -> void:
 func _bolt(d: Vector2, group: Dictionary) -> void:
 	if form == "hundred":
 		_embers += 2 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") and _embers % 100 != 99 else 1
-		player.form_meter = float(_embers % 100) / 100.0
+		player._legend_glow(float(_embers % 100) / 100.0)
 		if _embers % 100 == 0:
 			_hundredth()
 	if form == "rime":
@@ -119,7 +120,7 @@ func _bolt(d: Vector2, group: Dictionary) -> void:
 	pr.with_light(Color(1.0, 0.55, 0.25), 0.7, 2.2)
 	Volley.shape(pr, player, group)
 	if form == "branch":
-		pr.fork = maxi(pr.fork, 1)     # every bolt forks on its first foe
+		pr.fork = maxi(pr.fork, 2 if player.stats.has("mastery_staff") else 1)     # every bolt forks on its first foe (twice, with mastery)
 
 
 ## Rimewood: a shard of frost that shatters into splinters where it strikes.

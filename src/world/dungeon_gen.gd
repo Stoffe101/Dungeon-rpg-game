@@ -18,6 +18,10 @@ const FH := 12
 const MARGIN := 3
 const DOOR_COLS := [9, 12]
 const DOOR_ROWS := [4, 7]
+## Set dressing drawn about two tiles wide (centred between two tiles, both solid).
+const WIDE_DRESSING := ["sarcophagus", "stump", "column_fallen"]
+## ...and dressing low enough to walk through (bones underfoot).
+const WALKABLE_DRESSING := ["bone_heap"]
 const GW := 7
 const GH := 6
 const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
@@ -928,7 +932,17 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 			if g.at(t.x, t.y - 1) != TileGrid.WALL:
 				continue
-			r.props.append({"kind": "dressing", "tile": t, "sheet": pieces[rng.randi_range(0, pieces.size() - 1)]})
+			var sheet: String = pieces[rng.randi_range(0, pieces.size() - 1)]
+			# a piece two tiles wide stands on two tiles (both against the wall)
+			# and blocks both: what you see is what stops you
+			if WIDE_DRESSING.has(sheet):
+				var t2 := t + Vector2i(1, 0)
+				if not wall_adj.has(t2) or g.at(t2.x, t2.y - 1) != TileGrid.WALL:
+					continue
+				wall_adj.erase(t2)
+				r.props.append({"kind": "dressing", "tile": t, "sheet": sheet, "wide": true})
+			else:
+				r.props.append({"kind": "dressing", "tile": t, "sheet": sheet})
 	# pools of light along the walls of bigger rooms, so a fight can be read
 	# beyond the lantern: candles in the Ossuary, glowcaps in the Rootmire,
 	# braziers in the Throne

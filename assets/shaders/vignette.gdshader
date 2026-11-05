@@ -1,7 +1,7 @@
 // Soft edge darkening plus a red pulse when hurt or at low health.
 shader_type canvas_item;
 
-uniform float strength = 0.35;
+uniform float strength = 0.24;
 uniform float hurt = 0.0;
 uniform float low = 0.0;
 

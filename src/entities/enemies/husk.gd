@@ -13,7 +13,7 @@ func behave(dt: float) -> void:
 		"chase":
 			chase(speed, dt)
 			sprite.play("walk")
-			if dist_to_player() < REACH + 0.2 and stage.grid.line_clear(pos, target().pos):
+			if dist_to_player() < REACH + 0.2 and stage.grid.line_clear(pos, target().pos) and may_strike():
 				aim_dir = dir_to_player()
 				facing = aim_dir
 				vel = Vector2.ZERO

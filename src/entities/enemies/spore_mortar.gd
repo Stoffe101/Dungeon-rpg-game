@@ -19,7 +19,7 @@ func behave(dt: float) -> void:
 		"idle":
 			sprite.play("idle")
 			var t := target()
-			if t and cooldown <= 0.0 and dist_to_player() < 14.0:
+			if t and cooldown <= 0.0 and dist_to_player() < 14.0 and may_strike("ranged"):
 				set_state("charge")
 				sprite.play("charge")
 				Audio.play_at("bloat", pos, -8.0, 1.4)

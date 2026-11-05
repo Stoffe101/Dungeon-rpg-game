@@ -17,7 +17,7 @@ func behave(dt: float) -> void:
 				vel = Vector2.ZERO
 				return
 			var d := dist_to_player()
-			if cooldown <= 0.0 and d < 2.6:
+			if cooldown <= 0.0 and d < 2.6 and may_strike():
 				aim_dir = dir_to_player()
 				facing = aim_dir
 				vel = Vector2.ZERO
@@ -25,7 +25,7 @@ func behave(dt: float) -> void:
 				sprite.play("windup")
 				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(3.2, 0.9), 0.4 / attack_rate)
 				Audio.play("skitter", -8.0, 0.8)
-			elif cooldown <= 0.0 and d < 8.0 and stage.grid.line_clear(pos, t.pos):
+			elif cooldown <= 0.0 and d < 8.0 and stage.grid.line_clear(pos, t.pos) and may_strike("ranged"):
 				vel = Vector2.ZERO
 				facing = dir_to_player()
 				set_state("spit_windup")

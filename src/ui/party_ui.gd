@@ -288,6 +288,10 @@ func _party() -> void:
 				yes += 1
 		exv.add_child(UIKit.para("%s proposes %s.  %d of %d ready." % [Net.name_of(int(p.by)), Expedition.describe(p), yes, (p.answers as Dictionary).size()], W - 30, UIKit.C_TEXT))
 	_body.add_child(ex)
+	# at the title screen: the host begins the shared session from here, the
+	# guests follow it in (Net._follow_host) - each with their own Kindled
+	if Game.stage is Hub and (Game.stage as Hub).menu_mode:
+		_body.add_child(_begin_row())
 	var row := UIKit.hbox(5)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	if Game.stage is Hub and not (Game.stage as Hub).menu_mode and Game.run == null:
@@ -312,6 +316,36 @@ func _party() -> void:
 	_body.add_child(more)
 	if _details:
 		_body.add_child(_hint(_connection_text()))
+
+
+## Title screen, in a party. Host: "Begin together" takes everyone into this
+## sanctuary; "New Kindled" starts this machine's own character over (after a
+## confirmation; a backup is kept) - never anyone else's. Guest: they will
+## follow the host in; a new Kindled of their own is theirs to choose.
+func _begin_row() -> Control:
+	var box := UIKit.vbox(3)
+	var r := UIKit.hbox(5)
+	r.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_child(r)
+	var go_in := func() -> void:
+		ui.leave_main_menu()
+		ui.fade(Game.goto_hub)
+	var renew := func() -> void:
+		ui.confirm("Start a new Kindled?", "Your own character starts over (a backup of the old save is kept). Your friends keep theirs.", func() -> void:
+			Profile.reset_profile()
+			if Net.is_host():
+				go_in.call())
+	if Net.is_host():
+		var n := Net.party_size()
+		var begin := UIKit.button("Begin together" if n > 1 else "Begin", go_in, 110)
+		begin.name = "Begin"
+		r.add_child(begin)
+		r.add_child(UIKit.button("New Kindled", renew, 90))
+		box.add_child(_hint("Everyone comes into your sanctuary, each with their own Kindled." if n > 1 else "Friends who join later follow you in."))
+	else:
+		box.add_child(_hint("Waiting for %s to begin - you will follow into their sanctuary with your own Kindled." % Net.name_of(1)))
+		r.add_child(UIKit.button("New Kindled", renew, 90))
+	return box
 
 
 func _connection_text() -> String:

@@ -196,7 +196,7 @@ func _craft(masterwork: bool) -> void:
 	if not Profile.pay(cost):
 		Audio.ui("deny")
 		return
-	var it := Profile.add_item(ItemDB.craft(selected, _rng, masterwork, Profile.building("forge"), Difficulty.craft_tier()))
+	var it := Profile.add_item(ItemDB.craft(selected, _rng, masterwork, Profile.facility("forge"), Difficulty.craft_tier()))
 	_last_result = it
 	Audio.play("forge", 0.0)
 	Audio.play("relic", -6.0 if it.rarity == "common" else 0.0)

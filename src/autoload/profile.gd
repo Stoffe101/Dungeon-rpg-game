@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 12
+const VERSION := 13
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -67,6 +67,8 @@ static func fresh() -> Dictionary:
 		"shop": {"stock": [], "for_run": -1},
 		"descent": {"region": "ossuary", "omens": []},
 		"loadouts": [{}, {}, {}],
+		"delivered": {},
+		"last_run": "",
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
 		"identity": "",
@@ -253,6 +255,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not (out.get("loadouts") is Array):
 			out["loadouts"] = [{}, {}, {}]
 		v = 12
+	if v < 13:
+		# v13: finds banked as they are taken (the book of drop ids a guest has
+		# already banked, so a re-sent find is not banked twice), the last run
+		# (the Satchel marks its finds); nothing older changes
+		if not (out.get("delivered") is Dictionary):
+			out["delivered"] = {}
+		if not out.has("last_run"):
+			out["last_run"] = ""
+		v = 13
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -358,7 +369,7 @@ func live_xp(run_id: String, total: int) -> void:
 	if total > had:
 		book[run_id] = total
 		data["coop_xp"] = book
-		add_xp(total - had)
+		add_xp(total - had, "live")
 
 
 ## What the settlement of `run_id` still owes in experience (and forget the run).
@@ -370,7 +381,17 @@ func xp_still_owed(run_id: String, total: int) -> int:
 	return maxi(0, total - had)
 
 
-func add_xp(amount: int) -> int:
+## Everything this Kindled has ever earned in experience (levels and the
+## current bar), for comparing two Kindled's gains (Ledger).
+func total_xp() -> int:
+	var t := int(data.get("xp", 0))
+	for l in range(1, level()):
+		t += Combat.xp_to_next(l)
+	return t + int(data.get("renown_xp", 0))
+
+
+func add_xp(amount: int, source := "") -> int:
+	Ledger.xp(source if source != "" else "other", amount)
 	var gained := 0
 	if level() >= MAX_LEVEL:
 		_add_renown_xp(amount)
@@ -454,19 +475,64 @@ func save_loadout(i: int) -> void:
 		var it: Variant = equipped().get(slot)
 		if it is Dictionary and not (it as Dictionary).is_empty():
 			gear[slot] = int(it.uid)
+	var wi := weapon_item()
+	var label := ItemDB.item_name(wi) if not wi.is_empty() else String(GearDB.weapon(equipped_weapon()).name)
 	data.loadouts[i] = {"page": skill_page(), "slots": slots().duplicate(), "gear": gear, "weapon": equipped_weapon(),
-		"spells": slots().filter(func(s): return s != "").size(), "pieces": gear.size()}
+		"spells": slots().filter(func(s): return s != "").size(), "pieces": gear.size(), "name": label,
+		"weapon_icon": ItemDB.icon(wi) if not wi.is_empty() else ""}
 	_changed()
+
+
+## What wearing loadout `i` would do, checked before anything changes:
+## {"missing": [slot...] (pieces sold, salvaged or gone), "spells_lost": [id...]
+## (spells its Hearthtree page no longer teaches), "empty": bool}.
+func loadout_check(i: int) -> Dictionary:
+	var l := loadout(i)
+	var out := {"missing": [], "spells_lost": [], "empty": l.is_empty()}
+	if l.is_empty():
+		return out
+	var gear: Dictionary = l.get("gear", {})
+	for slot in gear:
+		if find_item(int(gear[slot])).is_empty():
+			(out.missing as Array).append(String(slot))
+	var page := int(l.get("page", 0))
+	var page_skills: Array = skills() if page == skill_page() else ((data.get("skill_pages", []) as Array)[page] if page < (data.get("skill_pages", []) as Array).size() else skills())
+	var known := SkillDB.abilities(page_skills)
+	for s in l.get("slots", []):
+		if String(s) != "" and not known.has(String(s)):
+			(out.spells_lost as Array).append(String(s))
+	return out
+
+
+## The loadouts an item is part of (their numerals), for warnings before it is
+## sold or salvaged.
+func loadouts_using(uid: int) -> Array:
+	var out: Array = []
+	for i in LOADOUTS:
+		var g: Dictionary = loadout(i).get("gear", {})
+		for slot in g:
+			if int(g[slot]) == uid:
+				out.append(["I", "II", "III"][i])
+	return out
 
 
 ## Puts a saved build back on (in the sanctuary): its page, its spells and
 ## what of its gear is still owned. Returns how many pieces are gone.
 func wear_loadout(i: int) -> int:
+	return (wear_loadout_report(i).missing as Array).size()
+
+
+## The same, telling what could not be put back (loadout_check's report): a
+## piece that is gone leaves its slot as it is, a spell no longer taught
+## leaves its slot empty - nothing is half-changed without saying so.
+func wear_loadout_report(i: int) -> Dictionary:
 	var l := loadout(i)
+	var report := loadout_check(i)
 	if l.is_empty():
-		return 0
+		return report
 	switch_page(int(l.get("page", 0)))
-	var sl: Array = (l.get("slots", ["flare", "", ""]) as Array).duplicate()
+	var known := SkillDB.abilities(skills())
+	var sl: Array = (l.get("slots", ["flare", "", ""]) as Array).map(func(s): return String(s) if known.has(String(s)) else "")
 	while sl.size() < 3:
 		sl.append("")
 	data.equipped.slots = sl
@@ -475,7 +541,8 @@ func wear_loadout(i: int) -> int:
 	for slot in ItemDB.SLOTS:
 		var it: Variant = equipped().get(slot)
 		var want := int(gear.get(slot, -1))
-		if it is Dictionary and not (it as Dictionary).is_empty() and int(it.uid) != want:
+		# (a saved piece that is gone leaves what is worn there now)
+		if it is Dictionary and not (it as Dictionary).is_empty() and int(it.uid) != want and (want < 0 or not find_item(want).is_empty()):
 			unequip(slot)
 	for slot in gear:
 		var uid := int(gear[slot])
@@ -488,7 +555,7 @@ func wear_loadout(i: int) -> int:
 	if not gear.has("weapon"):
 		choose_weapon(String(l.get("weapon", equipped_weapon())))
 	_changed()
-	return missing
+	return report
 
 
 func weapon_level(id: String) -> int:
@@ -640,6 +707,21 @@ func building(id: String) -> int:
 	return int(data.sanctuary.get(id, 0))
 
 
+## The camp this Kindled stands in when it is someone else's (a guest in the
+## host's sanctuary: Hub sets it, empty at home and below).
+var visiting := {}
+
+
+## A facility as it stands where this Kindled is: a guest at the host's camp
+## works at the host's forge (its level: what it can craft, the tempering
+## discount) - paying with their own Embers and materials, and gaining no
+## building of their own by it. At home (and below), their own.
+func facility(id: String) -> int:
+	if not visiting.is_empty():
+		return int(visiting.get(id, 0))
+	return building(id)
+
+
 func building_cost(id: String) -> Dictionary:
 	var b: Dictionary = SANCTUARY[id]
 	var lvl := building(id)
@@ -744,6 +826,9 @@ func character_sheet() -> Dictionary:
 		"runes": (runes().get("socketed", {}) as Dictionary).duplicate(true),
 		"weapon": equipped_weapon(),
 		"weapon_level": weapon_level(equipped_weapon()),
+		# a host rolls this Kindled's blueprints against what it knows
+		"known": known_blueprints().duplicate(),
+		"scrolls": scrolls().duplicate(),
 		"slots": slots(),
 		# a co-op host lets this Kindled's own Grudges hunt the party
 		"grudges": active_grudges().map(func(g): return {"id": g.id, "enemy": g.enemy, "name": g.get("name", ""),
@@ -857,6 +942,36 @@ func pay(cost: Dictionary) -> bool:
 			data[k] = currency(k) - int(cost[k])
 	_changed()
 	Events.currency_changed.emit()
+	return true
+
+
+## A find of one's own banked as it is taken below (gear into the bag, a rune
+## among the runes, a blueprint among the scrolls), once per drop id: a find
+## delivered twice (a lost acknowledgement, a rejoin) is banked once. Returns
+## whether it was banked now.
+func bank_find(kind: String, what: Variant, drop: String) -> bool:
+	if drop != "":
+		var book: Dictionary = data.get("delivered", {})
+		var run := drop.get_slice("/", 0)
+		var got: Array = book.get(run, [])
+		if got.has(drop):
+			return false
+		got.append(drop)
+		book[run] = got
+		while book.size() > 12:
+			book.erase(book.keys()[0])
+		data["delivered"] = book
+	match kind:
+		"gear":
+			add_item(what as Dictionary)
+		"rune":
+			add_rune(String(what))
+		"blueprint":
+			var b := String(what)
+			if not scrolls().has(b) and not known_blueprints().has(b):
+				scrolls().append(b)
+	_changed()
+	save_profile()
 	return true
 
 

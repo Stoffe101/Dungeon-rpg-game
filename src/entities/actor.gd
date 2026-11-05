@@ -65,6 +65,8 @@ func build_visual(sheet: String, anim := "") -> void:
 		sprite = PixelSprite.new()
 		visual.add_child(sprite)
 		sprite.setup(sheet, anim)
+		# a hair of depth lead of its own (sprite.gdshader): no two actors share a plane
+		sprite.set_instance_shader_parameter("lead", 1.0 + float(get_instance_id() % 11) * 0.012)
 	shadow = MeshInstance3D.new()
 	var q := QuadMesh.new()
 	var sw := maxf(radius * 2.2, 0.6) * shadow_scale
@@ -319,7 +321,15 @@ func _death_effect() -> void:
 		return
 	sprite.scale = Vector3.ONE
 	var tw := create_tween()
-	tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 0.45)
+	# a foe with a drawn fall plays it first (crumbling, toppling, folding,
+	# melting: tools/art/sheet.gd), then fades - every machine alike
+	if sprite.has_anim("death") and self is Enemy:
+		sprite.play("death", true)
+		var info: Dictionary = sprite.sheet.anims["death"]
+		tw.tween_interval(float(info.frames) / maxf(1.0, float(info.fps)) + 0.12)
+		tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 0.35)
+	else:
+		tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 0.45)
 	tw.tween_callback(queue_free)
 	if visual and last_hit_from != Vector2.ZERO and mass < 6.0:
 		# the killing blow carries the body a little way as it dissolves

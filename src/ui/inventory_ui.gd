@@ -316,24 +316,58 @@ func _doll_panel() -> PanelContainer:
 
 ## Three saved builds: each remembers the Hearthtree page, the spells, the
 ## worn gear and the weapon. Saved anywhere; worn in the sanctuary.
+## Three saved builds: each shows its weapon, its spells and its pieces (a
+## piece that is gone shows in red); hover for the whole of it. Wearing one
+## that lost pieces or spells asks first, and says what could not be put back.
 func _loadout_strip() -> Control:
-	var row := UIKit.hbox(4)
+	var row := UIKit.hbox(10)
 	row.add_child(UIKit.label("LOADOUTS", 8, UIKit.C_GOLD, true))
 	var home := Game.stage is Hub
 	for i in Profile.LOADOUTS:
 		var l := Profile.loadout(i)
+		var chk := Profile.loadout_check(i)
 		var box := UIKit.hbox(2)
 		var nm: String = ["I", "II", "III"][i]
-		var what := ("%s  %d pcs" % [nm, int(l.get("pieces", 0))]) if not l.is_empty() else "%s  empty" % nm
-		box.add_child(UIKit.label(what, 8, UIKit.C_TEXT if not l.is_empty() else UIKit.C_DIM))
-		var wear := UIKit.button("Wear", func() -> void:
-			var gone := Profile.wear_loadout(i)
+		var card := UIKit.hbox(2)
+		card.add_child(UIKit.label(nm, 8, UIKit.C_GOLD if not l.is_empty() else UIKit.C_DIM, true))
+		if l.is_empty():
+			card.add_child(UIKit.label("empty", 8, UIKit.C_DIM))
+		else:
+			var wic := String(l.get("weapon_icon", ""))
+			if wic != "":
+				card.add_child(UIKit.item_icon_rect(wic))
+			for s in l.get("slots", []):
+				if String(s) != "":
+					var sic := UIKit.icon_rect(String(GearDB.ability(String(s)).get("icon", "flare")))
+					if (chk.spells_lost as Array).has(String(s)):
+						sic.modulate = Color(1.0, 0.4, 0.4, 0.6)
+					card.add_child(sic)
+			var gone := (chk.missing as Array).size()
+			var pcs := UIKit.label(("%d pc" % int(l.get("pieces", 0))) if gone == 0 else ("%d gone" % gone), 8, UIKit.C_DIM if gone == 0 else UIKit.C_BAD)
+			card.add_child(pcs)
+		var tipped := l
+		_tip_on(card, func() -> Control: return _loadout_tip(i, tipped))
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		box.add_child(card)
+		var do_wear := func() -> void:
+			var rep := Profile.wear_loadout_report(i)
 			Audio.ui("ui_click")
-			if gone > 0:
-				Game.ui.toast("%d piece%s of that build are gone." % [gone, "" if gone == 1 else "s"], Color(0.9, 0.75, 0.6))
+			var lost: Array = []
+			if not (rep.missing as Array).is_empty():
+				lost.append("%d piece%s gone" % [(rep.missing as Array).size(), "" if (rep.missing as Array).size() == 1 else "s"])
+			if not (rep.spells_lost as Array).is_empty():
+				lost.append("%s no longer taught" % ", ".join((rep.spells_lost as Array).map(func(s): return String(GearDB.ability(String(s)).name))))
+			if not lost.is_empty():
+				Game.ui.toast("Loadout %s on - %s." % [nm, "; ".join(lost)], Color(0.9, 0.75, 0.6))
 			if Game.stage and Game.stage.player:
 				Game.stage.player.rebuild_stats()
-			rebuild(), 34)
+			rebuild()
+		var wear := UIKit.button("Wear", func() -> void:
+			var c := Profile.loadout_check(i)
+			if (c.missing as Array).is_empty() and (c.spells_lost as Array).is_empty():
+				do_wear.call()
+			else:
+				Game.ui.confirm("Wear loadout %s?" % nm, "%s The rest of the build is put on as saved." % _loadout_gaps(c), do_wear), 34)
 		wear.disabled = l.is_empty() or not home
 		wear.tooltip_text = "Put this build on (in the sanctuary)" if not home else "Put this build on"
 		wear.name = "loadout_wear_%d" % i
@@ -347,6 +381,38 @@ func _loadout_strip() -> Control:
 		box.add_child(save)
 		row.add_child(box)
 	return row
+
+
+func _loadout_gaps(c: Dictionary) -> String:
+	var parts: Array = []
+	if not (c.missing as Array).is_empty():
+		parts.append("Gone since it was saved: %s." % ", ".join((c.missing as Array).map(func(s): return String(s).capitalize())))
+	if not (c.spells_lost as Array).is_empty():
+		parts.append("No longer taught: %s." % ", ".join((c.spells_lost as Array).map(func(s): return String(GearDB.ability(String(s)).name))))
+	return " ".join(parts)
+
+
+func _loadout_tip(i: int, l: Dictionary) -> Control:
+	var v := UIKit.vbox(2)
+	var nm: String = ["I", "II", "III"][i]
+	if l.is_empty():
+		v.add_child(UIKit.label("LOADOUT %s - empty" % nm, 8, UIKit.C_GOLD, true))
+		v.add_child(UIKit.para("Save puts what you wear now, your spells and your Hearthtree page here.", 160, UIKit.C_DIM))
+		return v
+	v.add_child(UIKit.label("LOADOUT %s - %s" % [nm, String(l.get("name", ""))], 8, UIKit.C_GOLD, true))
+	v.add_child(UIKit.label("Hearthtree page %d" % (int(l.get("page", 0)) + 1), 8, UIKit.C_DIM))
+	var spells: Array = (l.get("slots", []) as Array).filter(func(s): return String(s) != "").map(func(s): return String(GearDB.ability(String(s)).name))
+	v.add_child(UIKit.para("Spells: %s" % (", ".join(spells) if not spells.is_empty() else "none"), 160, UIKit.C_TEXT))
+	var gear: Dictionary = l.get("gear", {})
+	for slot in gear:
+		var it := Profile.find_item(int(gear[slot]))
+		if it.is_empty():
+			v.add_child(UIKit.label("%s: gone" % String(slot).capitalize(), 8, UIKit.C_BAD))
+		else:
+			v.add_child(UIKit.label("%s: %s" % [String(slot).capitalize(), ItemDB.item_name(it)], 8, ItemDB.color(it)))
+	if not (Game.stage is Hub):
+		v.add_child(UIKit.label("Worn at the sanctuary (it changes the Hearthtree page)", 8, UIKit.C_DIM))
+	return v
 
 
 func _empty_icon(slot: String) -> String:
@@ -526,6 +592,15 @@ func _bag_panel() -> PanelContainer:
 		var it: Dictionary = bag[i]
 		var b := GearUI.slot_button(it, 24)
 		b.name = "uid_%d" % int(it.uid)
+		var fresh := _fresh_find(it)
+		if fresh != "":
+			# found on this (or the last) expedition: an ember in the corner
+			var pip := ColorRect.new()
+			pip.color = UIKit.C_EMBER
+			pip.size = Vector2(3, 3)
+			pip.position = Vector2(19, 2)
+			pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(pip)
 		var u := int(it.uid)
 		var slot := String(ItemDB.base(String(it.base)).slot)
 		var worn: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
@@ -534,7 +609,8 @@ func _bag_panel() -> PanelContainer:
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_RIGHT:
 				_salvage(u))
 		b.focus_entered.connect(func() -> void: _focus_uid = u)
-		_tip_on(b, func() -> Control: return _item_tip(it, worn, "Click to equip   Right-click to salvage"))
+		var fresh_line := ("%s   " % fresh) if fresh != "" else ""
+		_tip_on(b, func() -> Control: return _item_tip(it, worn, fresh_line + "Click to equip   Right-click to salvage"))
 		grid.add_child(b)
 	# blueprints: unread scrolls to learn, and how many are known
 	var known := Profile.known_blueprints().size()
@@ -556,6 +632,20 @@ func _bag_panel() -> PanelContainer:
 		sr.add_child(sb)
 	v.add_child(sr)
 	return p
+
+
+## "Found this expedition" / "Found last expedition" for gear taken below
+## (its drop id names the run), else "".
+func _fresh_find(it: Dictionary) -> String:
+	var drop := String(it.get("drop", ""))
+	if drop == "":
+		return ""
+	var run := drop.get_slice("/", 0)
+	if Game.run and Game.run.run_id == run and Game.run.result == "":
+		return "Found this expedition"
+	if String(Profile.data.get("last_run", "")) == run:
+		return "Found last expedition"
+	return ""
 
 
 func _learn(id: String) -> void:
@@ -593,26 +683,41 @@ func _input(event: InputEvent) -> void:
 
 # --- actions ---------------------------------------------------------------------
 
+## Below as at home, what is found can be worn: armour at once, and a weapon
+## - another variant or another kind - taken up on the spot (its form, its
+## moves; the host swings it for a guest from the new sheet). Only while a room
+## is sealed around you does the Satchel hold your gear as it is.
 func _equip(uid: int) -> void:
 	_focus_uid = uid
-	# below, the weapon in hand is the expedition's: another variant of it can
-	# be taken up, another kind of weapon waits for the Hearth
-	var arch := ItemDB.arch_of(Profile.find_item(uid))
 	var st := Game.stage
-	if arch != "" and st is Dungeon and st.player and st.player.weapon and st.player.weapon.id != arch:
+	if st is Dungeon and (st as Dungeon).fight_on():
 		Audio.ui("deny")
-		Game.ui.toast("A different kind of weapon is taken up at the Hearth, not below.", UIKit.C_DIM)
+		Game.ui.toast("Not mid-fight: change gear once the seals fall.", UIKit.C_DIM)
 		return
+	var arch := ItemDB.arch_of(Profile.find_item(uid))
 	if Profile.equip(uid):
 		Audio.play("clank", -4.0, 1.1)
-		if arch != "" and st and st.player and st.player.weapon and st.player.weapon.id == arch:
-			st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
+		if st and st.player and is_instance_valid(st.player):
+			st.player.rebuild_stats()
+			if arch != "" and not (st is Hub):
+				st.player.take_up_weapon()
+			elif arch != "" and st.player.weapon and st.player.weapon.id == arch:
+				st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
 
 
 func _unequip(slot: String, uid: int) -> void:
 	_focus_uid = uid
+	var st := Game.stage
+	if st is Dungeon and (st as Dungeon).fight_on():
+		Audio.ui("deny")
+		Game.ui.toast("Not mid-fight: change gear once the seals fall.", UIKit.C_DIM)
+		return
 	if Profile.unequip(slot):
 		Audio.play("clank", -6.0, 0.9)
+		if st and st.player and is_instance_valid(st.player):
+			st.player.rebuild_stats()
+			if slot == "weapon" and not (st is Hub):
+				st.player.take_up_weapon()
 
 
 func _salvage(uid: int) -> void:
@@ -623,7 +728,9 @@ func _salvage(uid: int) -> void:
 	var parts: Array = []
 	for k in y:
 		parts.append("%d %s" % [int(y[k]), ItemDB.MATERIALS[k].name])
-	Game.ui.confirm("Salvage %s?" % ItemDB.item_name(it), "It breaks down into %s." % ", ".join(parts), func() -> void:
+	var used := Profile.loadouts_using(uid)
+	var note := (" It is part of loadout %s." % ", ".join(used)) if not used.is_empty() else ""
+	Game.ui.confirm("Salvage %s?" % ItemDB.item_name(it), "It breaks down into %s.%s" % [", ".join(parts), note], func() -> void:
 		Profile.salvage(uid)
 		Audio.play("forge", -4.0, 1.2))
 

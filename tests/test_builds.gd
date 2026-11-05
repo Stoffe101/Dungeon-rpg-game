@@ -544,7 +544,7 @@ func test_landmark_answers() -> void:
 	var hp0 := pl.hp
 	var relics0 := pl.run.relics.size()
 	d.request("landmark", lm)
-	check(absf(pl.hp - (hp0 - pl.max_hp * 0.15)) < 1.0, "it takes 15% of my health (%.0f -> %.0f)" % [hp0, pl.hp])
+	check(absf(pl.hp - (hp0 - pl.max_hp * 0.15)) < 1.0, "it takes 15%% of my health (%.0f -> %.0f)" % [hp0, pl.hp])
 	eq(pl.run.relics.size(), relics0 + 1, "and gives me a relic")
 	var hp1 := pl.hp
 	d.request("landmark", lm)

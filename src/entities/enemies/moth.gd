@@ -30,7 +30,7 @@ func behave(dt: float) -> void:
 			vel = (want - pos).limit_length(1.0) * speed * 1.2
 			height = 1.0 + sin(stage.elapsed * 5.0 + orbit) * 0.25
 			facing = (t.pos - pos).normalized()
-			if dive_cd <= 0.0 and dist_to_player() < 5.0:
+			if dive_cd <= 0.0 and dist_to_player() < 5.0 and may_strike():
 				aim_dir = dir_to_player()
 				set_state("mark")
 				telegraph(Fx.Shape.RECT, pos, aim_dir, Vector2(5.0, 0.8), 0.45 / attack_rate)

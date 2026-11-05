@@ -13,6 +13,11 @@ extends Weapon
 const MARKS_MAX := 5
 const MARK_DAMAGE := 5.0      # per mark torn open
 
+
+## Night's Tally (Hearthtree): a Kris foe holds seven marks, a fan has nine shivs.
+func marks_max() -> int:
+	return MARKS_MAX + (2 if player and player.stats and player.stats.has("mastery_daggers") else 0)
+
 const CRIT_BONUS := 0.15
 const STRIKES := [
 	{"windup": 0.04, "active": 0.05, "recover": 0.11, "arc": 55.0, "range": 1.6, "kb": 2.0, "poise": 6.0, "lunge": 1.6, "from": 60.0, "to": -60.0},
@@ -159,12 +164,12 @@ func release_charge() -> void:
 
 func _mark(a: Actor) -> void:
 	var add := 2 if player.hearthfire_t > 0.0 and player.stats.has("hearthforged") else 1
-	var n := mini(MARKS_MAX, int(a.get_meta("gloam_marks", 0)) + add)
+	var n := mini(marks_max(), int(a.get_meta("gloam_marks", 0)) + add)
 	a.set_meta("gloam_marks", n)
 	a.set_meta("gloam_mark_t", player.stage.elapsed)
 	player.stage.fx.motes(a.pos, 1.4, Color(0.7, 0.45, 1.0), n, 0.5, 0.5, 0.25)
 	if not predicting:
-		player.form_meter = float(n) / MARKS_MAX
+		player.form_meter = float(n) / marks_max()
 
 
 ## The marks on a foe torn open at once: shadow for each, Kindle for you.
@@ -183,7 +188,7 @@ func _tear(a: Actor) -> void:
 	var col := Color(0.72, 0.45, 1.0)
 	player.stage.fx.burst(a.pos, 1.0, col, 6 + 4 * n, 3.0 + n, 0.35, 0.0)
 	player.stage.fx.ring(a.pos, 0.5 + 0.25 * n, col, 0.25, 0.2)
-	player.stage.fx.number(a.pos, 2.4, "%d MARKS" % n, col.lightened(0.3), n >= MARKS_MAX)
+	player.stage.fx.number(a.pos, 2.4, "%d MARKS" % n, col.lightened(0.3), n >= marks_max())
 	Audio.play_at("gloam_tear", a.pos, -3.0 + n * 0.6, 1.15 - 0.05 * n)
 	player.form_meter = 0.0
 
@@ -223,7 +228,7 @@ func _shiv_fan() -> void:
 	_set_phase(Phase.ACTIVE, 0.1 / speed())
 	var st := player.stage
 	var src := player
-	for k in 7:
+	for k in (9 if player.stats.has("mastery_daggers") else 7):
 		var d := aim_dir.rotated(deg_to_rad(-54.0 + 18.0 * k))
 		var pr := _shiv(player.pos, d, def.charged * 0.4)
 		pr.life = 0.42
