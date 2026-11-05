@@ -1,9 +1,31 @@
 # Status
 
-Last updated: 2026-11-04.
+Last updated: 2026-11-05.
 
 ## Implemented
 
+- **Playtest foundations pass (branch feature/playtest-foundations)** - the
+  second two-PC playtest's findings; details in DESIGN, "Playtest
+  foundations pass".
+  - *Equal party income*: every shared award credits every Kindled the same
+    (the room-clear XP went to the host alone; personal XP/Ember bonuses
+    scaled shared orbs); gain bonuses are the party's best. XP ledger per
+    machine and `tools/dev/ledger_compare.py`.
+  - *Private finds*: never drawn, heard or sent to anyone but the owner.
+  - *Live Satchel*: finds banked when taken (guests: acknowledged `_gift`,
+    banked once by drop id), worn below (any weapon kind; not mid-fight).
+  - *Rooms that open*: the arena (spawns, summons, splits, risers, adds and
+    Grudges inside the reachable room) and a watchdog; the host-dead floor
+    stop, the late Trial vote, leftover foes, flyers on gates, Rimewall in
+    doorways and the bleed-out loop fixed.
+  - *Map/minimap* from the real floor plan with every Kindled; no guardian
+    arrow; *pointer steering*; readable floors (interior blocks, footprints,
+    corner rounding, sprite depth lead, light); spell cards, picker and
+    tooltips; host-led party start; guests at the host's forge.
+  - *Combat*: the Thousandth Cut's buildup measured and redone
+    (`-- legendlab`), attack turns, safe loadouts, drawn hurt/death frames
+    for every regular foe, seven weapon masteries on the Hearthtree.
+  - Save v13, protocol 9.
 - **Combat identity pass (branch feature/combat-identity)** - details in
   DESIGN, "Combat identity pass".
   - *Weapon forms*: all 14 variants play differently (Gravecleaver sunders
@@ -317,6 +339,16 @@ Last updated: 2026-11-04.
 
 ## Known issues / limitations
 
+- Playtest foundations pass: every fix is unit-tested and the party ones
+  run on separate processes on one PC; nobody has played it. To watch in
+  play: whether pointer steering feels natural (it latches while W is held),
+  the new brightness (ambient 1.08/1.0/0.92 by depth, a lifted light
+  falloff), the arena watchdog (never seen to trigger in a real fight: look
+  for "arena watchdog" in the log), attack turns (two wind-ups per Kindled),
+  the Thousandth Cut's new rate. The minimap is 4 screen pixels a tile at
+  the usual interface size. Generated foe falls are inspected in sheets and
+  captures only.
+
 - Combat identity pass: every form, spell and synergy is tuned by tests,
   captures and bot runs only - nobody has fought with them. Numbers to watch
   in play: Hold the Line's 4 Kindle per block, En Garde's 1s guard, the
@@ -405,6 +437,11 @@ Last updated: 2026-11-04.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. This pass with people: docs/TESTING.md "Human playtest: the playtest
+   foundations pass" - equal levels over a whole expedition (bring the XP
+   ledgers), private finds, wearing finds below, every room opening, the
+   map, steering, readability, the party start and the guest at the forge.
 
 0. The combat identity pass with people: docs/TESTING.md "Human playtest:
    the combat identity pass" - every weapon form on keyboard and pad, the

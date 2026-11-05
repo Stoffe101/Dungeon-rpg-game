@@ -71,6 +71,8 @@ func _run() -> void:
 			await spells()
 		"loot":
 			await loot()
+		"partystart":
+			await party_start()
 		"partyesc":
 			await _skip_intro()
 			Game.ui.party()
@@ -771,6 +773,48 @@ func loot() -> void:
 	await wait(1.5)
 
 
+## The title screen in a party (DEVNET=0): everyone starts at the title; the
+## host hosts, the guests join by address, then the host alone presses "Begin
+## together" - every guest must arrive in the host's sanctuary without
+## touching anything, each as their own Kindled.
+func party_start() -> void:
+	Game.goto_menu()
+	await wait(1.5)
+	if role == "host":
+		Game.ui.party()
+		await wait(0.6)
+		await click_button("Host")
+		await until(func() -> bool: return Net.is_host(), 10.0, "hosting from the title")
+		await until(func() -> bool: return Net.party_size() >= guests + 1, 40.0, "%d guest(s) joined at the title" % guests)
+		await wait(1.0)
+		Capture.save_now("e2e/partystart_title_%s" % _tag())
+		await click_button("Begin together", "Begin")
+		await until(func() -> bool: return hub() != null and not hub().menu_mode, 10.0, "the host is in camp")
+		await until(func() -> bool:
+			for pid in Net.i.roster:
+				if String(Net.i.roster[pid].get("where", "")) != "hub":
+					return false
+			return true, 20.0, "every guest arrived in camp")
+	else:
+		await wait(1.0 + float(Net.i.get_instance_id() % 5) * 0.1)
+		Game.ui.party()
+		await wait(0.6)
+		await click_button("Enter address")
+		await wait(0.3)
+		var le := find_control(func(c: Control) -> bool: return c is LineEdit and (c as LineEdit).placeholder_text != "") as LineEdit
+		if le:
+			le.text = "127.0.0.1"
+			le.text_changed.emit(le.text)
+		await click_button("Join")
+		await until(func() -> bool: return Net.is_client() and Net.i.roster.has(Net.my_id()), 15.0, "joined at the title")
+		expect(hub() != null and hub().menu_mode, "still at the title until the host begins")
+		await until(func() -> bool: return hub() != null and not hub().menu_mode and not Net.i.camp.is_empty() and hub().camp == Net.i.camp, 30.0, "followed into the host's camp without a click")
+		expect(Game.ui.modal_of("party") == null, "no party screen left to close")
+	await wait(1.0)
+	Capture.save_now("e2e/partystart_camp_%s" % _tag())
+	await wait(1.0)
+
+
 func _ice(d: Dungeon) -> Array:
 	return d.props.filter(func(p): return is_instance_valid(p) and p.kind == "icewall")
 
@@ -1097,8 +1141,11 @@ func walk_to(target: Vector2, tol := 0.5, timeout := 10.0) -> bool:
 
 ## Clicks a button the way the mouse does: the pointer moves over it, presses, lets go.
 func click_button(text: String, alt := "", alt2 := "") -> void:
+	# (only the names given: an unused "" must not match a button with no text,
+	# such as a spell card)
+	var names := [text, alt, alt2].filter(func(t): return String(t) != "")
 	var b := find_control(func(c: Control) -> bool:
-		return c is Button and c.is_visible_in_tree() and not (c as Button).disabled and (c as Button).text.strip_edges() in [text, alt, alt2]) as Button
+		return c is Button and c.is_visible_in_tree() and not (c as Button).disabled and (c as Button).text.strip_edges() != "" and (c as Button).text.strip_edges() in names) as Button
 	if b == null:
 		b = find_control(func(c: Control) -> bool:
 			return c is Button and c.is_visible_in_tree() and not (c as Button).disabled and (c as Button).text.strip_edges().begins_with(text)) as Button

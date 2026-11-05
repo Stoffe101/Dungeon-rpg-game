@@ -91,6 +91,11 @@ remembers who hurts it.
   with something to give.
 - **Co-op that hunts the whole party**: foes share themselves out, flank a
   Kindled standing alone, and guardians call for help; rewards stay fair.
+- **A fair party**: every Kindled earns the same from every shared fight and
+  find; your own finds are yours alone (nobody else sees them), go straight
+  into your Satchel and can be worn on the spot, below as at home.
+- **A map that reads**: the full map and minimap drawn from the real floor
+  plan, with every member of the party on them.
 - **A world that says what things are**: names and actions over everything
   you can use, urns that shatter, loot that hangs in the air before it lands,
   music that swells with each fight.

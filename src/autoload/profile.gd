@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 12
+const VERSION := 13
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -67,6 +67,8 @@ static func fresh() -> Dictionary:
 		"shop": {"stock": [], "for_run": -1},
 		"descent": {"region": "ossuary", "omens": []},
 		"loadouts": [{}, {}, {}],
+		"delivered": {},
+		"last_run": "",
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
 		"identity": "",
@@ -253,6 +255,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not (out.get("loadouts") is Array):
 			out["loadouts"] = [{}, {}, {}]
 		v = 12
+	if v < 13:
+		# v13: finds banked as they are taken (the book of drop ids a guest has
+		# already banked, so a re-sent find is not banked twice), the last run
+		# (the Satchel marks its finds); nothing older changes
+		if not (out.get("delivered") is Dictionary):
+			out["delivered"] = {}
+		if not out.has("last_run"):
+			out["last_run"] = ""
+		v = 13
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:

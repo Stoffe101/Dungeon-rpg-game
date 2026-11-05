@@ -495,3 +495,19 @@ func test_every_foe_script_compiles() -> void:
 		elif e is Node:
 			(e as Node).free()
 	check(bad.is_empty(), "every foe can be made (broken: %s)" % str(bad))
+
+
+## v12 -> v13: the delivered-finds book and the last run appear; nothing else moves.
+func test_migration_v13_keeps_everything() -> void:
+	var old := Profile.fresh()
+	old["version"] = 12
+	old.erase("delivered")
+	old.erase("last_run")
+	old["level"] = 9
+	old["embers"] = 321
+	var m := Profile.migrate(old)
+	eq(int(m.version), Profile.VERSION, "migrated to the current version")
+	check(m.get("delivered") is Dictionary and (m.delivered as Dictionary).is_empty(), "an empty book of delivered finds")
+	eq(String(m.get("last_run", "x")), "", "no last run yet")
+	eq(int(m.level), 9, "the level stays")
+	eq(int(m.embers), 321, "the Embers stay")

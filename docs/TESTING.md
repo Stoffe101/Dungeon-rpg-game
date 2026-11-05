@@ -111,6 +111,30 @@ generate the same floor).
   8 kHz, decay time, clipped samples. **This is measurement, not listening**:
   it finds clipping, mud and imbalance, not whether something sounds good.
 
+### Tools of the playtest foundations pass
+
+- `-- scenario=loot` (DEVNET=1, 2-4 players): the host drops one epic find
+  beside each Kindled; every machine checks it draws only its own find (a
+  guest is not even sent another's), walks to it, has it in the Satchel at
+  once below, wears it with a real click, and that its save got exactly its
+  run's XP; the host checks every run got the same XP and Embers and sees
+  each guest wear their find.
+- `-- legendlab profile=legend.json [secs=90 forms=thousandth_cut,...]`:
+  how often signature weapon moments come in small fights, long fights and
+  against one tough foe (report in `user://legend_lab.md`).
+- `-- open=map explored` / `open=minimap explored`: the full map / minimap
+  with every room walked; `open=spellpick`: the spell picker;
+  `open=inventory saveload`: the Satchel with a saved loadout.
+- The XP ledger: every machine writes `user://ledger/<run id>.jsonl`;
+  `python tools/dev/ledger_compare.py host.jsonl guest.jsonl` shows where
+  two players' gains part ways (Windows: %APPDATA%/Godot/app_userdata/
+  Kindled Deep/ledger/, or the profile's folder).
+- `tests/test_playtest.gd`: every finding of the second playtest pinned down
+  (equal XP and Embers, private finds, the live Satchel, a foe beyond a gate
+  brought back, a room won while the host lies dead, 18 floors with every
+  room fought to its end, steering, corners, footprints, attack turns,
+  loadouts, the guest at the host's forge, every foe script compiling).
+
 ## Human playtest on two PCs
 
 Two people, each on their own PC. For a LAN game, both on the same network:
@@ -254,3 +278,37 @@ Listening (nothing in this pass has been heard by a person):
   aftershock, vent, breath...); Frenzy and Shepherd.
 
 Co-op: whole expeditions with 2-4 players - do rewards feel fair per player?
+
+
+## Human playtest: the playtest foundations pass
+
+Bring the XP ledgers home (see Tools): if levels part ways, the files say
+where. Two (or more) PCs, a whole expedition, then:
+
+- **Equal progress:** start equal (or note both levels and XP), play to the
+  end; compare levels and the ledgers. Take turns finishing foes and picking
+  up memories - nothing should change who gets what.
+- **Private finds:** each sees only their own drops (beam, name, chime);
+  neither can take the other's. A legendary of yours: does the friend's
+  "found" line feel right, or is it noise?
+- **The live Satchel:** open it below after a find (marked with an ember),
+  compare, wear it, feel the weapon change; try mid-fight (held until the
+  seals fall). Die once: finds stay, half the materials go.
+- **Rooms:** any room that will not open, any foe you cannot reach - note
+  the room and look for "arena watchdog" in the log.
+- **Map and minimap:** Tab - readable at a glance? Can you find your friend
+  on both? Zoom with the wheel. Is the guardian's lair easy enough to find
+  without the arrow?
+- **Steering:** hold W and move the mouse; does it feel natural or twitchy?
+  Settings > Gameplay > Pointer steering (W follows the mouse / Always / Off).
+- **Floors:** anything that looks walkable but blocks (or the reverse)?
+  Sprites cutting each other? Brightness (Settings > Display) at default -
+  still the Undervault, but readable?
+- **Party start:** host presses Begin together at the title; does everyone
+  arrive without touching anything? A guest at the host's forge: craft and
+  temper with your own materials.
+- **Combat:** crowds - do foes taking turns feel fair but still dangerous?
+  The Thousandth Cut and the Wand of a Hundred Embers - often enough to look
+  forward to, rare enough to stay special? Foes' flinches and falls.
+- **The Hearthtree:** the seven weapon masteries - do they change how your
+  weapon plays?
