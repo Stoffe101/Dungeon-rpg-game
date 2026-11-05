@@ -788,7 +788,7 @@ func party_start() -> void:
 		await until(func() -> bool: return Net.party_size() >= guests + 1, 40.0, "%d guest(s) joined at the title" % guests)
 		await wait(1.0)
 		Capture.save_now("e2e/partystart_title_%s" % _tag())
-		await click_button("Begin together", "Begin")
+		await click_button("Begin together")     # (not "Begin": the title screen has its own, under the party screen)
 		await until(func() -> bool: return hub() != null and not hub().menu_mode, 10.0, "the host is in camp")
 		await until(func() -> bool:
 			for pid in Net.i.roster:
@@ -807,7 +807,7 @@ func party_start() -> void:
 			le.text_changed.emit(le.text)
 		await click_button("Join")
 		await until(func() -> bool: return Net.is_client() and Net.i.roster.has(Net.my_id()), 15.0, "joined at the title")
-		expect(hub() != null and hub().menu_mode, "still at the title until the host begins")
+		expect(Game.stage is Hub and (Game.stage as Hub).menu_mode, "still at the title until the host begins")
 		await until(func() -> bool: return hub() != null and not hub().menu_mode and not Net.i.camp.is_empty() and hub().camp == Net.i.camp, 30.0, "followed into the host's camp without a click")
 		expect(Game.ui.modal_of("party") == null, "no party screen left to close")
 	await wait(1.0)
