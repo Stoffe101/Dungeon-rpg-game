@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"lit": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"low": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"out": {
+			"fps": 2.0,
+			"frames": 4,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		20,
+		34
+	],
+	"origin": [
+		10,
+		32
+	]
+}

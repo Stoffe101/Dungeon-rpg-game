@@ -11,6 +11,7 @@ var embers_lbl: Label
 var shards_lbl: Label
 var depth_lbl: Label
 var omen_lbl: Label
+var objective_lbl: Label
 var level_lbl: Label
 var prompt_lbl: Label
 var relic_row: HBoxContainer
@@ -71,6 +72,10 @@ func _ready() -> void:
 	omen_lbl = UIKit.label("", 8, Omens.COLOR, true)
 	omen_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	cur.add_child(omen_lbl)
+	# the room's task (a route's seals, a vault's flame)
+	objective_lbl = UIKit.label("", 8, UIKit.C_GOLD, true)
+	objective_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cur.add_child(objective_lbl)
 	level_lbl = UIKit.label("", 8, UIKit.C_SOUL, true)
 	add_child(level_lbl)
 	prompt_lbl = UIKit.label("", 8, UIKit.C_GOLD, true)
@@ -433,6 +438,17 @@ func _process(_delta: float) -> void:
 		var guardian := Delve.is_boss_depth(pl.run.depth) if pl.run.delve else pl.run.depth >= int(EnemyDB.REGIONS.get(pl.run.region, {}).get("depths", 3))
 		depth_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5) if guardian else UIKit.C_DIM)
 		omen_lbl.text = Omens.names(pl.run.omens)
+		var rd := DungeonGen.route_def(pl.run.route)
+		if not rd.is_empty():
+			depth_lbl.text += "  %s" % String(rd.name)
+		var ob: Dictionary = (st as Dungeon).objective if st is Dungeon else {}
+		objective_lbl.visible = not ob.is_empty()
+		if not ob.is_empty():
+			var k := float(ob.get("k", -1.0))
+			objective_lbl.text = String(ob.text) + ("   %d%%" % int(round(k * 100.0)) if k >= 0.0 else "")
+			objective_lbl.add_theme_color_override("font_color", ob.get("col", UIKit.C_GOLD))
+	else:
+		objective_lbl.visible = false
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
 	# an unspent talent point stays in sight (softly) until it is spent
 	var free := Profile.skill_points_free()

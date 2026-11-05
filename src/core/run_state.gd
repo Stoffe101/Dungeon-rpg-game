@@ -36,6 +36,8 @@ var seen_rooms := 0
 ## Materials picked up this expedition, banked at the end (half on a death).
 ## (Gear, runes and blueprints go into the Satchel when found - see `found` -
 ## and only a run saved before that change still carries them here.)
+var route := ""                # the way this floor was reached (DungeonGen.ROUTES), "" the plain way
+var routes: Array = []         # every way taken this expedition, in order
 var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": [], "reagents": []}
 ## Everything of one's own found this expedition: [{kind, what, drop}] (the
 ## summary's list; each was banked the moment it was taken).
@@ -74,7 +76,8 @@ func to_dict() -> Dictionary:
 		"rooms_cleared": rooms_cleared, "elites_slain": elites_slain, "grudges_settled": grudges_settled.duplicate(),
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
 		"loot": loot.duplicate(true), "found": found.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
-		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate()}
+		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate(),
+		"route": route, "routes": routes.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -94,6 +97,8 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.found = (d.get("found", []) as Array).duplicate(true)
 	r.omens = (d.get("omens", []) as Array).duplicate()
 	r.delve = bool(d.get("delve", false))
+	r.route = String(d.get("route", ""))
+	r.routes = (d.get("routes", []) as Array).duplicate()
 	r.run_id = String(d.get("run_id", ""))
 	r.kill_counts = (d.get("kill_counts", {}) as Dictionary).duplicate()
 	r.bosses = (d.get("bosses", []) as Array).duplicate()

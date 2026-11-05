@@ -25,7 +25,7 @@ func add(anim: String, frames: Array, fps: float, loop := true) -> void:
 ## soul-light leaves their eyes, upright fighters topple backwards, crawlers
 ## fold up, soft and growing things slump and melt into the floor.
 const FALL_STYLE := {
-	"husk": "crumble", "bonecaller": "crumble", "lampwight": "crumble", "wraith": "crumble", "sunwatcher": "crumble",
+	"husk": "crumble", "ash_seal": "crumble", "bonecaller": "crumble", "lampwight": "crumble", "wraith": "crumble", "sunwatcher": "crumble",
 	"guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
 	"skitter": "curl", "spider": "curl", "moth": "curl", "hound": "curl", "thornback": "curl",
 	"bloat": "melt", "sporeling": "melt", "toad": "melt", "bramblewright": "melt", "rootweaver": "melt", "spore_mortar": "melt",

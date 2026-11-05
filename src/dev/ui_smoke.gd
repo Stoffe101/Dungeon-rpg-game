@@ -244,6 +244,7 @@ func _run() -> void:
 		await _finish_dialogue()
 		_expect(Residents.request_state(rid) == "rewarded", "handing it in grants the gift")
 	await _gear_checks(hub)
+	await _apothecary_checks(hub)
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()
@@ -358,6 +359,45 @@ func _gear_checks(hub: Hub) -> void:
 		pd._sell(sell_uid)
 		await _wait(2)
 		_expect(Profile.find_item(sell_uid).is_empty(), "selling to the peddler")
+	await _close_all()
+
+
+## The Apothecary's screen: a reagent found teaches, the screen steeps it,
+## and the Hearthtree opens on its own key (the real action).
+func _apothecary_checks(hub: Hub) -> void:
+	if Profile.building("apothecary") == 0:
+		Profile.data.sanctuary.apothecary = 1
+	Profile.bank_find("reagent", "kindleroot", "smoke/1/1")
+	ui.apothecary()
+	await _wait()
+	var ap: ApothecaryUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	ap._select("kindleroot")
+	await _wait(2)
+	var steep: Button = null
+	for b in ap.find_children("*", "Button", true, false):
+		if (b as Button).text == "Steep the flask":
+			steep = b
+	_expect(steep != null and not steep.disabled, "the Apothecary offers to steep Kindleroot")
+	if steep:
+		steep.pressed.emit()
+	await _wait(3)
+	_expect(String(Profile.tincture().id) == "kindleroot", "the flask is steeped with Kindleroot")
+	_check_fits("apothecary")
+	await _close_all()
+	# K opens the Hearthtree, and K closes it
+	var ev := InputEventAction.new()
+	ev.action = "hearthtree"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _wait(4)
+	var top: Control = ui.modals[ui.modals.size() - 1] if ui.has_modal() else null
+	_expect(top != null and top.get_child(0) is SkillTreeUI, "the Hearthtree key opens the Hearthtree")
+	var ev2 := InputEventAction.new()
+	ev2.action = "hearthtree"
+	ev2.pressed = true
+	Input.parse_input_event(ev2)
+	await _wait(6)
+	_expect(not ui.has_modal(), "and closes it")
 	await _close_all()
 
 

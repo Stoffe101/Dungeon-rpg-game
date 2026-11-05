@@ -1224,6 +1224,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		mult *= 0.75
 	if t is Enemy and (t as Enemy).elite:
 		mult *= 1.0 + stats.v("elite_damage")
+	if stage is Dungeon and (stage as Dungeon).sealed_foe(t):
+		mult *= 0.35     # a Trial of Ash hall's seals ward its foes
 	if stats.has("berserk"):
 		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
 	if stats.has("ember_crown") and run:

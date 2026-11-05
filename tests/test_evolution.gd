@@ -333,3 +333,94 @@ func test_each_tincture_changes_what_a_drink_does() -> void:
 	drink.call("gloamwater", 0.3)
 	check(pl.tonic_chill_t > 0.0, "Gloamwater: blows chill for a while")
 	st.queue_free()
+
+
+# --- the Forked Descent -------------------------------------------------------------------
+
+func test_each_floor_offers_two_ways_down_the_same_for_everyone() -> void:
+	var seen := {}
+	for s in [1, 2, 3, 7, 42, 99, 123, 777]:
+		for depth in [1, 2]:
+			var a := DungeonGen.route_offer(s, depth)
+			eq(a, DungeonGen.route_offer(s, depth), "the same two again (seed %d depth %d)" % [s, depth])
+			check(a.size() == 2 and a[0] != a[1], "two different ways")
+			for r in a:
+				seen[r] = true
+			var lay := DungeonGen.generate(s, depth, "ossuary", false)
+			var stairs: Array = []
+			for pd in lay.room(lay.exit_id).props:
+				if pd.kind == "stairs":
+					stairs.append(String(pd.get("route", "")))
+			eq(stairs.size(), 2, "two stairways (seed %d depth %d)" % [s, depth])
+			check(stairs.has(a[0]) and stairs.has(a[1]), "each the way it names")
+	eq(seen.size(), 3, "every way turns up across seeds")
+	var boss := DungeonGen.generate(1, 3, "ossuary", true)
+	check(boss.offer.is_empty(), "a guardian's floor has no fork")
+
+
+func test_the_way_down_shapes_the_floor() -> void:
+	var foes := {"": 0, "trial": 0, "quiet": 0}
+	var elites := {"": 0, "trial": 0, "quiet": 0}
+	for s in [1, 2, 3, 7, 42, 99, 123, 777, 2024, 31337]:
+		for route in ["", "trial", "vault", "quiet"]:
+			var lay := DungeonGen.generate(s, 2, "ossuary", false, route)
+			eq(lay.route, route, "the layout knows its way")
+			var det := DungeonGen.generate(s, 2, "ossuary", false, route)
+			eq(det.rooms.size(), lay.rooms.size(), "deterministic per seed and way")
+			var objectives: Array = []
+			var rest := false
+			for r in lay.rooms:
+				if r.objective != "":
+					objectives.append(r.objective)
+				if r.type == Room.Type.REST:
+					rest = true
+				if r.type == Room.Type.ELITE and elites.has(route):
+					elites[route] += 1
+				if foes.has(route) and r.type != Room.Type.BOSS:
+					for w in r.encounter:
+						foes[route] += (w as Array).size()
+			match route:
+				"trial":
+					check(objectives == ["seals"], "a Trial of Ash floor has one warded hall (seed %d: %s)" % [s, objectives])
+				"vault":
+					check(objectives == ["flame"], "a Lost Vault floor has its vault (seed %d: %s)" % [s, objectives])
+				"quiet":
+					check(rest, "a Silent Passage has a spring (seed %d)" % s)
+				"":
+					check(objectives.is_empty(), "the plain way has no route task")
+	eq(elites.quiet, 0, "no elite on a Silent Passage")
+	check(elites.trial >= 20, "two elites a Trial of Ash floor (%d over 10)" % elites.trial)
+	check(foes.quiet < foes[""] and foes[""] < foes.trial, "fewer foes the quiet way, more the trial's (%d / %d / %d)" % [foes.quiet, foes[""], foes.trial])
+
+
+func test_route_floors_stay_walkable() -> void:
+	for route in ["trial", "vault", "quiet"]:
+		for s in [1, 7, 42, 777, 31337]:
+			for depth in [2, 3]:
+				var lay := DungeonGen.generate(s, depth, "throne" if s % 2 == 0 else "rootmire", depth == 3, route)
+				var solid := _solid_tiles(lay)
+				var a := Vector2i(lay.room(lay.start_id).center())
+				var seen := {a: true}
+				var q: Array[Vector2i] = [a]
+				while not q.is_empty():
+					var p: Vector2i = q.pop_back()
+					for d in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+						var n: Vector2i = p + d
+						var t := lay.grid.at(n.x, n.y)
+						if not seen.has(n) and not solid.has(n) and (t == TileGrid.FLOOR or t == TileGrid.GATE):
+							seen[n] = true
+							q.append(n)
+				for r in lay.rooms:
+					for pd in r.props:
+						if pd.kind == "stairs":
+							var ok := false
+							for dy in range(-1, 2):
+								for dx in range(-1, 2):
+									ok = ok or seen.has(pd.tile + Vector2i(dx, dy))
+							check(ok, "%s seed %d depth %d: the %s stairway can be reached" % [route, s, depth, pd.get("route", "plain")])
+					if r.objective != "":
+						var reach := false
+						for y in range(r.rect.position.y, r.rect.end.y):
+							for x in range(r.rect.position.x, r.rect.end.x):
+								reach = reach or (lay.grid.room_of[y * lay.grid.width + x] == r.id and seen.has(Vector2i(x, y)))
+						check(reach, "%s seed %d: the %s room can be reached" % [route, s, r.objective])

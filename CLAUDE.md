@@ -50,7 +50,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`, `landmark` (every floor has its
   region's landmark), `urnlab`, `proplab`, `audiorec=S` (record the buses to `user://audio_rec/`), `perflog` (frame-time p50/p95/p99/worst every 10 s),
   `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|apothecary|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
-  `search=<text>`), `warp=boss|event|landmark`, `pad` (act as if a
+  `search=<text>`), `warp=boss|event|landmark|stairs|objective`, `route=trial|vault|quiet` (a floor reached that way), `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),

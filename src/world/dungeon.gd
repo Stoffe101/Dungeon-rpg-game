@@ -89,6 +89,17 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
+	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args():
+		# dev: at the fork (the stairs room), or inside the route's own room
+		for rm in layout.rooms:
+			var hit: bool = rm.id == layout.exit_id if "warp=stairs" in Dev.args() else rm.objective != ""
+			if hit:
+				for other in layout.rooms:
+					if other != rm and other.type != Room.Type.BOSS:
+						other.visited = true
+						other.cleared = true
+				player.pos = _open_spot(rm.center() + Vector2(0, 2.5))
+				start = rm
 	if view:
 		view.focus = Iso.to_world(player.pos)
 	_enter_room(start)
@@ -291,7 +302,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			if pd.kind == "dressing":
@@ -309,14 +320,14 @@ func _place_props() -> void:
 					extra["sealed"] = true
 			if pd.kind == "sconce" and region.has("brazier"):
 				extra["sheet"] = String(region.brazier)
-			if r.id == grudge_room and pd.kind in ["torch", "candles", "brazier"]:
+			if r.id == grudge_room and pd.kind in ["torch", "candles", "brazier"] and not pd.has("flame"):
 				# something that remembers you is in here: its fires burn red
 				extra["flame"] = Color(1.0, 0.32, 0.25)
 			if pd.has("phase"):
 				extra["phase"] = pd.phase
 			if pd.kind == "torch":
 				extra["sheet"] = String(region.get("torch", "torch"))
-			if pd.kind in ["brazier", "boss_brazier"] and region.has("brazier"):
+			if pd.kind in ["brazier", "boss_brazier"] and region.has("brazier") and not pd.has("sheet"):
 				extra["sheet"] = String(region.brazier)
 			var p := Prop.make(self, pd.kind, pd.tile, extra)
 			p.room_id = r.id
@@ -627,7 +638,12 @@ func _enter_room(r: Room, mine := true) -> void:
 		elif r.type == Room.Type.MERCHANT:
 			Events.toast.emit("\"Embers for wares, wanderer?\"", Color(1.0, 0.8, 0.5))
 		elif r.type == Room.Type.STAIRS:
-			Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
+			if layout.offer.size() >= 2:
+				var a := DungeonGen.route_def(String(layout.offer[0]))
+				var b := DungeonGen.route_def(String(layout.offer[1]))
+				Events.toast.emit("Two ways down: %s (%s), or %s (%s). The Hearthstone can carry you home." % [a.name, a.act, b.name, b.act], Color(1.0, 0.8, 0.55))
+			else:
+				Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
 		if r.landmark != "":
 			# a great sight, and one more for the record of what this Kindled has seen
 			Profile.note_seen("landmarks", r.landmark)
@@ -675,6 +691,8 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 	_spawn_wave(r)
 	if r.grudge and not grudge_spawned:
 		_spawn_grudge(r)
+	if r.objective != "" and not replica:
+		_begin_objective(r)
 
 
 func _spawn_wave(r: Room) -> void:
@@ -709,6 +727,7 @@ func _spawn_wave(r: Room) -> void:
 			spots = spots.slice(0, n_own) + rest
 	var share := 1.0
 	var closing := false
+	var route_embers := float(DungeonGen.ROUTES.get(layout.route, {}).get("embers", 1.0))
 	if players.size() > 1:
 		var own_v := 0.0
 		var all_v := 0.0
@@ -742,6 +761,8 @@ func _spawn_wave(r: Room) -> void:
 			e.xp = maxi(1, int(round(e.xp * share)))
 			e.embers = int(round(e.embers * share))
 			e.set_meta("share", share)
+		if route_embers != 1.0:
+			e.embers = int(round(e.embers * route_embers))     # the way down's spoils
 		var swarm := EnemyDB.get_def(id).has("pack")
 		if r.type == Room.Type.ELITE and not elite_done and not swarm:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
@@ -856,6 +877,7 @@ func _spawn_grudge(r: Room) -> void:
 
 func _update_encounter(dt: float) -> void:
 	room_enemies = room_enemies.filter(func(e): return is_instance_valid(e) and e.alive)
+	_tend_objective(dt)
 	_watch_t -= dt
 	if _watch_t <= 0.0:
 		_watch_t = 0.5
@@ -1107,6 +1129,15 @@ func _spawn_reward(r: Room) -> void:
 			Prop.make(self, "relic_altar", Vector2i(c) + Vector2i(0, -2), {"tier": 2})
 			for i in 6:
 				Pickup.spawn(self, "ember", c, 3)
+		"seals":
+			# the Trial of Ash's warded hall, won
+			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 2})
+			_rune_drop(c + Vector2(1.5, 0))
+			for i in 8 + layout.depth * 2:
+				Pickup.spawn(self, "ember", c, 3)
+			Events.banner.emit("The Ash Hall Falls", "Its seals broken, its spoils yours")
+		"vault":
+			_open_vault(r, c)
 		"trial":
 			Pickup.spawn(self, "sunshard", c, 1)
 			_rune_drop(c + Vector2(1.5, 0))
@@ -1520,7 +1551,7 @@ func _drop_loot(e: Enemy) -> void:
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
 		# the region's reagent for the Apothecary
 		_reagent_drop(e.pos + Vector2(0.4, 0.3), Tinctures.region_reagent(layout.region), 0.3)
-		if rng.randf() < 0.3:
+		if rng.randf() < (0.55 if layout.route == "trial" else 0.3):
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier, _favour))
 	if e == boss:
 		_maybe_blueprint(e.pos, 1.0 if layout.region == "throne" else 0.3 + 0.05 * run.tier)
@@ -1624,6 +1655,148 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
 	if tier >= 2:
 		_reagent_drop(prop.pos + Vector2(0.5, 0.5), "wardmoth_milk", 0.3)
+
+
+# --- the route's own tasks (DungeonGen._objectives) -----------------------------------
+# Simulated by the host; what the HUD shows (`objective`) reaches guests as
+# an "obj" event. Neither can hold a room shut: a seal is a foe like any
+# other (every blow, spell and shot breaks it), and a guttered flame only
+# costs the vault its best spoils - the room still opens when its foes fall.
+
+var objective := {}              # {text, k (0..1, or -1), col} - the HUD's line
+var _seals: Array = []
+var _seal_room := -1
+var _vigil: Prop
+var _flame := 0.0
+var _flame_out := false
+var _ward_fx_t := 0.0
+const SEAL_COL := Color(1.0, 0.45, 0.25)
+const FLAME_COL := Color(1.0, 0.8, 0.4)
+
+
+func _begin_objective(r: Room) -> void:
+	match r.objective:
+		"seals":
+			_seal_room = r.id
+			_seals.clear()
+			var c := r.center()
+			var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
+			for o in [Vector2(-0.3, -0.28), Vector2(0.3, -0.28), Vector2(0.0, 0.3)]:
+				var at := c + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y)
+				var e := _make_enemy("ash_seal")
+				e.pos = arena_spot(r, at)
+				_scale(e, layout.depth, memory)
+				_coop_scale(e)
+				e.room_id = r.id
+				e.spawn_t = 0.3
+				add_actor(e)
+				_seals.append(e)
+			Events.banner.emit("The Seals Hold", "While a seal stands, this hall's foes shrug off most of every blow")
+			_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
+		"flame":
+			var t := Vector2i(_open_spot(r.center()))
+			_vigil = Prop.make(self, "vigil", t, {"sheet": "vigil_lantern", "anim": "lit", "solid": true,
+				"light": [FLAME_COL, 1.6, 6.0], "light_h": 1.4})
+			_vigil.room_id = r.id
+			_flame = 0.6
+			_flame_out = false
+			fx.ring(_vigil.pos, 2.4, FLAME_COL, 0.6, 0.3)
+			Events.banner.emit("Keep the Flame", "Stand in the lantern's light to feed it. If it goes out, the vault's best is lost")
+			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+func _tend_objective(dt: float) -> void:
+	if replica:
+		return
+	if _seal_room >= 0 and seals_up() > 0:
+		# warded foes shed ash: you can see which ones the seals hold
+		_ward_fx_t -= dt
+		if _ward_fx_t <= 0.0:
+			_ward_fx_t = 0.35
+			for e in room_enemies:
+				if sealed_foe(e):
+					fx.motes(e.pos, 0.9, SEAL_COL, 1, 0.6, 0.8, 0.25)
+	if _vigil and is_instance_valid(_vigil) and not _flame_out and active_room and active_room.objective == "flame":
+		var near := 0
+		for p in active_players():
+			if p.pos.distance_to(_vigil.pos) < 2.4:
+				near += 1
+		var was := _flame
+		if near > 0:
+			_flame = minf(1.0, _flame + (0.05 + 0.02 * (near - 1)) * dt)
+		else:
+			_flame = maxf(0.0, _flame - (0.05 + 0.005 * layout.depth) * dt)
+		if _vigil.sprite:
+			_vigil.sprite.play("low" if _flame < 0.3 else "lit")
+		if _vigil.light:
+			_vigil.light.light_energy = 0.4 + 1.4 * _flame
+			_vigil.light.omni_range = 3.0 + 4.0 * _flame
+		if near > 0 and fmod(elapsed, 0.5) < dt:
+			fx.motes(_vigil.pos, 1.2, FLAME_COL, 3, 0.8, 0.9, 0.3)
+		if _flame <= 0.0:
+			_flame_out = true
+			if _vigil.sprite:
+				_vigil.sprite.play("out")
+			if _vigil.light:
+				_vigil.light.visible = false
+			fx.burst(_vigil.pos, 1.2, Color(0.5, 0.45, 0.42), 14, 1.5, 0.8, 1.0)
+			Events.banner.emit("The Flame Gutters", "The vault will open - but what it guarded is lost")
+			_set_objective("THE FLAME IS OUT", 0.0, Color(0.6, 0.55, 0.55))
+		elif absf(_flame - float(objective.get("k", -1.0))) >= 0.02 or (was >= 0.3) != (_flame >= 0.3):
+			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+## Seals still standing in the warded hall.
+func seals_up() -> int:
+	var n := 0
+	for s in _seals:
+		if is_instance_valid(s) and s.alive:
+			n += 1
+	return n
+
+
+## Is `t` one of the foes the seals ward (their blows land at a third)?
+func sealed_foe(t: Actor) -> bool:
+	return _seal_room >= 0 and t is Enemy and (t as Enemy).id != "ash_seal" and (t as Enemy).room_id == _seal_room and seals_up() > 0
+
+
+func on_seal_broken() -> void:
+	var left := seals_up()
+	if left > 0:
+		_set_objective("BREAK THE SEALS   %d LEFT" % left, -1.0, SEAL_COL)
+		Events.toast.emit("A seal breaks. %d left." % left, SEAL_COL)
+		return
+	_set_objective("", -1.0, SEAL_COL)
+	Events.banner.emit("The Seals Break", "The hall's foes bleed again")
+	for e in room_enemies:
+		if is_instance_valid(e) and e.alive:
+			fx.burst(e.pos, 0.8, SEAL_COL, 8, 2.0, 0.4, 2.0)
+
+
+func _set_objective(text: String, k: float, col: Color) -> void:
+	objective = {} if text == "" else {"text": text, "k": k, "col": col}
+	if Net.recording:
+		Net.rec(["obj", text, snappedf(k, 0.01), col])
+
+
+## The Lost Vault's reward: a kept flame opens its reliquary (an ancient chest,
+## a Gloamcap for each Kindled, now and then a blueprint); a guttered one only
+## a plain chest.
+func _open_vault(r: Room, c: Vector2) -> void:
+	_set_objective("", -1.0, FLAME_COL)
+	if _flame_out:
+		Prop.make(self, "chest", Vector2i(c), {"tier": 1})
+		Events.toast.emit("The vault opens on what little the dark left.", Color(0.7, 0.66, 0.62))
+		return
+	Prop.make(self, "chest", Vector2i(c), {"tier": 3})
+	_reagent_drop(c + Vector2(1.2, 0.4), "gloamcap", 1.0)
+	_maybe_blueprint(c + Vector2(-1.2, 0.4), 0.4)
+	for i in 6:
+		Pickup.spawn(self, "ember", c, 4)
+	if _vigil and is_instance_valid(_vigil):
+		fx.burst(_vigil.pos, 1.4, FLAME_COL, 30, 3.5, 0.8, 4.0, Vector2.UP, 1.0)
+	Events.banner.emit("The Flame Holds", "The Lost Vault opens")
+	note_request("chest")
 
 
 ## A reagent for the Apothecary: one for each Kindled, theirs alone (like a
@@ -1814,7 +1987,7 @@ func request(what: String, prop: Prop) -> void:
 		return
 	match what:
 		"stairs":
-			Game.descend()
+			Game.descend(String(prop.data.get("route", "")))
 		"hearthstone":
 			if prop.data.get("victory", false):
 				Game.end_run("victory")

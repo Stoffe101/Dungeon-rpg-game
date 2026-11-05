@@ -4,6 +4,14 @@ class_name EnemyDB
 extends RefCounted
 
 const ENEMIES := {
+	# (the Trial of Ash's ward-stone: never in a region's pool - DungeonGen._objectives)
+	"ash_seal": {
+		"role": "objective", "name": "Ash Seal", "script": "res://src/entities/enemies/ash_seal.gd", "sheet": "ash_seal",
+		"hp": 70.0, "speed": 0.0, "radius": 0.42, "poise": 999.0, "damage": 0.0,
+		"xp": 3, "embers": 4, "cost": 0, "min_depth": 99, "pack": true,
+		"no_affix": ["hasted", "warded", "volatile", "vampiric", "phasing", "frenzied", "shepherd", "splitting", "molten", "gloom"],
+		"lore": "Old ward-stones, chained so they cannot fall. Whatever they guard, they keep from harm.",
+	},
 	"husk": {
 		"voice": "zombie", "voice_pitch": 1.0, "role": "brute",
 		"name": "Husk", "script": "res://src/entities/enemies/husk.gd", "sheet": "husk",
@@ -189,6 +197,7 @@ const ENEMIES := {
 
 ## Roles: what a creature does in a fight, and the answer to it (bestiary).
 const ROLES := {
+	"objective": ["Seal", "Wards the foes around it. Break it, and they bleed again."],
 	"brute": ["Brute", "Walks in and swings. Dodge the swing, punish the recovery."],
 	"swarm": ["Swarm", "Fast, fragile, never alone. Sweep them."],
 	"ranged": ["Ranged", "Keeps its distance. Close in, or Ward the shot back."],
