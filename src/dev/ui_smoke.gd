@@ -347,6 +347,9 @@ func _mouse_to(p: Vector2) -> void:
 	e.relative = Vector2(20, 0)
 	Input.parse_input_event(e)
 	Input.warp_mouse(p * get_window().content_scale_factor)
+	# the pointer the Kindled reads (as the scenarios do): a hand on the real
+	# mouse, or a window without focus, no longer moves the aim under the test
+	Dev.mouse = p
 	await _wait(3)
 
 
@@ -364,6 +367,7 @@ func _aim_checks(pl: Player) -> void:
 	pl.weapon.press()
 	pl.weapon.release()
 	await _wait(20)
+	Dev.mouse = Vector2(-1, -1)
 	_expect(pl.weapon.aim_dir.y < -0.7, "the swing goes where the mouse points (%s)" % pl.weapon.aim_dir)
 
 

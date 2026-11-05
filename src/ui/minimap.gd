@@ -246,6 +246,8 @@ func _draw_big(d: Dungeon, known: Dictionary) -> void:
 	# a whole number of screen pixels a tile, as large as fits: the plan stays crisp
 	var us := float(maxi(1, Settings.effective_ui_scale()))
 	var px := maxf(1.0, floorf(fit * us)) / us
+	# a floor barely begun is not blown up: at most eight screen pixels a tile
+	px = minf(px, 8.0 / us)
 	px *= zoom
 	var origin := area.get_center() - Vector2(b.get_center()) * px
 	if zoom > 1 and d.player:
@@ -314,6 +316,7 @@ func _markers(d: Dungeon, origin: Vector2, px: float, clip: Rect2, names: bool) 
 			order.append(p)
 	if me and is_instance_valid(me):
 		order.append(me)     # drawn last: on top
+	var taken: Array[Rect2] = []     # name labels already drawn (two side by side stack)
 	for p: Player in order:
 		var mine := p == me
 		var col := C_SELF if (mine and d.players.size() <= 1) else Net.color_of(p.peer_id)
@@ -347,7 +350,18 @@ func _markers(d: Dungeon, origin: Vector2, px: float, clip: Rect2, names: bool) 
 			draw_line(at, at + f.normalized() * (r + 3.0), Color(1.0, 0.95, 0.8), 1.0)
 		if names and d.players.size() > 1:
 			var nm := Net.name_of(p.peer_id)
-			draw_string(UIKit.FONT_OUTLINE, at + Vector2(r + 3.0, 3.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
+			var w := UIKit.FONT_OUTLINE.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+			var lr := Rect2(at + Vector2(r + 3.0, -5.0), Vector2(w, 9.0))
+			for k in 4:
+				var clash := false
+				for tr in taken:
+					if tr.intersects(lr):
+						clash = true
+				if not clash:
+					break
+				lr.position.y += 9.0
+			taken.append(lr)
+			draw_string(UIKit.FONT_OUTLINE, lr.position + Vector2(0, 8.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
 
 
 func _frame(r: Rect2) -> void:

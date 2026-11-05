@@ -770,6 +770,15 @@ func loot() -> void:
 				continue
 			await until(func() -> bool: return p.gear_layers.has("head"), 4.0, "the host sees %s wear their find" % Net.name_of(p.peer_id))
 		Net.i.dev_shot("loot/worn")
+	# every machine's own map, with every Kindled on it
+	await wait(1.0)
+	Game.ui.hud.toggle_big_map()
+	await wait(0.8)
+	expect(Game.ui.hud.big_map.visible, "the full map opens below")
+	if role == "host":
+		Net.i.dev_shot("loot/map")
+	await wait(1.2)
+	Game.ui.hud.toggle_big_map()
 	await wait(1.5)
 
 
