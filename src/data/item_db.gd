@@ -177,6 +177,10 @@ const BASES := {
 	"verdant_totem": {"name": "Verdant Totem", "slot": "charm", "icon": "vd_totem", "set": "verdant", "mods": [["flask_heal", "add", 0.06], ["max_hp", "add", 8.0]]},
 
 	# ================= uniques (learned from blueprints) =================
+	# (a settled Grudge's: Dungeon._grudge_trophy names it after the rival; never rolled, never crafted)
+	"rival_fang": {"name": "Rival's Fang", "slot": "charm", "icon": "totem", "unique": true, "trophy": true,
+		"mods": [["elite_damage", "add", 0.2], ["max_hp", "add", 12.0]],
+		"desc": "Taken from a Grudge you settled. It does not forget, and neither do you: more damage to elites."},
 	"gamblers_coin": {"name": "Gambler's Coin", "slot": "charm", "icon": "coin", "unique": true, "flags": {"gamblers_coin": 1},
 		"mods": [["ember_gain", "add", 0.35], ["crit_chance", "add", 0.05]],
 		"desc": "Critical hits have a 10% chance to spill Embers. Ka-ching.",
@@ -447,7 +451,7 @@ static func craftable() -> Array:
 
 
 static func blueprints() -> Array:
-	return BASES.keys().filter(func(k): return BASES[k].get("unique", false))
+	return BASES.keys().filter(func(k): return BASES[k].get("unique", false) and not BASES[k].get("trophy", false))
 
 
 static func set_pieces(set_id: String) -> Array:
@@ -597,7 +601,7 @@ static func gear_look(equipped: Dictionary) -> String:
 
 
 static func item_name(item: Dictionary) -> String:
-	var n := String(base(String(item.get("base", ""))).get("name", "?"))
+	var n := String(item.get("title", base(String(item.get("base", ""))).get("name", "?")))
 	var lvl := int(item.get("level", 1))
 	return n if lvl <= 1 else "%s +%d" % [n, lvl - 1]
 

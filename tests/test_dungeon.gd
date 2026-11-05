@@ -147,7 +147,7 @@ func test_event_rooms() -> void:
 			for r in lay.rooms:
 				if r.type != Room.Type.EVENT:
 					continue
-				check(r.event in Room.EVENTS, "event kind '%s'" % r.event)
+				check(r.event in Room.EVENTS or DeepEvents.EVENTS.has(r.event) or r.event == "altar", "event kind '%s'" % r.event)
 				seen[r.event] = true
 				var taken := {}
 				for p in r.props:
@@ -160,7 +160,8 @@ func test_event_rooms() -> void:
 				if r.event == "trial":
 					eq(r.encounter.size(), 3, "trial has three waves")
 					check(not r.spawns.is_empty(), "trial room has spawn points")
-	eq(seen.size(), Room.EVENTS.size(), "every event kind generated")
+	for e in Room.EVENTS:
+		check(seen.has(e), "the event '%s' generated" % e)
 
 
 func test_rootmire_brambles_never_seal_doors() -> void:

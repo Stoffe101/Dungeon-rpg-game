@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"broken": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 2
+		},
+		"idle": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"kindled": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		},
+		"pact": {
+			"fps": 6.0,
+			"frames": 4,
+			"loop": true,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		44,
+		46
+	],
+	"origin": [
+		22,
+		43
+	]
+}

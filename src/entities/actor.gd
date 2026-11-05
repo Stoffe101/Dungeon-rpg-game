@@ -323,7 +323,7 @@ func _death_effect() -> void:
 	var tw := create_tween()
 	# a foe with a drawn fall plays it first (crumbling, toppling, folding,
 	# melting: tools/art/sheet.gd), then fades - every machine alike
-	if sprite.has_anim("death") and self is Enemy:
+	if sprite.has_anim("death") and self is Enemy and not has_meta("fled"):
 		sprite.play("death", true)
 		var info: Dictionary = sprite.sheet.anims["death"]
 		tw.tween_interval(float(info.frames) / maxf(1.0, float(info.fps)) + 0.12)

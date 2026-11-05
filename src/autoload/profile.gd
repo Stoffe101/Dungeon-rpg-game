@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 14
+const VERSION := 15
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -70,6 +70,7 @@ static func fresh() -> Dictionary:
 		"delivered": {},
 		"last_run": "",
 		"alchemy": {"steeped": "hearthbalm", "reagents": {}},
+		"chronicle": {"sites": {}, "marks": {}, "log": []},
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
 		"identity": "",
@@ -271,6 +272,18 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not (out.get("alchemy") is Dictionary):
 			out["alchemy"] = {"steeped": "hearthbalm", "reagents": {}}
 		v = 14
+	if v < 15:
+		# v15: the Chronicle (altars, deeds, the story so far). An old save's
+		# world is untouched; its Grudges have no history yet, and start one
+		if not (out.get("chronicle") is Dictionary):
+			out["chronicle"] = {"sites": {}, "marks": {}, "log": []}
+		for g in out.get("grudges", []):
+			if g is Dictionary and not g.has("learned"):
+				g["learned"] = "ward"
+				g["slew"] = 1
+				g["scars"] = 0
+				g["history"] = []
+		v = 15
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -842,7 +855,9 @@ func character_sheet() -> Dictionary:
 		# a co-op host lets this Kindled's own Grudges hunt the party
 		"grudges": active_grudges().map(func(g): return {"id": g.id, "enemy": g.enemy, "name": g.get("name", ""),
 			"level": int(g.get("level", 1)), "embers": int(g.get("embers", 0)), "depth": int(g.get("depth", 1)),
-			"traits": (g.get("traits", []) as Array).duplicate(), "title": g.get("title", "")}),
+			"traits": (g.get("traits", []) as Array).duplicate(), "title": g.get("title", ""),
+			"affix": g.get("affix", ""), "affix2": g.get("affix2", ""), "learned": g.get("learned", "ward"),
+			"slew": int(g.get("slew", 1)), "scars": int(g.get("scars", 0))}),
 	}
 
 
@@ -1135,16 +1150,22 @@ const GRUDGE_TITLES := ["the Unburied", "Who Remembers", "of the Second Grave", 
 
 
 ## The enemy that killed you becomes a Grudge carrying the Embers you lost.
-func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNumberGenerator) -> Dictionary:
+func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNumberGenerator, weapon := "", region := "") -> Dictionary:
 	if enemy_id == "" or EnemyDB.get_def(enemy_id).get("boss", false):
 		return {}
+	var place := "%s, depth %d" % [String(EnemyDB.REGIONS.get(region, {}).get("name", "the Undervault")), depth]
+	var learned := grudge_lesson(weapon)
 	for g in data.grudges:
 		if g.enemy == enemy_id and not g.get("settled", false):
 			g.level = mini(GRUDGE_MAX_LEVEL, int(g.level) + 1)
 			g.embers = int(g.embers) + lost_embers
 			g.depth = depth
 			g["runs"] = 0
+			g["slew"] = int(g.get("slew", 1)) + 1
+			g["learned"] = learned
+			_grudge_note(g, "Slew you again: %s." % place)
 			_grudge_traits(g, rng)
+			Chronicle.note("%s has killed you %d times now." % [g.name, int(g.slew)])
 			_changed()
 			return g
 	var g := {
@@ -1156,10 +1177,41 @@ func record_grudge(enemy_id: String, lost_embers: int, depth: int, rng: RandomNu
 		"embers": lost_embers,
 		"depth": depth,
 		"settled": false,
+		"slew": 1,
+		"scars": 0,
+		"learned": learned,
+		"history": [],
 	}
+	_grudge_note(g, "Slew you: %s." % place)
+	Chronicle.note("%s took your Embers in %s." % [g.name, place])
 	data.grudges.append(g)
 	_changed()
 	return g
+
+
+## What a Grudge learned from the fight that made it: it comes back ready for
+## the way you fought. Those who kept their distance meet a foe that closes it;
+## those who stood and swung meet a foe that wards against it.
+static func grudge_lesson(weapon: String) -> String:
+	return "closer" if weapon in ["bow", "tome", "staff"] else "ward"
+
+
+static func _grudge_note(g: Dictionary, line: String) -> void:
+	var h: Array = g.get("history", [])
+	h.append(line)
+	while h.size() > 5:
+		h.pop_front()
+	g["history"] = h
+
+
+## It got away, wounded: a scar it will carry from now on.
+func scar_grudge(gid: String) -> void:
+	for g in data.grudges:
+		if g.id == gid:
+			g["scars"] = int(g.get("scars", 0)) + 1
+			_grudge_note(g, "You scarred it. It fled.")
+			_changed()
+			return
 
 
 const GRUDGE_MAX_LEVEL := 5
@@ -1182,11 +1234,12 @@ func _grudge_traits(g: Dictionary, rng: RandomNumberGenerator) -> void:
 
 ## Grudges left alone grow in the dark: every third expedition that does not
 ## settle one, it gains a level and its hoard grows. Returns the names that grew.
-func age_grudges(rng: RandomNumberGenerator) -> Array:
+func age_grudges(rng: RandomNumberGenerator, by := 1) -> Array:
 	var grew: Array = []
 	for g in active_grudges():
-		g["runs"] = int(g.get("runs", 0)) + 1
-		if int(g.runs) % 3 == 0 and int(g.level) < GRUDGE_MAX_LEVEL:
+		var was := int(g.get("runs", 0))
+		g["runs"] = was + by
+		if int(g.runs) / 3 > was / 3 and int(g.level) < GRUDGE_MAX_LEVEL:
 			g.level = int(g.level) + 1
 			g.embers = int(round(int(g.embers) * 1.15))
 			_grudge_traits(g, rng)

@@ -90,10 +90,10 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
-	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args():
-		# dev: at the fork (the stairs room), or inside the route's own room
+	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args() or "warp=altar" in Dev.args():
+		# dev: at the fork (the stairs room), inside the route's own room, or at the altar
 		for rm in layout.rooms:
-			var hit: bool = rm.id == layout.exit_id if "warp=stairs" in Dev.args() else rm.objective != ""
+			var hit: bool = rm.event == "altar" if "warp=altar" in Dev.args() else (rm.id == layout.exit_id if "warp=stairs" in Dev.args() else rm.objective != "")
 			if hit:
 				for other in layout.rooms:
 					if other != rm and other.type != Room.Type.BOSS:
@@ -197,6 +197,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		# the guardian's floor: a rumble from below once the title card lifts
 		get_tree().create_timer(4.5, false).timeout.connect(_guardian_stirs)
 	built = true
+	_spoor()
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
 	actor_died.connect(_on_actor_died)
@@ -303,15 +304,17 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
 				if pd.has(k):
 					extra[k] = pd[k]
+			if pd.kind == "site":
+				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
 				if pd.get("wide", false):
 					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
 					extra["ox"] = 0.5
-				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)) or pd.get("low", false):
 					extra["low"] = true      # underfoot: walked through, drawn behind whoever stands on it
 				else:
 					extra["solid"] = true
@@ -347,7 +350,7 @@ func _place_props() -> void:
 
 func _place_gates() -> void:
 	for r in layout.rooms:
-		if not r.is_combat() and r.event != "trial":
+		if not r.is_combat() and not (r.event in ["trial", "procession"]):
 			continue
 		var nodes: Array = []
 		for d in r.doors:
@@ -457,8 +460,13 @@ func party_grudges() -> Array:
 func _pick_grudge_room() -> void:
 	# a Grudge waits on the depth where it won, or on the last one if that was deeper
 	var gs := party_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
-	if run.has_omen("hunted"):
+	if run.has_omen("hunted") or layout.route == "lair":
 		gs = party_grudges()
+	if not run.wounded.is_empty():
+		# one that fled this expedition is still bleeding, and still here
+		var w := party_grudges().filter(func(g): return run.wounded.has(String(g.id)))
+		if not w.is_empty():
+			gs = w
 	if gs.is_empty():
 		return
 	_grudge = gs[rng.randi_range(0, gs.size() - 1)]
@@ -469,6 +477,9 @@ func _pick_grudge_room() -> void:
 	if cands.is_empty():
 		return
 	grudge_room = cands[rng.randi_range(0, cands.size() - 1)]
+	for r in layout.rooms:
+		if r.objective == "lair":
+			grudge_room = r.id      # its own ground
 	layout.room(grudge_room).grudge = true
 
 
@@ -666,9 +677,7 @@ func _enter_room(r: Room, mine := true) -> void:
 			Events.toast.emit("\"Embers for wares, wanderer?\"", Color(1.0, 0.8, 0.5))
 		elif r.type == Room.Type.STAIRS:
 			if layout.offer.size() >= 2:
-				var a := DungeonGen.route_def(String(layout.offer[0]))
-				var b := DungeonGen.route_def(String(layout.offer[1]))
-				Events.toast.emit("Two ways down: %s (%s), or %s (%s). The Hearthstone can carry you home." % [a.name, a.act, b.name, b.act], Color(1.0, 0.8, 0.55))
+				Events.toast.emit("%d ways down. Each shapes the floor below." % layout.offer.size(), Color(1.0, 0.8, 0.55))
 			else:
 				Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
 		if r.landmark != "":
@@ -723,6 +732,8 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 
 
 func _spawn_wave(r: Room) -> void:
+	if r.objective == "gauntlet" and not replica:
+		_ash_fall(r)
 	var ids: Array = (r.encounter[wave] as Array).duplicate() if wave < r.encounter.size() else []
 	var spots := r.spawns.filter(func(t): return grid.at(t.x, t.y) == TileGrid.FLOOR)
 	spots.shuffle()
@@ -795,7 +806,7 @@ func _spawn_wave(r: Room) -> void:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
 			e.make_elite(ea, _second_affix(ea, id))
 			elite_done = true
-		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) and not swarm:
+		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) + _unbound_chance() and not swarm:
 			var a := EnemyDB.roll_affix(rng, id)
 			e.make_elite(a, _second_affix(a, id))
 		if tempered and not swarm:
@@ -879,6 +890,8 @@ func _spawn_grudge(r: Room) -> void:
 	e.pos = arena_spot(r, Vector2(t) + Vector2(0.5, 0.5))
 	_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
 	e.make_grudge(g)
+	e.hp = e.max_hp * float(run.wounded.get(String(g.id), 1.0))     # (it fled here, still bleeding)
+	e._wound_checked = run.wounded.has(String(g.id)) or r.objective == "lair"     # it will not run twice, nor from its own ground
 	e.room_id = r.id
 	e.spawn_t = 1.2
 	e.set_meta("grudge_id", g.id)
@@ -897,7 +910,14 @@ func _spawn_grudge(r: Room) -> void:
 			kin.spawn_t = 1.2
 			add_actor(kin)
 			register_enemy(kin)
-	Events.banner.emit(String(g.name), "Your Grudge has found you. It carries %d of your Embers." % int(g.embers))
+	var slew := int(g.get("slew", 1))
+	var count := {1: "It killed you once", 2: "It killed you twice"}.get(slew, "It has killed you %d times" % slew) as String
+	var owner_id := int(g.get("owner", 0))
+	var whose := "%s's Grudge. " % Net.name_of(owner_id) if owner_id != 0 and Net.active() and Net.party_size() > 1 else ""
+	var lesson := "It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else "It has learned to ward your blows."
+	Events.banner.emit(String(g.name), "%s%s. %s It carries %d Embers." % [whose, count, lesson, int(g.embers)])
+	fx.ring(e.pos, 3.0, GRUDGE_RED, 1.2, 0.3)
+	fx.shake(0.3)
 	print("[dungeon] grudge %s (%s Lv%d) spawned in room %d" % [g.name, g.enemy, int(g.level), r.id])
 	Audio.play("boss_roar", -6.0, 1.3)
 
@@ -1162,9 +1182,31 @@ func _spawn_reward(r: Room) -> void:
 			_rune_drop(c + Vector2(1.5, 0))
 			for i in 8 + layout.depth * 2:
 				Pickup.spawn(self, "ember", c, 3)
-			Events.banner.emit("The Ash Hall Falls", "Its seals broken, its spoils yours")
+			Events.banner.emit("The Ash Hall Falls", "Its spoils are yours")
 		"vault":
 			_open_vault(r, c)
+		"workshop":
+			# a forgotten alchemist's bench: what the fight was guarding
+			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 2})
+			_reagent_drop(c + Vector2(1.2, 0.4), "gloamcap", 1.0)
+			Pickup.spawn(self, "material", c, 2, {"id": "ember_core"})
+			Events.banner.emit("A Forgotten Workshop", "Someone was distilling something here, long ago")
+		"breach":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 3})
+			_maybe_blueprint(c + Vector2(1.5, 0.4), 0.6)
+			_rune_drop(c + Vector2(-1.5, 0.4))
+			for i in 10:
+				Pickup.spawn(self, "ember", c, 5)
+			Chronicle.mark("breach_won")
+			Events.banner.emit("The Breach Holds", "For now")
+		"procession":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
+			_maybe_blueprint(c + Vector2(1.5, 0.4), 0.35)
+			for i in 6:
+				Pickup.spawn(self, "ember", c, 3)
+			Chronicle.mark("procession")
+			Chronicle.note("A bier opened, far below. What walked behind it walks no more.")
+			Events.banner.emit("The Procession Ends", "Its last gift was meant for someone else")
 		"trial":
 			Pickup.spawn(self, "sunshard", c, 1)
 			_rune_drop(c + Vector2(1.5, 0))
@@ -1698,11 +1740,27 @@ var _flame := 0.0
 var _flame_out := false
 var _ward_fx_t := 0.0
 const SEAL_COL := Color(1.0, 0.45, 0.25)
+const GRUDGE_RED := Color(1.0, 0.32, 0.25)
 const FLAME_COL := Color(1.0, 0.8, 0.4)
 
 
 func _begin_objective(r: Room) -> void:
 	match r.objective:
+		"champion":
+			var e := _champion("Ashen Champion", 2.6)
+			if e:
+				Events.banner.emit("The Ashen Champion", "One foe, burning. It will not be hurried")
+				_set_objective("FELL THE CHAMPION", -1.0, SEAL_COL)
+		"breach":
+			var e2 := _champion("The Unbound", 3.2)
+			if e2:
+				Events.banner.emit("The Unbound", "It was sealed here for a reason")
+				_set_objective("FELL THE UNBOUND", -1.0, Color(0.95, 0.35, 0.3))
+		"gauntlet":
+			Events.banner.emit("The Ash Falls", "Four waves. Keep moving: the floor burns between them")
+			_set_objective("ENDURE   WAVE 1 OF %d" % r.encounter.size(), -1.0, SEAL_COL)
+		"lair":
+			Events.banner.emit("Its Lair", "It has been waiting for you here")
 		"seals":
 			_seal_room = r.id
 			_seals.clear()
@@ -1730,6 +1788,45 @@ func _begin_objective(r: Room) -> void:
 			fx.ring(_vigil.pos, 2.4, FLAME_COL, 0.6, 0.3)
 			Events.banner.emit("Keep the Flame", "Stand in the lantern's light to feed it. If it goes out, the vault's best is lost")
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+## The room's greatest foe made greater: its first real fighter, two affixes,
+## much more health, a name. (Not a health sponge alone: its affixes are what
+## you fight.)
+func _champion(title: String, hp_k: float) -> Enemy:
+	for e: Enemy in room_enemies:
+		if is_instance_valid(e) and not e.def.get("pack", false) and not e.def.get("boss", false):
+			if not e.elite:
+				var a := EnemyDB.roll_affix(rng, e.id)
+				e.make_elite(a, EnemyDB.roll_affix(rng, e.id, a))
+			e.max_hp *= hp_k
+			e.hp = e.max_hp
+			e.damage *= 1.2
+			e.display_name = title
+			e.set_meta("champion", true)
+			return e
+	return null
+
+
+## The Gauntlet: ash falls between its waves, marked first, and burns a while.
+func _ash_fall(r: Room) -> void:
+	_set_objective("ENDURE   WAVE %d OF %d" % [wave + 1, r.encounter.size()], -1.0, SEAL_COL)
+	if wave == 0:
+		return
+	var n := 2 + wave
+	for k in n:
+		var at := arena_spot(r, r.center() + Vector2(randf_range(-0.42, 0.42) * r.rect.size.x, randf_range(-0.42, 0.42) * r.rect.size.y))
+		fx.ring(at, 1.5, SEAL_COL, 0.9, 0.2)
+		after(1.1 + k * 0.1, func() -> void:
+			if not is_inside_tree():
+				return
+			var h := Hazard.spawn(self, at, 1.4, 6.0, Actor.Team.ENEMY, Color(1.0, 0.45, 0.2), func(_h: Hazard, a: Actor) -> void:
+				if a is Player:
+					var hit := Hit.make(null, 4.0 + layout.depth, ["dot"])
+					hit.can_crit = false
+					hit.silent = true
+					(a as Player).take_enemy_hit(hit, null))
+			h.period = 0.6)
 
 
 func _tend_objective(dt: float) -> void:
@@ -1771,6 +1868,76 @@ func _tend_objective(dt: float) -> void:
 			_set_objective("THE FLAME IS OUT", 0.0, Color(0.6, 0.55, 0.55))
 		elif absf(_flame - float(objective.get("k", -1.0))) >= 0.02 or (was >= 0.3) != (_flame >= 0.3):
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+## Signs of a Grudge on this floor: red scratches at the doors of its room and
+## of the rooms around it (announced to guests: props made after `built`).
+func _spoor() -> void:
+	if grudge_room < 0 or replica:
+		return
+	var r := layout.room(grudge_room)
+	for d in r.doors:
+		if d.secret or (d.tiles as Array).is_empty():
+			continue
+		var t: Vector2i = d.tiles[0]
+		for q in [t - Vector2i(d.dir) * 2, t + Vector2i(d.dir) * 2, t - Vector2i(d.dir) * 3]:
+			if grid.at(q.x, q.y) == TileGrid.FLOOR:
+				Prop.make(self, "spoor", q, {"sheet": "grudge_spoor", "low": true, "anim": "v%d" % (posmod(q.x + q.y, 3))})
+
+
+## A Grudge of level 3 or more, settled for good, leaves something with its
+## name on it: a charm for its owner alone, and a line in the Chronicle.
+func _grudge_trophy(e: Enemy) -> void:
+	var nm := e.display_name
+	Chronicle.mark("grudges_settled")
+	Chronicle.note("%s is settled." % nm)
+	if int(e.get_meta("grudge_level", 1)) < 3:
+		return
+	var it := ItemDB.make_item("rival_fang", "epic", 1, rng, run.tier)
+	it["title"] = "Fang of %s" % nm.get_slice(" ", 0)
+	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+	Pickup.spawn(self, "gear", e.pos + Vector2(0.6, 0.0), 1, {"item": it}, 0 if players.size() <= 1 else owner)
+
+
+## A grown Grudge, badly hurt, runs: it drops a third of its hoard, takes a scar
+## and waits on the next floor, still bleeding. Never from the last floor (there
+## is nowhere to go): there it turns and fights to the end. False: it stays.
+func grudge_flees(e: Enemy) -> bool:
+	if layout.boss_depth and not run.delve:
+		return false
+	var gid := String(e.get_meta("grudge_id", ""))
+	if gid == "" or run.wounded.has(gid):
+		return false
+	run.wounded[gid] = maxf(0.35, e.hp_ratio() + 0.2)
+	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+	var hoard := int(e.get_meta("grudge_embers", 0))
+	var share := hoard / 3
+	if owner == Net.my_id():
+		run.scars.append(gid)
+	else:
+		for pl in players:
+			if pl.peer_id == owner and pl.run:
+				pl.run.scars.append(gid)
+	for i in 6:
+		Pickup.spawn(self, "ember", e.pos, maxi(1, share / 6), {"src": "grudge"})
+	e.set_meta("grudge_embers", hoard - share)
+	fx.burst(e.pos, 0.9, GRUDGE_RED, 30, 4.0, 0.6, 4.0, Vector2.UP, 1.3)
+	Events.banner.emit("%s Flees" % e.display_name, "Wounded. It will be waiting further down")
+	Chronicle.note("%s fled, wounded, with what was left of your Embers." % e.display_name)
+	e.set_meta("fled", true)
+	e.die(null)
+	return true
+
+
+## A broken altar lets things out: more elites in that region; on the Breach,
+## many more.
+func _unbound_chance() -> float:
+	var k := 0.0
+	if Chronicle.site_of(run.world, layout.region) == "broken":
+		k += 0.08
+	if layout.route == "breach":
+		k += 0.25
+	return k
 
 
 ## Seals still standing in the warded hall.
@@ -1861,6 +2028,8 @@ func _on_ward() -> void:
 func _on_actor_died(a: Actor, killer: Node) -> void:
 	if a is Enemy:
 		var e := a as Enemy
+		if e.has_meta("fled"):
+			return     # (no death: it is waiting further down)
 		run.kills += 1
 		# the party's kills count for everyone (guests bank them when they settle)
 		for pr in _party_runs():
@@ -1912,6 +2081,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
 			Pickup.spawn(self, "sunshard", e.pos, 1)
+			_grudge_trophy(e)
 			if int(e.get_meta("grudge_level", 1)) >= 2:
 				# what it hoarded while it grew
 				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier, _favour))
@@ -2013,6 +2183,8 @@ func request(what: String, prop: Prop) -> void:
 	if Party.serve(self, who, what, prop):
 		return
 	match what:
+		"site":
+			DeepEvents.interact(self, who, prop)
 		"stairs":
 			Game.descend(String(prop.data.get("route", "")))
 		"hearthstone":
@@ -2272,7 +2444,10 @@ func begin_trial(prop: Prop) -> void:
 	_arena_room = -1
 	arena_of(r)
 	Audio.play("boss_roar", -6.0, 1.4)
-	Events.banner.emit("The Trial Begins", "Survive three waves")
+	if r.event == "procession":
+		Events.banner.emit("The Procession Wakes", "Those who carried it never stopped walking")
+	else:
+		Events.banner.emit("The Trial Begins", "Survive three waves")
 	_spawn_wave(r)
 
 

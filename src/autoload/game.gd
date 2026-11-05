@@ -110,6 +110,9 @@ static func new_run_id() -> String:
 	return "%d-%d-%d" % [Time.get_unix_time_from_system(), Time.get_ticks_usec() % 1000000, randi() % 100000]
 
 
+var world_override := {}       # (begin_descent: the snapshot just sent to the party)
+
+
 func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omens: Variant = null) -> void:
 	if seed_v < 0:
 		seed_v = debug_seed if debug_seed >= 0 else int(Time.get_unix_time_from_system()) % 1000000
@@ -120,6 +123,8 @@ func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omen
 		run.omens = (omens as Array).duplicate()     # the party's agreed expedition
 	else:
 		run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
+	run.world = world_override.duplicate(true) if not world_override.is_empty() else Chronicle.snapshot()
+	world_override = {}
 	coop_runs.clear()
 	if Net.is_host():
 		# every other Kindled gets a run of their own (settled on their machine)
@@ -130,6 +135,7 @@ func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omen
 				r.tier = run.tier
 				r.omens = run.omens.duplicate()
 				r.run_id = run.run_id
+				r.world = run.world.duplicate(true)
 				coop_runs[int(pid)] = r
 	Profile.data.descent.region = region
 	Profile.stat_add("runs")
@@ -159,7 +165,7 @@ func _enter_depth(depth: int) -> void:
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	DungeonGen.force_landmark = "landmark" in Dev.args()
-	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth, run.route)
+	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth, run.route, run.world)
 	_clear_stage()
 	var d := Dungeon.new()
 	d.replica = Net.is_client()
@@ -221,7 +227,7 @@ func _take_route(route: String) -> void:
 	run.route = route if DungeonGen.ROUTES.has(route) else ""
 	if run.route != "":
 		run.routes.append(run.route)
-		Profile.stat_add("route_" + run.route)
+		Chronicle.mark("way_" + run.route)
 
 
 ## The floor's title card names the way taken.
@@ -249,7 +255,8 @@ func begin_descent(region: String, tier := -1, omens: Variant = null) -> void:
 		Net.i.proposal = {}
 		Net.i.expedition += 1
 		# the party goes down together: same seed, region, tier and Omens
-		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": t, "omens": oms, "run_id": rid, "exp": Net.i.expedition})
+		world_override = Chronicle.snapshot()
+		Net.i.rpc("_begin", {"seed": seed_v, "region": region, "tier": t, "omens": oms, "run_id": rid, "exp": Net.i.expedition, "world": world_override})
 		if Net.party_size() > 1:
 			sub += "  -  with %s" % party_names()
 	get_tree().create_timer(wait, true).timeout.connect(func() -> void:
@@ -304,6 +311,7 @@ func begin_coop_client(params: Dictionary) -> void:
 			run.run_id = String(params.get("run_id", ""))
 			run.tier = int(params.tier)
 			run.omens = omens.duplicate()
+			run.world = (params.get("world", {}) as Dictionary).duplicate(true)     # the host's world, not this save's
 			Profile.stat_add("runs")
 			_enter_depth(1), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 
@@ -486,12 +494,16 @@ func end_run(outcome: String, killer_id := "") -> void:
 	if int(s.sunshards) > 0:
 		Profile.add_currency("sunshards", int(s.sunshards))
 	# Grudges not settled this time grow in the dark (before a new one is made)
+	for gid in run.scars:
+		Profile.scar_grudge(String(gid))
+	for k in run.pale:
+		Profile.age_grudges(run.rng, 3)     # the Bowl feeds them
 	var grew := Profile.age_grudges(run.rng)
 	match outcome:
 		"died":
 			Profile.stat_add("deaths")
 			if killer_id != "" and int(s.embers_lost) > 0:
-				var g := Profile.record_grudge(killer_id, int(s.embers_lost), run.depth, run.rng)
+				var g := Profile.record_grudge(killer_id, int(s.embers_lost), run.depth, run.rng, run.weapon_id, run.region)
 				s["grudge"] = g
 		"extracted":
 			Profile.stat_add("extractions")

@@ -123,10 +123,19 @@ static func serve(d: Dungeon, who: Player, what: String, prop: Prop) -> bool:
 	if not Net.active():
 		return false
 	var nr := Net.i.run_sync
-	if what in VOTED and Net.party_size() > 1 and nr:
+	if what == "site" and not DeepEvents.voted(prop):
+		if who.controller == Player.Ctrl.REMOTE:
+			DeepEvents.resolve(d, prop, who)     # a personal site: its owner's, on the host
+			return true
+		return false
+	if (what in VOTED or what == "site") and Net.party_size() > 1 and nr:
 		var kind := what
 		if what == "stairs" and prop.data.has("route"):
 			kind = "stairs:" + String(prop.data.route)     # which way down is the question
+		elif what == "trial" and prop.data.has("vote"):
+			kind = "trial:" + String(prop.data.vote)
+		elif what == "site":
+			kind = DeepEvents.vote_kind(prop)
 		nr.start_vote(kind, prop.net_idx, who)
 		return true
 	if who.controller != Player.Ctrl.REMOTE:
@@ -388,7 +397,11 @@ static func vote_title(kind: String, by: String) -> Array:
 			return ["Descend?", "%s is at the stairs. The whole party goes down together." % by]
 		"hearthstone":
 			return ["Return to the Last Hearth?", "%s would take the party home. Everyone keeps what they carry." % by]
+		"site":
+			return DeepEvents.ask(kind.get_slice(":", 1), kind.get_slice(":", 2))
 		"trial":
+			if kind.get_slice(":", 1) == "procession":
+				return ["Open the bier?", "%s would wake what carried it. Two waves; the doors seal." % by]
 			return ["Begin the Trial?", "%s would wake the altar. Three hard waves; the doors seal until it is done." % by]
 		"hearthcall":
 			return ["Answer the Hearthcall?", "%s calls the party home. Everyone keeps what they carry." % by]

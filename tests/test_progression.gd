@@ -261,7 +261,7 @@ func test_gear_rolls_and_stats() -> void:
 	for b in ItemDB.BASES:
 		var base: Dictionary = ItemDB.BASES[b]
 		check(String(base.slot) in ItemDB.SLOTS, "%s has a valid slot" % b)
-		check(base.has("recipe") or base.get("legendary", false) or base.has("set"), "%s can be crafted, drops as a set piece or from a boss" % b)
+		check(base.has("recipe") or base.get("legendary", false) or base.has("set") or base.get("trophy", false), "%s can be crafted, drops as a set piece or from a boss" % b)
 		if base.has("set"):
 			check(ItemDB.SETS.has(base.set), "%s belongs to a known set" % b)
 		for k in base.get("recipe", {}):

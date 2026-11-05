@@ -121,6 +121,15 @@ func _build() -> void:
 			_solid([tile])
 		"stairs":
 			_flat("stairs", "idle")
+			if data.has("route"):
+				# each way down under its own arch, lit in its own colour: told
+				# apart by its shape before its name
+				var arch := PixelSprite.new()
+				add_child(arch)
+				arch.setup("route_arch", String(data.route))
+				arch.position = Vector3(0, 0, -0.55 * Iso.SQ2)
+				_light(DungeonGen.route_def(String(data.route)).get("color", Color.WHITE), 1.3, 4.5, Vector3(0, 1.2 * Iso.SQ2, -0.2))
+				ticks = true
 			interact_radius = 1.5
 			_light(Color(0.35, 0.95, 0.85), 1.0, 5.0, Vector3(0, -0.5, 0.0))
 		"hearthstone":
@@ -204,7 +213,7 @@ func _build() -> void:
 			_solid([tile])
 			ticks = true
 		"trial_altar":
-			_sprite("trial_altar", 0.0, 0.0, "idle")
+			_sprite(String(data.get("sheet", "trial_altar")), 0.0, 0.0, "idle")
 			_light(Color(1.0, 0.3, 0.35), 1.6, 6.0, Vector3(0, 1.4, 0.3))
 			interact_radius = 1.4
 			_solid([tile])
@@ -482,8 +491,10 @@ func label_name() -> String:
 			return "Lorestone"
 		"ember_well":
 			return "Ember Well"
+		"site":
+			return String(data.get("label", ""))
 		"trial_altar":
-			return "Trial Altar"
+			return String(data.get("label", "Trial Altar"))
 		"echo":
 			return "Echo of a Fallen Kindled"
 		"sconce":
@@ -503,6 +514,8 @@ func label_color() -> Color:
 			return Color(1.0, 0.82, 0.4)
 		"shrine":
 			return Color(0.98, 0.48, 0.62)
+		"site":
+			return data.get("col", Color(0.52, 0.96, 0.88))
 		"stairs", "hearthstone":
 			if kind == "stairs" and data.has("route"):
 				return (DungeonGen.route_def(String(data.route)).get("color", Color.WHITE) as Color).lightened(0.25)
@@ -521,6 +534,8 @@ func label_color() -> Color:
 
 
 func _label_height() -> float:
+	if kind == "stairs" and data.has("route"):
+		return 2.9      # over its arch
 	if sprite and sprite.sheet:
 		return float(sprite.sheet.frame_size.y) / 16.0 / Iso.SQ2 + 0.3
 	return 1.0
@@ -551,7 +566,7 @@ func prompt() -> String:
 		"ember_well":
 			return "Draw from the Well"
 		"trial_altar":
-			return "Begin the Trial"
+			return String(data.get("ask", "Begin the Trial"))
 		"echo":
 			return "Speak with the Echo"
 		"sconce":

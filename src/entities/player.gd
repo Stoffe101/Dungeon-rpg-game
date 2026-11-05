@@ -217,6 +217,8 @@ func rebuild_stats() -> void:
 	if run:
 		RelicDB.apply(run.relics, stats)
 		Omens.apply(run.omens, stats)
+		if Chronicle.site_of(run.world, run.region) == "kindled":
+			stats.add_mod("flask_charges", "add", 1.0)      # a rekindled Vigil's blessing
 	var old_max := max_hp
 	max_hp = maxf(1.0, roundf(stats.v("max_hp")))
 	if old_max > 0.0 and hp > 0.0:
@@ -1226,6 +1228,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		mult *= 1.0 + stats.v("elite_damage")
 	if stage is Dungeon and (stage as Dungeon).sealed_foe(t):
 		mult *= 0.35     # a Trial of Ash hall's seals ward its foes
+	if t is Enemy and (t as Enemy).grudge_ward_t > 0.0:
+		mult *= 0.4      # a Grudge's red ward: step back and wait it out
 	if stats.has("berserk"):
 		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
 	if stats.has("ember_crown") and run:

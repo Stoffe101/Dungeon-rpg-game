@@ -1,0 +1,25 @@
+{
+	"anims": {
+		"dead": {
+			"fps": 7.0,
+			"frames": 3,
+			"loop": true,
+			"row": 0
+		},
+		"lit": {
+			"fps": 7.0,
+			"frames": 3,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		22,
+		26
+	],
+	"origin": [
+		11,
+		24
+	]
+}

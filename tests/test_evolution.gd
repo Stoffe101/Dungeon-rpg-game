@@ -177,7 +177,7 @@ static func _solid_tiles(lay: DungeonGen.Layout) -> Dictionary:
 				if pd.get("wide", false):
 					out[pd.tile] = true
 					out[pd.tile + Vector2i(1, 0)] = true
-				elif not DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+				elif not DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)) and not pd.get("low", false):
 					out[pd.tile] = true
 			elif k in SOLID_PROPS:
 				out[pd.tile] = true
@@ -339,11 +339,15 @@ func test_each_tincture_changes_what_a_drink_does() -> void:
 
 func test_each_floor_offers_two_ways_down_the_same_for_everyone() -> void:
 	var seen := {}
+	var plain := 0
 	for s in [1, 2, 3, 7, 42, 99, 123, 777]:
 		for depth in [1, 2]:
 			var a := DungeonGen.route_offer(s, depth)
-			eq(a, DungeonGen.route_offer(s, depth), "the same two again (seed %d depth %d)" % [s, depth])
-			check(a.size() == 2 and a[0] != a[1], "two different ways")
+			eq(a, DungeonGen.route_offer(s, depth), "the same ways again (seed %d depth %d)" % [s, depth])
+			if a.is_empty():
+				plain += 1
+			else:
+				check(a.size() == 2 and a[0] != a[1], "two different ways")
 			for r in a:
 				seen[r] = true
 			var lay := DungeonGen.generate(s, depth, "ossuary", false)
@@ -351,9 +355,15 @@ func test_each_floor_offers_two_ways_down_the_same_for_everyone() -> void:
 			for pd in lay.room(lay.exit_id).props:
 				if pd.kind == "stairs":
 					stairs.append(String(pd.get("route", "")))
-			eq(stairs.size(), 2, "two stairways (seed %d depth %d)" % [s, depth])
-			check(stairs.has(a[0]) and stairs.has(a[1]), "each the way it names")
+			eq(stairs.size(), maxi(1, a.size()), "a stairway for each way (seed %d depth %d)" % [s, depth])
+			for r2 in a:
+				check(stairs.has(r2), "each the way it names")
 	eq(seen.size(), 3, "every way turns up across seeds")
+	check(plain > 0 and plain < 16, "some floors simply go down (%d of 16)" % plain)
+	# a broken altar's Breach, a Grudge's lair: a third way
+	var w := {"sites": {"ossuary": "broken"}}
+	check(DungeonGen.route_offer(7, 1, w, "ossuary").has("breach"), "a broken altar opens a Breach")
+	check(not DungeonGen.route_offer(7, 1, w, "throne").has("breach"), "in its own region only")
 	var boss := DungeonGen.generate(1, 3, "ossuary", true)
 	check(boss.offer.is_empty(), "a guardian's floor has no fork")
 
@@ -381,9 +391,9 @@ func test_the_way_down_shapes_the_floor() -> void:
 						foes[route] += (w as Array).size()
 			match route:
 				"trial":
-					check(objectives == ["seals"], "a Trial of Ash floor has one warded hall (seed %d: %s)" % [s, objectives])
+					check(objectives.size() == 1 and objectives[0] in ["seals", "champion", "gauntlet"], "a Trial of Ash floor has its hall (seed %d: %s)" % [s, objectives])
 				"vault":
-					check(objectives == ["flame"], "a Lost Vault floor has its vault (seed %d: %s)" % [s, objectives])
+					check(objectives.size() == 1 and objectives[0] in ["flame", "treasury", "workshop"], "a Lost Vault floor has its vault (seed %d: %s)" % [s, objectives])
 				"quiet":
 					check(rest, "a Silent Passage has a spring (seed %d)" % s)
 				"":
@@ -424,3 +434,77 @@ func test_route_floors_stay_walkable() -> void:
 							for x in range(r.rect.position.x, r.rect.end.x):
 								reach = reach or (lay.grid.room_of[y * lay.grid.width + x] == r.id and seen.has(Vector2i(x, y)))
 						check(reach, "%s seed %d: the %s room can be reached" % [route, s, r.objective])
+
+
+# --- the Chronicle: the Undervault remembers -----------------------------------------------
+
+func test_a_v14_save_gains_a_chronicle_and_its_grudges_a_history() -> void:
+	var old := Profile.fresh()
+	old.erase("chronicle")
+	old["version"] = 14
+	old["grudges"] = [{"id": "g1", "enemy": "husk", "name": "Morrow the Patient", "level": 2, "embers": 90, "depth": 1, "settled": false}]
+	var m := Profile.migrate(old)
+	check(m.get("chronicle") is Dictionary, "a Chronicle is added")
+	eq(int(m.version), Profile.VERSION, "at the current version")
+	eq(String(m.grudges[0].learned), "ward", "an old Grudge gets a lesson")
+	eq(int(m.grudges[0].embers), 90, "and keeps its hoard")
+
+
+func test_the_altar_waits_on_one_floor_and_answers_change_later_expeditions() -> void:
+	Profile.data = Profile.fresh()
+	var altars := 0
+	for s in [1, 2, 3, 7, 42, 99, 123, 777]:
+		var n := 0
+		for depth in [1, 2]:
+			var lay := DungeonGen.generate(s, depth, "ossuary", false)
+			for r in lay.rooms:
+				if r.event == "altar":
+					n += 1
+					var offers := 0
+					for pd in r.props:
+						if pd.kind == "site" and String(pd.get("event", "")) == "altar":
+							offers += 1
+					eq(offers, 3, "three answers at the altar (seed %d)" % s)
+		check(n == 1, "one altar an expedition while it is unanswered (seed %d: %d)" % [s, n])
+		altars += n
+	eq(altars, 8, "every expedition found it")
+	# the answers, as a run's world reads them
+	var kindled := DungeonGen.generate(5, 1, "ossuary", false, "", {"sites": {"ossuary": "kindled"}})
+	var springs := 0
+	for r in kindled.rooms:
+		if r.type == Room.Type.REST:
+			springs += 1
+	check(springs >= 1, "a rekindled Vigil's spring on the floor")
+	var pact := DungeonGen.generate(5, 1, "ossuary", false, "", {"sites": {"ossuary": "pact"}})
+	var bowl := false
+	for pd in pact.room(pact.start_id).props:
+		bowl = bowl or (pd.kind == "site" and String(pd.get("event", "")) == "bowl")
+	check(bowl, "the Pale Bowl waits by the door")
+	# always reversible, and it writes the story
+	Chronicle.set_site("ossuary", "broken")
+	eq(Chronicle.site("ossuary"), "broken", "answered")
+	eq(String(Chronicle.snapshot().sites.ossuary), "broken", "a run reads it")
+	Chronicle.set_site("ossuary", "")
+	eq(Chronicle.site("ossuary"), "", "let rest")
+	check((Profile.data.chronicle.log as Array).size() >= 2, "the Chronicle tells it")
+
+
+func test_a_grudge_remembers_how_you_fought() -> void:
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var g := Profile.record_grudge("husk", 120, 2, rng, "bow", "ossuary")
+	eq(String(g.learned), "closer", "kept your distance: it closes it")
+	eq(int(g.slew), 1, "killed you once")
+	check((g.history as Array).size() == 1, "and remembers where")
+	g = Profile.record_grudge("husk", 40, 3, rng, "hammer", "ossuary")
+	eq(String(g.learned), "ward", "stood and swung: it wards")
+	eq(int(g.slew), 2, "killed you twice")
+	eq(int(g.level), 2, "and grew")
+	Profile.scar_grudge(String(g.id))
+	eq(int(g.scars), 1, "a scar it carries")
+	var sheet := Profile.character_sheet()
+	eq(String(sheet.grudges[0].learned), "ward", "a host hears what it learned")
+	var lv := int(g.level)
+	Profile.age_grudges(rng, 3)
+	eq(int(g.level), lv + 1, "the Pale Bowl feeds it a whole level")
