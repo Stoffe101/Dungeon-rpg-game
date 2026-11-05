@@ -129,6 +129,7 @@ static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: in
 		"pillar": material(theme.pillar_tex, theme.wall_tint, SURFACE.pillar),
 		"pitwall": material(theme.pit_wall_tex, Color.WHITE, SURFACE.pit),
 	}
+	mats["rock"] = mats.top        # the caps of the rock beyond the walls (no shadows)
 	var fm := mats.floor as ShaderMaterial
 	fm.set_shader_parameter("grime", theme.grime)
 	fm.set_shader_parameter("grime_color", theme.grime_color)
@@ -168,7 +169,7 @@ static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: in
 				var mi := MeshInstance3D.new()
 				mi.mesh = st.commit()
 				mi.name = "%s_%d_%d_%d" % [k, cx, cy, odd]
-				if k == "floor" or k == "pit" or k == "pitwall":
+				if k == "floor" or k == "pit" or k == "pitwall" or k == "rock":
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				else:
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
@@ -286,21 +287,7 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 	elif t == TileGrid.WALL or t == TileGrid.PILLAR:
 		var hh := grid.wall_height(x, y)
 		var top := hh * S
-		var tsz: Vector2 = ts.top
-		# the cap: which edges are open (a rim), how deep each corner sits in the rock
-		var ob := 0
-		for i in DIRS.size():
-			if open(grid.at(x + DIRS[i].x, y + DIRS[i].y)):
-				ob |= 1 << i
-		var cap := Vector2(ob, hh)
-		var c00 := _corner(grid, mass, x, y)
-		var c01 := _corner(grid, mass, x, y + 1)
-		var c11 := _corner(grid, mass, x + 1, y + 1)
-		var c10 := _corner(grid, mass, x + 1, y)
-		_quad(tools.top, Vector3(x0, top, z0), Vector3(x0, top, z1), Vector3(x1, top, z1), Vector3(x1, top, z0), Vector3.UP,
-			Vector2(x * 16.0 / tsz.x, y * 16.0 / tsz.y), Vector2(x * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y),
-			Vector2((x + 1) * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y), Vector2((x + 1) * 16.0 / tsz.x, y * 16.0 / tsz.y),
-			[cap, cap, cap, cap], [Color(c00, 0, 0), Color(c01, 0, 0), Color(c11, 0, 0), Color(c10, 0, 0)])
+		_cap(tools.top, grid, x, y, hh, ts.top, mass)
 		# every wall face is masonry at the texture's own scale, anchored at the
 		# foot (a low wall shows the bottom courses: no stretched trim strip)
 		var key := "wall"
@@ -331,3 +318,36 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 		if not grid.is_solid_block(grid.at(x + 1, y)):
 			_quad(tools[key], Vector3(x1, top, z1), Vector3(x1, 0, z1), Vector3(x1, 0, z0), Vector3(x1, top, z0), Vector3.RIGHT,
 				Vector2(0.0, va), Vector2(0.0, vb), Vector2(0.25, vb), Vector2(0.25, va), fu)
+	elif t == TileGrid.VOID and _mass_at(grid, mass, x, y) < MASS_MAX:
+		# the rock beyond the walls: it thins into the dark, it does not stop. As
+		# low as the wall in front of it south of a room (it must never stand up
+		# between the camera and a floor), as tall as the wall behind it elsewhere.
+		var hh := 2.0
+		for k in range(1, MASS_MAX + 1):
+			if open(grid.at(x, y - k)):
+				hh = 0.5
+				break
+		_cap(tools.rock, grid, x, y, hh, ts.top, mass)
+
+
+## A block's top: which edges are open (a rim), how deep each corner sits in the rock.
+static func _cap(tool: Dictionary, grid: TileGrid, x: int, y: int, hh: float, tsz: Vector2, mass: PackedByteArray) -> void:
+	var S := Iso.SQ2
+	var x0 := float(x)
+	var x1 := float(x + 1)
+	var z0 := y * S
+	var z1 := (y + 1) * S
+	var top := hh * S
+	var ob := 0
+	for i in DIRS.size():
+		if open(grid.at(x + DIRS[i].x, y + DIRS[i].y)):
+			ob |= 1 << i
+	var cap := Vector2(ob, hh)
+	var c00 := _corner(grid, mass, x, y)
+	var c01 := _corner(grid, mass, x, y + 1)
+	var c11 := _corner(grid, mass, x + 1, y + 1)
+	var c10 := _corner(grid, mass, x + 1, y)
+	_quad(tool, Vector3(x0, top, z0), Vector3(x0, top, z1), Vector3(x1, top, z1), Vector3(x1, top, z0), Vector3.UP,
+		Vector2(x * 16.0 / tsz.x, y * 16.0 / tsz.y), Vector2(x * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y),
+		Vector2((x + 1) * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y), Vector2((x + 1) * 16.0 / tsz.x, y * 16.0 / tsz.y),
+		[cap, cap, cap, cap], [Color(c00, 0, 0), Color(c01, 0, 0), Color(c11, 0, 0), Color(c10, 0, 0)])

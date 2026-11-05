@@ -134,6 +134,8 @@ func _ready() -> void:
 			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
 		elif a == "legendlab":
 			add_child(LegendLab.new())       # dev: how often signature weapon moments come
+		elif a == "sitefind":
+			add_child(SiteFinder.new())      # dev: a seed for each way's form and each event
 		elif a.begins_with("scenario="):
 			add_child(Scenario.new())
 

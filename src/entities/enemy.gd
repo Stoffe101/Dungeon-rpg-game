@@ -926,6 +926,20 @@ static func _volatile_later(st: Stage, p: Vector2, dmg: float) -> void:
 
 # --- overlay UI ----------------------------------------------------------------------
 
+## A room's named foe: its own title over it, and a head taller. Every machine
+## does this (the host in Dungeon._champion, a guest from the replica's record).
+func crown(title: String) -> void:
+	display_name = title
+	set_meta("champion", title)
+	if visual:
+		visual.scale = Vector3.ONE * 1.25
+	if nameplate == null:
+		_make_nameplate()
+	if nameplate:
+		nameplate.text = title
+		nameplate.add_theme_color_override("font_color", Color(1.0, 0.55, 0.3))
+
+
 func _make_nameplate() -> void:
 	if stage.view == null:
 		return

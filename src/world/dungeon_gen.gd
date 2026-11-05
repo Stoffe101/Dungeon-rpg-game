@@ -202,7 +202,7 @@ const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "o
 const ROUTES := {
 	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "danger": 3, "spoils": 3, "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.05, "embers": 1.25,
 		"line": "Harder fights and two elites; a hall warded by seals. Richer spoils."},
-	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "danger": 2, "spoils": 2, "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 1.0, "embers": 1.0,
+	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "danger": 2, "spoils": 2, "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 0.85, "embers": 1.0,
 		"line": "Fewer fights, more side rooms - and a vault whose flame you must keep lit."},
 	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "danger": 1, "spoils": 1, "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.85,
 		"line": "Fewer, weaker foes, no elite, a spring of vigor. Lean spoils."},

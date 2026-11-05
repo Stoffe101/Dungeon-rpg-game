@@ -7,6 +7,7 @@ var root: Control
 var hud: HUD
 var modal_layer: Control
 var banner_box: VBoxContainer
+var banner_bg: TextureRect      # a dark band behind it: nothing in the world fights its words
 var banner_title: Label
 var banner_sub: Label
 var toast_box: VBoxContainer
@@ -44,6 +45,25 @@ func _ready() -> void:
 	hud.visible = false
 	root.add_child(hud)
 	# banner
+	banner_bg = TextureRect.new()
+	var band := Gradient.new()
+	band.set_color(0, Color(0.02, 0.02, 0.04, 0.0))
+	band.set_color(1, Color(0.02, 0.02, 0.04, 0.0))
+	band.add_point(0.2, Color(0.02, 0.02, 0.04, 0.78))
+	band.add_point(0.8, Color(0.02, 0.02, 0.04, 0.78))
+	var band_tex := GradientTexture2D.new()
+	band_tex.gradient = band
+	band_tex.width = 256
+	band_tex.height = 1
+	banner_bg.texture = band_tex
+	banner_bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	banner_bg.stretch_mode = TextureRect.STRETCH_SCALE
+	banner_bg.anchor_right = 1.0
+	banner_bg.offset_top = 50.0
+	banner_bg.offset_bottom = 90.0
+	banner_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner_bg.modulate.a = 0.0
+	root.add_child(banner_bg)
 	banner_box = UIKit.vbox(2)
 	banner_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	banner_box.position.y = 54
@@ -57,9 +77,13 @@ func _ready() -> void:
 	banner_box.add_child(banner_sub)
 	banner_box.modulate.a = 0.0
 	root.add_child(banner_box)
+	# (grows upward from above the middle: the controls card sits below it)
 	toast_box = UIKit.vbox(2)
 	toast_box.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-	toast_box.position = Vector2(10, 0)
+	toast_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	toast_box.offset_left = 10.0
+	toast_box.offset_top = -36.0
+	toast_box.offset_bottom = -36.0
 	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(toast_box)
 	root.add_child(NetDiag.new())
@@ -233,15 +257,23 @@ func banner(title: String, sub := "") -> void:
 	if _banner_tw:
 		_banner_tw.kill()
 	_banner_tw = create_tween()
-	banner_box.modulate.a = 0.0
-	_banner_tw.tween_property(banner_box, "modulate:a", 1.0, 0.4)
+	_banner_alpha(0.0)
+	_banner_tw.tween_method(_banner_alpha, 0.0, 1.0, 0.4)
 	_banner_tw.tween_interval(2.6)
-	_banner_tw.tween_property(banner_box, "modulate:a", 0.0, 0.8)
+	_banner_tw.tween_method(_banner_alpha, 1.0, 0.0, 0.8)
+
+
+func _banner_alpha(a: float) -> void:
+	banner_box.modulate.a = a
+	banner_bg.modulate.a = a
 
 
 func toast(text: String, col := UIKit.C_TEXT) -> void:
 	if text == "":
 		return
+	for c in toast_box.get_children():
+		if c is Label and (c as Label).text == text:
+			return     # (it is still on screen)
 	var l := UIKit.label(text, 8, col, true)
 	toast_box.add_child(l)
 	var tw := l.create_tween()

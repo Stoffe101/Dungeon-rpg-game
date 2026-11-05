@@ -130,7 +130,9 @@ void fragment() {
 			shade = floor(shade * 6.0 + 0.5) / 6.0;
 		}
 		col *= shade;
-		col = mix(col, vec3(0.012, 0.012, 0.022), clamp((depth - 1.6) * 0.3, 0.0, 0.75));
+		// (in steps, on the same dither as everything else: rock never fades smoothly)
+		float deep = clamp((depth - 1.6) * 0.3 + j * 0.1, 0.0, 0.8);
+		col = mix(col, vec3(0.012, 0.012, 0.022), floor(deep * 6.0 + 0.5) / 6.0);
 		if (e < 1.0) {
 			col = mix(col, rim_color, 0.72 * rim_strength);
 			rim_glow = 0.12 * rim_strength;

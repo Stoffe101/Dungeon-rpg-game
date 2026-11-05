@@ -59,6 +59,8 @@ func _run() -> void:
 			await talk_checks("solo")
 		"stairs":
 			await stairs_only()
+		"sites":
+			await sites()
 		"bestiary":
 			await bestiary()
 		"partyhud":
@@ -976,6 +978,74 @@ func stairs_only() -> void:
 		var want_depth: int = depth
 		await until(func() -> bool: return dun() != null and Game.run != null and Game.run.depth == want_depth and not Game.ui.card_pending, 30.0, "down to depth %d together" % depth)
 		await walk_check(depth)
+
+
+## Pings and a Hollow Altar answered by the whole party: each machine presses
+## its own keys, and every screen must show the same world afterwards.
+func sites() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	await wait(3.0)
+	# a ping from my own key, seen by everyone
+	tap("ping")
+	var most := 0
+	var t_end := now() + 4.0
+	while now() < t_end:
+		most = maxi(most, dun().pings.size())
+		await wait(0.1)
+	expect(most >= Net.party_size(), "every Kindled's ping reached my map (%d of %d)" % [most, Net.party_size()])
+	if role == "host":
+		Net.i.dev_shot("e2e/sites_ping")
+	# the altar waits on the first floor or the second
+	if _site("altar") == null:
+		if role == "host":
+			Net.i.run_sync.start_vote("stairs", -1, dun().player)
+		else:
+			await until(func() -> bool: return RequestCard.ensure(Game.ui).mode == "vote", 30.0, "the stairs vote reached me")
+			await wait(0.4)
+			tap("party_yes")
+		await until(func() -> bool: return dun() != null and Game.run != null and Game.run.depth == 2 and not Game.ui.card_pending, 30.0, "down to depth 2 together")
+		await wait(2.0)
+	var offer: Prop = _site("altar")
+	expect(offer != null, "a Hollow Altar stands on this floor, on my screen")
+	if offer == null:
+		return
+	var stone: Prop = _site("altar_stone")
+	var region: String = dun().layout.region
+	if role == "host":
+		await wait(1.0)
+		dun().player.pos = offer.pos + Vector2(0.0, 1.0)
+		await wait(0.5)
+		tap("interact")
+	else:
+		await until(func() -> bool: return RequestCard.ensure(Game.ui).mode == "vote", 30.0, "the altar's question reached me")
+		await wait(0.4)
+		if role == "guest":
+			Net.i.dev_shot("e2e/sites_vote")
+		tap("party_yes")
+	var want := String(offer.data.choice)
+	await until(func() -> bool: return String(stone.sprite.anim) == want, 20.0, "the altar shows the answer on my screen")
+	if role == "host":
+		expect(Chronicle.site(region) == want, "the host's Chronicle remembers it")
+		Net.i.dev_shot("e2e/sites_answered")
+	else:
+		expect(Chronicle.site(region) == "", "a guest's own altar is untouched")
+		expect(Chronicle.marks("witnessed_altar_" + want) == 1, "a guest's Chronicle records what they saw")
+	await until(func() -> bool:
+		for p in dun().props:
+			if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "altar" and not p.used:
+				return false
+		return true, 10.0, "the other answers are spent on my screen")
+	await wait(1.0)
+
+
+func _site(ev: String) -> Prop:
+	if dun() == null:
+		return null
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == ev:
+			return p
+	return null
 
 
 func _strip_bot() -> void:

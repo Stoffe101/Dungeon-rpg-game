@@ -156,7 +156,8 @@ func _describe(a: Actor) -> Dictionary:
 		# how long it still takes to rise (a guest who arrives late sees it whole)
 		var rising := maxf(0.0, e.spawn_t - e.state_t) if e.state == "spawn" else 0.0
 		d.merge({"kind": "enemy", "id": e.id, "elite": e.elite, "affix": e.affix, "affix2": e.affix2,
-			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss})
+			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss,
+			"title": String(e.get_meta("champion", ""))})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
 		if a.has_method("light_spec"):
@@ -885,6 +886,8 @@ func _spawn_replica(id: int, d: Dictionary) -> void:
 	a.pos = d.pos
 	a.replica = true
 	stage.add_actor(a)
+	if a is Enemy and String(d.get("title", "")) != "":
+		(a as Enemy).crown(String(d.title))
 	replicas[id] = a
 	if a is Enemy and bool(d.get("boss", false)):
 		stage.boss = a

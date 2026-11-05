@@ -1156,6 +1156,8 @@ func _room_cleared() -> void:
 		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
 	r.cleared = true
+	if not objective.is_empty():
+		_set_objective("", -1.0, SEAL_COL)     # (its task is done, whatever it was)
 	run.rooms_cleared += 1
 	_rekindle_fallen()
 	_clear_t = 0.6
@@ -1862,8 +1864,7 @@ func _champion(title: String, hp_k: float) -> Enemy:
 			e.max_hp *= hp_k
 			e.hp = e.max_hp
 			e.damage *= 1.2
-			e.display_name = title
-			e.set_meta("champion", true)
+			e.crown(title)
 			return e
 	return null
 
