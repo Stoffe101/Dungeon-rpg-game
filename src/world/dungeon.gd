@@ -134,6 +134,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 							player.aim = (t.pos - player.pos).normalized()
 						player.kindle = player.kindle_max()
 						player.press("a%d" % slot))
+	if "rosterlab" in Dev.args() and not replica:
+		_roster_lab()
 	if "coopdive" in Dev.args() and not replica:
 		# dev: depth 1 -> the party votes to descend; depth 2 -> Hearthcall home (a vote too)
 		if layout.depth == 1:
@@ -1555,6 +1557,16 @@ func _start_boss(r: Room) -> void:
 		add_actor(e)
 		register_enemy(e)
 		boss = e
+		for a in Dev.args():
+			if a.begins_with("bossat="):
+				e.hp = e.max_hp * float(a.substr(7))     # dev: its later moments, sooner
+			elif a.begins_with("bossdie="):
+				# dev: its fall, on time (to look at it, or test it on every machine)
+				after(float(a.substr(8)), func() -> void:
+					if is_instance_valid(e) and e.alive and player:
+						print("[dungeon] the guardian falls at frame %d" % Engine.get_process_frames())
+						e.hp = 0.0
+						e.die(player))
 		var w := e as Enemy
 		w.set("arena_center", c)
 		var bz: Array = []
@@ -1598,6 +1610,37 @@ func _boss_entrance(at: Vector2) -> void:
 				var a := TAU * j / 8.0 + k * 0.4
 				fx.motes(at + Vector2.from_angle(a) * (3.5 - k * 0.5), 0.2, col, 1, 0.6, 0.5, 0.1)
 			fx.motes(at, 0.2, col.lightened(0.2), 2 + k * 2, 1.2 + k * 0.3, 0.7, 0.4 - k * 0.05))
+	match String(region.boss):
+		"warden":
+			# it walks in out of the dark: four footfalls, each nearer, each heavier
+			for k in 4:
+				after(0.1 + k * 0.36, func() -> void:
+					var p: Vector2 = at + Vector2(-0.7 if k % 2 == 0 else 0.7, -4.5 + k * 1.4)
+					fx.ring(p, 1.2 + k * 0.4, col, 0.45, 0.2)
+					fx.burst(p, 0.2, col, 8 + k * 4, 2.2, 0.5, 6.0)
+					fx.shake(0.16 + k * 0.07)
+					Audio.play("step_stone_%d" % k, 1.0 + k, 0.5))
+		"bloom":
+			# roots run in under the floor from every side and heave it up
+			for k in 8:
+				var dir := Vector2.from_angle(TAU * k / 8.0)
+				for j in 6:
+					after(0.08 + j * 0.2 + k * 0.015, func() -> void:
+						fx.burst(at + dir * (6.5 - j * 1.1), 0.1, Color(0.5, 0.82, 0.36), 5, 2.4, 0.45, 8.0))
+			after(1.3, func() -> void:
+				fx.burst(at, 0.5, Color(0.92, 0.3, 0.36), 34, 5.0, 0.9, 3.0))
+		"ashen_king":
+			# the fires lean toward him one by one, and ash starts to fall
+			var fires: Array = props.filter(func(p): return is_instance_valid(p) and p.kind == "boss_brazier")
+			for k in fires.size():
+				var b: Prop = fires[k]
+				after(0.1 + k * 0.26, func() -> void:
+					if is_instance_valid(b):
+						fx.flash_light(b.pos, 1.6, col, 4.0, 7.0, 0.6)
+						fx.burst(b.pos, 1.2, col, 12, 3.0, 0.6, 2.0))
+			for k in 14:
+				after(k * 0.11, func() -> void:
+					fx.motes(at + Vector2(randf_range(-5.0, 5.0), randf_range(-3.5, 3.5)), 4.0, Color(0.62, 0.58, 0.56), 3, -1.0, 1.3, 0.4))
 
 
 ## A guardian facing a party calls for help: every so often foes of its
@@ -1831,6 +1874,41 @@ func _begin_objective(r: Room) -> void:
 			fx.ring(_vigil.pos, 2.4, FLAME_COL, 0.6, 0.3)
 			Events.banner.emit("Keep the Flame", "Stand in its light to feed it; foes at the lantern choke it. If it goes out, the vault's best is lost")
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+## Dev: a region's foes in rows on its real floor and light, held in one pose
+## (`rosterlab anim=windup lab=<id,id>`; the default is the region's pool).
+func _roster_lab() -> void:
+	var ids: Array = EnemyDB.REGIONS[layout.region].pool.duplicate()
+	var pose := "idle"
+	for a in Dev.args():
+		if a.begins_with("lab="):
+			ids = Array(a.substr(4).split(","))
+		elif a.begins_with("anim="):
+			pose = a.substr(5)
+	var best: Room = null
+	for r in layout.rooms:
+		if best == null or r.rect.get_area() > best.rect.get_area():
+			best = r
+	player.pos = _open_spot(best.center())
+	best.cleared = true
+	best.visited = true
+	var cols := 5
+	var lab: Array[Enemy] = []
+	for k in ids.size():
+		var e := _make_enemy(String(ids[k]))
+		var at := player.pos + Vector2(-4.4 + (k % cols) * 2.2, -3.0 + (k / cols) * 2.4)
+		e.pos = _open_spot(at)
+		e.room_id = best.id
+		e.spawn_t = 0.0
+		e.replica = true     # (presents itself, simulates nothing: it stays put)
+		add_actor(e)
+		lab.append(e)
+	for e in lab:
+		if e.sprite:
+			e.sprite.set_dissolve(0.0)
+			if e.sprite.has_anim(pose):
+				e.sprite.play(pose, true)
 
 
 func _seals_up(r: Room) -> void:
@@ -2167,22 +2245,11 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			run.elites_slain += 1
 			Profile.stat_add("elites")
 			note_request("elite")
-		# loot (embers are deliberately scarce: they are both shop money and progress)
-		var memory := int(Profile.data.world.get("memory", 0))
-		var total := int(round(e.embers * 0.6 * (1.0 + 0.15 * memory)))
-		var n := total
-		var chunks := clampi(n, 0, 6)
-		for i in chunks:
-			if n <= 0:
-				break
-			var amt := int(ceil(float(total) / chunks))
-			Pickup.spawn(self, "ember", e.pos, amt)
-			n -= amt
-		if e.xp > 0:
-			Pickup.spawn(self, "xp", e.pos, e.xp)
-		_drop_loot(e)
-		if rng.randf() < 0.06:
-			Pickup.spawn(self, "heal", e.pos, 10)
+		# a guardian's wait until it has finished falling (no view: nothing to wait for)
+		if e == boss and view != null and is_instance_valid(e):
+			e.spoils = _spoils_of.bind(e)
+		else:
+			_spoils_of(e)
 		if run.has_omen("restless") and not e.summoned and not e.def.get("boss", false) and not e.has_meta("grudge_id") and e.room_id >= 0 and rng.randf() < 0.33:
 			_rise_again(e.id, e.pos, e.room_id)
 		if e.has_meta("grudge_id"):
@@ -2218,6 +2285,28 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			_boss_defeated(e)
 
 
+## What a felled foe leaves on the floor.
+func _spoils_of(e: Enemy) -> void:
+	# loot (embers are deliberately scarce: they are both shop money and progress)
+	var memory := int(Profile.data.world.get("memory", 0))
+	var total := int(round(e.embers * 0.6 * (1.0 + 0.15 * memory)))
+	var n := total
+	var chunks := clampi(n, 0, 6)
+	for i in chunks:
+		if n <= 0:
+			break
+		var amt := int(ceil(float(total) / chunks))
+		Pickup.spawn(self, "ember", e.pos, amt)
+		n -= amt
+	if e.xp > 0:
+		Pickup.spawn(self, "xp", e.pos, e.xp)
+	_drop_loot(e)
+	if rng.randf() < 0.06:
+		Pickup.spawn(self, "heal", e.pos, 10)
+	if e == boss:
+		_guardian_hoard(e)
+
+
 ## Restless Dead: the fallen climb back up once, weaker, a moment later.
 func _rise_again(kind: String, at: Vector2, room: int) -> void:
 	_rising += 1
@@ -2249,12 +2338,6 @@ func _boss_defeated(e: Enemy) -> void:
 	active_room = null
 	r.cleared = true
 	_set_gates(r, false)
-	for i in 2:
-		Pickup.spawn(self, "sunshard", e.pos, 1)
-	for i in 16:
-		Pickup.spawn(self, "ember", e.pos, 8)
-	for i in 8:
-		Pickup.spawn(self, "xp", e.pos, 20)
 	var fall := String(e.def.get("fall", "Victory"))
 	if run.delve:
 		# in the Hollow Below a fallen guardian opens the way further down
@@ -2274,6 +2357,16 @@ func _boss_defeated(e: Enemy) -> void:
 	for pr in _party_runs():
 		if pr != run:
 			pr.bosses.append(e.id)
+
+
+## A guardian's own hoard, on top of what any foe leaves.
+func _guardian_hoard(e: Enemy) -> void:
+	for i in 2:
+		Pickup.spawn(self, "sunshard", e.pos, 1)
+	for i in 16:
+		Pickup.spawn(self, "ember", e.pos, 8)
+	for i in 8:
+		Pickup.spawn(self, "xp", e.pos, 20)
 
 
 ## The guests' runs on this floor (the host's own is `run`).

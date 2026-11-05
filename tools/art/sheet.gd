@@ -32,9 +32,55 @@ const FALL_STYLE := {
 }
 
 
+## A guardian's fall, drawn from its most beaten pose and played slowly: plate
+## topples, ash crumbles, a flower melts. (They do not flinch: no `hurt` row.)
+const BOSS_FALL := {"warden": ["topple", "stagger"], "ashen_king": ["crumble", "stagger"], "bloom": ["melt", "wilt"]}
+
+
+## A foe in the dark: an ink outline disappears on the dark floors, and the warm
+## lantern browns every colour toward the floor's. So a foe carries a thin rim of
+## its region's own light along the top of its silhouette (this is the cold light
+## of the Undervault, never the Kindled's ember), and a little of its own colour
+## survives any light (`self_light`, the sidecar tells the sprite's material).
+const RIM := {
+	"husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
+	"spider": "soul", "gravemole": "soul", "lampwight": "soul", "warden": "soul",
+	"sporeling": "moss", "thornback": "moss", "moth": "moss", "rootweaver": "moss", "toad": "moss",
+	"spore_mortar": "moss", "bramblewright": "moss", "bloom": "moss",
+	"sentinel": "ember", "hound": "ember", "acolyte": "ember", "wraith": "ember", "duelist": "ember",
+	"sunwatcher": "ember", "ashen_king": "ember",
+}
+const RIM_COL := {"soul": Color8(28, 88, 90), "moss": Color8(58, 96, 46), "ember": Color8(116, 64, 32)}
+const SELF_LIGHT := 0.22
+
+
+## Top and left edges of the silhouette: rim. A foe's light goes out as it falls.
+func _rim(kind: String) -> void:
+	var col: Color = RIM_COL[kind]
+	for r in rows:
+		if r.name == "death":
+			continue
+		var frames: Array = r.frames
+		for fi in frames.size():
+			var f: Px = frames[fi]
+			var src := f.img.duplicate() as Image
+			for y in f.h:
+				for x in f.w:
+					if src.get_pixel(x, y).a < 0.5:
+						continue
+					var up := y == 0 or src.get_pixel(x, y - 1).a < 0.5
+					var left := x == 0 or src.get_pixel(x - 1, y).a < 0.5
+					if up or left:
+						f.lit(x, y, col)
+
+
 func save(dir: String, sheet_name: String) -> void:
 	if FALL_STYLE.has(sheet_name):
 		_reactions(String(FALL_STYLE[sheet_name]))
+	if BOSS_FALL.has(sheet_name):
+		_guardian_fall(String(BOSS_FALL[sheet_name][0]), String(BOSS_FALL[sheet_name][1]))
+	if RIM.has(sheet_name):
+		_rim(String(RIM[sheet_name]))
 	var cols := 1
 	for r in rows:
 		cols = maxi(cols, r.frames.size())
@@ -52,6 +98,8 @@ func save(dir: String, sheet_name: String) -> void:
 	elif FileAccess.file_exists(emit_path):
 		DirAccess.remove_absolute(emit_path)
 	var meta := {"frame": [fw, fh], "origin": [origin.x, origin.y], "anims": anims, "emit": out.has_glow()}
+	if RIM.has(sheet_name):
+		meta["self_light"] = SELF_LIGHT
 	var f := FileAccess.open(ProjectSettings.globalize_path(dir.path_join(sheet_name + ".json")), FileAccess.WRITE)
 	f.store_string(JSON.stringify(meta, "\t"))
 	f.close()
@@ -64,6 +112,19 @@ func _has(anim: String) -> bool:
 		if r.name == anim:
 			return true
 	return false
+
+
+func _guardian_fall(style: String, pose: String) -> void:
+	var base: Px = null
+	for r in rows:
+		if r.name == pose and not (r.frames as Array).is_empty():
+			base = r.frames[0]
+	if base == null or _has("death"):
+		return
+	var frames: Array = []
+	for k in range(1, 7):
+		frames.append(_fall(base, style, k / 6.0))
+	add("death", frames, 5.0, false)
 
 
 func _reactions(style: String) -> void:

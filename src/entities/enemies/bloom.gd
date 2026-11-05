@@ -199,7 +199,7 @@ func _bloom_phase() -> void:
 	Audio.play("boss_roar", 2.0, 1.1)
 	stage.fx.shake(0.6)
 	stage.fx.number(pos, 5.0, "FULL BLOOM", Color(1.0, 0.45, 0.5), true)
-	Events.banner.emit("Full Bloom", "Burn its roots to wilt it")
+	phase_moment("Full Bloom", "Burn its roots to wilt it", Color(1.0, 0.42, 0.5))
 	brood_t = 3.0
 
 
@@ -269,14 +269,16 @@ func die(killer: Node) -> void:
 		stage.fx.burst(pos, 2.0, Color(0.9, 0.3, 0.35), 40, 8.0, 1.2, 1.0)
 	stage.fx.burst(pos, 1.0, Color(0.6, 0.9, 0.4), 30, 5.0, 1.5, -1.0)
 	Audio.play("boss_death", 3.0, 1.2)
+	# it lets go: petals fall a long way, greying as they come
+	var at := pos
+	stage.look_toward(at, 2.4)
+	for k in 7:
+		var col := Color(0.9, 0.3, 0.35).lerp(Color(0.5, 0.48, 0.42), k / 6.0)
+		stage.after(0.25 + k * 0.3, func() -> void:
+			stage.fx.burst(at + Vector2(randf_range(-2.2, 2.2), randf_range(-1.2, 1.2)), 3.0, col, 12, 1.6, 1.6, 1.2))
 	super.die(killer)
 	Events.boss_defeated.emit(self)
 
 
 func _death_effect() -> void:
-	sprite.play("wilt")
-	var tw := create_tween()
-	tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 2.4)
-	tw.tween_callback(queue_free)
-	if shadow:
-		shadow.visible = false
+	guardian_fall()

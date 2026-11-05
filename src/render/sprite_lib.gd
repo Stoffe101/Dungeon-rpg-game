@@ -44,6 +44,7 @@ static func get_sheet(sheet_name: String) -> SheetInfo:
 	mat.set_shader_parameter("frame_uv", Vector2(1.0 / info.cols, 1.0 / info.rows))
 	if meta.get("emit", false) and ResourceLoader.exists(base + "_emit.png"):
 		mat.set_shader_parameter("emit_atlas", load(base + "_emit.png"))
+	mat.set_shader_parameter("self_light", float(meta.get("self_light", 0.0)))
 	info.material = mat
 	# Quad sized so one texel is one screen pixel; origin (feet) sits at local 0.
 	var q := QuadMesh.new()
