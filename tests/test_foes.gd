@@ -323,3 +323,27 @@ func test_a_decree_runs_out_on_its_own() -> void:
 		st.simulate(1.0 / 30.0)
 	eq(pl.marked_t, 0.0, "five seconds, no more")
 	st.queue_free()
+
+
+func test_a_ring_or_a_slash_reaches_guests_once() -> void:
+	# (a still full-size copy used to arrive with it: on a guest's screen a
+	# Tollkeeper's ring showed its last size from the first moment)
+	var st := _arena()
+	var net := Net.new()
+	tree_root.add_child(net)
+	var had := Net.i
+	Net.i = net
+	var sync := NetRun.new()
+	net.run_sync = sync
+	var was_rec := Net.recording
+	Net.recording = true
+	st.fx.ring(Vector2(5, 5), 6.0, Color.WHITE, 0.5, 0.25)
+	st.fx.swipe(Vector2(5, 5), Vector2.RIGHT, 2.0, 1.0, Color.WHITE)
+	var kinds: Array = sync.events.map(func(ev): return String(ev[1]))
+	eq(kinds, ["ring", "swipe"], "one event each, and nothing more")
+	Net.recording = was_rec
+	Net.i = had
+	net.run_sync = null
+	sync.free()
+	net.queue_free()
+	st.queue_free()

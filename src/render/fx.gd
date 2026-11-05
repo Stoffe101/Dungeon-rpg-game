@@ -216,7 +216,9 @@ func shape(kind: int, p: Vector2, dir: Vector2, size: Vector2, col: Color, edge:
 func swipe(p: Vector2, dir: Vector2, radius: float, half_angle: float, col: Color, duration := 0.16, inner := 0.45, reverse := false) -> void:
 	if Net.recording:
 		Net.rec(["fx", "swipe", p, dir, radius, half_angle, col, duration, inner, reverse])
+	Net.mute += 1     # (recorded above: guests must not draw a still copy too)
 	var mi := shape(Shape.SWIPE, p, dir, Vector2(radius * 2.0, radius * 2.0), col, Color(1, 1, 0.9, 1), duration + 0.12, {"half_angle": half_angle, "inner": inner, "glow": 1.6})
+	Net.mute -= 1
 	if reverse:
 		# mirror the sweep direction by flipping the side axis
 		var b := mi.transform.basis
@@ -231,7 +233,11 @@ func swipe(p: Vector2, dir: Vector2, radius: float, half_angle: float, col: Colo
 func ring(p: Vector2, radius: float, col: Color, duration := 0.3, thickness := 0.25) -> void:
 	if Net.recording:
 		Net.rec(["fx", "ring", p, radius, col, duration, thickness])
+	if radius > 4.0 and Settings.get_value("reduce_flashes", false):
+		col.a *= 0.4     # a ring that spans a room is a flash too (each machine's own setting)
+	Net.mute += 1     # (recorded above: guests must not draw a still copy too)
 	var mi := shape(Shape.RING, p, Vector2.RIGHT, Vector2(radius * 2, radius * 2), col, col.lightened(0.4), duration, {"inner": 1.0 - thickness, "glow": 1.5})
+	Net.mute -= 1
 	var data: Dictionary = _shapes[_shapes.size() - 1]
 	var base_t := mi.transform
 	data.update = func(t: float, node: MeshInstance3D) -> void:

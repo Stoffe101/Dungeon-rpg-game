@@ -1065,28 +1065,41 @@ func guardian() -> void:
 	if not await until(func() -> bool: return dun().boss != null and is_instance_valid(dun().boss), 20.0, "the guardian arrived on my screen"):
 		return
 	var b: Enemy = dun().boss
-	await until(func() -> bool: return Game.ui.banner_title.text != "", 5.0, "its name was announced to me")
-	await wait(3.0)
-	Net.i.dev_shot("e2e/guardian_arrival") if role == "host" else null
-	# the fight turns
-	var title := String(Game.ui.banner_title.text)
-	if role == "host":
-		b.phase_moment("The Fight Turns", "scenario", Color(0.7, 0.5, 0.95))
-		expect(b.aura.a > 0.0, "the guardian sheds its light from now on")
-	await until(func() -> bool: return String(Game.ui.banner_title.text) != title, 8.0, "the turn reached my screen")
-	await wait(2.0)
-	# its fall
-	if role == "host":
-		b.hp = 0.0
-		b.die(dun().player)
-	await until(func() -> bool: return not is_instance_valid(b) or String(b.sprite.anim) == "death", 8.0, "it fell on my screen")
-	var at_fall := dun().pickups.filter(func(p): return is_instance_valid(p) and p.kind == "sunshard").size()
-	expect(at_fall == 0, "nothing lands on the blow (%d)" % at_fall)
-	if role == "host":
-		await wait(0.8)
-		Net.i.dev_shot("e2e/guardian_fall")
-	await until(func() -> bool: return not dun().pickups.filter(func(p): return is_instance_valid(p) and p.kind == "sunshard").is_empty(), 10.0, "its hoard landed on my screen")
-	await until(func() -> bool: return not dun().props.filter(func(p): return is_instance_valid(p) and p.kind == "hearthstone" and p.data.get("victory", false)).is_empty(), 12.0, "the way home stands on my screen")
+	# every machine watches for itself from here, each on its own clock: a lagged
+	# guest must not be judged by when it happened to look
+	var began := now()
+	var turned := false
+	var did_turn := false
+	var did_fall := false
+	var t_fell := -1.0
+	var t_hoard := -1.0
+	var home := false
+	while now() < began + 30.0 and not (turned and t_hoard > 0.0 and home):
+		if role == "host" and not did_turn and now() > began + 3.5:
+			did_turn = true
+			b.phase_moment("The Fight Turns", "scenario", Color(0.7, 0.5, 0.95))
+			expect(b.aura.a > 0.0, "the guardian sheds its light from now on")
+			Net.i.dev_shot("e2e/guardian_turn")
+		if role == "host" and did_turn and not did_fall and now() > began + 6.5:
+			did_fall = true
+			b.hp = 0.0
+			b.die(dun().player)
+		if not turned and String(Game.ui.banner_title.text) == "THE FIGHT TURNS":
+			turned = true
+		if t_fell < 0.0 and (not is_instance_valid(b) or String(b.sprite.anim) == "death"):
+			t_fell = now()
+			if role == "host":
+				Net.i.dev_shot("e2e/guardian_fall")
+		if t_hoard < 0.0 and not dun().pickups.filter(func(p): return is_instance_valid(p) and p.kind == "sunshard").is_empty():
+			t_hoard = now()
+		home = not dun().props.filter(func(p): return is_instance_valid(p) and p.kind == "hearthstone" and p.data.get("victory", false)).is_empty()
+		await wait(0.03)
+	expect(turned, "the turn reached my screen")
+	expect(t_fell > 0.0, "it fell on my screen")
+	expect(t_hoard > 0.0, "its hoard landed on my screen")
+	expect(home, "the way home stands on my screen")
+	print("[scenario] the hoard came %.2f s after the fall" % (t_hoard - t_fell))
+	expect(t_hoard - t_fell > 1.5, "the fall had the floor to itself (%.2f s)" % (t_hoard - t_fell))
 	if role == "host":
 		Net.i.dev_shot("e2e/guardian_spoils")
 	await wait(1.0)

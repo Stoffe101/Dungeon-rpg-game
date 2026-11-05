@@ -50,7 +50,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`, `landmark` (every floor has its
   region's landmark), `urnlab`, `proplab`, `audiorec=S` (record the buses to `user://audio_rec/`), `perflog` (frame-time p50/p95/p99/worst every 10 s),
   `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|apothecary|wardrobe|feats|chronicle` (`chronicle sample` fills it, dev profiles only) (with `open=skilltree`: `hover=<node id>`,
-  `search=<text>`), `warp=boss|event|landmark|stairs|objective|altar`, `route=trial|vault|quiet|breach|lair` (a floor reached that way), `sitefind region= depth=` (a seed for each way's form and event), `pad` (act as if a
+  `search=<text>`), `rosterlab anim= lab=`, `bossat=<ratio>`, `bossdie=<s>`, `warp=boss|event|landmark|stairs|objective|altar`, `route=trial|vault|quiet|breach|lair` (a floor reached that way), `sitefind region= depth=` (a seed for each way's form and event), `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
@@ -62,7 +62,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
   peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
-  `scenario=journey|bestiary|stairs|sites|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
+  `scenario=journey|bestiary|stairs|sites|guardian|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
   (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
@@ -187,6 +187,11 @@ Key conventions:
   is untouched, they only witness (`Net.rec(["wit", ...])`). Answers are always reversible (`rest_cost`).
 - Deep Events: `src/data/deep_events.gd` (an event is an entry there, not a generator change; every
   interaction is a `site` prop: `voted` ones through `Party.serve`, personal ones run on the host).
+- Foes in the dark: `tools/art/sheet.gd` `RIM` (every foe needs an entry: region light on its silhouette, and
+  `self_light` in the sidecar), `FALL_STYLE`, `BOSS_FALL`. A new foe also needs `EnemyDB` stats, a pool, and a job in
+  `build_art` (`wave3` is the latest). `-- rosterlab` shows a region's foes on their real floor.
+- Guardians: `Enemy.phase_moment`, `Enemy.guardian_fall`, `Enemy.spoils` (loot waits for the fall when there is a view),
+  entrances by region in `Dungeon._boss_entrance`. A find's name: `Stage.find_title` (private: it re-mutes itself).
 - A named foe of a room: `Enemy.crown(title)` on every machine (replica record `"title"`), not `display_name`.
 - A floor's objective task line is `Dungeon.objective`; `_room_cleared` clears it for every objective.
 - Rock beyond the walls: `LevelBuilder._cap` also caps VOID tiles within `MASS_MAX` ("rock" surface, no shadows),
@@ -220,7 +225,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

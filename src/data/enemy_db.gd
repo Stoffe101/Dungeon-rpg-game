@@ -72,7 +72,7 @@ const ENEMIES := {
 	"tollkeeper": {
 		"voice": "skeleton", "voice_pitch": 0.6, "role": "controller",
 		"name": "Tollkeeper", "script": "res://src/entities/enemies/tollkeeper.gd", "sheet": "tollkeeper",
-		"hp": 46.0, "speed": 2.2, "radius": 0.36, "poise": 18.0, "damage": 10.0,
+		"hp": 46.0, "speed": 2.2, "radius": 0.36, "poise": 18.0, "damage": 7.0,
 		"xp": 9, "embers": 5, "cost": 3, "min_depth": 2, "no_affix": ["phasing"],
 		"lore": "It rang for every burial down here, and no one ever told it to stop. Do not run from the note. Go through it.",
 	},

@@ -37,7 +37,7 @@ func behave(dt: float) -> void:
 		"recover":
 			vel = Vector2.ZERO
 			if timer(0.8):
-				toll_cd = 5.0
+				toll_cd = 6.5
 				set_state("walk")
 		_:
 			set_state("walk")

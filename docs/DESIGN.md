@@ -1156,7 +1156,83 @@ not have: the HUD's task line outliving the room it belonged to.
 - **Permanent regional corruption**: a meter that only worsens punishes
   experimenting; altars that can always be re-answered do the same work.
 
+## Foes and guardians pass: a roster that reads, guardians with an ending
+
+The Living Undervault pass spent its art budget on the stone. This one looked at
+what stands on it. Every decision below came from a capture, not a guess: the
+`rosterlab` switch puts a region's foes on their real floor and light, held in
+one pose.
+
+### Why foes melted into the floor
+Two causes, neither of them the sheets, which look fine on a neutral background.
+A black outline disappears on dark stone, and the warm lantern multiplies every
+colour toward the floor's own brown: the pale bone Husk rendered dark brown. So:
+- **A rim**: the top and left of every foe's silhouette carries its region's
+  light (`Sheet._rim`): cold teal in the Ossuary, moss in the Rootmire, ember on
+  the Throne. It is art in the sheet, not a shader, and it goes out as a foe falls.
+- **A little of its own colour** survives any light (`self_light`, in the sidecar).
+- **Paint**: the Throne's obsidian and ash ramps and the Rootmire's wood were too
+  dark to carry anything. `GenThrone.PLATE` is the same purple-black two steps up.
+
+### Attacks you read from the shape
+The Husk, Guard, Archer and Skitter are the foes seen most. Their wind-ups moved
+an arm or a shield a pixel or two; now the wind-up and the blow are different
+silhouettes (a test pins this): the Husk throws both arms up and falls forward,
+the Guard gathers behind its shield and drives through it, the Archer's draw is a
+slow pull ending in a bright arrowhead, the Skitter squashes and stretches.
+
+### Guardians
+Each now arrives in its own way (the Warden's four footfalls, the Bloom's roots
+running in under the floor, the fires leaning toward the King), turns with one
+shared moment of slowed time, rings of light and a lasting shed of motes
+(`Enemy.phase_moment`), and falls through six drawn frames with its own ending
+(souls rising past you, petals greying as they fall, the fires returning one by
+one as ash comes down).
+
+The most important change was not in that list. Looking at a fall showed it was
+buried: four drop labels and a stack of "found" titles landed on the blow, printed
+over each other. **Spoils now wait for the end of the fall** (`Enemy.spoils`), and
+finds taken at once are **named in turn** (`Stage.find_title`, private to the
+finder as before). The best moment of a run had been the least readable one.
+
+### Three new foes
+Only once the old ones read, and only where they fill a gap:
+- **Tollkeeper** (Ossuary): a controller. Its bell sends out a ring; you dodge
+  through it or put a wall in the way. The hit follows `Fx.ring`'s own curve, so
+  the ring you see is the ring that hits.
+- **Lurecap** (Rootmire): an ambusher that stands among real glowcaps drawn as
+  one, but for a pale eye. It stops pretending when it is the last foe, so no
+  fight ends on a hunt for a mushroom.
+- **Ash Herald** (Throne): the region's first support. A decree marks one Kindled
+  (+25% from every foe) for five seconds or until the Herald falls. A party has
+  someone to protect and someone to send.
+
+### What the bots said about them
+Same two seeds with and without the new foes (Tier II, depth 2, health lost per
+room for mixed, melee and ranged bots, who never dodge a ring):
+
+| Region | Without | With |
+|---|---|---|
+| Ossuary | 13 / 16 / 5%, no wipes | 21 / 17 / 61%, one wipe; 17 / 22 / 20%, none, after easing |
+| Rootmire | 14 / 14 / 50% | 18 / 34 / 20% (noise: it moved both ways) |
+| Throne | 31 / 48 / 56%, wipes .5-1 | 37 / 36 / 101%, wipes .5-1 |
+
+The comparison mattered more than the numbers. The Throne's wipes looked like the
+new Herald's doing, and were there without it: Tier II is hard on bots there. Only
+the Tollkeeper moved anything for certain, so it alone was eased (damage 10 to 7,
+a toll about every 8 seconds instead of 7).
+
+### Rejected or postponed
+- **A shader outline**: it would have solved the same problem in an afternoon and
+  flattened every foe into the same look; a rim in the sheet can differ by region
+  and go out when a foe dies.
+- **Redrawing all 25 foes**: the rim and paint carried most of them. The four most
+  seen got new attacks; others got paint only.
+- **Boss move changes**: nobody has played the last pass; this one does not change
+  what a guardian asks of you.
+
 ## Decisions log
+- 2026-11-05 Foes and guardians: readability is art in the sheet (a rim per region, `self_light`), not a shader; a guardian's spoils wait for its fall; finds at once are named in turn; new foes only where a role was missing.
 - 2026-11-05 Living Undervault: one idea (the Undervault remembers, and you can see it) over many features; the world of an expedition is the host's, a guest only witnesses; answers at an altar are always reversible; a Grudge flees once and never from a last floor; events are data (`DeepEvents`); the rock beyond walls is built, not left black; the stockpile needs the editor, so a debug export starts like the real game; audio is measured for what it can tell (energy below 120 Hz disappears on small speakers), never called good.
 - 2026-11-05 Expedition evolution: one gear path (`Player.sync_gear`) instead of per-screen refreshes; facilities rebuilt in place by group; mouse steering removed (facing only); silhouette instance slots pinned; a dungeon grammar of rims, contact shadows and quiet floors; tinctures over flask stats; physical forked stairs over a route screen; objectives that cannot hold a room shut.
 
