@@ -913,6 +913,9 @@ static func memorial(ui: UIRoot) -> Control:
 	for g in gs:
 		var t := "%s  (%s, Lv%d)  -  %s" % [g.name, EnemyDB.get_def(g.enemy).get("name", g.enemy), int(g.level), "settled" if g.get("settled", false) else "carries %d Embers" % int(g.embers)]
 		v.add_child(UIKit.label(t, 8, UIKit.C_DIM if g.get("settled", false) else UIKit.C_TEXT))
+		if not g.get("settled", false):
+			var lesson := "closes on those who keep away" if String(g.get("learned", "ward")) == "closer" else "wards against those who stand and swing"
+			v.add_child(UIKit.label("    killed you %d time%s, scarred %d, %s" % [int(g.get("slew", 1)), "" if int(g.get("slew", 1)) == 1 else "s", int(g.get("scars", 0)), lesson], 8, UIKit.C_DIM))
 		var traits: Array = g.get("traits", [])
 		if not g.get("settled", false) and not traits.is_empty():
 			v.add_child(UIKit.label("    has grown: " + ", ".join(PackedStringArray(traits.map(func(x): return String(Profile.GRUDGE_TRAIT_TEXT.get(x, x))))), 8, Color(1.0, 0.55, 0.45)))
@@ -923,6 +926,62 @@ static func memorial(ui: UIRoot) -> Control:
 	v.add_child(UIKit.label("Expeditions %d   Deaths %d   Returns %d   Victories %d" % [int(st.get("runs", 0)), int(st.get("deaths", 0)), int(st.get("extractions", 0)), int(st.get("victories", 0))], 8))
 	v.add_child(UIKit.label("Foes slain %d   Embers gathered %d   Warden felled %d" % [int(st.get("kills", 0)), int(st.get("embers_earned", 0)), int(Profile.data.world.get("warden_kills", 0))], 8))
 	v.add_child(UIKit.label("Undervault Memory: %d" % int(Profile.data.world.get("memory", 0)), 8, UIKit.C_SOUL))
+	var row := UIKit.hbox(6)
+	row.add_child(UIKit.button("Read the Chronicle", func() -> void: ui.open(chronicle(ui)), 110))
+	row.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
+	v.add_child(row)
+	return _center(p)
+
+
+## What the Undervault remembers of you: the altars and how they stand (each
+## can be let rest here, for a price: nothing is ruined for good), what you
+## have done, and the story so far in plain words.
+static func chronicle(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("The Chronicle", Color(0.8, 0.6, 1.0)))
+	var ctx := {}
+	var body := UIKit.vbox(3)
+	v.add_child(body)
+	ctx["rebuild"] = func() -> void:
+		for c in body.get_children():
+			body.remove_child(c)
+			c.queue_free()
+		body.add_child(UIKit.label("THE HOLLOW ALTARS", 8, UIKit.C_GOLD, true))
+		for region in Chronicle.ALTARS:
+			var st := Chronicle.site(region)
+			var s: Dictionary = Chronicle.STATES.get(st, {})
+			var line := UIKit.hbox(6)
+			var rname := String(EnemyDB.REGIONS[region].name)
+			line.add_child(UIKit.label("%s:  %s" % [rname, s.get("name", "untouched")], 8, s.get("color", UIKit.C_DIM)))
+			if st != "":
+				var r := String(region)
+				var b := UIKit.button("Let it rest (%d)" % Chronicle.rest_cost(), func() -> void:
+					if Profile.spend("embers", Chronicle.rest_cost()):
+						Chronicle.set_site(r, "")
+						Audio.play("skill_refund", -2.0)
+						ctx.rebuild.call(), 90)
+				b.disabled = Profile.currency("embers") < Chronicle.rest_cost()
+				line.add_child(b)
+			body.add_child(line)
+			if st != "":
+				body.add_child(UIKit.para(String(s.short), 300, UIKit.C_DIM))
+		var marks: Array = []
+		for k in [["rifts_closed", "rifts closed"], ["breach_won", "Breaches held"], ["grudges_settled", "Grudges settled"], ["procession", "processions ended"], ["last_stand", "last stands honoured"]]:
+			var n := Chronicle.marks(String(k[0]))
+			if n > 0:
+				marks.append("%d %s" % [n, k[1]])
+		if not marks.is_empty():
+			body.add_child(UIKit.label("DEEDS", 8, UIKit.C_GOLD, true))
+			body.add_child(UIKit.para(",  ".join(PackedStringArray(marks)), 300, UIKit.C_TEXT))
+		var story: Array = (Profile.data.chronicle.log as Array).slice(-7)
+		body.add_child(UIKit.label("THE STORY SO FAR", 8, UIKit.C_GOLD, true))
+		if story.is_empty():
+			body.add_child(UIKit.para("Nothing yet. Go down, and give it something to remember.", 300, UIKit.C_DIM))
+		for ln in story:
+			body.add_child(UIKit.para(String(ln), 300, UIKit.C_TEXT))
+	ctx.rebuild.call()
 	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
 	return _center(p)
 

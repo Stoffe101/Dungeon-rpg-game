@@ -115,6 +115,11 @@ func _process(delta: float) -> void:
 
 
 func _pick_target() -> Actor:
+	# a person breaks the seals first: their foes are warded until then
+	if pl.stage is Dungeon and (pl.stage as Dungeon).seals_up() > 0:
+		for s in (pl.stage as Dungeon)._seals:
+			if is_instance_valid(s) and s.alive:
+				return s
 	var best: Actor = null
 	var bd := 18.0
 	for a in pl.stage.hostiles(pl.team):
@@ -137,7 +142,12 @@ func _fight(t: Actor, delta: float) -> void:
 	var ranged := pl.weapon and ["staff", "bow", "tome"].has(pl.weapon.id)
 	var want := 6.0 if ranged else 1.4
 	var to := (t.pos - pl.pos).normalized()
-	if d > want + 0.3:
+	# a person keeps a flame that is dying fed: back to the lantern, foes or no
+	var dg := st as Dungeon
+	var feed: bool = dg != null and dg.active_room != null and dg.active_room.objective == "flame" and dg._vigil != null and is_instance_valid(dg._vigil) and not dg._flame_out and dg._flame < 0.5
+	if feed and pl.pos.distance_to(dg._vigil.pos) > 2.0:
+		pl.move_in = (st.path_step(pl.pos, dg._vigil.pos) - pl.pos).normalized()
+	elif d > want + 0.3:
 		pl.move_in = (st.path_step(pl.pos, t.pos) - pl.pos).normalized()
 	elif d < want * 0.5 and ranged:
 		pl.move_in = -to

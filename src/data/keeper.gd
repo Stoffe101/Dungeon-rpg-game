@@ -18,6 +18,18 @@ static func lines() -> Array:
 	if not Profile.active_grudges().is_empty():
 		var g: Dictionary = Profile.active_grudges()[0]
 		out.append("%s still wanders the Ossuary with your embers. The Undervault remembers - so should you." % g.name)
+	var sites: Array = []
+	for r in Chronicle.ALTARS:
+		if Chronicle.site(r) != "":
+			sites.append(Chronicle.site(r))
+	if sites.has("broken"):
+		out.append("Something walks that used to be kept. I can feel the Breach from here. You will want to be ready when you go to it.")
+	elif sites.has("pact"):
+		out.append("There is a paleness on you. Whatever you fed down there, it knows your name now. Mind your Grudges.")
+	elif sites.has("kindled"):
+		out.append("Someone is tending a Vigil again. I had not thought to feel that in my lifetime. Thank you.")
+	if int(d.world.get("delve_best", 0)) >= 10:
+		out.append("You have been further down than anyone I ever sent. Tell me: does the light still look the same?")
 	if int(d.world.get("warden_kills", 0)) == 0 and int(d.world.get("deepest", 0)) >= 2:
 		out.append("The Warden swallows light. When it snuffs the braziers, give them back their fire. It cannot abide the flame.")
 	if int(d.world.get("warden_kills", 0)) > 0:

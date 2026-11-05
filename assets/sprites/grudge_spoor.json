@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"v0": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"v1": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"v2": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		14
+	],
+	"origin": [
+		12,
+		8
+	]
+}

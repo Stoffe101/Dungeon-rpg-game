@@ -308,6 +308,11 @@ func _icons(d: Dungeon, known: Dictionary, origin: Vector2, px: float, clip: Rec
 ## others drawn from the host's word): its colour, and on the full map its
 ## name. One beyond the minimap's edge shows as a pip on the edge, toward it.
 func _markers(d: Dungeon, origin: Vector2, px: float, clip: Rect2, names: bool) -> void:
+	# pings: a ring in the pinger's colour, while it lasts
+	for pg in d.pings:
+		var at: Vector2 = origin + (pg.pos as Vector2) * px
+		if clip.has_point(at):
+			draw_arc(at, 3.0 + fmod(float(pg.t) * 3.0, 2.0), 0.0, TAU, 12, pg.col, 1.0)
 	var t := Time.get_ticks_msec() / 1000.0
 	var me := d.player
 	var order: Array = []

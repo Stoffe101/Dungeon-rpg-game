@@ -12,6 +12,7 @@
 extends RefCounted
 
 const Pal = preload("res://src/render/pal.gd")
+const GenStone = preload("res://tools/art/gen_stone.gd")
 
 
 static func build(dir: String) -> void:
@@ -52,40 +53,38 @@ static func _floor(dir: String, theme: String, d: int) -> void:
 	var h := img.get_height()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(theme) + d * 101
+	var m: int = maxi(1, w * h / (128 * 128))      # as many marks per tile on bigger floors
 	match theme:
 		"crypt":
 			if d == 2:
 				# the Charnel Galleries: bones set in the paving, more cracks, old stains
-				for k in 14:
+				for k in 14 * m:
 					_bone(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 10:
+				for k in 10 * m:
 					_crack(img, rng.randi_range(0, w), rng.randi_range(0, h), rng, Pal.STONE[0])
-				for k in 5:
+				for k in 5 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(5.0, 10.0), Pal.BLOOD[0], 0.25)
 			else:
 				# the Warden's Deep: darker, wet, soul-light glowing in the seams
 				_darken(img, 0.82)
-				for y in h:
-					for x in w:
-						if _seam(img, x, y) and Px_hash(x, y, 5) > 0.3:
-							_blend(img, x, y, Pal.SOUL[4], 0.85)
-				for k in 4:
+				_inlay(img, Pal.SOUL[3], 0.6, 5)
+				for k in 4 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(8.0, 14.0), Pal.FROST[1], 0.35)
-				for k in 8:
+				for k in 8 * m:
 					_crack(img, rng.randi_range(0, w), rng.randi_range(0, h), rng, Pal.SOUL[1])
 		"root":
 			if d == 2:
 				# the Sporefields: fungus caps and pale spore bloom
-				for k in 22:
+				for k in 22 * m:
 					_cap(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 6:
+				for k in 6 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(6.0, 12.0), Pal.MOSS[3], 0.2)
 			else:
 				# the Bloom's Heart: red veins of the Bloom run through everything
 				_tint(img, Color(1.0, 0.86, 0.88), 0.25)
-				for k in 9:
+				for k in 9 * m:
 					_vein(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 10:
+				for k in 10 * m:
 					var x := rng.randi_range(0, w)
 					var y := rng.randi_range(0, h)
 					_put(img, x, y, Pal.BLOOD[3])
@@ -93,18 +92,15 @@ static func _floor(dir: String, theme: String, d: int) -> void:
 		"throne":
 			if d == 2:
 				# the Court of Ash: drifts of ash, scorch where the fire walked
-				for k in 7:
+				for k in 7 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(7.0, 13.0), Pal.STONE[4], 0.3)
-				for k in 5:
+				for k in 5 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(5.0, 9.0), Color(0.08, 0.06, 0.07), 0.45)
-				for k in 40:
+				for k in 40 * m:
 					_blend(img, rng.randi_range(0, w), rng.randi_range(0, h), Pal.EMBER[2], 0.6)
 			else:
 				# the Last Sun's Seat: gold in the seams and a sun in the floor
-				for y in h:
-					for x in w:
-						if _seam(img, x, y) and Px_hash(x, y, 9) > 0.35:
-							_blend(img, x, y, Pal.GOLD[3], 0.6)
+				_inlay(img, Pal.GOLD[2], 0.45, 9)
 				_sun(img, w / 2, h / 2, 13)
 	img.save_png(ProjectSettings.globalize_path(dir.path_join("%s_floor_d%d.png" % [theme, d])))
 
@@ -124,7 +120,7 @@ static func _wall(dir: String, theme: String, d: int) -> void:
 			else:
 				_darken(img, 0.82)
 				for k in 4:
-					_rune(img, 6 + k * 16, 12 + rng.randi_range(-3, 3), Pal.SOUL[4])
+					_rune(img, 6 + k * 16, 12 + rng.randi_range(-3, 3), Pal.SOUL[3], k)
 		"root":
 			if d == 2:
 				for k in 9:
@@ -139,7 +135,7 @@ static func _wall(dir: String, theme: String, d: int) -> void:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(h / 3, h), rng.randf_range(5.0, 9.0), Color(0.08, 0.06, 0.07), 0.45)
 			else:
 				for k in 3:
-					_rune(img, 10 + k * 22, 9, Pal.GOLD[3])
+					_rune(img, 10 + k * 22, 9, Pal.GOLD[3], k + 1)
 	img.save_png(ProjectSettings.globalize_path(dir.path_join("%s_wall_d%d.png" % [theme, d])))
 
 
@@ -241,7 +237,34 @@ static func _niche(img: Image, x: int, y: int) -> void:
 	_put(img, x + 4, y + 4, Pal.BONE[4])
 
 
-static func _rune(img: Image, x: int, y: int, col: Color) -> void:
-	var pts := [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 2], [2, 1], [2, 3], [3, 0], [3, 4]]
+## Glowing inlay in the mortar, but only in long patches of each floor: a room
+## should have a few bright runs in it, not a grid drawn over everything.
+static func _inlay(img: Image, col: Color, k: float, s: int) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	var cell := float(w) / 5.0
+	var seams: Array[Vector2i] = []
+	for y in h:
+		for x in w:
+			if _seam(img, x, y) and GenStone.pn(x, y, cell, w, s) > 0.6 and Px_hash(x, y, s) > 0.2:
+				seams.append(Vector2i(x, y))
+	for p in seams:
+		_blend(img, p.x, p.y, col, k)
+
+
+## Carved signs, cut into the stone and lit from within. Not letters: a lantern,
+## a tally, a stair, a flame.
+const RUNES := [
+	[[2, 0], [1, 1], [3, 1], [0, 2], [4, 2], [1, 3], [3, 3], [2, 4]],
+	[[0, 0], [2, 0], [4, 0], [0, 1], [2, 1], [4, 1], [0, 2], [2, 2], [4, 2], [2, 4]],
+	[[0, 0], [1, 0], [2, 0], [2, 1], [2, 2], [3, 2], [4, 2], [4, 3], [4, 4]],
+	[[2, 0], [1, 1], [2, 1], [1, 2], [3, 2], [0, 3], [4, 3], [1, 4], [2, 4], [3, 4]],
+]
+
+
+static func _rune(img: Image, x: int, y: int, col: Color, which := 0) -> void:
+	var pts: Array = RUNES[which % RUNES.size()]
+	for p in pts:
+		_blend(img, x + p[0] + 1, y + p[1] + 1, Pal.INK, 0.7)     # the cut's shadow
 	for p in pts:
 		_put(img, x + p[0], y + p[1], col)

@@ -111,6 +111,12 @@ var hearthfire_t := 0.0       # Hearthfire Form
 var hearthfire_power := 1.0
 var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
+var furnace := 0.0            # Furnace Heart: Kindle spent, banked for the next blow
+var answer_ready := false     # Perfect Answer: the next blow is a sure critical
+var mirror_t := 0.0           # Mirror of the Deep: until it answers again
+var stillwater_t := 0.0       # Stillwater Stone: until its barrier rises again
+var last_spell := ""
+var _still_for := 0.0
 var salt_t := 0.0             # Grave-salt: no affliction takes hold
 var tonic_chill_t := 0.0      # Gloamwater: every blow landed chills
 var rush_refund := 0.0        # Ember Rush through the burning: part of its cooldown back
@@ -217,6 +223,8 @@ func rebuild_stats() -> void:
 	if run:
 		RelicDB.apply(run.relics, stats)
 		Omens.apply(run.omens, stats)
+		if Chronicle.site_of(run.world, run.region) == "kindled":
+			stats.add_mod("flask_charges", "add", 1.0)      # a rekindled Vigil's blessing
 	var old_max := max_hp
 	max_hp = maxf(1.0, roundf(stats.v("max_hp")))
 	if old_max > 0.0 and hp > 0.0:
@@ -477,6 +485,8 @@ func _process(delta: float) -> void:
 		try_interact()
 	if Input.is_action_just_pressed("hearthcall"):
 		press("home")
+	if Input.is_action_just_pressed("ping"):
+		Party.ping(stage, self, aim_point)
 	# in the sanctuary a click on someone (or something) within reach talks to them
 	var clicked: Prop = null
 	if Input.is_action_just_pressed("attack") and not _pad_aim and stage is Hub:
@@ -827,6 +837,20 @@ func _timers(dt: float) -> void:
 	channel_t = maxf(0.0, channel_t - dt)
 	haste_t = maxf(0.0, haste_t - dt)
 	tonic_chill_t = maxf(0.0, tonic_chill_t - dt)
+	mirror_t = maxf(0.0, mirror_t - dt)
+	stillwater_t = maxf(0.0, stillwater_t - dt)
+	if ward_t > 0.0 and stats.has("hearth_anchor"):
+		gain_kindle(8.0 * dt / maxf(stats.v("kindle_gain"), 0.01))
+	if stats.has("stillwater") and stillwater_t <= 0.0 and stage is Dungeon and (stage as Dungeon).fight_on():
+		_still_for = _still_for + dt if move_in.length() < 0.1 and dodge_t <= 0.0 else 0.0
+		if _still_for >= 1.0:
+			_still_for = 0.0
+			stillwater_t = 8.0
+			barrier = maxf(barrier, roundf(max_hp * 0.15))
+			barrier_t = maxf(barrier_t, 6.0)
+			stage.fx.ring(pos, 1.5, Color(0.6, 0.85, 1.0), 0.5, 0.3)
+	if run and run.has_omen("bleeding_lantern") and stage is Dungeon and (stage as Dungeon).fight_on():
+		kindle = maxf(0.0, kindle - 1.5 * dt)
 	if salt_t > 0.0:
 		# Grave-salt: no burning, chill or other affliction takes hold
 		salt_t -= dt
@@ -913,7 +937,26 @@ func _handle_actions(_dt: float) -> void:
 		weapon.release()
 
 
+## Ashwalker's Cinder: burning ground where the dodge began, and along it.
+func _ash_trail() -> void:
+	var from := pos
+	for k in 3:
+		stage.after(k * 0.08, func() -> void:
+			if not is_inside_tree():
+				return
+			var h := Hazard.spawn(stage, pos if k > 0 else from, 0.9, 2.4, team, Color(1.0, 0.5, 0.2), func(_h: Hazard, a: Actor) -> void:
+				if a is Enemy and is_instance_valid(self):
+					var hit := Hit.make(self, 3.0 + stats.v("fire_damage") * 4.0, ["dot", "fire"])
+					hit.can_crit = false
+					hit.silent = true
+					hit.burn = 1
+					deal_hit(a, hit))
+			h.period = 0.5)
+
+
 func _start_dodge() -> void:
+	if stats.has("ash_cinder") and not predicting:
+		_ash_trail()
 	if predicting:
 		_predict_dodge()
 		return
@@ -1051,6 +1094,9 @@ func _try_ability(slot: int) -> void:
 	var cast_dir := aim
 	if not Abilities.cast(self, id):
 		return
+	last_spell = id
+	if stats.has("furnace_heart"):
+		furnace = minf(60.0, furnace + cost)
 	if id != "gloamstep":
 		Abilities.echo(self, id, cast_at, cast_dir, aim_point)
 	if weapon and weapon.has_method("inscribe"):
@@ -1225,7 +1271,9 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if t is Enemy and (t as Enemy).elite:
 		mult *= 1.0 + stats.v("elite_damage")
 	if stage is Dungeon and (stage as Dungeon).sealed_foe(t):
-		mult *= 0.35     # a Trial of Ash hall's seals ward its foes
+		mult *= 0.5      # a Trial of Ash hall's seals ward its foes
+	if t is Enemy and (t as Enemy).grudge_ward_t > 0.0:
+		mult *= 0.4      # a Grudge's red ward: step back and wait it out
 	if stats.has("berserk"):
 		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
 	if stats.has("ember_crown") and run:
@@ -1239,6 +1287,23 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		h.chill = maxf(h.chill, 0.2)
 	if direct and tonic_chill_t > 0.0:
 		h.chill = maxf(h.chill, 0.3)     # Gloamwater
+	if direct and not h.has_tag("ability"):
+		if furnace > 0.0:
+			mult *= 1.0 + furnace / 100.0      # Furnace Heart: what was spent, struck
+			furnace = 0.0
+		if answer_ready:
+			answer_ready = false               # Perfect Answer
+			h.forced_crit = true
+			h.poise = maxf(h.poise, 40.0)
+		if stats.has("shadowfrost") and t.status.chill > 0.0:
+			mult *= 1.3
+	# one Kindled freezes, another shatters: a bonus for a party, never a need
+	if direct and t.status.is_frozen() and t.has_meta("frozen_by") and int(t.get_meta("frozen_by")) != peer_id:
+		mult *= 1.5
+		t.remove_meta("frozen_by")
+		cosmetic(func() -> void:
+			stage.fx.number(t.pos, 2.4, "SHATTER", Color(0.7, 0.9, 1.0), true)
+			stage.fx.burst(t.pos, 0.8, Color(0.75, 0.92, 1.0), 16, 4.0, 0.4, 3.0))
 	if stats.has("ashbringer") and float(t.get_meta("ashen_until", -1.0)) > stage.elapsed:
 		mult *= 1.25
 	if direct and stats.has("headsman") and t.hp_ratio() < 0.25:
@@ -1898,10 +1963,18 @@ func _perfect_dodge() -> void:
 		stage.fx.number(pos, 2.0, "COOLDOWNS RESET", Color(0.8, 0.55, 1.0))
 	if stats.has("counterstep"):
 		counter_ready = true
+	if stats.has("perfect_answer"):
+		answer_ready = true
 	Events.perfect_dodge.emit()
 
 
 func _on_ward(attacker: Node, projectile: bool) -> void:
+	if stats.has("perfect_answer"):
+		answer_ready = true
+	if stats.has("deep_mirror") and mirror_t <= 0.0 and last_spell != "" and not predicting:
+		mirror_t = 6.0
+		Abilities.cast(self, last_spell, 0.8)
+		stage.fx.number(pos, 2.4, "ANSWERED", Color(0.55, 0.9, 1.0))
 	if weapon:
 		weapon.on_evade()
 	if stats.has("retribution") and retribution > 1.0:

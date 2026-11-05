@@ -255,6 +255,15 @@ const NODES := [
 		"desc": "Each spell you cast charges your next 3 weapon hits with its element: +40% damage, and they Burn, Chill or Expose. Spells cost 15% more Kindle."},
 
 	# ---------------- Hybrids (between branches) ----------------
+	# the deep hybrids: a second step between two branches, each a way of fighting
+	{"id": "y_kb", "name": "Furnace Heart", "branch": "kindle|blade", "kind": "hybrid", "ring": 5.1, "links": ["x_kb"], "flags": {"furnace_heart": 1},
+		"desc": "Every point of Kindle you spend banks in your weapon: your next blow is 1% stronger for each, up to 60%. Cast, then strike."},
+	{"id": "y_gw", "name": "Perfect Answer", "branch": "gloam|bulwark", "kind": "hybrid", "ring": 5.1, "links": ["x_gw"], "flags": {"perfect_answer": 1},
+		"desc": "After a Ward or a perfect dodge, your next blow is a sure critical and staggers: a defence that is an attack."},
+	{"id": "y_rg", "name": "Shadowfrost", "branch": "rime|gloam", "kind": "hybrid", "ring": 5.1, "links": ["x_rg"], "flags": {"shadowfrost": 1},
+		"desc": "A shade strikes with you at anything chilled: your blows land 30% harder on chilled foes."},
+	{"id": "y_wk", "name": "Hearth Anchor", "branch": "bulwark|kindle", "kind": "hybrid", "ring": 5.1, "links": ["x_wk"], "flags": {"hearth_anchor": 1},
+		"desc": "While you Ward, Kindle flows back: 8 a second. Standing your ground fuels the spells that end the fight."},
 	{"id": "x_bp", "name": "Searing Edge", "branch": "blade|pyre", "kind": "hybrid", "links": [], "mods": [["fire_damage", "add", 0.1]], "flags": {"searing_edge": 1},
 		"desc": "Melee hits have a 20% chance to Burn. +10% fire damage."},
 	{"id": "x_pr", "name": "Thermal Shock", "branch": "pyre|rime", "kind": "hybrid", "links": [], "flags": {"thermal_shock": 1},
@@ -278,6 +287,7 @@ const ICONS := {
 	"w3": "mirror", "w3r": "aegis", "w5": "bandage", "w5r": "aegis", "w6": "shield",
 	"k3": "wisp", "k3l": "skull", "k5": "sun", "k5l": "wisp", "k6": "sun",
 	"x_bp": "flame", "x_pr": "prism", "x_rg": "snow", "x_gw": "dodge", "x_wk": "kindle", "x_kb": "sword",
+	"y_kb": "flame", "y_gw": "dodge", "y_rg": "snow", "y_wk": "kindle",
 	"b_m": "sword", "p_m": "flame", "r_m": "snow", "g_m": "feather", "w_m": "shield", "k_m": "wick",
 	"b7": "hammer", "p7": "coal", "r7": "hourglass", "g7": "gloamstep", "w7": "shield", "k7": "sigil",
 	"b_rush": "rush", "b_mo": "momentum", "b8": "cuts", "p_fork": "splinter", "p8": "hail", "r_ret": "return",
@@ -513,7 +523,7 @@ static func position_of(id: String) -> Vector2:
 		if absf(a2 - a1) > 180.0:
 			a2 -= 360.0 * signf(a2 - a1)
 		var a := deg_to_rad((a1 + a2) * 0.5)
-		return Vector2(cos(a), sin(a)) * RING * 3.6
+		return Vector2(cos(a), sin(a)) * RING * float(n.get("ring", 3.6))
 	if n.kind == "root":
 		return Vector2.ZERO
 	var ang := deg_to_rad(float(BRANCHES[n.branch].angle))

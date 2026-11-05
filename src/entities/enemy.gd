@@ -152,6 +152,68 @@ func make_grudge(g: Dictionary) -> void:
 		# every 50 Embers it carries makes it hit a little harder
 		damage *= 1.0 + minf(0.5, 0.05 * floorf(int(g.get("embers", 0)) / 50.0))
 	display_name = String(g.get("name", display_name))
+	_grudge_cd = 4.0
+
+
+# --- a Grudge is not an elite with a name: it remembers how you fought ------------
+
+var grudge_ward_t := 0.0     # its red ward is up: your blows land at less than half
+var _grudge_cd := 4.0
+var _spoor_t := 0.0
+var _wound_checked := false
+const GRUDGE_RED := Color(1.0, 0.32, 0.25)
+
+
+## The red brand over a Grudge: it grows with every level. Every machine draws it.
+func _brand() -> void:
+	var b := PixelSprite.new()
+	visual.add_child(b)
+	b.setup("grudge_brand", "l%d" % clampi(int(grudge.get("level", 1)), 1, 5))
+	b.material_override = null
+	var h := float(sprite.sheet.frame_size.y) * Iso.TEXEL * 0.92
+	b.position = Vector3(0, h * Iso.SQ2 + 0.1, 0.02)
+
+
+func _grudge_tick(dt: float) -> void:
+	grudge_ward_t = maxf(0.0, grudge_ward_t - dt)
+	_spoor_t -= dt
+	if _spoor_t <= 0.0:
+		_spoor_t = 0.22
+		stage.fx.motes(pos, 0.5, GRUDGE_RED, 1, 0.4, 0.9, 0.2)
+	if state == "spawn" or not alive:
+		return
+	# hurt badly and grown enough to know when to run: it flees, once an expedition
+	if int(grudge.get("level", 1)) >= 2 and hp < max_hp * 0.3 and stage is Dungeon and not _wound_checked:
+		_wound_checked = true
+		if (stage as Dungeon).grudge_flees(self):
+			return
+	_grudge_cd -= dt
+	if _grudge_cd > 0.0 or target() == null:
+		return
+	if String(grudge.get("learned", "ward")) == "closer":
+		var t := target()
+		var d := t.pos.distance_to(pos)
+		if d > 4.0 and d < 16.0:
+			_grudge_cd = 6.5
+			var at := stage.foe_spot(t.pos + (pos - t.pos).normalized() * 1.3, 0.5, room_id)
+			telegraph(Fx.Shape.DISC, at, Vector2.RIGHT, Vector2(2.4, 2.4), 0.8)
+			stage.after(0.8, func() -> void:
+				if is_instance_valid(self) and alive:
+					stage.fx.burst(pos, 0.8, GRUDGE_RED, 16, 3.0, 0.4, 2.0)
+					pos = at
+					stage.fx.ring(at, 2.2, GRUDGE_RED, 0.3, 0.25)
+					Audio.play_at("gate_flare", at, -10.0, 1.6)
+					strike_arc(at, Vector2.RIGHT, 1.3, PI, damage * 0.8, 3.0))
+		else:
+			_grudge_cd = 1.0
+	else:
+		_grudge_cd = 7.5
+		grudge_ward_t = 1.8
+		stage.fx.ring(pos, 1.8, GRUDGE_RED, 1.8, 0.2)
+		stage.fx.number(pos, 2.4, "WARDED", GRUDGE_RED)
+		if sprite:
+			sprite.flash(GRUDGE_RED, 0.4)
+		Audio.play_at("grudge_ward", pos, -7.0)
 
 
 func _ready() -> void:
@@ -160,6 +222,8 @@ func _ready() -> void:
 	sprite.set_dissolve(1.0)
 	if (elite or not grudge.is_empty()) and not def.get("boss", false):
 		_make_nameplate()
+	if not grudge.is_empty():
+		_brand()
 	if _gloom_light and _gloom_light.get_parent() == null:
 		visual.add_child(_gloom_light)
 	state = "spawn"
@@ -417,6 +481,8 @@ func think(dt: float) -> void:
 	sprite.speed_scale = attack_rate
 	if state == "stunned":
 		set_state("idle")
+	if not grudge.is_empty():
+		_grudge_tick(dt)
 	behave(dt)
 	if _flinch_t > 0.0:
 		_flinch_t -= dt
@@ -860,6 +926,20 @@ static func _volatile_later(st: Stage, p: Vector2, dmg: float) -> void:
 
 # --- overlay UI ----------------------------------------------------------------------
 
+## A room's named foe: its own title over it, and a head taller. Every machine
+## does this (the host in Dungeon._champion, a guest from the replica's record).
+func crown(title: String) -> void:
+	display_name = title
+	set_meta("champion", title)
+	if visual:
+		visual.scale = Vector3.ONE * 1.25
+	if nameplate == null:
+		_make_nameplate()
+	if nameplate:
+		nameplate.text = title
+		nameplate.add_theme_color_override("font_color", Color(1.0, 0.55, 0.3))
+
+
 func _make_nameplate() -> void:
 	if stage.view == null:
 		return
@@ -869,7 +949,10 @@ func _make_nameplate() -> void:
 	var col: Color = EnemyDB.AFFIXES.get(affix, {}).get("color", Color(1, 0.8, 0.4))
 	if not grudge.is_empty():
 		col = Color(1.0, 0.45, 0.35)
-		nameplate.text = "%s  Lv%d" % [display_name, int(grudge.get("level", 1))]
+		var owner := int(grudge.get("owner", 0))
+		var whose := ("  (%s's)" % Net.name_of(owner)) if owner != 0 and Net.active() and Net.party_size() > 1 else ""
+		var marks := int(grudge.get("scars", 0))
+		nameplate.text = "%s  Lv%d%s%s" % [display_name, int(grudge.get("level", 1)), ("  scarred x%d" % marks) if marks > 0 else "", whose]
 	else:
 		nameplate.text = "%s %s" % [EnemyDB.AFFIXES[affix].name, display_name]
 		if affix2 != "":

@@ -7,7 +7,7 @@ const ENEMIES := {
 	# (the Trial of Ash's ward-stone: never in a region's pool - DungeonGen._objectives)
 	"ash_seal": {
 		"role": "objective", "name": "Ash Seal", "script": "res://src/entities/enemies/ash_seal.gd", "sheet": "ash_seal",
-		"hp": 70.0, "speed": 0.0, "radius": 0.42, "poise": 999.0, "damage": 0.0,
+		"hp": 38.0, "speed": 0.0, "radius": 0.42, "poise": 999.0, "damage": 0.0,
 		"xp": 3, "embers": 4, "cost": 0, "min_depth": 99, "pack": true,
 		"no_affix": ["hasted", "warded", "volatile", "vampiric", "phasing", "frenzied", "shepherd", "splitting", "molten", "gloom"],
 		"lore": "Old ward-stones, chained so they cannot fall. Whatever they guard, they keep from harm.",

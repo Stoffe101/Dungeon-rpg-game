@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"breach": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": true,
+			"row": 3
+		},
+		"lair": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": true,
+			"row": 4
+		},
+		"quiet": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": true,
+			"row": 2
+		},
+		"trial": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": true,
+			"row": 0
+		},
+		"vault": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		36,
+		40
+	],
+	"origin": [
+		18,
+		37
+	]
+}

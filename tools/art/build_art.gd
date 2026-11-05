@@ -27,6 +27,7 @@ const GenLandmarks = preload("res://tools/art/gen_landmarks.gd")
 const GenForms = preload("res://tools/art/gen_forms.gd")
 const GenUniques = preload("res://tools/art/gen_uniques.gd")
 const GenRoutes = preload("res://tools/art/gen_routes.gd")
+const GenSites = preload("res://tools/art/gen_sites.gd")
 
 
 func _init() -> void:
@@ -65,6 +66,7 @@ func _init() -> void:
 		"forms": func(): GenForms.build("res://assets/sprites"),
 		"uniques": func(): GenUniques.build("res://assets/sprites"),
 		"routes": func(): GenRoutes.build("res://assets/sprites"),
+		"sites": func(): GenSites.build("res://assets/sprites"),
 	}
 	for k in jobs:
 		if only.is_empty() or k in only:

@@ -49,8 +49,8 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `hearthcall` (start a Hearthcall a second after the floor loads), `audiolog` (print every sound played),
   `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`, `landmark` (every floor has its
   region's landmark), `urnlab`, `proplab`, `audiorec=S` (record the buses to `user://audio_rec/`), `perflog` (frame-time p50/p95/p99/worst every 10 s),
-  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|apothecary|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
-  `search=<text>`), `warp=boss|event|landmark|stairs|objective`, `route=trial|vault|quiet` (a floor reached that way), `pad` (act as if a
+  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|apothecary|wardrobe|feats|chronicle` (`chronicle sample` fills it, dev profiles only) (with `open=skilltree`: `hover=<node id>`,
+  `search=<text>`), `warp=boss|event|landmark|stairs|objective|altar`, `route=trial|vault|quiet|breach|lair` (a floor reached that way), `sitefind region= depth=` (a seed for each way's form and event), `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
@@ -62,7 +62,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
   peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
-  `scenario=journey|bestiary|stairs|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
+  `scenario=journey|bestiary|stairs|sites|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
   (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
@@ -156,7 +156,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`, `ApothecaryUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v14 (v14: `alchemy` - the steeped tincture and reagents found). Save v13 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v15 (v15: `chronicle`, Grudge `learned/slew/scars/history`; v14: `alchemy` - the steeped tincture and reagents found; v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
@@ -179,7 +179,18 @@ Key conventions:
   COLOR = depth into the rock); the level mesh is built after the props. `sprite.gdshader` and
   `silhouette.gdshader` pin their instance uniforms to the same `instance_index` slots - keep them so.
 - Grudges: `Profile.record_grudge` / `age_grudges` (traits by level in `GRUDGE_TRAITS`); spawned by
-  `Dungeon._spawn_grudge`, whose room is picked before props so its fires can burn red.
+  `Dungeon._spawn_grudge`, whose room is picked before props so its fires can burn red. They learn
+  (`grudge_lesson`: "closer" against distance, "ward" against standing), flee once when grown and hurt
+  (`Dungeon.grudge_flees`, `RunState.wounded/scars`) and leave a trophy (`_grudge_trophy`).
+- The Chronicle: `src/data/chronicle.gd` (Hollow Altars, deeds, the story, `Profile.data.chronicle`, save v15).
+  The world of an expedition is the host's (`Chronicle.snapshot()`, carried in `_begin`); a guest's own altar
+  is untouched, they only witness (`Net.rec(["wit", ...])`). Answers are always reversible (`rest_cost`).
+- Deep Events: `src/data/deep_events.gd` (an event is an entry there, not a generator change; every
+  interaction is a `site` prop: `voted` ones through `Party.serve`, personal ones run on the host).
+- A named foe of a room: `Enemy.crown(title)` on every machine (replica record `"title"`), not `display_name`.
+- A floor's objective task line is `Dungeon.objective`; `_room_cleared` clears it for every objective.
+- Rock beyond the walls: `LevelBuilder._cap` also caps VOID tiles within `MASS_MAX` ("rock" surface, no shadows),
+  as low as the wall in front of it south of a room so it never stands between the camera and a floor.
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
   bramble, elite); gifts apply in `Profile.apply_sanctuary` via `Residents.apply_rewards`.
 
@@ -209,7 +220,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

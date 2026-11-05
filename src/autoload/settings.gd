@@ -59,6 +59,7 @@ var DEFAULT_BINDINGS := {
 	"pause": [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_START)],
 	"inventory": [_key(KEY_I), _joy_button(JOY_BUTTON_RIGHT_STICK)],
 	"hearthtree": [_key(KEY_K), _joy_button(JOY_BUTTON_DPAD_LEFT)],
+	"ping": [_key(KEY_G), _joy_button(JOY_BUTTON_DPAD_RIGHT)],
 	"hearthcall": [_key(KEY_H), _joy_button(JOY_BUTTON_LEFT_STICK)],
 	# co-op: answer the party's question (an expedition, the stairs) from anywhere
 	"party_yes": [_key(KEY_Y), _joy_button(JOY_BUTTON_DPAD_UP)],

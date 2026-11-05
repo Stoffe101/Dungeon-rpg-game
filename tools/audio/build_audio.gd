@@ -1,10 +1,13 @@
 ## Renders every sound effect, music loop and ambience bed.
 ## Usage: godot --headless --path . -s res://tools/audio/build_audio.gd [-- only=sfx|music|amb]
+## (`sounds=a,b` with only=sfx: render just those, leaving the rest as they are.)
 extends SceneTree
 
 const Synth = preload("res://tools/audio/synth.gd")
 const SFX := "res://assets/audio/sfx/"
 const MUS := "res://assets/audio/music/"
+
+var just: PackedStringArray = []
 
 
 func _init() -> void:
@@ -12,6 +15,8 @@ func _init() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("only="):
 			only = a.substr(5)
+		elif a.begins_with("sounds="):
+			just = a.substr(7).split(",")
 	var t := Time.get_ticks_msec()
 	if only == "" or only == "sfx":
 		_sfx()
@@ -26,6 +31,8 @@ func _init() -> void:
 
 
 func fx(name: String, dur: float, build: Callable, seed_v := 1) -> void:
+	if not just.is_empty() and not just.has(name):
+		return
 	var s := Synth.new(44100, dur, false, seed_v)
 	build.call(s)
 	s.save(SFX + name + ".wav", 0.85)
@@ -605,6 +612,42 @@ func _sfx() -> void:
 			s.bell(k * 0.05, 0.8, midi(86 - [0, 2, 5, 7, 12][k]), 0.06)
 		s.noise(0.0, 0.8, 0.22, 7000.0, 1500.0, 800.0, 0.01, 2.0)
 		s.tone(0.0, 0.6, 110.0, 55.0, "sine", 0.35, 0.005, 3.0))
+	# the living Undervault's own moments
+	fx("ping", 0.5, func(s):
+		s.bell(0.0, 0.4, midi(88), 0.22, [[1.0, 1.0, 5.0], [2.0, 0.3, 8.0]])
+		s.bell(0.1, 0.38, midi(95), 0.16, [[1.0, 1.0, 6.0], [2.0, 0.25, 9.0]]))
+	fx("seal_break", 0.9, func(s):
+		s.noise(0.0, 0.12, 0.7, 5000.0, 900.0, 300.0, 0.001, 6.0)     # the stone cracks
+		s.tone(0.0, 0.22, 170.0, 70.0, "sine", 0.3, 0.002, 5.0)
+		for k in 3:
+			s.bell(0.04 + k * 0.07, 0.6, midi(84 - k * 5), 0.16))     # its ward runs out
+	fx("altar_kindled", 1.6, func(s):
+		s.tone(0.0, 0.9, 165.0, 247.0, "sine", 0.14, 0.1, 2.0)
+		s.noise(0.0, 0.9, 0.3, 900.0, 3000.0, 300.0, 0.2, 2.0)        # a flame taking
+		for k in 4:
+			s.bell(0.35 + k * 0.1, 1.1, midi([62, 69, 74, 78][k]), 0.24))
+	fx("altar_broken", 1.4, func(s):
+		s.noise(0.0, 0.25, 0.8, 3500.0, 500.0, 120.0, 0.001, 5.0)     # stone gives way
+		s.tone(0.0, 0.7, 120.0, 34.0, "saw", 0.4, 0.002, 3.0, 0.0, 6.0, 500.0)
+		for k in 5:
+			s.noise(0.12 + k * 0.13, 0.12, 0.3 - k * 0.04, 2500.0, 700.0, 300.0, 0.002, 6.0)
+		s.bell(0.3, 1.0, midi(49), 0.1, [[1.0, 1.0, 3.0], [1.41, 0.6, 4.0], [2.3, 0.3, 6.0]]))
+	fx("altar_pact", 1.5, func(s):
+		s.pad(0.0, 1.4, [midi(38), midi(45), midi(51)], 0.4, 800.0, 0.25, 0.7)
+		s.tone(0.1, 1.2, 440.0, 430.0, "sine", 0.06, 0.4, 1.5, 0.02, 4.5)
+		s.noise(0.0, 1.3, 0.12, 900.0, 1600.0, 250.0, 0.4, 1.5, 3.5))  # a breath drawn in
+	fx("blood_pact", 0.9, func(s):
+		s.tone(0.0, 0.16, 150.0, 80.0, "sine", 0.5, 0.004, 5.0)
+		s.tone(0.2, 0.2, 132.0, 72.0, "sine", 0.4, 0.004, 5.0)
+		s.noise(0.0, 0.14, 0.2, 900.0, 400.0, 200.0, 0.004, 5.0)
+		s.noise(0.2, 0.16, 0.16, 800.0, 350.0, 180.0, 0.004, 5.0)
+		s.pad(0.05, 0.8, [midi(52), midi(58)], 0.22, 900.0, 0.1, 0.5))
+	fx("grudge_ward", 0.7, func(s):
+		s.bell(0.0, 0.6, 196.0, 0.4, [[1.0, 1.0, 4.0], [1.51, 0.7, 5.0], [2.63, 0.4, 7.0]])
+		s.noise(0.0, 0.1, 0.4, 3000.0, 900.0, 400.0, 0.001, 6.0))
+	fx("grudge_flee", 0.9, func(s):
+		s.noise(0.0, 0.7, 0.45, 900.0, 5000.0, 400.0, 0.03, 3.0)
+		s.tone(0.0, 0.6, 220.0, 70.0, "saw", 0.22, 0.01, 3.0, 0.0, 6.0, 900.0))
 	fx("heartbeat", 0.5, func(s):
 		s.tone(0.0, 0.14, 70.0, 42.0, "sine", 0.8, 0.004, 5.0)
 		s.tone(0.17, 0.16, 62.0, 38.0, "sine", 0.6, 0.004, 5.0))

@@ -156,7 +156,8 @@ func _describe(a: Actor) -> Dictionary:
 		# how long it still takes to rise (a guest who arrives late sees it whole)
 		var rising := maxf(0.0, e.spawn_t - e.state_t) if e.state == "spawn" else 0.0
 		d.merge({"kind": "enemy", "id": e.id, "elite": e.elite, "affix": e.affix, "affix2": e.affix2,
-			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss})
+			"grudge": e.grudge, "summoned": e.summoned, "spawn_t": rising, "boss": e == stage.boss,
+			"title": String(e.get_meta("champion", ""))})
 	else:
 		d.merge({"kind": "other", "sheet": a.sprite.sheet.name if a.sprite else "", "radius": a.radius})
 		if a.has_method("light_spec"):
@@ -383,6 +384,9 @@ func on_ask(peer: int, kind: String, args: Array) -> void:
 	if p0 and p0.pos.distance_to(pl.pos) > p0.interact_radius + 2.5:
 		p0 = null     # they walked away with the menu open
 	match kind:
+		"ping":
+			Party.show_ping(stage, peer, args[0])
+			Net.rec(["ping", peer, args[0]])
 		"buy":
 			if p0 and p0.kind == "merchant":
 				Party.buy(stage, pl, p0, int(args[1]))
@@ -558,6 +562,8 @@ func _check_vote(v: Dictionary) -> void:
 		"stairs":
 			# (the way down rides in the vote's kind: "stairs:trial")
 			Game.descend(String(v.kind).get_slice(":", 1))
+		"site":
+			DeepEvents.resolve(stage, _prop(int(v.idx)), stage.player)
 		"hearthstone":
 			var hs := _prop(int(v.idx))
 			Game.end_run("victory" if hs and hs.data.get("victory", false) else "extracted")
@@ -831,6 +837,10 @@ func apply_events(evs: Array) -> void:
 				teles.erase(int(ev[1]))
 			"banner":
 				Events.banner.emit(String(ev[1]), String(ev[2]))
+			"ping":
+				Party.show_ping(stage, int(ev[1]), ev[2])
+			"wit":
+				Chronicle.mark("witnessed_" + String(ev[1]))     # a guest saw it; the world is the host's
 			"obj":
 				if stage is Dungeon:
 					(stage as Dungeon).objective = {} if String(ev[1]) == "" else {"text": String(ev[1]), "k": float(ev[2]), "col": ev[3]}
@@ -876,6 +886,8 @@ func _spawn_replica(id: int, d: Dictionary) -> void:
 	a.pos = d.pos
 	a.replica = true
 	stage.add_actor(a)
+	if a is Enemy and String(d.get("title", "")) != "":
+		(a as Enemy).crown(String(d.title))
 	replicas[id] = a
 	if a is Enemy and bool(d.get("boss", false)):
 		stage.boss = a

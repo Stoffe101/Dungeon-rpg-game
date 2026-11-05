@@ -42,17 +42,17 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		_wall_lab(lay)
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
-	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
 	_environment()
 	if not replica:
 		_pick_grudge_room()
 	_place_props()
 	# (built after the props: the floor shades a contact shadow around every
 	# solid one - LevelBuilder)
-	add_child(LevelBuilder.build(grid, theme))
+	add_child(_build_level())
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
+	_place_door_frames()
 	_place_door_icons()
 	if grudge_room >= 0:
 		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
@@ -89,10 +89,10 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
-	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args():
-		# dev: at the fork (the stairs room), or inside the route's own room
+	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args() or "warp=altar" in Dev.args():
+		# dev: at the fork (the stairs room), inside the route's own room, or at the altar
 		for rm in layout.rooms:
-			var hit: bool = rm.id == layout.exit_id if "warp=stairs" in Dev.args() else rm.objective != ""
+			var hit: bool = rm.event == "altar" if "warp=altar" in Dev.args() else (rm.id == layout.exit_id if "warp=stairs" in Dev.args() else rm.objective != "")
 			if hit:
 				for other in layout.rooms:
 					if other != rm and other.type != Room.Type.BOSS:
@@ -196,6 +196,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		# the guardian's floor: a rumble from below once the title card lifts
 		get_tree().create_timer(4.5, false).timeout.connect(_guardian_stirs)
 	built = true
+	_spoor()
 	Events.player_died.connect(_on_player_died)
 	Events.parry_success.connect(_on_ward)
 	actor_died.connect(_on_actor_died)
@@ -258,6 +259,8 @@ func _environment() -> void:
 	if run and run.delve:
 		# every pass through the regions, the Hollow is darker
 		env.ambient_light_energy *= Delve.gloom(layout.depth)
+		if Delve.fractured(layout.depth):
+			env.ambient_light_color = env.ambient_light_color.lerp(Color(0.5, 0.35, 0.8), 0.45)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -271,6 +274,16 @@ func _environment() -> void:
 	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	if view:
 		view.set_environment(env)
+
+
+## The floor's meshes; on a Fracture, a second region's stone in every odd room.
+func _build_level() -> Node3D:
+	var k := Delve.floor_index(layout.depth, run.delve) + 1
+	var theme := LevelBuilder.LevelTheme.named(region.theme, k)
+	var over := String(layout.world.get("fracture", ""))
+	if over == "" or not EnemyDB.REGIONS.has(over):
+		return LevelBuilder.build(grid, theme)
+	return LevelBuilder.build(grid, theme, LevelBuilder.LevelTheme.named(EnemyDB.REGIONS[over].theme, k))
 
 
 ## Dev (`walllab`): one of each kind of thing a floor is built from, around
@@ -302,15 +315,17 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
 				if pd.has(k):
 					extra[k] = pd[k]
+			if pd.kind == "site":
+				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
 				if pd.get("wide", false):
 					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
 					extra["ox"] = 0.5
-				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)) or pd.get("low", false):
 					extra["low"] = true      # underfoot: walked through, drawn behind whoever stands on it
 				else:
 					extra["solid"] = true
@@ -346,7 +361,7 @@ func _place_props() -> void:
 
 func _place_gates() -> void:
 	for r in layout.rooms:
-		if not r.is_combat() and r.event != "trial":
+		if not r.is_combat() and not (r.event in ["trial", "procession"]):
 			continue
 		var nodes: Array = []
 		for d in r.doors:
@@ -361,6 +376,32 @@ func _place_gates() -> void:
 				g.set_meta("tile", t)
 				nodes.append(g)
 		gate_nodes[r.id] = nodes
+
+
+## Doorways on the north and south of a room are framed by stone posts: an
+## opening reads as a door, and its width as what it is. (Plain sprites, like
+## the gates: nothing to replicate, every machine places the same.)
+func _place_door_frames() -> void:
+	var seen := {}
+	var anim: String = {"rootmire": "rootmire", "throne": "throne"}.get(layout.region, "ossuary")
+	for r in layout.rooms:
+		for d in r.doors:
+			if d.secret or d.dir.y == 0 or (d.tiles as Array).is_empty():
+				continue
+			var lo: Vector2i = d.tiles[0]
+			var hi: Vector2i = d.tiles[0]
+			for t: Vector2i in d.tiles:
+				lo.x = mini(lo.x, t.x)
+				hi.x = maxi(hi.x, t.x)
+			for x in [lo.x - 1, hi.x + 1]:
+				var t := Vector2i(x, lo.y)
+				if seen.has(t) or grid.at(t.x, t.y) != TileGrid.WALL:
+					continue
+				seen[t] = true
+				var p := PixelSprite.new()
+				add_child(p)
+				p.setup("door_post", anim)
+				p.position = Iso.to_world(Vector2(t) + Vector2(0.5, 1.02), 0.0)
 
 
 func _place_door_icons() -> void:
@@ -430,8 +471,13 @@ func party_grudges() -> Array:
 func _pick_grudge_room() -> void:
 	# a Grudge waits on the depth where it won, or on the last one if that was deeper
 	var gs := party_grudges().filter(func(g): return int(g.get("depth", 1)) == layout.depth or (layout.boss_depth and int(g.get("depth", 1)) > layout.depth))
-	if run.has_omen("hunted"):
+	if run.has_omen("hunted") or layout.route == "lair":
 		gs = party_grudges()
+	if not run.wounded.is_empty():
+		# one that fled this expedition is still bleeding, and still here
+		var w := party_grudges().filter(func(g): return run.wounded.has(String(g.id)))
+		if not w.is_empty():
+			gs = w
 	if gs.is_empty():
 		return
 	_grudge = gs[rng.randi_range(0, gs.size() - 1)]
@@ -442,12 +488,18 @@ func _pick_grudge_room() -> void:
 	if cands.is_empty():
 		return
 	grudge_room = cands[rng.randi_range(0, cands.size() - 1)]
+	for r in layout.rooms:
+		if r.objective == "lair":
+			grudge_room = r.id      # its own ground
 	layout.room(grudge_room).grudge = true
 
 
 # --- per-frame -----------------------------------------------------------------------
 
 func _stage_tick(dt: float) -> void:
+	for pg in pings:
+		pg.t -= dt
+	pings = pings.filter(func(pg): return pg.t > 0.0)
 	if replica:
 		if player:
 			var rt := layout.room_at_tile(Vector2i(floori(player.pos.x), floori(player.pos.y)))
@@ -639,9 +691,7 @@ func _enter_room(r: Room, mine := true) -> void:
 			Events.toast.emit("\"Embers for wares, wanderer?\"", Color(1.0, 0.8, 0.5))
 		elif r.type == Room.Type.STAIRS:
 			if layout.offer.size() >= 2:
-				var a := DungeonGen.route_def(String(layout.offer[0]))
-				var b := DungeonGen.route_def(String(layout.offer[1]))
-				Events.toast.emit("Two ways down: %s (%s), or %s (%s). The Hearthstone can carry you home." % [a.name, a.act, b.name, b.act], Color(1.0, 0.8, 0.55))
+				Events.toast.emit("%d ways down. Each shapes the floor below." % layout.offer.size(), Color(1.0, 0.8, 0.55))
 			else:
 				Events.toast.emit("Stairs descend into the dark. The Hearthstone can carry you home.", Color(1.0, 0.8, 0.55))
 		if r.landmark != "":
@@ -667,11 +717,34 @@ func _enter_room(r: Room, mine := true) -> void:
 
 # --- encounters ------------------------------------------------------------------------
 
+var _fight_began := 0.0
+
+
+## Thin Walls: foes break in through the room's doors, mid-fight.
+func _break_in(r: Room) -> void:
+	var ids := EnemyDB.party_extras(rng, layout.region, layout.depth, [], 3)
+	var memory := int(Profile.data.world.get("memory", 0))
+	Events.toast.emit("The walls are thin here. Something is coming through.", Omens.COLOR)
+	for k in ids.size():
+		var door: Dictionary = r.doors[k % r.doors.size()]
+		var t: Vector2i = door.tiles[0]
+		var e := _make_enemy(String(ids[k]))
+		e.pos = arena_spot(r, Vector2(t) - Vector2(door.dir) * 2.0)
+		_scale(e, layout.depth, memory)
+		_coop_scale(e)
+		e.xp = 0
+		e.room_id = r.id
+		e.spawn_t = 0.8
+		add_actor(e)
+		register_enemy(e)
+
+
 func _start_encounter(r: Room, by: Player = null) -> void:
 	if OS.is_debug_build():
 		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
+	_fight_began = elapsed
 	# three or four Kindled: the room calls one more, smaller wave of flankers
 	# and marksmen when its own are done
 	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
@@ -696,6 +769,8 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 
 
 func _spawn_wave(r: Room) -> void:
+	if r.objective == "gauntlet" and not replica:
+		_ash_fall(r)
 	var ids: Array = (r.encounter[wave] as Array).duplicate() if wave < r.encounter.size() else []
 	var spots := r.spawns.filter(func(t): return grid.at(t.x, t.y) == TileGrid.FLOOR)
 	spots.shuffle()
@@ -768,7 +843,7 @@ func _spawn_wave(r: Room) -> void:
 			var ea := r.elite_affix if EnemyDB.affix_ok(id, r.elite_affix) else EnemyDB.roll_affix(rng, id)
 			e.make_elite(ea, _second_affix(ea, id))
 			elite_done = true
-		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) and not swarm:
+		elif r.elite_affix == "" and rng.randf() < 0.04 * layout.depth + Difficulty.elite_chance(run.tier) + _unbound_chance() and not swarm:
 			var a := EnemyDB.roll_affix(rng, id)
 			e.make_elite(a, _second_affix(a, id))
 		if tempered and not swarm:
@@ -852,6 +927,8 @@ func _spawn_grudge(r: Room) -> void:
 	e.pos = arena_spot(r, Vector2(t) + Vector2(0.5, 0.5))
 	_scale(e, layout.depth, int(Profile.data.world.get("memory", 0)))
 	e.make_grudge(g)
+	e.hp = e.max_hp * float(run.wounded.get(String(g.id), 1.0))     # (it fled here, still bleeding)
+	e._wound_checked = run.wounded.has(String(g.id)) or r.objective == "lair"     # it will not run twice, nor from its own ground
 	e.room_id = r.id
 	e.spawn_t = 1.2
 	e.set_meta("grudge_id", g.id)
@@ -870,7 +947,14 @@ func _spawn_grudge(r: Room) -> void:
 			kin.spawn_t = 1.2
 			add_actor(kin)
 			register_enemy(kin)
-	Events.banner.emit(String(g.name), "Your Grudge has found you. It carries %d of your Embers." % int(g.embers))
+	var slew := int(g.get("slew", 1))
+	var count := {1: "It killed you once", 2: "It killed you twice"}.get(slew, "It has killed you %d times" % slew) as String
+	var owner_id := int(g.get("owner", 0))
+	var whose := "%s's Grudge. " % Net.name_of(owner_id) if owner_id != 0 and Net.active() and Net.party_size() > 1 else ""
+	var lesson := "It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else "It has learned to ward your blows."
+	Events.banner.emit(String(g.name), "%s%s. %s It carries %d Embers." % [whose, count, lesson, int(g.embers)])
+	fx.ring(e.pos, 3.0, GRUDGE_RED, 1.2, 0.3)
+	fx.shake(0.3)
 	print("[dungeon] grudge %s (%s Lv%d) spawned in room %d" % [g.name, g.enemy, int(g.level), r.id])
 	Audio.play("boss_roar", -6.0, 1.3)
 
@@ -882,6 +966,9 @@ func _update_encounter(dt: float) -> void:
 	if _watch_t <= 0.0:
 		_watch_t = 0.5
 		_watch_arena(0.5)
+	if run.has_omen("thin_walls") and active_room and active_room.is_combat() and active_room.type != Room.Type.BOSS and not active_room.get_meta("thin", false) and room_enemies.size() <= 2 and elapsed > _fight_began + 4.0:
+		active_room.set_meta("thin", true)
+		_break_in(active_room)
 	if room_enemies.is_empty() and _rising == 0 and elapsed >= _clear_hold and active_room.type != Room.Type.BOSS:
 		wave += 1
 		if wave < active_room.encounter.size():
@@ -1069,6 +1156,8 @@ func _room_cleared() -> void:
 		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
 	r.cleared = true
+	if not objective.is_empty():
+		_set_objective("", -1.0, SEAL_COL)     # (its task is done, whatever it was)
 	run.rooms_cleared += 1
 	_rekindle_fallen()
 	_clear_t = 0.6
@@ -1135,9 +1224,37 @@ func _spawn_reward(r: Room) -> void:
 			_rune_drop(c + Vector2(1.5, 0))
 			for i in 8 + layout.depth * 2:
 				Pickup.spawn(self, "ember", c, 3)
-			Events.banner.emit("The Ash Hall Falls", "Its seals broken, its spoils yours")
+			Events.banner.emit("The Ash Hall Falls", "Its spoils are yours")
 		"vault":
 			_open_vault(r, c)
+		"rift":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
+			Pickup.spawn(self, "sunshard", c + Vector2(1.0, 0.0), 1)
+			_rune_drop(c + Vector2(-1.2, 0.4))
+			Chronicle.mark("rifts_closed")
+			Events.banner.emit("The Rift Closes", "For a moment, the Undervault remembers what shape it was")
+		"workshop":
+			# a forgotten alchemist's bench: what the fight was guarding
+			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 2})
+			_reagent_drop(c + Vector2(1.2, 0.4), "gloamcap", 1.0)
+			Pickup.spawn(self, "material", c, 2, {"id": "ember_core"})
+			Events.banner.emit("A Forgotten Workshop", "Someone was distilling something here, long ago")
+		"breach":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 3})
+			_maybe_blueprint(c + Vector2(1.5, 0.4), 0.6)
+			_rune_drop(c + Vector2(-1.5, 0.4))
+			for i in 10:
+				Pickup.spawn(self, "ember", c, 5)
+			Chronicle.mark("breach_won")
+			Events.banner.emit("The Breach Holds", "For now")
+		"procession":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
+			_maybe_blueprint(c + Vector2(1.5, 0.4), 0.35)
+			for i in 6:
+				Pickup.spawn(self, "ember", c, 3)
+			Chronicle.mark("procession")
+			Chronicle.note("A bier opened, far below. What walked behind it walks no more.")
+			Events.banner.emit("The Procession Ends", "Its last gift was meant for someone else")
 		"trial":
 			Pickup.spawn(self, "sunshard", c, 1)
 			_rune_drop(c + Vector2(1.5, 0))
@@ -1434,6 +1551,7 @@ func _start_boss(r: Room) -> void:
 			e._apply_affix(a)
 			e.elite = true
 			e.display_name = "Echo of %s" % e.display_name
+			_echo_t = 7.0
 		add_actor(e)
 		register_enemy(e)
 		boss = e
@@ -1664,6 +1782,7 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 # costs the vault its best spoils - the room still opens when its foes fall.
 
 var objective := {}              # {text, k (0..1, or -1), col} - the HUD's line
+var pings: Array = []            # {pos, col, t}: marks on the map (Party.ping)
 var _seals: Array = []
 var _seal_room := -1
 var _vigil: Prop
@@ -1671,28 +1790,37 @@ var _flame := 0.0
 var _flame_out := false
 var _ward_fx_t := 0.0
 const SEAL_COL := Color(1.0, 0.45, 0.25)
+const GRUDGE_RED := Color(1.0, 0.32, 0.25)
 const FLAME_COL := Color(1.0, 0.8, 0.4)
 
 
 func _begin_objective(r: Room) -> void:
 	match r.objective:
+		"champion":
+			var e := _champion("Ashen Champion", 2.1)
+			if e:
+				Events.banner.emit("The Ashen Champion", "One foe, burning. It will not be hurried")
+				_set_objective("FELL THE CHAMPION", -1.0, SEAL_COL)
+		"breach":
+			var e2 := _champion("The Unbound", 3.2)
+			if e2:
+				Events.banner.emit("The Unbound", "It was sealed here for a reason")
+				_set_objective("FELL THE UNBOUND", -1.0, Color(0.95, 0.35, 0.3))
+		"rift":
+			_seals_up(r)
+			Events.banner.emit("The Rift Holds", "Three anchors keep this place torn open, and its foes warded")
+		"gauntlet":
+			Events.banner.emit("The Ash Falls", "Four waves. Keep moving: the floor burns between them")
+			_set_objective("ENDURE   WAVE 1 OF %d" % r.encounter.size(), -1.0, SEAL_COL)
+		"lair":
+			if grudge_spawned:
+				Events.banner.emit("Its Lair", "It has been waiting for you here")
+			elif _champion("What Was Left Behind", 2.0):
+				# (settled since the stairs were chosen: something else took the lair)
+				Events.banner.emit("An Empty Lair", "Something else has moved in")
 		"seals":
-			_seal_room = r.id
-			_seals.clear()
-			var c := r.center()
-			var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
-			for o in [Vector2(-0.3, -0.28), Vector2(0.3, -0.28), Vector2(0.0, 0.3)]:
-				var at := c + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y)
-				var e := _make_enemy("ash_seal")
-				e.pos = arena_spot(r, at)
-				_scale(e, layout.depth, memory)
-				_coop_scale(e)
-				e.room_id = r.id
-				e.spawn_t = 0.3
-				add_actor(e)
-				_seals.append(e)
+			_seals_up(r)
 			Events.banner.emit("The Seals Hold", "While a seal stands, this hall's foes shrug off most of every blow")
-			_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
 		"flame":
 			var t := Vector2i(_open_spot(r.center()))
 			_vigil = Prop.make(self, "vigil", t, {"sheet": "vigil_lantern", "anim": "lit", "solid": true,
@@ -1701,11 +1829,115 @@ func _begin_objective(r: Room) -> void:
 			_flame = 0.6
 			_flame_out = false
 			fx.ring(_vigil.pos, 2.4, FLAME_COL, 0.6, 0.3)
-			Events.banner.emit("Keep the Flame", "Stand in the lantern's light to feed it. If it goes out, the vault's best is lost")
+			Events.banner.emit("Keep the Flame", "Stand in its light to feed it; foes at the lantern choke it. If it goes out, the vault's best is lost")
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
 
 
+func _seals_up(r: Room) -> void:
+	_seal_room = r.id
+	_seals.clear()
+	var c := r.center()
+	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
+	for o in [Vector2(-0.3, -0.28), Vector2(0.3, -0.28), Vector2(0.0, 0.3)]:
+		var at := c + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y)
+		var e := _make_enemy("ash_seal")
+		e.pos = arena_spot(r, at)
+		_scale(e, layout.depth, memory)
+		_coop_scale(e)
+		e.room_id = r.id
+		e.spawn_t = 0.3
+		add_actor(e)
+		register_enemy(e)
+		_seals.append(e)
+	_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
+
+
+## The room's greatest foe made greater: its first real fighter, two affixes,
+## much more health, a name. (Not a health sponge alone: its affixes are what
+## you fight.)
+func _champion(title: String, hp_k: float) -> Enemy:
+	for e: Enemy in room_enemies:
+		if is_instance_valid(e) and not e.def.get("pack", false) and not e.def.get("boss", false):
+			if not e.elite:
+				var a := EnemyDB.roll_affix(rng, e.id)
+				e.make_elite(a, EnemyDB.roll_affix(rng, e.id, a))
+			e.max_hp *= hp_k
+			e.hp = e.max_hp
+			e.damage *= 1.2
+			e.crown(title)
+			return e
+	return null
+
+
+## The Gauntlet: ash falls between its waves, marked first, and burns a while.
+func _ash_fall(r: Room) -> void:
+	_set_objective("ENDURE   WAVE %d OF %d" % [wave + 1, r.encounter.size()], -1.0, SEAL_COL)
+	if wave == 0:
+		return
+	var n := 2 + wave
+	for k in n:
+		var at := arena_spot(r, r.center() + Vector2(randf_range(-0.42, 0.42) * r.rect.size.x, randf_range(-0.42, 0.42) * r.rect.size.y))
+		fx.ring(at, 1.5, SEAL_COL, 0.9, 0.2)
+		after(1.1 + k * 0.1, func() -> void:
+			if not is_inside_tree():
+				return
+			var h := Hazard.spawn(self, at, 1.4, 6.0, Actor.Team.ENEMY, Color(1.0, 0.45, 0.2), func(_h: Hazard, a: Actor) -> void:
+				if a is Player:
+					var hit := Hit.make(null, 4.0 + layout.depth, ["dot"])
+					hit.can_crit = false
+					hit.silent = true
+					(a as Player).take_enemy_hit(hit, null))
+			h.period = 0.6)
+
+
+# --- an Echo is not its guardian with more health: each has a pattern of its own ------
+
+var _echo_t := -1.0
+
+
+func _echo_tick(dt: float) -> void:
+	if _echo_t < 0.0 or boss == null or not is_instance_valid(boss) or not boss.alive or replica:
+		return
+	_echo_t -= dt
+	if _echo_t > 0.0:
+		return
+	var n := Delve.echo_n(layout.depth)
+	_echo_t = maxf(6.0, 10.0 - 0.6 * n)
+	var t := nearest_player(boss.pos)
+	if t == null:
+		return
+	var dmg := boss.damage * 0.7
+	match layout.region:
+		"ossuary":
+			# Soul Lances: a line of bursts through where you stand
+			var dir := Vector2.from_angle(randf() * TAU)
+			for k in range(-3, 4):
+				_echo_burst(t.pos + dir * k * 1.6, 1.0, 0.9 + absf(k) * 0.1, dmg, Color(0.45, 0.95, 0.85))
+		"rootmire":
+			# Grasping Ring: a closing circle of roots: step out, or through
+			var c := 7 + mini(n, 3)
+			for k in c:
+				_echo_burst(t.pos + Vector2.from_angle(TAU * k / c) * 2.6, 0.9, 1.1, dmg, Color(0.55, 0.9, 0.4))
+		_:
+			# Falling Suns: scattered, then one right on you
+			for k in 4 + mini(n, 4):
+				_echo_burst(t.pos + Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0)), 1.2, 1.0 + k * 0.08, dmg, Color(1.0, 0.72, 0.35))
+			_echo_burst(t.pos, 1.0, 1.5, dmg, Color(1.0, 0.72, 0.35))
+
+
+## A marked burst: the mark first, always (Enemy.telegraph), the blow after.
+func _echo_burst(at: Vector2, r: float, delay: float, dmg: float, col: Color) -> void:
+	var p := foe_spot(at, 0.3, boss.room_id)
+	boss.telegraph(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), delay)
+	after(delay, func() -> void:
+		if not is_inside_tree() or boss == null or not is_instance_valid(boss) or not boss.alive:
+			return
+		fx.burst(p, 0.6, col, 10, 3.0, 0.4, 3.0)
+		boss.strike_arc(p, Vector2.RIGHT, r, PI, dmg, 2.0))
+
+
 func _tend_objective(dt: float) -> void:
+	_echo_tick(dt)
 	if replica:
 		return
 	if _seal_room >= 0 and seals_up() > 0:
@@ -1726,6 +1958,13 @@ func _tend_objective(dt: float) -> void:
 			_flame = minf(1.0, _flame + (0.05 + 0.02 * (near - 1)) * dt)
 		else:
 			_flame = maxf(0.0, _flame - (0.05 + 0.005 * layout.depth) * dt)
+		# foes at the lantern choke it: standing there is not enough, keep them
+		# off it (more Kindled, more foes: a party has its own hands full)
+		var choking := 0
+		for e in room_enemies:
+			if is_instance_valid(e) and e.pos.distance_to(_vigil.pos) < 1.9:
+				choking += 1
+		_flame = maxf(0.0, _flame - 0.04 * mini(choking, 3) * dt)
 		if _vigil.sprite:
 			_vigil.sprite.play("low" if _flame < 0.3 else "lit")
 		if _vigil.light:
@@ -1744,6 +1983,77 @@ func _tend_objective(dt: float) -> void:
 			_set_objective("THE FLAME IS OUT", 0.0, Color(0.6, 0.55, 0.55))
 		elif absf(_flame - float(objective.get("k", -1.0))) >= 0.02 or (was >= 0.3) != (_flame >= 0.3):
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+## Signs of a Grudge on this floor: red scratches at the doors of its room and
+## of the rooms around it (announced to guests: props made after `built`).
+func _spoor() -> void:
+	if grudge_room < 0 or replica:
+		return
+	var r := layout.room(grudge_room)
+	for d in r.doors:
+		if d.secret or (d.tiles as Array).is_empty():
+			continue
+		var t: Vector2i = d.tiles[0]
+		for q in [t - Vector2i(d.dir) * 2, t + Vector2i(d.dir) * 2, t - Vector2i(d.dir) * 3]:
+			if grid.at(q.x, q.y) == TileGrid.FLOOR:
+				Prop.make(self, "spoor", q, {"sheet": "grudge_spoor", "flat": true, "anim": "v%d" % (posmod(q.x + q.y, 3))})
+
+
+## A Grudge of level 3 or more, settled for good, leaves something with its
+## name on it: a charm for its owner alone, and a line in the Chronicle.
+func _grudge_trophy(e: Enemy) -> void:
+	var nm := e.display_name
+	Chronicle.mark("grudges_settled")
+	Chronicle.note("%s is settled." % nm)
+	if int(e.get_meta("grudge_level", 1)) < 3:
+		return
+	var it := ItemDB.make_item("rival_fang", "epic", 1, rng, run.tier)
+	it["title"] = "Fang of %s" % nm.get_slice(" ", 0)
+	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+	Pickup.spawn(self, "gear", e.pos + Vector2(0.6, 0.0), 1, {"item": it}, 0 if players.size() <= 1 else owner)
+
+
+## A grown Grudge, badly hurt, runs: it drops a third of its hoard, takes a scar
+## and waits on the next floor, still bleeding. Never from the last floor (there
+## is nowhere to go): there it turns and fights to the end. False: it stays.
+func grudge_flees(e: Enemy) -> bool:
+	if layout.boss_depth and not run.delve:
+		return false
+	var gid := String(e.get_meta("grudge_id", ""))
+	if gid == "" or run.wounded.has(gid):
+		return false
+	run.wounded[gid] = maxf(0.35, e.hp_ratio() + 0.2)
+	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
+	var hoard := int(e.get_meta("grudge_embers", 0))
+	var share := hoard / 3
+	if owner == Net.my_id():
+		run.scars.append(gid)
+	else:
+		for pl in players:
+			if pl.peer_id == owner and pl.run:
+				pl.run.scars.append(gid)
+	for i in 6:
+		Pickup.spawn(self, "ember", e.pos, maxi(1, share / 6), {"src": "grudge"})
+	e.set_meta("grudge_embers", hoard - share)
+	fx.burst(e.pos, 0.9, GRUDGE_RED, 30, 4.0, 0.6, 4.0, Vector2.UP, 1.3)
+	Audio.play_at("grudge_flee", e.pos, -4.0)
+	Events.banner.emit("%s Flees" % e.display_name, "Wounded. It will be waiting further down")
+	Chronicle.note("%s fled, wounded, with what was left of your Embers." % e.display_name)
+	e.set_meta("fled", true)
+	e.die(null)
+	return true
+
+
+## A broken altar lets things out: more elites in that region; on the Breach,
+## many more.
+func _unbound_chance() -> float:
+	var k := 0.0
+	if Chronicle.site_of(run.world, layout.region) == "broken":
+		k += 0.08
+	if layout.route == "breach":
+		k += 0.25
+	return k
 
 
 ## Seals still standing in the warded hall.
@@ -1834,6 +2144,19 @@ func _on_ward() -> void:
 func _on_actor_died(a: Actor, killer: Node) -> void:
 	if a is Enemy:
 		var e := a as Enemy
+		if e.has_meta("fled"):
+			return     # (no death: it is waiting further down)
+		if run.has_omen("volatile") and not e.def.get("boss", false) and e.id != "ash_seal" and rng.randf() < 0.5:
+			var at := e.pos
+			var dmg := e.damage * 0.8
+			fx.ring(at, 1.5, Color(1.0, 0.5, 0.25), 0.9, 0.2)
+			after(0.9, func() -> void:
+				if not is_inside_tree():
+					return
+				fx.burst(at, 0.5, Color(1.0, 0.5, 0.25), 14, 3.5, 0.35, 3.0)
+				Audio.play_at("bloat", at, -8.0, 1.4)
+				for p in players_near(at, 1.5):
+					p.take_enemy_hit(Hit.make(null, dmg, ["fire"]), null))
 		run.kills += 1
 		# the party's kills count for everyone (guests bank them when they settle)
 		for pr in _party_runs():
@@ -1885,6 +2208,7 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 			for i in 10:
 				Pickup.spawn(self, "ember", e.pos, int(ceil(back / 10.0)))
 			Pickup.spawn(self, "sunshard", e.pos, 1)
+			_grudge_trophy(e)
 			if int(e.get_meta("grudge_level", 1)) >= 2:
 				# what it hoarded while it grew
 				_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 1, rng, 0.2 + 0.1 * int(e.get_meta("grudge_level", 1)), run.tier, _favour))
@@ -1986,6 +2310,8 @@ func request(what: String, prop: Prop) -> void:
 	if Party.serve(self, who, what, prop):
 		return
 	match what:
+		"site":
+			DeepEvents.interact(self, who, prop)
 		"stairs":
 			Game.descend(String(prop.data.get("route", "")))
 		"hearthstone":
@@ -2205,9 +2531,7 @@ func _open_secret(prop: Prop) -> void:
 	for c in get_children():
 		if c.name == "Level":
 			c.queue_free()
-	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
-	var lvl := LevelBuilder.build(grid, theme)
-	add_child(lvl)
+	add_child(_build_level())
 	rebuild_nav()
 	# re-apply solid props to the fresh nav grid
 	for p in props:
@@ -2245,7 +2569,10 @@ func begin_trial(prop: Prop) -> void:
 	_arena_room = -1
 	arena_of(r)
 	Audio.play("boss_roar", -6.0, 1.4)
-	Events.banner.emit("The Trial Begins", "Survive three waves")
+	if r.event == "procession":
+		Events.banner.emit("The Procession Wakes", "Those who carried it never stopped walking")
+	else:
+		Events.banner.emit("The Trial Begins", "Survive three waves")
 	_spawn_wave(r)
 
 

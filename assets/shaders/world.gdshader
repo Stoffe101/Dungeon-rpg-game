@@ -123,10 +123,16 @@ void fragment() {
 		// rock darkens toward its middle (COLOR.r: depth into the rock, 0..1 of 6 tiles)
 		col = mix(col, rim_color * 0.5, 0.45);
 		float depth = COLOR.r * 6.0;
-		float shade = clamp(1.05 - 0.3 * max(depth - 0.6, 0.0) + j * 0.14, 0.16, 1.05);
-		shade = floor(shade * 6.0 + 0.5) / 6.0;
+		// (flat on the rim tiles; dithered steps only where the rock thickens)
+		float shade = 1.0;
+		if (depth > 1.0) {
+			shade = clamp(1.0 - 0.3 * (depth - 1.0) + j * 0.12, 0.16, 1.0);
+			shade = floor(shade * 6.0 + 0.5) / 6.0;
+		}
 		col *= shade;
-		col = mix(col, vec3(0.012, 0.012, 0.022), clamp((depth - 1.6) * 0.3, 0.0, 0.75));
+		// (in steps, on the same dither as everything else: rock never fades smoothly)
+		float deep = clamp((depth - 1.6) * 0.3 + j * 0.1, 0.0, 0.8);
+		col = mix(col, vec3(0.012, 0.012, 0.022), floor(deep * 6.0 + 0.5) / 6.0);
 		if (e < 1.0) {
 			col = mix(col, rim_color, 0.72 * rim_strength);
 			rim_glow = 0.12 * rim_strength;

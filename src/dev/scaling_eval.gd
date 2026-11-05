@@ -7,6 +7,7 @@
 ## compared and the scaling in Dungeon._coop_scale / Party.reward_share tuned.
 ##
 ## Args: seeds=2 secs=150 tier=1 region=ossuary depth=1 comps=melee,ranged,mixed
+## sizes=1,4 routes=,trial,vault,quiet (compares the Forked Descent's ways)
 ## It does not exercise the network (that is tools/dev/e2e.sh); it measures
 ## the rules a host applies.
 class_name ScalingEval
@@ -26,6 +27,9 @@ var region := "ossuary"
 var depth := 2
 var comps: Array = ["melee", "ranged", "mixed"]
 var rows: Array = []
+var sizes: Array = [1, 2, 3, 4]
+var routes: Array = [""]
+var route := ""
 
 
 func _ready() -> void:
@@ -46,26 +50,33 @@ func _ready() -> void:
 				depth = int(kv[1])
 			"comps":
 				comps = Array(kv[1].split(","))
+			"sizes":
+				sizes = Array(kv[1].split(",")).map(func(x): return int(x))
+			"routes":
+				routes = Array(kv[1].split(","))
 	_go.call_deferred()
 
 
 func _go() -> void:
 	var t0 := Time.get_ticks_msec()
 	print("[scaling] %d seeds x %.0f s, Tier %d, %s depth %d" % [seeds, secs, tier, region, depth])
-	for comp_id in comps:
-		for n in range(1, 5):
-			var builds: Array = (COMPS[comp_id] as Array).slice(0, n)
-			var agg := {}
-			for s in seeds:
-				var r := _run_one(builds, 1000 + s * 17 + n)
-				await get_tree().process_frame     # let the finished floor go
-				for k in r:
-					agg[k] = float(agg.get(k, 0.0)) + float(r[k]) / seeds
-			agg["comp"] = comp_id
-			agg["n"] = n
-			rows.append(agg)
-			print("[scaling] %-7s x%d  rooms %4.1f  room %5.1fs  hurt/room %4.0f%%  downs/room %.2f  wipes %.2f  xp/room %5.1f  embers/room %5.1f  gear/min %.2f" % [comp_id, n,
-				agg.rooms, agg.room_s, agg.hurt * 100.0, agg.downs, agg.wipe, agg.xp_room, agg.embers_room, agg.gear_min])
+	for way in routes:
+		route = String(way)
+		for comp_id in comps:
+			for n in sizes:
+				var builds: Array = (COMPS[comp_id] as Array).slice(0, n)
+				var agg := {}
+				for s in seeds:
+					var r := _run_one(builds, 1000 + s * 17 + n)
+					await get_tree().process_frame     # let the finished floor go
+					for k in r:
+						agg[k] = float(agg.get(k, 0.0)) + float(r[k]) / seeds
+				agg["comp"] = comp_id
+				agg["n"] = n
+				agg["route"] = route
+				rows.append(agg)
+				print("[scaling] %-7s %-6s x%d  rooms %4.1f  room %5.1fs  floor %4.0fs  hurt/room %4.0f%%  downs/room %.2f  wipes %.2f  xp/room %5.1f  embers/room %5.1f  embers/floor %4.0f finds %.1f" % [route if route != "" else "plain", comp_id, n,
+					agg.rooms, agg.room_s, agg.secs, agg.hurt * 100.0, agg.downs, agg.wipe, agg.xp_room, agg.embers_room, agg.embers_room * agg.rooms, agg.finds])
 	_report()
 	print("[scaling] done in %.0f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	get_tree().quit()
@@ -84,7 +95,8 @@ func _run_one(builds: Array, seed_v: int) -> Dictionary:
 	BuildPresets.apply(String(builds[0]))
 	var run := RunState.create(seed_v, region, Profile.equipped_weapon(), Profile.weapon_level(Profile.equipped_weapon()), Profile.slots())
 	run.tier = tier
-	var lay := DungeonGen.generate(seed_v, depth, region, false)
+	run.route = route
+	var lay := DungeonGen.generate(seed_v, depth, region, false, route)
 	var d := Dungeon.new()
 	d.process_mode = Node.PROCESS_MODE_DISABLED
 	add_child(d)
@@ -163,6 +175,7 @@ func _run_one(builds: Array, seed_v: int) -> Dictionary:
 		"xp_room": _mean(pls.map(func(p): return p.run.xp_gained)) / rooms,
 		"embers_room": _mean(pls.map(func(p): return p.run.embers)) / rooms,
 		"gear_min": _mean(pls.map(func(p): return (p.run.loot.gear as Array).size())) / mins,
+		"finds": _mean(pls.map(func(p): return (p.run.loot.gear as Array).size() + p.run.found.size())),
 		"secs": t,
 	}
 	d.queue_free()

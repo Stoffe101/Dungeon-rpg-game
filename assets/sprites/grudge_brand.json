@@ -1,0 +1,43 @@
+{
+	"anims": {
+		"l1": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"l2": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 1
+		},
+		"l3": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		},
+		"l4": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 3
+		},
+		"l5": {
+			"fps": 3.0,
+			"frames": 2,
+			"loop": true,
+			"row": 4
+		}
+	},
+	"emit": true,
+	"frame": [
+		17,
+		11
+	],
+	"origin": [
+		8,
+		10
+	]
+}

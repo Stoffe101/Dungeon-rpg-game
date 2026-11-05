@@ -6,7 +6,7 @@
 #
 # release -> builds/windows-release/, debug -> builds/windows-debug/ (gitignored).
 # Needs Godot's 4.7.2 export templates (Editor > Manage Export Templates).
-# A debug build keeps dev arguments and the testing stockpile (for testers);
+# A debug build keeps dev arguments (never the testing stockpile: editor runs only);
 # a release build drops them. With GodotSteam installed (tools/steam/
 # fetch_godotsteam.py) its library and Valve's steam_api64.dll go beside the
 # executable; a Steam release also needs the game's own App ID (docs/STEAM.md) -

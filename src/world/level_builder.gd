@@ -29,12 +29,13 @@ class LevelTheme:
 	var top_tex: Texture2D
 	var ledge_tex: Texture2D
 	var pit_tex: Texture2D
+	var pit_wall_tex: Texture2D
 	var pillar_tex: Texture2D
 	var floor_tint := Color.WHITE
 	var wall_tint := Color.WHITE
 	var grime := 0.0
 	var grime_color := Color(0.35, 0.3, 0.32)
-	var floor_contrast := 0.74      # floors quieter than what stands on them
+	var floor_contrast := 0.95      # (the floor textures are quiet themselves now)
 	var rim := Color(0.5, 0.52, 0.62)   # the dressed stone of a wall's cap edge
 
 	## `depth_k`: which of the region's three depths (1-3): the second and third
@@ -48,6 +49,7 @@ class LevelTheme:
 		t.top_tex = load("res://assets/textures/%s_top.png" % n)
 		t.ledge_tex = load("res://assets/textures/%s_ledge.png" % n)
 		t.pit_tex = load("res://assets/textures/pit.png")
+		t.pit_wall_tex = load("res://assets/textures/pit_wall.png")
 		t.pillar_tex = load("res://assets/textures/%s_pillar.png" % n)
 		match n:
 			"crypt":
@@ -66,7 +68,6 @@ class LevelTheme:
 				t.grime = 0.4
 				t.grime_color = Color(0.6, 0.48, 0.42)
 				t.rim = Color(0.62, 0.48, 0.4)
-				t.floor_contrast = 0.85
 		return t
 
 
@@ -103,9 +104,20 @@ static func mid_of(tex: Texture2D) -> Color:
 	return mid
 
 
-static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
+## `alt`: a second region's stone, laid over every odd room (the Hollow's Fracture).
+static func build(grid: TileGrid, theme: LevelTheme, alt: LevelTheme = null) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Level"
+	if alt != null:
+		_build_into(root, grid, alt, 1)
+		_build_into(root, grid, theme, 0)
+		return root
+	_build_into(root, grid, theme, -1)
+	return root
+
+
+## `odd`: -1 every tile, 0 the even rooms (and passages), 1 the odd rooms.
+static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: int) -> void:
 	var cx_n := int(ceil(grid.width / float(CHUNK)))
 	var cy_n := int(ceil(grid.height / float(CHUNK)))
 	var mats := {
@@ -115,8 +127,9 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 		"ledge": material(theme.ledge_tex, theme.wall_tint, SURFACE.ledge),
 		"pit": material(theme.pit_tex, Color.WHITE, SURFACE.pit),
 		"pillar": material(theme.pillar_tex, theme.wall_tint, SURFACE.pillar),
-		"pitwall": material(theme.wall_tex, theme.wall_tint, SURFACE.pit),
+		"pitwall": material(theme.pit_wall_tex, Color.WHITE, SURFACE.pit),
 	}
+	mats["rock"] = mats.top        # the caps of the rock beyond the walls (no shadows)
 	var fm := mats.floor as ShaderMaterial
 	fm.set_shader_parameter("grime", theme.grime)
 	fm.set_shader_parameter("grime_color", theme.grime_color)
@@ -124,6 +137,8 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 	fm.set_shader_parameter("mid", mid_of(theme.floor_tex))
 	for k in ["top", "pitwall"]:
 		(mats[k] as ShaderMaterial).set_shader_parameter("rim_color", theme.rim)
+	# (a cap is one flat value: the light's band dither would stipple all of it)
+	(mats.top as ShaderMaterial).set_shader_parameter("dither_strength", 0.15)
 	var tex_sizes := {
 		"floor": theme.floor_tex.get_size(),
 		"wall": theme.wall_tex.get_size(),
@@ -131,7 +146,7 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 		"ledge": theme.ledge_tex.get_size(),
 		"pit": theme.pit_tex.get_size(),
 		"pillar": theme.pillar_tex.get_size(),
-		"pitwall": theme.wall_tex.get_size(),
+		"pitwall": theme.pit_wall_tex.get_size(),
 	}
 	var mass := mass_depth(grid)
 	for cy in cy_n:
@@ -143,6 +158,8 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 				tools[k] = {"st": st, "n": 0}
 			for y in range(cy * CHUNK, mini((cy + 1) * CHUNK, grid.height)):
 				for x in range(cx * CHUNK, mini((cx + 1) * CHUNK, grid.width)):
+					if odd >= 0 and (1 if posmod(grid.room_at(x, y), 2) == 1 and grid.room_at(x, y) >= 0 else 0) != odd:
+						continue
 					_emit_tile(grid, x, y, tools, tex_sizes, mass)
 			for k in tools:
 				if tools[k].n == 0:
@@ -151,13 +168,12 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 				st.set_material(mats[k])
 				var mi := MeshInstance3D.new()
 				mi.mesh = st.commit()
-				mi.name = "%s_%d_%d" % [k, cx, cy]
-				if k == "floor" or k == "pit" or k == "pitwall":
+				mi.name = "%s_%d_%d_%d" % [k, cx, cy, odd]
+				if k == "floor" or k == "pit" or k == "pitwall" or k == "rock":
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				else:
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 				root.add_child(mi)
-	return root
 
 
 ## Something a floor's edge meets that stands up from it: a contact shadow.
@@ -262,30 +278,16 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 			[Vector2(0, 1), Vector2(0, 1), Vector2(0, 1), Vector2(0, 1)])
 		# the far (north) inner wall of the pit faces the camera
 		if grid.at(x, y - 1) != TileGrid.PIT:
-			var ws: Vector2 = ts.wall
+			var ws: Vector2 = ts.pitwall
 			var u0 := x * 16.0 / ws.x
 			var u1 := (x + 1) * 16.0 / ws.x
 			_quad(tools.pitwall, Vector3(x0, 0, z0), Vector3(x0, depth, z0), Vector3(x1, depth, z0), Vector3(x1, 0, z0), Vector3.BACK,
-				Vector2(u0, 0.0), Vector2(u0, PIT_DEPTH / 2.0), Vector2(u1, PIT_DEPTH / 2.0), Vector2(u1, 0.0),
+				Vector2(u0, 0.0), Vector2(u0, PIT_DEPTH * 16.0 / ws.y), Vector2(u1, PIT_DEPTH * 16.0 / ws.y), Vector2(u1, 0.0),
 				[Vector2(PIT_DEPTH, 0), Vector2(PIT_DEPTH, 1), Vector2(PIT_DEPTH, 1), Vector2(PIT_DEPTH, 0)])
 	elif t == TileGrid.WALL or t == TileGrid.PILLAR:
 		var hh := grid.wall_height(x, y)
 		var top := hh * S
-		var tsz: Vector2 = ts.top
-		# the cap: which edges are open (a rim), how deep each corner sits in the rock
-		var ob := 0
-		for i in DIRS.size():
-			if open(grid.at(x + DIRS[i].x, y + DIRS[i].y)):
-				ob |= 1 << i
-		var cap := Vector2(ob, hh)
-		var c00 := _corner(grid, mass, x, y)
-		var c01 := _corner(grid, mass, x, y + 1)
-		var c11 := _corner(grid, mass, x + 1, y + 1)
-		var c10 := _corner(grid, mass, x + 1, y)
-		_quad(tools.top, Vector3(x0, top, z0), Vector3(x0, top, z1), Vector3(x1, top, z1), Vector3(x1, top, z0), Vector3.UP,
-			Vector2(x * 16.0 / tsz.x, y * 16.0 / tsz.y), Vector2(x * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y),
-			Vector2((x + 1) * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y), Vector2((x + 1) * 16.0 / tsz.x, y * 16.0 / tsz.y),
-			[cap, cap, cap, cap], [Color(c00, 0, 0), Color(c01, 0, 0), Color(c11, 0, 0), Color(c10, 0, 0)])
+		_cap(tools.top, grid, x, y, hh, ts.top, mass)
 		# every wall face is masonry at the texture's own scale, anchored at the
 		# foot (a low wall shows the bottom courses: no stretched trim strip)
 		var key := "wall"
@@ -316,3 +318,36 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 		if not grid.is_solid_block(grid.at(x + 1, y)):
 			_quad(tools[key], Vector3(x1, top, z1), Vector3(x1, 0, z1), Vector3(x1, 0, z0), Vector3(x1, top, z0), Vector3.RIGHT,
 				Vector2(0.0, va), Vector2(0.0, vb), Vector2(0.25, vb), Vector2(0.25, va), fu)
+	elif t == TileGrid.VOID and _mass_at(grid, mass, x, y) < MASS_MAX:
+		# the rock beyond the walls: it thins into the dark, it does not stop. As
+		# low as the wall in front of it south of a room (it must never stand up
+		# between the camera and a floor), as tall as the wall behind it elsewhere.
+		var hh := 2.0
+		for k in range(1, MASS_MAX + 1):
+			if open(grid.at(x, y - k)):
+				hh = 0.5
+				break
+		_cap(tools.rock, grid, x, y, hh, ts.top, mass)
+
+
+## A block's top: which edges are open (a rim), how deep each corner sits in the rock.
+static func _cap(tool: Dictionary, grid: TileGrid, x: int, y: int, hh: float, tsz: Vector2, mass: PackedByteArray) -> void:
+	var S := Iso.SQ2
+	var x0 := float(x)
+	var x1 := float(x + 1)
+	var z0 := y * S
+	var z1 := (y + 1) * S
+	var top := hh * S
+	var ob := 0
+	for i in DIRS.size():
+		if open(grid.at(x + DIRS[i].x, y + DIRS[i].y)):
+			ob |= 1 << i
+	var cap := Vector2(ob, hh)
+	var c00 := _corner(grid, mass, x, y)
+	var c01 := _corner(grid, mass, x, y + 1)
+	var c11 := _corner(grid, mass, x + 1, y + 1)
+	var c10 := _corner(grid, mass, x + 1, y)
+	_quad(tool, Vector3(x0, top, z0), Vector3(x0, top, z1), Vector3(x1, top, z1), Vector3(x1, top, z0), Vector3.UP,
+		Vector2(x * 16.0 / tsz.x, y * 16.0 / tsz.y), Vector2(x * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y),
+		Vector2((x + 1) * 16.0 / tsz.x, (y + 1) * 16.0 / tsz.y), Vector2((x + 1) * 16.0 / tsz.x, y * 16.0 / tsz.y),
+		[cap, cap, cap, cap], [Color(c00, 0, 0), Color(c01, 0, 0), Color(c11, 0, 0), Color(c10, 0, 0)])

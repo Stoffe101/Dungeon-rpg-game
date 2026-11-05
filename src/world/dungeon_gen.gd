@@ -28,6 +28,81 @@ const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), 
 ## Hand-made rooms (22x12, a single cell), mixed into the procedural ones:
 ## . floor, # wall, o pillar, ~ pit, space void. Doors are kept clear after.
 const AUTHORED := {
+	# a burial hall: rows of tomb-plinths down both sides, a clear aisle
+	"ossuary_nave": [
+		"......................",
+		"..##..##..##..##..##..",
+		"......................",
+		"......................",
+		"o....o....o..o....o..o",
+		"......................",
+		"......................",
+		"o....o....o..o....o..o",
+		"......................",
+		"......................",
+		"..##..##..##..##..##..",
+		"......................",
+	],
+	# a ritual pit ringed by standing stones: fight around it, or be pushed in
+	"ossuary_rite": [
+		"......................",
+		"....o....o..o....o....",
+		"......................",
+		".o......~~~~~~......o.",
+		".......~~~~~~~~.......",
+		".......~~~~~~~~.......",
+		".......~~~~~~~~.......",
+		".o......~~~~~~......o.",
+		"......................",
+		"....o....o..o....o....",
+		"......................",
+		"......................",
+	],
+	# an overgrown courtyard: broken walls, a sunken pool in the middle
+	"root_court": [
+		"..####......####......",
+		"..#............#..##..",
+		"..#..o......o.....#...",
+		"......................",
+		".......~~~~~~.........",
+		"......~~~~~~~~........",
+		"......~~~~~~~~........",
+		".......~~~~~~.........",
+		"......................",
+		"..#..o......o.....#...",
+		"..#............#..##..",
+		"..####......####......",
+	],
+	# a processional hall: two rows of columns, the throne end walled
+	"throne_nave": [
+		"......................",
+		"..o...o...o..o...o...o",
+		"......................",
+		"......................",
+		"....##..........##....",
+		"....#............#....",
+		"....#............#....",
+		"....##..........##....",
+		"......................",
+		"......................",
+		"..o...o...o..o...o...o",
+		"......................",
+	],
+	# a sunken gallery: pits along the walls, bridges of stone between
+	"throne_gallery": [
+		"......................",
+		".~~~~..~~~~..~~~~..~~.",
+		".~~~~..~~~~..~~~~..~~.",
+		"......................",
+		"...o....o....o....o...",
+		"......................",
+		"......................",
+		"...o....o....o....o...",
+		"......................",
+		".~~~~..~~~~..~~~~..~~.",
+		".~~~~..~~~~..~~~~..~~.",
+		"......................",
+	],
 	"ossuary_chapel": [
 		"......................",
 		".o..o..o......o..o..o.",
@@ -113,8 +188,9 @@ const AUTHORED := {
 		"......................",
 	],
 }
-const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary"], "rootmire": ["root_hollow", "root_tangle"],
-	"throne": ["throne_colonnade", "throne_court"]}
+const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite"],
+	"rootmire": ["root_hollow", "root_tangle", "root_court"],
+	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery"]}
 
 
 
@@ -124,25 +200,46 @@ const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary"], "
 ##   path / branches: rooms added to the main path / side branches
 ##   foes: the encounter budget; embers: room-clear and enemy Embers
 const ROUTES := {
-	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.25, "embers": 1.4,
+	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "danger": 3, "spoils": 3, "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.05, "embers": 1.25,
 		"line": "Harder fights and two elites; a hall warded by seals. Richer spoils."},
-	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 1.0, "embers": 1.0,
+	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "danger": 2, "spoils": 2, "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 0.85, "embers": 1.0,
 		"line": "Fewer fights, more side rooms - and a vault whose flame you must keep lit."},
-	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.7,
+	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "danger": 1, "spoils": 1, "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.85,
 		"line": "Fewer, weaker foes, no elite, a spring of vigor. Lean spoils."},
+	# rare ways, offered as a third stairway (route_offer): short floors with one great fight
+	"breach": {"name": "The Breach", "short": "Breach", "act": "deadly, and rich", "danger": 4, "spoils": 4, "color": Color(0.95, 0.35, 0.3), "path": -2, "branches": 0, "foes": 1.35, "embers": 1.6, "rare": true,
+		"line": "A broken altar's way down: short, unbound, something old at the end of it."},
+	"lair": {"name": "A Trail of Red Embers", "short": "Lair", "act": "your Grudge waits", "danger": 3, "spoils": 3, "color": Color(1.0, 0.3, 0.25), "path": -2, "branches": 0, "foes": 1.0, "embers": 1.2, "rare": true,
+		"line": "Your Grudge's own lair. Settle it there, on its ground."},
 }
+## How often a stairs room forks: a floor with one plain way down is a rest from
+## deciding, and makes the fork an event.
+const FORK_CHANCE := 0.7
 static var _route := ""          # (set by generate while a floor is built)
 static var _offer: Array = []
+static var _altar_due := false
+static var _world_now: Dictionary = {}
 
 
-## The two ways down this floor's stairs offer (by the seed: everyone in a
-## party sees the same two, and a floor offers the same two again).
-static func route_offer(seed_v: int, depth: int) -> Array:
+## The ways down this floor's stairs offer ([] = one plain stairway). By the
+## seed and the expedition's world: everyone in a party sees the same, and a
+## floor offers the same again. A broken altar's Breach or a Grudge's lair is a
+## third stairway.
+static func route_offer(seed_v: int, depth: int, world := {}, region := "") -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([seed_v, depth, "fork"])
-	var ids: Array = ROUTES.keys()
+	var ids: Array = ["trial", "vault", "quiet"]
 	_shuffle(ids, rng)
-	return ids.slice(0, 2)
+	var out: Array = ids.slice(0, 2)
+	var fork := rng.randf() < FORK_CHANCE
+	var rare_roll := rng.randf()
+	if Chronicle.site_of(world, region) == "broken":
+		out.append("breach")
+	elif bool(world.get("lair", false)) and rare_roll < 0.3:
+		out.append("lair")
+	elif not fork:
+		return []
+	return out
 
 
 static func route_def(id: String) -> Dictionary:
@@ -155,7 +252,10 @@ class Layout:
 	var region := "ossuary"
 	var boss_depth := false
 	var route := ""               # the way this floor was reached (ROUTES), "" the plain way
+	var variant := ""             # which form its own room took (seals, champion, flame...)
 	var offer: Array = []         # the ways down its stairs offer
+	var world: Dictionary = {}    # the Chronicle as the expedition reads it
+	var altar_due := false        # the region's Hollow Altar waits on this floor
 	var grid: TileGrid
 	var rooms: Array[Room] = []
 	var start_id := 0
@@ -173,10 +273,17 @@ class Layout:
 		return room_at_tile(Vector2i(floori(p.x), floori(p.y)))
 
 
-static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, route := "") -> Layout:
+static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, route := "", world := {}) -> Layout:
 	_route = route if ROUTES.has(route) else ""
-	# a guardian's floor has one way on; every other offers two
-	_offer = [] if boss_depth else route_offer(seed_v, depth)
+	_world_now = world
+	# a guardian's floor has one way on; most others fork
+	_offer = [] if boss_depth else route_offer(seed_v, depth, world, region)
+	# the region's Hollow Altar waits on one floor of an expedition - always
+	# until it is answered, one expedition in three after that
+	var floor_n := (depth - 1) % 3 + 1
+	_altar_due = not boss_depth and ROUTES.get(_route, {}).get("rare", false) == false and Chronicle.ALTARS.has(region) \
+		and floor_n == posmod(hash([seed_v, region, "altar"]), 2) + 1 \
+		and (Chronicle.site_of(world, region) == "" or posmod(hash([seed_v, region, "again"]), 3) == 0)
 	for attempt in 60:
 		var rng := RandomNumberGenerator.new()
 		# (the plain way keeps every seed's floor as it always was)
@@ -259,7 +366,10 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 	lay.boss_depth = boss_depth
 	lay.route = _route
 	lay.offer = _offer.duplicate()
+	lay.world = _world_now
+	lay.altar_due = _altar_due
 	var rt: Dictionary = ROUTES.get(_route, {})
+	var site := Chronicle.site_of(lay.world, region)
 	var owner := {}            # Vector2i cell -> room index
 	var room_cells: Array = [] # room index -> Array[Vector2i]
 	var types: Array = []
@@ -330,16 +440,24 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 			specials.erase(Room.Type.ELITE)
 			if not specials.has(Room.Type.REST):
 				specials.append(Room.Type.REST)
+		"breach", "lair":
+			specials.erase(Room.Type.SHRINE)
+			specials.erase(Room.Type.MERCHANT)
+	if site == "kindled" and not specials.has(Room.Type.REST):
+		specials.append(Room.Type.REST)      # the Vigil's keepers left a spring
 	_shuffle(specials, rng)
 	var branch_count := 3 + (1 if rng.randf() < 0.5 else 0) + int(rt.get("branches", 0))
 	if _route == "vault":
 		# its treasure is down a side branch: make sure one is taken
 		specials.erase(Room.Type.TREASURE)
 		specials.append(Room.Type.TREASURE)
-	elif _route == "quiet":
-		# ...and the quiet way's spring
+	elif _route == "quiet" or site == "kindled":
+		# ...and the quiet way's spring, or the Vigil's
 		specials.erase(Room.Type.REST)
 		specials.append(Room.Type.REST)
+	if lay.altar_due:
+		specials.erase(Room.Type.EVENT)
+		specials.append(Room.Type.EVENT)     # taken first: the altar must have its room
 	var origins := range(1, last)
 	_shuffle(origins, rng)
 	var made := 0
@@ -362,6 +480,8 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 			prev_c = br[k]
 		made += 1
 	if made < 2:
+		return null
+	if lay.altar_due and not types.has(Room.Type.EVENT):
 		return null
 	if not types.has(Room.Type.ELITE) and _route != "quiet":
 		types[rng.randi_range(2, maxi(2, last - 1))] = Room.Type.ELITE
@@ -873,8 +993,9 @@ static func _valid(L: PackedByteArray, w: int, h: int, r: Room) -> bool:
 static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 	var g := lay.grid
 	var reward_pool := ["relic", "relic", "relic", "embers", "embers", "vigor", "memory"]
-	_objectives(lay)
+	_objectives(lay, rng)
 	var foes := float(ROUTES.get(lay.route, {}).get("foes", 1.0))
+	var over := String(lay.world.get("fracture", ""))
 	for r in lay.rooms:
 		# spawn tiles: floor, away from doors and walls
 		for y in range(r.rect.position.y, r.rect.end.y):
@@ -897,19 +1018,33 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 					r.spawns.append(Vector2i(x, y))
 		match r.type:
 			Room.Type.EVENT:
-				r.event = Room.EVENTS[rng.randi_range(0, Room.EVENTS.size() - 1)]
+				r.event = DeepEvents.pick(lay, rng)
 				if r.event == "trial":
 					r.reward = "trial"
 					r.waves = 3
 					r.encounter = []
 					for wv in 3:
 						r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, 8 + lay.depth * 4 + wv * 2))
+				elif r.event == "procession":
+					r.reward = "procession"
+					r.waves = 2
+					r.encounter = []
+					for wv in 2:
+						r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, 7 + lay.depth * 4))
 			Room.Type.COMBAT:
 				r.reward = reward_pool[rng.randi_range(0, reward_pool.size() - 1)]
-				if r.objective == "seals":
+				if r.objective == "rift":
+					r.reward = "rift"
+				elif r.objective in ["seals", "champion", "gauntlet"]:
 					r.reward = "seals"
 				elif r.objective == "flame":
 					r.reward = "vault"
+				elif r.objective == "workshop":
+					r.reward = "workshop"
+				elif r.objective == "lair":
+					r.reward = "memory"
+				elif r.objective == "breach":
+					r.reward = "breach"
 			Room.Type.ELITE:
 				r.reward = "sunshard"
 			Room.Type.SECRET:
@@ -922,11 +1057,18 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 			budget = maxi(4, int(round(budget * foes)))
 			r.waves = 2 if (area > 400 or (lay.depth >= 2 and rng.randf() < 0.45)) else 1
 			if r.objective == "flame":
-				r.waves = 3      # the flame must be kept through three waves
+				r.waves = 3      # the flame must be kept through three waves...
+				budget = maxi(4, int(budget * 0.7))      # ...and you cannot kite them away from it
+			elif r.objective == "gauntlet":
+				r.waves = 4      # four waves, ash falling between them
+				budget = maxi(4, int(budget * 0.75))
+			elif r.objective == "workshop":
+				r.waves = 2
 			r.encounter = []
 			for wv in r.waves:
 				var b := budget if wv == 0 else int(budget * 0.75)
-				r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, b))
+				# (a Fracture's odd rooms belong to the region lying over this one)
+				r.encounter.append(EnemyDB.roll_encounter(rng, over if over != "" and r.id % 2 == 1 else lay.region, lay.depth, b))
 			if r.type == Room.Type.ELITE:
 				r.elite_affix = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
 		_decorate(lay, r, rng)
@@ -1031,6 +1173,9 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			if wall_adj.is_empty():
 				break
 			var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
+			var one: Array[Vector2i] = [t]
+			if lamp == "brazier" and not _floor_whole(lay, r, one):
+				continue      # (a brazier stands solid: never across a corner)
 			r.props.append({"kind": lamp, "tile": t})
 	var c := Vector2i(r.center())
 	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
@@ -1040,10 +1185,21 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 	match r.type:
 		Room.Type.START:
 			r.props.append({"kind": "lore", "tile": c + Vector2i(0, -3)})
+			if Chronicle.site_of(lay.world, lay.region) == "pact":
+				var bt := c + Vector2i(3, -2)
+				if g.at(bt.x, bt.y) == TileGrid.FLOOR:
+					r.props.append({"kind": "site", "tile": bt, "event": "bowl"})
 		Room.Type.TREASURE:
-			r.props.append({"kind": "chest", "tile": c, "tier": 1})
-			for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
-				r.props.append({"kind": "candles", "tile": c + o})
+			if r.objective == "treasury":
+				var cc := ["gold", "bone", "glass"]
+				for k in 3:
+					r.props.append({"kind": "site", "tile": c + Vector2i(-4 + k * 4, -1 if k == 1 else 0), "event": "coffer", "choice": cc[k]})
+				r.props.append({"kind": "candles", "tile": c + Vector2i(-2, 2)})
+				r.props.append({"kind": "candles", "tile": c + Vector2i(2, 2)})
+			else:
+				r.props.append({"kind": "chest", "tile": c, "tier": 1})
+				for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
+					r.props.append({"kind": "candles", "tile": c + o})
 		Room.Type.SECRET:
 			r.props.append({"kind": "chest", "tile": c, "tier": 2})
 			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
@@ -1059,6 +1215,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "fountain", "tile": c})
 		Room.Type.EVENT:
 			match r.event:
+				"altar", "last_stand", "procession":
+					DeepEvents.build(lay, r, rng)
 				"well":
 					r.props.append({"kind": "ember_well", "tile": c})
 				"trial":
@@ -1088,16 +1246,14 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 					r.props.append({"kind": "lore", "tile": c + Vector2i(3, -2)})
 		Room.Type.STAIRS:
 			if lay.offer.size() >= 2:
-				# the fork: two ways down, each lit in its own colour
-				for k in 2:
-					var t := c + Vector2i(-3 + 6 * k, -2)
+				# the fork: two ways down (three with a rare one), each under its own arch
+				var n: int = lay.offer.size()
+				for k in n:
+					var step := 5 if n == 3 else 6
+					var t := c + Vector2i(-(step * (n - 1)) / 2 + step * k, -2)
 					if g.at(t.x, t.y) != TileGrid.FLOOR:
-						t = c + Vector2i(-2 + 4 * k, -2)
-					var rid: String = lay.offer[k]
-					r.props.append({"kind": "stairs", "tile": t, "route": rid})
-					var bt := t + Vector2i(-1 if k == 0 else 1, 0)
-					if g.at(bt.x, bt.y) == TileGrid.FLOOR:
-						r.props.append({"kind": "brazier", "tile": bt, "flame": ROUTES[rid].color, "sheet": "brazier" if rid == "quiet" else "brazier_warm"})
+						t = c + Vector2i(-2 * (n - 1) + 4 * k, -2)
+					r.props.append({"kind": "stairs", "tile": t, "route": lay.offer[k]})
 			else:
 				r.props.append({"kind": "stairs", "tile": c + Vector2i(0, -2)})
 			r.props.append({"kind": "hearthstone", "tile": c + Vector2i(-5, 1)})
@@ -1213,22 +1369,31 @@ static func _doors_connected(lay: Layout, r: Room, blocked: Array[Vector2i]) -> 
 ## main path is warded by seals (break them, or its foes shrug off most of
 ## every blow); on a Lost Vault floor a treasure room down a branch becomes the
 ## vault, held through three waves while its failing flame is kept lit.
-static func _objectives(lay: Layout) -> void:
+static func _objectives(lay: Layout, rng: RandomNumberGenerator) -> void:
+	var best: Room = null
+	for r in lay.rooms:
+		if r.type == Room.Type.COMBAT and r.id >= 1 and r.id < lay.exit_id and r.authored == "":
+			if best == null or r.rect.get_area() > best.rect.get_area():
+				best = r
+	if lay.world.has("fracture") and lay.route == "" and best:
+		best.objective = "rift"
 	match lay.route:
 		"trial":
-			var best: Room = null
-			for r in lay.rooms:
-				if r.type == Room.Type.COMBAT and r.id >= 2 and r.id < lay.exit_id and r.authored == "":
-					if best == null or r.rect.get_area() > best.rect.get_area():
-						best = r
+			lay.variant = ["seals", "champion", "gauntlet"][rng.randi_range(0, 2)]
 			if best:
-				best.objective = "seals"
+				best.objective = lay.variant
 		"vault":
+			lay.variant = ["flame", "treasury", "workshop"][rng.randi_range(0, 2)]
 			for r in lay.rooms:
 				if r.type == Room.Type.TREASURE:
-					r.type = Room.Type.COMBAT
-					r.objective = "flame"
+					if lay.variant != "treasury":
+						r.type = Room.Type.COMBAT     # won, not walked into
+					r.objective = lay.variant
 					break
+		"breach", "lair":
+			lay.variant = lay.route
+			if best:
+				best.objective = lay.route
 
 
 ## Prop kinds that stand on their tile and stop whoever walks into it.
@@ -1244,7 +1409,7 @@ static func _solid_of(r: Room) -> Dictionary:
 			if pd.get("wide", false):
 				out[pd.tile] = true
 				out[pd.tile + Vector2i(1, 0)] = true
-			elif not WALKABLE_DRESSING.has(String(pd.sheet)):
+			elif not WALKABLE_DRESSING.has(String(pd.sheet)) and not pd.get("low", false):
 				out[pd.tile] = true
 		elif k in SOLID_KINDS:
 			out[pd.tile] = true

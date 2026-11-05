@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"bone": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"glass": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"gold": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"shut": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		22
+	],
+	"origin": [
+		12,
+		20
+	]
+}
