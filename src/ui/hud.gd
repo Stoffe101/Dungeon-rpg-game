@@ -160,6 +160,7 @@ func refresh_controls() -> void:
 		["Flask", Settings.describe_action("flask")],
 		["Interact", Settings.describe_action("interact")],
 		["Satchel (gear)", Settings.describe_action("inventory")],
+		["Hearthtree (talents)", Settings.describe_action("hearthtree")],
 		["Hearthcall (home)", Settings.describe_action("hearthcall")],
 		["Map", Settings.describe_action("map")],
 	]
@@ -433,6 +434,15 @@ func _process(_delta: float) -> void:
 		depth_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5) if guardian else UIKit.C_DIM)
 		omen_lbl.text = Omens.names(pl.run.omens)
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
+	# an unspent talent point stays in sight (softly) until it is spent
+	var free := Profile.skill_points_free()
+	if free > 0:
+		level_lbl.text += "    %d TALENT POINT%s  [%s]" % [free, "" if free == 1 else "S", Settings.describe_action("hearthtree")]
+		level_lbl.add_theme_color_override("font_color", UIKit.C_EMBER)
+		level_lbl.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.004)
+	else:
+		level_lbl.add_theme_color_override("font_color", UIKit.C_SOUL)
+		level_lbl.modulate.a = 1.0
 	# spells
 	for i in slot_nodes.size():
 		_update_spell_slot(pl, i)

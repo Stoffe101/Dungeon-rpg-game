@@ -34,40 +34,33 @@ func _player(st: Stage) -> Player:
 	return pl
 
 
-# --- pointer steering ---------------------------------------------------------------
+# --- movement: the keys walk, the pointer only turns the face ------------------------
 
-func test_steer_follows_a_moved_pointer_only_while_w_is_held() -> void:
+func test_keys_walk_the_screens_way_whatever_the_pointer_does() -> void:
 	var st := _stage()
 	var pl := _player(st)
-	var was: Variant = Settings.get_value("steer")
-	Settings.values["steer"] = "on"
-	var right := Vector2(5, 0)
-	# W alone, the mouse resting: the screen's way
-	var m := pl.steer(Vector2.UP, 0.0, right, 1.0 / 60.0)
-	check(not pl.steering and m.is_equal_approx(Vector2.UP), "keys alone walk up (%s)" % m)
-	# a twitch of the hand does not take the wheel
-	m = pl.steer(Vector2.UP, 4.0, right, 1.0 / 60.0)
-	check(not pl.steering, "a 4 px twitch does not steer")
-	# a deliberate sweep does: W turns toward the pointer, smoothly
-	for k in 6:
-		m = pl.steer(Vector2.UP, 8.0, right, 1.0 / 60.0)
-	check(pl.steering, "a sweep while W is held steers")
+	check(not ("steer" in pl), "no pointer steering left on the Kindled")
+	check(not pl.has_method("steer"), "no steer() left")
+	check(not Settings.values.has("steer"), "no steering setting")
+	# a hand sweeping the mouse far to the right while W is held
+	pl.aim = Vector2.RIGHT
+	pl.move_in = Vector2.UP
+	for k in 30:
+		pl.note_aim(12.0, 1.0 / 60.0)
+	check(pl.move_in.is_equal_approx(Vector2.UP), "W still walks up (%s)" % pl.move_in)
+	check(pl.aim_look_t > 0.0, "a deliberate sweep counts as aiming")
+	pl._update_look(1.0 / 60.0)
+	check(pl.look.dot(Vector2.RIGHT) > 0.99, "while aiming, the Kindled faces the aim (%s)" % pl.look)
+	# the hand rests: the walk's own facing comes back
 	for k in 60:
-		m = pl.steer(Vector2.UP, 0.0, right, 1.0 / 60.0)
-	check(m.dot(Vector2.RIGHT) > 0.95, "W walks toward the pointer, even when the mouse rests (%s)" % m)
-	near(m.length(), 1.0, 0.01, "at full pace")
-	# S backs away from it, D sidesteps
-	m = pl.steer(Vector2(0.7071, -0.7071), 0.0, right, 1.0 / 60.0)
-	check(m.dot(Vector2(0.7071, 0.7071)) > 0.95, "W+D walks forward-right of the pointer (%s)" % m)
-	# letting go of W lets go of the wheel
-	m = pl.steer(Vector2.DOWN, 0.0, right, 1.0 / 60.0)
-	check(not pl.steering and m.is_equal_approx(Vector2.DOWN), "S alone after letting go walks down")
-	# off: never
-	Settings.values["steer"] = "off"
-	for k in 10:
-		m = pl.steer(Vector2.UP, 30.0, right, 1.0 / 60.0)
-	check(not pl.steering and m.is_equal_approx(Vector2.UP), "off: keys walk the screen's way")
-	Settings.values["steer"] = was
+		pl.note_aim(0.0, 1.0 / 60.0)
+		pl._update_look(1.0 / 60.0)
+	check(pl.look.dot(Vector2.UP) > 0.99, "the hand at rest: facing follows the walk again (%s)" % pl.look)
+	# a twitch is not aiming
+	for k in 3:
+		pl.note_aim(4.0, 1.0 / 60.0)
+	pl._update_look(1.0 / 60.0)
+	check(pl.look.dot(Vector2.UP) > 0.99, "a 4 px twitch does not turn a walking Kindled")
 	st.queue_free()
 
 

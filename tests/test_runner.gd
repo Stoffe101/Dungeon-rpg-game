@@ -15,6 +15,12 @@ func _ready() -> void:
 	files.sort()
 	for f in files:
 		var scr: GDScript = load("res://tests/" + f)
+		if scr == null or not scr.can_instantiate():
+			# a test file that does not compile fails the run (it used to hang it)
+			print("  FAIL  ", f, " does not compile")
+			failed.append("%s does not compile" % f)
+			total += 1
+			continue
 		var inst: TestCase = scr.new()
 		if inst.has_method("setup_tree"):
 			inst.call("setup_tree", self)

@@ -88,12 +88,14 @@ var dir_name := "down"
 var remote_look := Vector2.ZERO    # host: the facing a guest's own machine chose (sent with its input)
 var _mouse_moved := false          # the pointer itself moved this frame (not the camera under it)
 var _last_mp := Vector2(-1, -1)
-# pointer steering (Settings "steer"): once the hand moves the mouse while W is
-# held, W walks toward the pointer (and A/S/D turn with it) until W is let go
+# the keys always walk the screen's way; the pointer only turns the Kindled's
+# face: a deliberate sweep of the mouse (not a twitch, nor the camera sliding
+# under a resting pointer) faces the aim for a moment, even mid-walk
 var _bled_out := false
-var steering := false
-var _steer_travel := 0.0
-var _steer_dir := Vector2.UP
+var _aim_travel := 0.0
+var aim_look_t := 0.0
+const AIM_SWEEP := 18.0       # screen px of hand travel that count as aiming
+const AIM_HOLD := 0.7         # seconds the face stays on the aim after the hand rests
 var hit_once := {}
 var dead_t := 0.0
 
@@ -168,6 +170,10 @@ func _ready() -> void:
 func setup_from(r: RunState) -> void:
 	run = r
 	rebuild_stats()
+	if sheet.is_empty():
+		_gear_sig = gear_signature()
+		if not Profile.changed.is_connected(_on_profile_changed):
+			Profile.changed.connect(_on_profile_changed)
 	var wid: String = r.weapon_id
 	set_weapon(wid, r.weapon_level)
 	ability_slots = r.abilities.duplicate()
@@ -310,6 +316,12 @@ func apply_sheet(sh: Dictionary) -> void:
 		return
 	sheet = sh
 	rebuild_stats()
+	if sh.get("slots") is Array and not (sh.slots as Array).is_empty():
+		ability_slots = (sh.slots as Array).duplicate()
+		while ability_slots.size() < 3:
+			ability_slots.append("")
+		if run:
+			run.abilities = ability_slots.duplicate()
 	var wid := String(sh.get("weapon", ""))
 	var wl := int(sh.get("weapon_level", 0))
 	if wid != "" and (weapon == null or weapon.id != wid or weapon.level != wl or weapon_sig() != _weapon_sig):
@@ -322,11 +334,52 @@ func apply_sheet(sh: Dictionary) -> void:
 var _weapon_sig := ""
 
 
-## Which weapon item is in hand (its base and uid): a change means another
-## form, even of the same kind.
+## Which weapon item is in hand (its base, uid and make - a tempered blade is
+## taken up again): a change means another form, even of the same kind.
 func weapon_sig() -> String:
 	var it := weapon_item()
-	return "%s#%d" % [String(it.get("base", "")), int(it.get("uid", 0))] if not it.is_empty() else ""
+	return "%s#%d#%d" % [String(it.get("base", "")), int(it.get("uid", 0)), hash(it)] if not it.is_empty() else ""
+
+
+var _gear_sig := 0
+var _gear_due := false
+
+
+## This machine's own Kindled follows its save the moment it changes - the
+## Satchel, the weapon rack, a loadout, the forge, a tempering, the Hearthtree,
+## runes, a building, a resident's gift: every one of them ends here, so no
+## screen has its own partial refresh (the weapon used to stay in hand in the
+## sanctuary until the camp was rebuilt). Stats, the weapon (kind, form, look),
+## the armour drawn over the body. Called on the frame after a change (changes
+## come in bursts), or at once with `force`.
+func sync_gear(force := false) -> void:
+	_gear_due = false
+	if not sheet.is_empty() or run == null or not is_inside_tree():
+		return
+	var s := gear_signature()
+	if s == _gear_sig and not force:
+		return
+	_gear_sig = s
+	rebuild_stats()
+	take_up_weapon()
+	# the spells too (a loadout worn below brings its own)
+	ability_slots = Profile.slots()
+	run.abilities = ability_slots.duplicate()
+
+
+## Everything in the save that the Kindled's numbers or hands depend on.
+static func gear_signature() -> int:
+	return hash([Profile.equipped(), Profile.skills(), Profile.data.get("sanctuary", {}), Profile.runes().get("socketed", {}),
+		Profile.data.get("weapons", {}), Profile.level(), Profile.resident_mods(), Profile.inv().get("shown", {}), Looks.current()])
+
+
+func _on_profile_changed() -> void:
+	_gear_due = true
+
+
+func _exit_tree() -> void:
+	if Profile.changed.is_connected(_on_profile_changed):
+		Profile.changed.disconnect(_on_profile_changed)
 
 
 ## Below, after the Satchel changed what this Kindled wields: take it up now.
@@ -366,6 +419,8 @@ func aim_offset() -> Vector2:
 # --- input (real time) ---------------------------------------------------------
 
 func _process(delta: float) -> void:
+	if _gear_due:
+		sync_gear()
 	for k in _buf:
 		_buf[k] = maxf(0.0, _buf[k] - delta)
 	if autopilot or controller == Ctrl.REMOTE or downed:
@@ -411,9 +466,7 @@ func _process(delta: float) -> void:
 		var d := aim_point - pos
 		if d.length() > 0.05:
 			aim = d.normalized()
-		move_in = steer(move_in, hand, d, delta)
-	else:
-		steering = false
+		note_aim(hand, delta)
 	# the press that closed a menu must not also act in the world (nor open the
 	# same conversation again straight away)
 	if Game.ui and (Engine.get_process_frames() - Game.ui.closed_frame <= 1 or Game.ui.just_closed()):
@@ -448,33 +501,18 @@ func _process(delta: float) -> void:
 		press("flask")
 
 
-## Pointer steering: `raw` is the keys' walk, `hand` how far the hand moved the
-## mouse this frame (screen pixels, never the camera sliding under it), `to` the
-## pointer from the Kindled. "on": holding W and moving the mouse (a deliberate
-## sweep, not a twitch) turns W toward the pointer, and the other keys turn with
-## it (S backs away, A/D sidestep); it holds while W is held - letting the mouse
-## rest keeps walking where it points - and lets go with W, so keys alone always
-## walk the screen's way. "always": every walk is relative to the pointer. "off":
-## the screen's way. The result is what is predicted and sent to the host.
-func steer(raw: Vector2, hand: float, to: Vector2, delta: float) -> Vector2:
-	var mode := String(Settings.get_value("steer", "on"))
-	var fwd := raw.y < -0.5
-	if mode == "off" or raw.length() < 0.1 or (mode == "on" and not fwd):
-		steering = false
-		_steer_travel = 0.0
-		return raw
-	if not steering:
-		_steer_travel = maxf(0.0, _steer_travel - 60.0 * delta) + hand
-		if mode == "always" or _steer_travel > 22.0:
-			steering = true
-			_steer_dir = Vector2.UP if mode == "on" else (to.normalized() if to.length() > 0.05 else Vector2.UP)
-	if not steering:
-		return raw
-	# a pointer on (or almost on) the Kindled has no direction worth turning to
-	if to.length() > 0.8:
-		var k := 1.0 - exp(-14.0 * delta)
-		_steer_dir = _steer_dir.slerp(to.normalized(), k).normalized()
-	return raw.rotated(Vector2.UP.angle_to(_steer_dir))
+## Aiming with the mouse: `hand` is how far the hand moved the pointer this
+## frame (screen pixels, never the camera sliding under it). A deliberate sweep
+## faces the Kindled toward the aim for AIM_HOLD seconds - walking on the keys'
+## way all the while - then the walk's own facing returns. It never changes
+## where the Kindled walks: the keys alone decide that.
+func note_aim(hand: float, delta: float) -> void:
+	# (capped: a long sweep must not keep the face on the aim long after the hand rests)
+	_aim_travel = minf(AIM_SWEEP * 1.5, maxf(0.0, _aim_travel - 90.0 * delta) + hand)
+	if _aim_travel > AIM_SWEEP:
+		aim_look_t = AIM_HOLD
+	else:
+		aim_look_t = maxf(0.0, aim_look_t - delta)
 
 
 ## A button press: buffered for the simulation and counted for the network.
@@ -2273,8 +2311,9 @@ func _update_look(dt: float) -> void:
 		_fight_look_t = 0.45
 	# priority: a dodge > fighting (attack, charge, cast, Ward: toward the aim)
 	# > walking (toward the walk) > a pointer the hand moved > the last facing
-	if _fight_look_t > 0.0 or _pad_aim:
-		# the pad's aim already follows the left stick when the right one rests
+	if _fight_look_t > 0.0 or _pad_aim or aim_look_t > 0.0:
+		# the pad's aim already follows the left stick when the right one rests;
+		# a hand aiming the mouse faces the aim even while walking another way
 		look = aim
 	elif move_in.length() > 0.2:
 		look = move_in.normalized()

@@ -76,7 +76,7 @@ func _ready() -> void:
 	Events.toast.connect(toast)
 	Events.player_damaged.connect(_on_hurt)
 	Events.level_up.connect(func(lvl: int) -> void:
-		banner("Level %d" % lvl, "A skill point awaits at the Hearth")
+		banner("Level %d" % lvl, "TALENT POINT AVAILABLE  -  %s: Hearthtree" % Settings.describe_action("hearthtree"))
 		Audio.play("skill_unlock", 0.0, 0.8)
 		if Game.stage and Game.stage.player:
 			var pl := Game.stage.player
@@ -459,6 +459,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				close_top()
 		elif not _menu_open:
 			inventory()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("hearthtree") and hud.visible and Game.stage and not _menu_open:
+		# the Hearthtree opens and closes on its own key, at home or below
+		if has_modal():
+			var top := modals[modals.size() - 1]
+			if top.get_child_count() > 0 and top.get_child(0) is SkillTreeUI:
+				close_top()
+		else:
+			skill_tree()
 		get_viewport().set_input_as_handled()
 	elif has_modal() and event.is_action_pressed("ui_cancel"):
 		var top := modals[modals.size() - 1]

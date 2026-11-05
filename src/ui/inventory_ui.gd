@@ -360,7 +360,7 @@ func _loadout_strip() -> Control:
 			if not lost.is_empty():
 				Game.ui.toast("Loadout %s on - %s." % [nm, "; ".join(lost)], Color(0.9, 0.75, 0.6))
 			if Game.stage and Game.stage.player:
-				Game.stage.player.rebuild_stats()
+				Game.stage.player.sync_gear(true)
 			rebuild()
 		var wear := UIKit.button("Wear", func() -> void:
 			var c := Profile.loadout_check(i)
@@ -694,15 +694,11 @@ func _equip(uid: int) -> void:
 		Audio.ui("deny")
 		Game.ui.toast("Not mid-fight: change gear once the seals fall.", UIKit.C_DIM)
 		return
-	var arch := ItemDB.arch_of(Profile.find_item(uid))
 	if Profile.equip(uid):
 		Audio.play("clank", -4.0, 1.1)
+		# felt at once, in the sanctuary as below (Player.sync_gear: the one path)
 		if st and st.player and is_instance_valid(st.player):
-			st.player.rebuild_stats()
-			if arch != "" and not (st is Hub):
-				st.player.take_up_weapon()
-			elif arch != "" and st.player.weapon and st.player.weapon.id == arch:
-				st.player.set_weapon(arch, st.player.weapon.level)     # its look, at once
+			st.player.sync_gear(true)
 
 
 func _unequip(slot: String, uid: int) -> void:
@@ -715,9 +711,7 @@ func _unequip(slot: String, uid: int) -> void:
 	if Profile.unequip(slot):
 		Audio.play("clank", -6.0, 0.9)
 		if st and st.player and is_instance_valid(st.player):
-			st.player.rebuild_stats()
-			if slot == "weapon" and not (st is Hub):
-				st.player.take_up_weapon()
+			st.player.sync_gear(true)
 
 
 func _salvage(uid: int) -> void:

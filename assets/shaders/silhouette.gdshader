@@ -8,13 +8,15 @@ uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 uniform vec2 frame_uv = vec2(1.0, 1.0);
 uniform vec4 color : source_color = vec4(1.0, 0.62, 0.3, 1.0);
 
-instance uniform vec2 frame = vec2(0.0);
-instance uniform float flip = 0.0;
-instance uniform float silhouette = 1.0;
+// the same slots as sprite.gdshader (the pass it rides on): see there
+instance uniform vec2 frame : instance_index(0) = vec2(0.0);
+instance uniform float flip : instance_index(1) = 0.0;
+instance uniform float dissolve : instance_index(3) = 0.0;
+instance uniform float silhouette : instance_index(7) = 1.0;
 
 // (the body leads toward the camera like every sprite: sprite.gdshader)
 uniform float depth_lead = 0.8;
-instance uniform float lead = 1.0;
+instance uniform float lead : instance_index(6) = 1.0;
 
 void vertex() {
 	vec4 v = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
@@ -25,8 +27,8 @@ void vertex() {
 const float BAYER[16] = float[16](0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0, 13.0, 5.0);
 
 void fragment() {
-	if (silhouette < 0.5) {
-		discard;
+	if (silhouette < 0.5 || dissolve > 0.01) {
+		discard;     // (a Kindled going into the light leaves no outline behind)
 	}
 	vec2 uv = UV;
 	if (flip > 0.5) {

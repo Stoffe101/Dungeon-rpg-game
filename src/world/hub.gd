@@ -143,6 +143,7 @@ func build(v: PixelView, at := Vector2(-1, -1)) -> void:
 			# dev: step through the gate a second after the camp loads (captures)
 			after(1.0, func() -> void: Game.begin_descent(String(Profile.data.descent.get("region", "ossuary"))))
 		_dev_net()
+		Profile.changed.connect(_on_profile_changed)
 		# (the very first sanctuary is built before Game has added Net)
 		_hook_party.call_deferred()
 		if not Profile.data.flags.get("intro_done", false):
@@ -186,49 +187,17 @@ func _place() -> void:
 			set_tile_solid(t, true)
 	gate_prop = Prop.make(self, "descent", Vector2i(20, 3), {"sheet": "descent", "anim": "idle", "prompt": "Descend into the Undervault", "radius": 2.2,
 		"light": [Color(0.35, 0.95, 0.85), 1.4, 7.0], "light_h": 1.4})
-	if int(camp.forge) > 0:
-		# the workshop grows with the forge's level (Profile.SANCTUARY.forge):
-		# furnace, anvil and smith; a quench barrel and a tool rack; then a
-		# master's bellows, banner and grindstone
-		var fl := int(camp.forge)
-		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "l3" if fl >= 3 else "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.8, "solid": true,
-			"solid_tiles": [Vector2i(8, 8), Vector2i(10, 8)], "light": [Color(1.0, 0.5, 0.25), 1.8, 7.0], "light_h": 0.9})
-		smith_prop = Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
-		anvil_prop = Prop.make(self, "anvil", Vector2i(12, 9), {"sheet": "anvil", "anim": "idle", "solid": true})
-		if fl >= 2:
-			quench_prop = Prop.make(self, "quench", Vector2i(14, 8), {"sheet": "quench", "anim": "idle", "solid": true})
-			Prop.make(self, "tool_rack", Vector2i(6, 9), {"sheet": "tool_rack", "solid": true})
-		if fl >= 3:
-			Prop.make(self, "grindstone", Vector2i(13, 11), {"sheet": "grindstone", "anim": "spin", "solid": true})
-	else:
-		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
-	# the rack fills as weapons are forged
-	var forged := int(camp.forged)
-	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack_display", "anim": "n%d" % mini(forged, 5), "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
+	_group("forge", _place_forge)
+	_group("forged", _place_rack)
 	# the peddler's stall: gear for Embers, restocked after every descent
 	Prop.make(self, "peddler", Vector2i(14, 15), {"sheet": "merchant", "anim": "idle", "prompt": "Browse the Peddler's wares", "radius": 1.4, "solid": true,
 		"light": [Color(1.0, 0.75, 0.4), 0.9, 3.5], "light_h": 1.0})
 	Prop.make(self, "peddler_crates", Vector2i(16, 15), {"sheet": "crates", "solid": true})
-	if int(camp.apothecary) > 0:
-		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary", "anim": "idle", "prompt": "Ember Apothecary", "radius": 1.6, "solid": true,
-			"light": [Color(1.0, 0.45, 0.5), 1.2, 5.0], "light_h": 1.0})
-	else:
-		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary_ruin", "prompt": "Build the Apothecary", "radius": 1.6, "solid": true})
-	if int(camp.shrine) > 0:
-		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial", "anim": "idle", "prompt": "Shrine of Memory", "radius": 1.6, "solid": true,
-			"light": [Color(0.75, 0.45, 0.95), 1.2, 5.0], "light_h": 1.4})
-	else:
-		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial_ruin", "prompt": "Raise the Shrine of Memory", "radius": 1.6, "solid": true})
+	_group("apothecary", _place_apothecary)
+	_group("shrine", _place_shrine)
 	Prop.make(self, "keeper", Vector2i(24, 13), {"sheet": "keeper", "anim": "idle", "prompt": "Speak with the Keeper", "radius": 1.2,
 		"light": [Color(1.0, 0.8, 0.5), 0.6, 3.0], "light_h": 1.2})
-	# the sanctuary grows: more lanterns lit with each Hearth level
-	var posts := [Vector2i(6, 5), Vector2i(36, 5), Vector2i(6, 19), Vector2i(36, 19), Vector2i(15, 5), Vector2i(27, 5), Vector2i(15, 19), Vector2i(27, 19)]
-	for i in posts.size():
-		var on := i < 2 + lvl * 2
-		var p := Prop.make(self, "lantern_post", posts[i], {"sheet": "lantern_post", "anim": "lit" if on else "unlit", "solid": true,
-			"light": [warm, 1.0, 5.0] if on else [warm, 0.0, 0.1], "light_h": 1.9})
-		if not on and p.light:
-			p.light.visible = false
+	_group("hearth", _place_posts)
 	# torches along the north wall
 	for x in [7, 13, 29, 35]:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
@@ -243,6 +212,196 @@ func _place() -> void:
 		var t := Vector2i(rng.randi_range(5, 37), rng.randi_range(5, 19))
 		if grid.at(t.x, t.y) == TileGrid.FLOOR and Vector2(t).distance_to(Vector2(21, 11)) > 3.0:
 			Prop.make(self, "decal", t, {"variant": rng.randi_range(0, 9), "row": "camp"})
+
+
+## Facilities are built in groups (every prop a group makes is tagged with it),
+## so one can be raised or improved in place (refresh_camp).
+func _group(id: String, build_fn: Callable) -> void:
+	var n := props.size()
+	build_fn.call()
+	for i in range(n, props.size()):
+		if is_instance_valid(props[i]):
+			(props[i] as Node).set_meta("facility", id)
+
+
+func _place_forge() -> void:
+	forge_prop = null
+	smith_prop = null
+	anvil_prop = null
+	quench_prop = null
+	if int(camp.forge) > 0:
+		# the workshop grows with the forge's level (Profile.SANCTUARY.forge):
+		# furnace, anvil and smith; a quench barrel and a tool rack; then a
+		# master's bellows, banner and grindstone
+		var fl := int(camp.forge)
+		forge_prop = Prop.make(self, "forge", Vector2i(9, 8), {"sheet": "forge", "anim": "l3" if fl >= 3 else "idle", "prompt": "Use the Forge: temper and forge weapons", "radius": 1.8, "solid": true,
+			"solid_tiles": [Vector2i(8, 8), Vector2i(10, 8)], "light": [Color(1.0, 0.5, 0.25), 1.8 + 0.3 * fl, 7.0 + 0.6 * fl], "light_h": 0.9})
+		smith_prop = Prop.make(self, "smith", Vector2i(11, 9), {"sheet": "smith", "anim": "idle", "prompt": "Smithy: craft and temper gear", "radius": 1.0})
+		anvil_prop = Prop.make(self, "anvil", Vector2i(12, 9), {"sheet": "anvil", "anim": "idle", "solid": true})
+		if fl >= 2:
+			quench_prop = Prop.make(self, "quench", Vector2i(14, 8), {"sheet": "quench", "anim": "idle", "solid": true})
+			Prop.make(self, "tool_rack", Vector2i(6, 9), {"sheet": "tool_rack", "solid": true})
+		if fl >= 3:
+			Prop.make(self, "grindstone", Vector2i(13, 11), {"sheet": "grindstone", "anim": "spin", "solid": true})
+	else:
+		Prop.make(self, "forge_ruin", Vector2i(9, 8), {"sheet": "forge_ruin", "prompt": "Rebuild the Forge", "radius": 1.6, "solid": true})
+
+
+## The Apothecary's pieces beside its counter: a cauldron (level 2), a drying
+## rack (level 3).
+func _apothecary_dressing(al: int) -> void:
+	if al >= 2:
+		Prop.make(self, "cauldron", Vector2i(35, 9), {"sheet": "cauldron", "anim": "bubble", "solid": true,
+			"light": [Color(1.0, 0.4, 0.35), 0.6, 2.4], "light_h": 0.4})
+	if al >= 3:
+		Prop.make(self, "herb_rack", Vector2i(31, 9), {"sheet": "herb_rack", "solid": true})
+
+
+## The rack fills as weapons are forged.
+func _place_rack() -> void:
+	var forged := int(camp.forged)
+	Prop.make(self, "rack", Vector2i(9, 13), {"sheet": "rack_display", "anim": "n%d" % mini(forged, 5), "prompt": "Choose Weapon", "radius": 1.2, "solid": true})
+
+
+func _place_apothecary() -> void:
+	var al := int(camp.apothecary)
+	if al > 0:
+		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary", "anim": "l%d" % clampi(al, 1, 3), "prompt": "Ember Apothecary: brew tinctures", "radius": 1.8, "solid": true,
+			"solid_tiles": [Vector2i(32, 8), Vector2i(34, 8)], "light": [Color(1.0, 0.45, 0.5), 1.0 + 0.3 * al, 4.0 + 0.8 * al], "light_h": 1.0})
+		_apothecary_dressing(al)
+	else:
+		Prop.make(self, "apothecary", Vector2i(33, 8), {"sheet": "apothecary_ruin", "prompt": "Build the Apothecary", "radius": 1.6, "solid": true})
+
+
+func _place_shrine() -> void:
+	if int(camp.shrine) > 0:
+		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial", "anim": "idle", "prompt": "Shrine of Memory", "radius": 1.6, "solid": true,
+			"light": [Color(0.75, 0.45, 0.95), 1.2, 5.0], "light_h": 1.4})
+	else:
+		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial_ruin", "prompt": "Raise the Shrine of Memory", "radius": 1.6, "solid": true})
+
+
+## The sanctuary grows: more lanterns lit with each Hearth level.
+func _place_posts() -> void:
+	var lvl := int(camp.hearth)
+	var warm := Color(1.0, 0.62, 0.32)
+	var posts := [Vector2i(6, 5), Vector2i(36, 5), Vector2i(6, 19), Vector2i(36, 19), Vector2i(15, 5), Vector2i(27, 5), Vector2i(15, 19), Vector2i(27, 19)]
+	for i in posts.size():
+		var on := i < 2 + lvl * 2
+		var p := Prop.make(self, "lantern_post", posts[i], {"sheet": "lantern_post", "anim": "lit" if on else "unlit", "solid": true,
+			"light": [warm, 1.0, 5.0] if on else [warm, 0.0, 0.1], "light_h": 1.9})
+		if not on and p.light:
+			p.light.visible = false
+
+
+var _camp_due := false
+
+
+func _on_profile_changed() -> void:
+	_camp_due = true
+
+
+## The camp changed while the Kindled stands in it (a facility raised or
+## improved, the Hearth fed, a weapon forged): only what changed is rebuilt, in
+## place - no fade, no reload, nobody set back by the fire (the whole camp used
+## to be rebuilt, and the Kindled with it). A guest's sanctuary follows the
+## host's the same way. Returns the groups it rebuilt.
+func refresh_camp(celebrate := true) -> Array:
+	var done: Array = []
+	if menu_mode:
+		return done
+	var old := camp
+	camp = current_camp()
+	Profile.visiting = {} if own_camp() else camp.duplicate()
+	for key in ["forge", "apothecary", "shrine", "hearth", "forged"]:
+		if old.get(key) != camp.get(key):
+			_rebuild_group(key, celebrate and int(camp.get(key, 0)) > int(old.get(key, 0)))
+			done.append(key)
+	if not done.is_empty():
+		if own_camp():
+			_signboards()
+		_ease_out_of_new_pieces()
+		if OS.is_debug_build():
+			print("[hub] camp rebuilt in place: %s" % ", ".join(PackedStringArray(done)))
+	return done
+
+
+func _rebuild_group(key: String, celebrate: bool) -> void:
+	var at := Vector2(-1, -1)
+	for p in props.duplicate():
+		if is_instance_valid(p) and String((p as Node).get_meta("facility", "")) == key:
+			if at.x < 0.0:
+				at = p.pos
+			_drop_prop(p)
+	match key:
+		"forge":
+			_group("forge", _place_forge)
+		"apothecary":
+			_group("apothecary", _place_apothecary)
+		"shrine":
+			_group("shrine", _place_shrine)
+		"forged":
+			_group("forged", _place_rack)
+		"hearth":
+			_group("hearth", _place_posts)
+			var lvl := int(camp.hearth)
+			if hearth_prop and hearth_prop.light:
+				hearth_prop.light.light_energy = 2.2 + 0.4 * lvl + 0.012 * float(camp.level)
+				hearth_prop.light.omni_range = 11.0 + 1.5 * lvl + 0.05 * float(camp.level)
+			if env:
+				env.ambient_light_energy = 0.55 + 0.06 * lvl
+			at = hearth_prop.pos if hearth_prop else at
+	if not celebrate or at.x < 0.0:
+		return
+	# the restoration: the new pieces rise out of a shower of sparks
+	for p in props:
+		if is_instance_valid(p) and String((p as Node).get_meta("facility", "")) == key and p.sprite:
+			p.sprite.set_dissolve(1.0)
+			var tw := create_tween()
+			tw.tween_interval(randf_range(0.0, 0.25))
+			tw.tween_method(p.sprite.set_dissolve, 1.0, 0.0, 0.7)
+	var col := {"forge": Color(1.0, 0.6, 0.3), "apothecary": Color(1.0, 0.5, 0.6), "shrine": Color(0.8, 0.55, 1.0), "hearth": Color(1.0, 0.75, 0.4), "forged": Color(1.0, 0.8, 0.5)}.get(key, Color(1.0, 0.7, 0.4)) as Color
+	fx.burst(at, 0.8, col, 36, 4.0, 0.7, 6.0, Vector2.UP, 1.4)
+	fx.motes(at, 0.6, col, 24, 2.2, 1.4, 0.8)
+	fx.flash_light(at, 1.2, col, 3.5, 7.0, 0.6)
+	fx.ring(at, 2.4, col, 0.5, 0.2)
+	fx.shake(0.12)
+	Audio.play_at("build", at, 0.0, 1.0, 200)
+	if key == "forge":
+		after(0.5, func() -> void: workshop_flare(true))
+
+
+func _drop_prop(p: Prop) -> void:
+	p.unsolid()
+	fx.unmark(p)
+	props.erase(p)
+	if p == forge_prop:
+		forge_prop = null
+	p.queue_free()
+
+
+## Whoever stands where a new piece now sits is eased to the nearest open
+## floor - a step, never back to the fire.
+func _ease_out_of_new_pieces() -> void:
+	if player == null:
+		return
+	var t := Vector2i(player.pos.floor())
+	if grid.at(t.x, t.y) == TileGrid.FLOOR:
+		return
+	var best := player.pos
+	var bd := INF
+	for dy in range(-3, 4):
+		for dx in range(-3, 4):
+			var q := t + Vector2i(dx, dy)
+			if grid.at(q.x, q.y) != TileGrid.FLOOR:
+				continue
+			var c := Vector2(q) + Vector2(0.5, 0.5)
+			var d := c.distance_to(player.pos)
+			if d < bd:
+				bd = d
+				best = c
+	player.pos = best
+	player.position = Iso.to_world(best, 0.0)
 
 
 ## The survivors' camp around the Hearth, and the spots residents gravitate to.
@@ -298,7 +457,8 @@ func _signboards() -> void:
 		var cost := Profile.building_cost(String(r[0]))
 		var price := ", ".join(PackedStringArray(cost.keys().map(func(k): return "%d %s" % [int(cost[k]), "Embers" if k == "embers" else ("Sunshard" if k == "sunshards" else String(k))])))
 		fx.signboard(p, 2.4, String(r[1]), "Rebuild: %s" % price, Color(1.0, 0.75, 0.35))
-		p.data["prompt"] = "%s  -  %s" % [String(p.data.get("prompt", "Rebuild")), r[2]]
+		if not String(p.data.get("prompt", "")).contains(String(r[2])):
+			p.data["prompt"] = "%s  -  %s" % [String(p.data.get("prompt", "Rebuild")), r[2]]
 
 
 ## What the camp keeps of the Kindled's story: trophies of fallen bosses, a
@@ -530,8 +690,12 @@ func _on_party_changed() -> void:
 
 
 func _on_camp_changed() -> void:
-	if not menu_mode and camp != current_camp():
-		Game.reload_hub()
+	if menu_mode or camp == current_camp():
+		return
+	if String(camp.get("host", "")) != String(current_camp().get("host", "")):
+		Game.reload_hub()      # another Kindled's sanctuary altogether
+	else:
+		refresh_camp()
 
 
 func _spawn_dummies() -> void:
@@ -605,6 +769,10 @@ func workshop_flare(big := false) -> void:
 
 
 func _stage_process(real: float) -> void:
+	if _camp_due:
+		_camp_due = false
+		if own_camp() and camp_of_profile() != camp:
+			refresh_camp()
 	_steam_t += real
 	if cookpot and _steam_t > 0.22:
 		_steam_t = 0.0

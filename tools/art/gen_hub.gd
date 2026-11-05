@@ -210,26 +210,121 @@ static func _rack(dir: String) -> void:
 	single(dir, "rack", c, Vector2i(14, 22))
 
 
+## The Ember Apothecary grows with its level: a bare counter of bottles (l1);
+## a back shelf of reagents and hanging herbs (l2); an ember-fed alembic whose
+## glass globe glows over the counter (l3). Its cauldron and drying rack are
+## separate pieces (they block their own tiles).
 static func _apothecary(dir: String) -> void:
-	var s := Sheet.new(32, 32, Vector2i(16, 30))
-	var fr: Array = []
-	for i in 4:
-		var c := Px.new(32, 32)
-		c.paint(c.mask().rect(2, 14, 28, 14), Pal.WOOD, 2, true)
-		c.paint(c.mask().rect(1, 12, 30, 3), Pal.WOOD, 3)
-		# bottles and an alembic
-		for k in 5:
-			var x := 4 + k * 5
-			var col: Array = [Pal.BLOOD, Pal.EMBER, Pal.SOUL, Pal.GOLD, Pal.GLOAM][k]
-			c.paint(c.mask().rect(x, 6, 3, 6), col, 3)
-			c.lit(x + 1, 8 + (i + k) % 3, col[4])
-			c.put(x + 1, 5, Pal.WOOD[3])
-		c.paint(c.mask().ellipse(26.0, 22.0, 3.0, 3.0), Pal.STEEL, 3)
-		c.lit(26, 18 - i % 2, Pal.BLOOD[4])
-		c.outline(Pal.INK)
-		fr.append(c)
-	s.add("idle", fr, 4.0)
+	var s := Sheet.new(48, 46, Vector2i(24, 42))
+	var bottle_cols: Array = [Pal.BLOOD, Pal.EMBER, Pal.SOUL, Pal.GOLD, Pal.GLOAM, Pal.MOSS, Pal.FROST]
+	for lvl in [1, 2, 3]:
+		var fr: Array = []
+		for i in 4:
+			var c := Px.new(48, 46)
+			if lvl >= 2:
+				# the back shelf: two posts, three boards, reagents in rows
+				c.paint(c.mask().rect(7, 4, 3, 22), Pal.WOOD, 1)
+				c.paint(c.mask().rect(38, 4, 3, 22), Pal.WOOD, 1)
+				for sy: int in [6, 13]:
+					c.paint(c.mask().rect(7, sy + 5, 34, 2), Pal.WOOD, 2)
+					for k in 7:
+						var bx := 11 + k * 4
+						var col: Array = bottle_cols[(k * 3 + sy) % bottle_cols.size()]
+						var tall: int = 3 + (k + int(sy)) % 3
+						c.paint(c.mask().rect(bx, sy + 5 - tall, 2, tall), col, 2)
+						if Px.hash01(k, sy, i / 2) > 0.45:
+							c.lit(bx, sy + 5 - tall + 1, col[3])
+				c.paint(c.mask().rect(6, 3, 36, 2), Pal.WOOD, 3)
+				# herbs drying from the top board
+				for k in 4:
+					var hx := 12 + k * 7
+					var hcol: Array = Pal.MOSS if k % 2 == 0 else Pal.GOLD
+					c.paint(c.mask().poly(V([[hx - 2, 5], [hx + 2, 5], [hx + 1, 10 + k % 2], [hx - 1, 10 + k % 2]])), hcol, 2)
+			# the counter: a thick plank on a panelled body
+			var body := c.mask().rect(5, 26, 38, 15)
+			c.paint(body, Pal.WOOD, 2, true)
+			for px in [12, 24, 36]:
+				c.paint(c.mask().rect(px - 4, 29, 8, 9), Pal.WOOD, 1, false, false)
+			c.paint(c.mask().rect(3, 23, 42, 4), Pal.WOOD, 3)
+			# bottles on the counter
+			for k in 4:
+				var bx2 := 7 + k * 5
+				var col2: Array = bottle_cols[k]
+				c.paint(c.mask().rect(bx2, 16, 3, 7), col2, 3)
+				c.put(bx2 + 1, 15, Pal.WOOD[3])
+				c.lit(bx2 + 1, 18 + (i + k) % 3, col2[4])
+			if lvl < 3:
+				# a small still of beaten steel, a drop of ember under it
+				c.paint(c.mask().ellipse(36.0, 19.0, 4.0, 4.0), Pal.STEEL, 3)
+				c.paint(c.mask().rect(35, 12, 2, 4), Pal.STEEL, 2)
+				c.lit(36, 22, Pal.EMBER[3 + i % 2])
+				c.lit(36 + (i % 2), 10 - i % 3, Pal.BLOOD[4])
+			else:
+				# the ember alembic: a glass globe on a brass cradle, its fire below
+				# breathing; copper coils down to a dripping flask
+				var globe := c.mask().ellipse(31.0, 11.0, 7.0, 7.0)
+				c.paint(globe, Pal.SOUL, 2)
+				var inner := c.mask().ellipse(31.0, 12.0 - (i % 2), 5.0, 4.0 + (i % 2))
+				c.fill_lit(inner, Pal.EMBER[4 if i % 3 == 0 else 3])
+				c.lit(29, 8, Pal.SOUL[5])
+				c.lit(28, 9, Pal.SOUL[4])
+				c.paint(c.mask().rect(27, 18, 9, 2), Pal.GOLD, 2)
+				c.paint(c.mask().rect(30, 20, 3, 3), Pal.GOLD, 1)
+				for k in 4:
+					c.put(38 + k, 9 + k * 3, Pal.GOLD[2 + k % 2])
+					c.put(39 + k, 10 + k * 3, Pal.GOLD[3])
+				c.paint(c.mask().rect(41, 18, 3, 5), Pal.BLOOD, 3)
+				c.lit(42, 17 - (i % 2), Pal.BLOOD[4])
+				c.lit(31, 22, Pal.EMBER[4 + i % 2])
+				for k in 3:
+					c.lit(25 + (k * 5 + i * 2) % 12, 3 - (i + k) % 3, Pal.EMBER[4])
+			c.outline(Pal.INK)
+			fr.append(c)
+		s.add("l%d" % lvl, fr, 4.0)
 	s.save(dir, "apothecary")
+	# the cauldron (level 2): an iron pot on embers, its brew rising in bubbles
+	var cs := Sheet.new(24, 24, Vector2i(12, 21))
+	var cf: Array = []
+	for i in 6:
+		var c := Px.new(24, 24)
+		for lx in [5, 18]:
+			c.paint(c.mask().rect(lx, 17, 2, 5), Pal.STEEL, 1)
+		for k in 5:
+			c.lit(7 + k * 2, 20 - (k + i) % 2, Pal.EMBER[3 + (k + i) % 3])
+		var pot := c.mask().ellipse(12.0, 13.0, 9.0, 6.0)
+		c.paint(pot, Pal.STEEL, 2, true)
+		c.paint(c.mask().rect(2, 8, 20, 2), Pal.STEEL, 3)
+		var brew := c.mask().ellipse(12.0, 8.0, 7.0, 1.6)
+		c.fill_lit(brew, Pal.BLOOD[3])
+		for k in 3:
+			var bx := 7 + (k * 5 + i * 3) % 11
+			var by := 7 - ((i + k * 2) % 6)
+			if by >= 0:
+				c.lit(bx, by, Pal.BLOOD[4] if k != 1 else Pal.EMBER[4])
+		c.outline(Pal.INK)
+		cf.append(c)
+	cs.add("bubble", cf, 7.0)
+	cs.save(dir, "cauldron")
+	# the drying rack (level 3): bundles of herbs, roots and sun-dried berries
+	var rs := Sheet.new(22, 32, Vector2i(11, 30))
+	var rf: Array = []
+	for i in 2:
+		var c := Px.new(22, 32)
+		c.paint(c.mask().rect(2, 3, 2, 27), Pal.WOOD, 2)
+		c.paint(c.mask().rect(18, 3, 2, 27), Pal.WOOD, 2)
+		for by: int in [4, 15]:
+			c.paint(c.mask().rect(1, by, 20, 2), Pal.WOOD, 3)
+			for k in 4:
+				var hx := 5 + k * 4
+				var col: Array = [Pal.MOSS, Pal.GOLD, Pal.MOSS, Pal.EARTH][(k + by) % 4]
+				var sway := (i + k) % 2
+				c.paint(c.mask().poly(V([[hx - 1, by + 2], [hx + 2, by + 2], [hx + 1 + sway, by + 8], [hx + sway, by + 8]])), col, 2)
+				if k == 2 and by == 15:
+					c.put(hx + sway, by + 9, Pal.BLOOD[3])
+		c.outline(Pal.INK)
+		rf.append(c)
+	rs.add("idle", rf, 1.0)
+	rs.save(dir, "herb_rack")
 	var r := Px.new(32, 24)
 	r.paint(r.mask().poly(V([[2, 22], [6, 12], [14, 16], [20, 10], [30, 22]])), Pal.WOOD, 1, true)
 	for k in 4:
