@@ -498,6 +498,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 			Profile.scrolls().append(b)
 	for r in spoils.get("runes", []):
 		Profile.add_rune(String(r))
+	for rg in spoils.get("reagents", []):
+		Profile.add_reagent(String(rg))
 	var feats := Feats.check()
 	Ledger.note("settled", {"xp_gained": run.xp_gained, "omen_xp": omen_xp, "embers_kept": int(s.embers_kept)})
 	Ledger.finish(outcome)

@@ -36,7 +36,7 @@ var seen_rooms := 0
 ## Materials picked up this expedition, banked at the end (half on a death).
 ## (Gear, runes and blueprints go into the Satchel when found - see `found` -
 ## and only a run saved before that change still carries them here.)
-var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": []}
+var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": [], "reagents": []}
 ## Everything of one's own found this expedition: [{kind, what, drop}] (the
 ## summary's list; each was banked the moment it was taken).
 var found: Array = []
@@ -116,7 +116,7 @@ func has_omen(id: String) -> bool:
 
 ## What was found, in the summary's shape: {gear, runes, blueprints, materials}.
 func found_summary() -> Dictionary:
-	var out := {"materials": (loot.materials as Dictionary).duplicate(), "gear": [], "runes": [], "blueprints": []}
+	var out := {"materials": (loot.materials as Dictionary).duplicate(), "gear": [], "runes": [], "blueprints": [], "reagents": []}
 	for f in found:
 		match String(f.get("kind", "")):
 			"gear":
@@ -125,7 +125,9 @@ func found_summary() -> Dictionary:
 				(out.runes as Array).append(f.what)
 			"blueprint":
 				(out.blueprints as Array).append(f.what)
-	for k in ["gear", "runes", "blueprints"]:
+			"reagent":
+				(out.reagents as Array).append(f.what)
+	for k in ["gear", "runes", "blueprints", "reagents"]:
 		(out[k] as Array).append_array(loot.get(k, []))
 	return out
 
@@ -142,7 +144,7 @@ func settle_loot(outcome: String) -> Dictionary:
 		var n := int(loot.materials[k])
 		mats[k] = int(floor(n * DEATH_KEEP)) if outcome == "died" else n
 	return {"materials": mats, "gear": (loot.gear as Array).duplicate(true), "blueprints": (loot.get("blueprints", []) as Array).duplicate(),
-		"runes": (loot.get("runes", []) as Array).duplicate()}
+		"runes": (loot.get("runes", []) as Array).duplicate(), "reagents": (loot.get("reagents", []) as Array).duplicate()}
 
 
 ## Works out what the profile keeps from this run. Pure so it can be tested.

@@ -1518,6 +1518,8 @@ func _drop_loot(e: Enemy) -> void:
 			_rune_drop(e.pos)
 		var rare: String = {"rootmire": "spore_silk", "throne": "sun_gold"}.get(layout.region, "soul_glass")
 		Pickup.spawn(self, "material", e.pos, rng.randi_range(1, 2), {"id": rare})
+		# the region's reagent for the Apothecary
+		_reagent_drop(e.pos + Vector2(0.4, 0.3), Tinctures.region_reagent(layout.region), 0.3)
 		if rng.randf() < 0.3:
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth, rng, 0.1, run.tier, _favour))
 	if e == boss:
@@ -1525,6 +1527,7 @@ func _drop_loot(e: Enemy) -> void:
 		_rune_drop(e.pos)
 		var cat: String = {"rootmire": "bloom_heart", "throne": "eclipse_shard"}.get(layout.region, "warden_sigil")
 		Pickup.spawn(self, "material", e.pos, 2, {"id": cat})
+		_reagent_drop(e.pos + Vector2(-0.6, 0.4), "ashen_marrow", 1.0)
 		var leg: String = {"rootmire": "bloom_crown", "throne": "sunfall_mantle"}.get(layout.region, "gloamward_lantern")
 		var flag := "legendary_" + leg
 		var had_first := bool(Profile.data.flags.get(flag, false))
@@ -1619,6 +1622,20 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 		else:
 			Pickup.spawn(self, "material", prop.pos, 2, {"id": "ember_core"})
 	_maybe_blueprint(prop.pos, (0.015 + 0.005 * run.tier) if tier <= 1 else (0.06 + 0.02 * run.tier))
+	if tier >= 2:
+		_reagent_drop(prop.pos + Vector2(0.5, 0.5), "wardmoth_milk", 0.3)
+
+
+## A reagent for the Apothecary: one for each Kindled, theirs alone (like a
+## rune). The first of a kind teaches a tincture; more distil it.
+func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
+	if rng.randf() >= chance:
+		return
+	if players.size() <= 1:
+		Pickup.spawn(self, "reagent", p, 1, {"id": id})
+		return
+	for pl in players:
+		Pickup.spawn(self, "reagent", p, 1, {"id": id}, pl.peer_id)
 
 
 ## Counts progress on residents' requests and tells the player when one is done.

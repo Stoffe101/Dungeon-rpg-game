@@ -111,6 +111,8 @@ var hearthfire_t := 0.0       # Hearthfire Form
 var hearthfire_power := 1.0
 var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
+var salt_t := 0.0             # Grave-salt: no affliction takes hold
+var tonic_chill_t := 0.0      # Gloamwater: every blow landed chills
 var rush_refund := 0.0        # Ember Rush through the burning: part of its cooldown back
 var _orb_cast_t := 0.0        # co-op client: a Cinder Orb of its own still drifting (a press bursts it)
 var _fire_mote_t := 0.0
@@ -824,6 +826,11 @@ func _timers(dt: float) -> void:
 	gloam_t = maxf(0.0, gloam_t - dt)
 	channel_t = maxf(0.0, channel_t - dt)
 	haste_t = maxf(0.0, haste_t - dt)
+	tonic_chill_t = maxf(0.0, tonic_chill_t - dt)
+	if salt_t > 0.0:
+		# Grave-salt: no burning, chill or other affliction takes hold
+		salt_t -= dt
+		status.clear()
 	if hearthfire_t > 0.0:
 		# hearth-fire: cold cannot hold it, and the lantern feeds
 		hearthfire_t -= dt
@@ -1081,19 +1088,58 @@ func _drink() -> void:
 	if weapon:
 		weapon.cancel()
 	if predicting:
-		_hold("flask")     # the host heals
+		_hold("flask")     # the host heals (and pours the tincture)
 	else:
-		heal(max_hp * stats.v("flask_heal") * stats.v("heal_mult"))
+		_pour()
+	var tcol: Color = Tinctures.get_def(String(tincture().get("id", "hearthbalm"))).color
 	cosmetic(func() -> void:
 		Audio.play("flask", 0.0)
-		# hearth-fire rises through you: motes, a warm ring, a soft flash of light
-		stage.fx.motes(pos, 0.4, Color(1.0, 0.75, 0.4), 18, 1.6, 0.8, 0.4)
+		# hearth-fire rises through you, in the colour of what the flask is steeped with
+		stage.fx.motes(pos, 0.4, tcol, 18, 1.6, 0.8, 0.4)
 		stage.fx.motes(pos, 0.1, Color(0.6, 1.0, 0.6), 10, 2.2, 0.7, 0.3)
-		stage.fx.ring(pos, 1.3, Color(1.0, 0.8, 0.45), 0.35, 0.2)
-		stage.fx.flash_light(pos, 1.0, Color(1.0, 0.75, 0.45), 2.0, 4.0, 0.4))
+		stage.fx.ring(pos, 1.3, tcol, 0.35, 0.2)
+		stage.fx.flash_light(pos, 1.0, tcol, 2.0, 4.0, 0.4))
 	if sprite and controller != Ctrl.REMOTE:
 		sprite.flash(Color(1.0, 0.85, 0.55), 0.25)
 		Settings.rumble(0.25, 0.0, 0.15)
+
+
+## What this Kindled's flask is steeped with ({id, rank}; another Kindled's
+## comes from their sheet - the host pours a guest's draught).
+func tincture() -> Dictionary:
+	if not sheet.is_empty():
+		var t: Variant = sheet.get("tincture", {})
+		return t if t is Dictionary else {}
+	return Profile.tincture()
+
+
+## The drink itself (host side): the heal, and the tincture's work.
+func _pour() -> void:
+	var base := max_hp * stats.v("flask_heal") * stats.v("heal_mult")
+	var tc := tincture()
+	var id := String(tc.get("id", ""))
+	var rk := int(tc.get("rank", 0))
+	if id == "" or rk <= 0 or not Tinctures.TINCTURES.has(id):
+		heal(base)
+		return
+	var mult := Tinctures.at(id, "heal", rk)
+	if id == "last_ember" and hp_ratio() < 0.34:
+		mult = Tinctures.at(id, "low", rk)
+	heal(base * mult)
+	match id:
+		"kindleroot":
+			kindle = stats.v("kindle_max")
+		"wardmilk":
+			barrier = maxf(barrier, roundf(max_hp * Tinctures.at(id, "barrier", rk)))
+			barrier_t = maxf(barrier_t, 5.0)
+		"sunwater":
+			haste_t = maxf(haste_t, Tinctures.at(id, "haste", rk))
+			dodge_charges = stats.v("dodge_charges")
+		"salt":
+			status.clear()
+			salt_t = Tinctures.at(id, "ward", rk)
+		"gloamwater":
+			tonic_chill_t = Tinctures.at(id, "chill", rk)
 
 
 func _deny_flask() -> void:
@@ -1189,6 +1235,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if stats.has("stillness") and still_t >= 0.6:
 		mult *= 1.4
 		h.chill = maxf(h.chill, 0.2)
+	if direct and tonic_chill_t > 0.0:
+		h.chill = maxf(h.chill, 0.3)     # Gloamwater
 	if stats.has("ashbringer") and float(t.get_meta("ashen_until", -1.0)) > stage.elapsed:
 		mult *= 1.25
 	if direct and stats.has("headsman") and t.hp_ratio() < 0.25:

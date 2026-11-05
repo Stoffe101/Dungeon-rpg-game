@@ -590,6 +590,10 @@ func peddler() -> void:
 	open(PeddlerUI.new())
 
 
+func apothecary() -> void:
+	open(ApothecaryUI.new())
+
+
 func skill_tree() -> void:
 	open(SkillTreeUI.new()).set_meta("own_nav", true)
 

@@ -443,7 +443,7 @@ func _camp() -> void:
 func _signboards() -> void:
 	var ruins := {
 		"forge_ruin": ["forge", "RUINED FORGE", "Brings back the smith"],
-		"apothecary": ["apothecary", "RUINED APOTHECARY", "More, stronger flasks"],
+		"apothecary": ["apothecary", "RUINED APOTHECARY", "Flasks, and tinctures to steep them with"],
 		"memorial": ["shrine", "FALLEN SHRINE", "Settle Grudges for more"],
 	}
 	if not own_camp():
@@ -875,11 +875,20 @@ func request(what: String, prop: Prop) -> void:
 				Game.ui.toast("%s's camp has no working forge yet." % Net.name_of(1), UIKit.C_DIM)
 		"peddler":
 			Game.ui.peddler()
-		"apothecary", "memorial":
-			if what == "memorial" and Profile.building("shrine") > 0:
+		"apothecary":
+			# the Apothecary of the camp you stand in: a guest steeps their own
+			# flask at the host's; only your own camp's ruin can be rebuilt
+			if Profile.facility("apothecary") > 0:
+				Game.ui.apothecary()
+			elif own_camp():
+				Game.ui.sanctuary_build("apothecary")
+			else:
+				Game.ui.toast("%s's Apothecary lies in ruins - it is theirs to rebuild." % Net.name_of(1), UIKit.C_DIM)
+		"memorial":
+			if Profile.building("shrine") > 0:
 				Game.ui.memorial()
 			else:
-				Game.ui.sanctuary_build({"apothecary": "apothecary", "memorial": "shrine"}[what])
+				Game.ui.sanctuary_build("shrine")
 		"keeper":
 			prop.sprite.play("talk")
 			prop.sprite.process_mode = Node.PROCESS_MODE_ALWAYS

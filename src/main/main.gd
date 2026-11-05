@@ -204,6 +204,8 @@ func _open_dev_screen(what: String) -> void:
 			ui.smithy()
 		"peddler":
 			ui.peddler()
+		"apothecary":
+			ui.apothecary()
 		"relic":
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)

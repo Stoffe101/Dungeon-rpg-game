@@ -262,3 +262,74 @@ static func _around(g: TileGrid, solid: Dictionary, seen: Dictionary, c: Vector2
 		out += "
 "
 	return out
+
+
+# --- the Ember Apothecary ----------------------------------------------------------------
+
+func test_a_v13_save_gains_an_apothecary_record_untouched_otherwise() -> void:
+	var old := Profile.fresh()
+	old.erase("alchemy")
+	old["version"] = 13
+	old["embers"] = 321
+	var m := Profile.migrate(old)
+	check(m.get("alchemy") is Dictionary, "alchemy added")
+	eq(String(m.alchemy.steeped), "hearthbalm", "Hearthbalm steeped")
+	eq(int(m.embers), 321, "nothing else changes")
+	eq(int(m.version), Profile.VERSION, "at the current version")
+
+
+func test_reagents_teach_and_distil_tinctures() -> void:
+	Profile.data = Profile.fresh()
+	check(not Profile.tincture_known("kindleroot"), "unknown before its reagent")
+	eq(Profile.tincture_rank("hearthbalm"), 0, "no Apothecary: nothing steeped")
+	eq(String(Profile.tincture().id), "", "a plain flask")
+	Profile.data.sanctuary.apothecary = 1
+	check(Profile.bank_find("reagent", "kindleroot", "r1/1/1"), "a reagent banked")
+	check(not Profile.bank_find("reagent", "kindleroot", "r1/1/1"), "the same drop is never banked twice")
+	check(Profile.tincture_known("kindleroot"), "the first reagent teaches")
+	eq(Profile.tincture_rank("kindleroot"), 1, "rank I")
+	Profile.add_reagent("kindleroot")
+	Profile.add_reagent("kindleroot")
+	eq(Profile.tincture_rank("kindleroot"), 2, "more distil it - to II while the Apothecary is not restored")
+	Profile.data.sanctuary.apothecary = 3
+	eq(Profile.tincture_rank("kindleroot"), 3, "III once it is")
+	check(Profile.steep("kindleroot"), "steeped")
+	eq(String(Profile.character_sheet().tincture.id), "kindleroot", "the sheet carries it (a host pours a guest's draught)")
+	check(not Profile.steep("gloamwater"), "an unknown tincture cannot be steeped")
+
+
+func test_each_tincture_changes_what_a_drink_does() -> void:
+	var st := _stage()
+	var pl := _player(st)
+	Profile.data.sanctuary.apothecary = 3
+	for r in ["kindleroot", "wardmoth_milk", "sunwater", "grave_salt", "ashen_marrow", "gloamcap"]:
+		Profile.add_reagent(r)
+	pl.sync_gear(true)
+	var drink := func(id: String, hp_frac: float) -> float:
+		Profile.steep(id)
+		pl.hp = pl.max_hp * hp_frac
+		pl.flask = 3
+		var before := pl.hp
+		pl._drink()
+		return pl.hp - before
+	pl.kindle = 0.0
+	var k_heal: float = drink.call("kindleroot", 0.3)
+	near(pl.kindle, pl.stats.v("kindle_max"), 0.01, "Kindleroot fills the Kindle")
+	var h_heal: float = drink.call("hearthbalm", 0.3)
+	check(k_heal < h_heal, "...and heals less than Hearthbalm (%.0f < %.0f)" % [k_heal, h_heal])
+	pl.barrier = 0.0
+	drink.call("wardmilk", 0.3)
+	check(pl.barrier > 0.0 and pl.barrier_t > 0.0, "Wardmilk leaves a barrier (%.0f)" % pl.barrier)
+	pl.haste_t = 0.0
+	pl.dodge_charges = 0.0
+	drink.call("sunwater", 0.3)
+	check(pl.haste_t > 0.0 and pl.dodge_charges >= pl.stats.v("dodge_charges"), "Sunwater: haste and the dodges back")
+	pl.status.apply_chill(2.0)
+	drink.call("salt", 0.3)
+	check(pl.status.chill <= 0.0 and pl.salt_t > 0.0, "Grave-salt washes the chill off and wards")
+	var low: float = drink.call("last_ember", 0.2)
+	var high: float = drink.call("last_ember", 0.6)
+	check(low > high * 2.0, "Last Ember heals far more on the edge (%.0f vs %.0f)" % [low, high])
+	drink.call("gloamwater", 0.3)
+	check(pl.tonic_chill_t > 0.0, "Gloamwater: blows chill for a while")
+	st.queue_free()
