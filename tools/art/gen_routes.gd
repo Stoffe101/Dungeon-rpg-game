@@ -19,6 +19,30 @@ static func V(pts: Array) -> PackedVector2Array:
 static func build(dir: String) -> void:
 	_seal(dir)
 	_vigil(dir)
+	_door_posts(dir)
+
+
+## The stone that frames a doorway, one per region (row): a post standing
+## proud of the wall, capped, lit down one side - so an opening reads as a door
+## and not a gap in the masonry.
+static func _door_posts(dir: String) -> void:
+	var s := Sheet.new(14, 40, Vector2i(7, 38))
+	for spec in [["ossuary", Pal.STONE, 3, Pal.BONE], ["rootmire", Pal.WOOD, 2, Pal.MOSS], ["throne", Pal.OBSIDIAN, 3, Pal.GOLD]]:
+		var r: Array = spec[1]
+		var b: int = spec[2]
+		var acc: Array = spec[3]
+		var c := Px.new(14, 40)
+		c.paint(c.mask().rect(2, 6, 10, 28), r, b, true)
+		c.paint(c.mask().rect(1, 3, 12, 4), r, b + 1)
+		c.paint(c.mask().rect(0, 33, 14, 5), r, b, true)
+		for y in range(8, 32, 6):
+			c.put(4, y, r[b - 1])
+			c.put(9, y + 2, r[b - 1])
+		c.paint(c.mask().rect(5, 12, 4, 6), acc, 2)
+		c.put(6, 14, Pal.INK)
+		c.outline(Pal.INK)
+		s.add(String(spec[0]), [c], 1.0)
+	s.save(dir, "door_post")
 
 
 ## A squat black-stone obelisk on a cracked plinth, bound by two chains, an

@@ -29,12 +29,13 @@ class LevelTheme:
 	var top_tex: Texture2D
 	var ledge_tex: Texture2D
 	var pit_tex: Texture2D
+	var pit_wall_tex: Texture2D
 	var pillar_tex: Texture2D
 	var floor_tint := Color.WHITE
 	var wall_tint := Color.WHITE
 	var grime := 0.0
 	var grime_color := Color(0.35, 0.3, 0.32)
-	var floor_contrast := 0.74      # floors quieter than what stands on them
+	var floor_contrast := 0.95      # (the floor textures are quiet themselves now)
 	var rim := Color(0.5, 0.52, 0.62)   # the dressed stone of a wall's cap edge
 
 	## `depth_k`: which of the region's three depths (1-3): the second and third
@@ -48,6 +49,7 @@ class LevelTheme:
 		t.top_tex = load("res://assets/textures/%s_top.png" % n)
 		t.ledge_tex = load("res://assets/textures/%s_ledge.png" % n)
 		t.pit_tex = load("res://assets/textures/pit.png")
+		t.pit_wall_tex = load("res://assets/textures/pit_wall.png")
 		t.pillar_tex = load("res://assets/textures/%s_pillar.png" % n)
 		match n:
 			"crypt":
@@ -66,7 +68,6 @@ class LevelTheme:
 				t.grime = 0.4
 				t.grime_color = Color(0.6, 0.48, 0.42)
 				t.rim = Color(0.62, 0.48, 0.4)
-				t.floor_contrast = 0.85
 		return t
 
 
@@ -115,7 +116,7 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 		"ledge": material(theme.ledge_tex, theme.wall_tint, SURFACE.ledge),
 		"pit": material(theme.pit_tex, Color.WHITE, SURFACE.pit),
 		"pillar": material(theme.pillar_tex, theme.wall_tint, SURFACE.pillar),
-		"pitwall": material(theme.wall_tex, theme.wall_tint, SURFACE.pit),
+		"pitwall": material(theme.pit_wall_tex, Color.WHITE, SURFACE.pit),
 	}
 	var fm := mats.floor as ShaderMaterial
 	fm.set_shader_parameter("grime", theme.grime)
@@ -124,6 +125,8 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 	fm.set_shader_parameter("mid", mid_of(theme.floor_tex))
 	for k in ["top", "pitwall"]:
 		(mats[k] as ShaderMaterial).set_shader_parameter("rim_color", theme.rim)
+	# (a cap is one flat value: the light's band dither would stipple all of it)
+	(mats.top as ShaderMaterial).set_shader_parameter("dither_strength", 0.15)
 	var tex_sizes := {
 		"floor": theme.floor_tex.get_size(),
 		"wall": theme.wall_tex.get_size(),
@@ -131,7 +134,7 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 		"ledge": theme.ledge_tex.get_size(),
 		"pit": theme.pit_tex.get_size(),
 		"pillar": theme.pillar_tex.get_size(),
-		"pitwall": theme.wall_tex.get_size(),
+		"pitwall": theme.pit_wall_tex.get_size(),
 	}
 	var mass := mass_depth(grid)
 	for cy in cy_n:
@@ -262,11 +265,11 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 			[Vector2(0, 1), Vector2(0, 1), Vector2(0, 1), Vector2(0, 1)])
 		# the far (north) inner wall of the pit faces the camera
 		if grid.at(x, y - 1) != TileGrid.PIT:
-			var ws: Vector2 = ts.wall
+			var ws: Vector2 = ts.pitwall
 			var u0 := x * 16.0 / ws.x
 			var u1 := (x + 1) * 16.0 / ws.x
 			_quad(tools.pitwall, Vector3(x0, 0, z0), Vector3(x0, depth, z0), Vector3(x1, depth, z0), Vector3(x1, 0, z0), Vector3.BACK,
-				Vector2(u0, 0.0), Vector2(u0, PIT_DEPTH / 2.0), Vector2(u1, PIT_DEPTH / 2.0), Vector2(u1, 0.0),
+				Vector2(u0, 0.0), Vector2(u0, PIT_DEPTH * 16.0 / ws.y), Vector2(u1, PIT_DEPTH * 16.0 / ws.y), Vector2(u1, 0.0),
 				[Vector2(PIT_DEPTH, 0), Vector2(PIT_DEPTH, 1), Vector2(PIT_DEPTH, 1), Vector2(PIT_DEPTH, 0)])
 	elif t == TileGrid.WALL or t == TileGrid.PILLAR:
 		var hh := grid.wall_height(x, y)

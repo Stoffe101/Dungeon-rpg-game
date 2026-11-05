@@ -53,6 +53,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
+	_place_door_frames()
 	_place_door_icons()
 	if grudge_room >= 0:
 		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
@@ -361,6 +362,32 @@ func _place_gates() -> void:
 				g.set_meta("tile", t)
 				nodes.append(g)
 		gate_nodes[r.id] = nodes
+
+
+## Doorways on the north and south of a room are framed by stone posts: an
+## opening reads as a door, and its width as what it is. (Plain sprites, like
+## the gates: nothing to replicate, every machine places the same.)
+func _place_door_frames() -> void:
+	var seen := {}
+	var anim: String = {"rootmire": "rootmire", "throne": "throne"}.get(layout.region, "ossuary")
+	for r in layout.rooms:
+		for d in r.doors:
+			if d.secret or d.dir.y == 0 or (d.tiles as Array).is_empty():
+				continue
+			var lo: Vector2i = d.tiles[0]
+			var hi: Vector2i = d.tiles[0]
+			for t: Vector2i in d.tiles:
+				lo.x = mini(lo.x, t.x)
+				hi.x = maxi(hi.x, t.x)
+			for x in [lo.x - 1, hi.x + 1]:
+				var t := Vector2i(x, lo.y)
+				if seen.has(t) or grid.at(t.x, t.y) != TileGrid.WALL:
+					continue
+				seen[t] = true
+				var p := PixelSprite.new()
+				add_child(p)
+				p.setup("door_post", anim)
+				p.position = Iso.to_world(Vector2(t) + Vector2(0.5, 1.02), 0.0)
 
 
 func _place_door_icons() -> void:

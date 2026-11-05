@@ -52,15 +52,16 @@ static func _floor(dir: String, theme: String, d: int) -> void:
 	var h := img.get_height()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(theme) + d * 101
+	var m: int = maxi(1, w * h / (128 * 128))      # as many marks per tile on bigger floors
 	match theme:
 		"crypt":
 			if d == 2:
 				# the Charnel Galleries: bones set in the paving, more cracks, old stains
-				for k in 14:
+				for k in 14 * m:
 					_bone(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 10:
+				for k in 10 * m:
 					_crack(img, rng.randi_range(0, w), rng.randi_range(0, h), rng, Pal.STONE[0])
-				for k in 5:
+				for k in 5 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(5.0, 10.0), Pal.BLOOD[0], 0.25)
 			else:
 				# the Warden's Deep: darker, wet, soul-light glowing in the seams
@@ -69,23 +70,23 @@ static func _floor(dir: String, theme: String, d: int) -> void:
 					for x in w:
 						if _seam(img, x, y) and Px_hash(x, y, 5) > 0.3:
 							_blend(img, x, y, Pal.SOUL[4], 0.85)
-				for k in 4:
+				for k in 4 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(8.0, 14.0), Pal.FROST[1], 0.35)
-				for k in 8:
+				for k in 8 * m:
 					_crack(img, rng.randi_range(0, w), rng.randi_range(0, h), rng, Pal.SOUL[1])
 		"root":
 			if d == 2:
 				# the Sporefields: fungus caps and pale spore bloom
-				for k in 22:
+				for k in 22 * m:
 					_cap(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 6:
+				for k in 6 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(6.0, 12.0), Pal.MOSS[3], 0.2)
 			else:
 				# the Bloom's Heart: red veins of the Bloom run through everything
 				_tint(img, Color(1.0, 0.86, 0.88), 0.25)
-				for k in 9:
+				for k in 9 * m:
 					_vein(img, rng.randi_range(0, w), rng.randi_range(0, h), rng)
-				for k in 10:
+				for k in 10 * m:
 					var x := rng.randi_range(0, w)
 					var y := rng.randi_range(0, h)
 					_put(img, x, y, Pal.BLOOD[3])
@@ -93,11 +94,11 @@ static func _floor(dir: String, theme: String, d: int) -> void:
 		"throne":
 			if d == 2:
 				# the Court of Ash: drifts of ash, scorch where the fire walked
-				for k in 7:
+				for k in 7 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(7.0, 13.0), Pal.STONE[4], 0.3)
-				for k in 5:
+				for k in 5 * m:
 					_stain(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randf_range(5.0, 9.0), Color(0.08, 0.06, 0.07), 0.45)
-				for k in 40:
+				for k in 40 * m:
 					_blend(img, rng.randi_range(0, w), rng.randi_range(0, h), Pal.EMBER[2], 0.6)
 			else:
 				# the Last Sun's Seat: gold in the seams and a sun in the floor

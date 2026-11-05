@@ -29,13 +29,8 @@ static func limb(c: Px, pts: Array, r: Array, base: int, thick := 2) -> void:
 
 
 static func build_tiles(dir: String) -> void:
-	_floor(dir.path_join("throne_floor.png"), 128, 71)
-	GenTiles._wall(dir.path_join("throne_wall.png"), 64, Pal.OBSIDIAN, 2, 72)
-	_gold_band(dir.path_join("throne_wall.png"))
-	GenTiles._top(dir.path_join("throne_top.png"), 64, Pal.OBSIDIAN, 73)
+	# (floor, wall, cap and column come from gen_stone.gd with the other regions)
 	GenTiles._ledge(dir.path_join("throne_ledge.png"), 64, Pal.OBSIDIAN, 2, 74)
-	GenTiles._pillar(dir.path_join("throne_pillar.png"), Pal.OBSIDIAN, 2)
-	_gold_capital(dir.path_join("throne_pillar.png"))
 
 
 static func build(dir: String) -> void:
@@ -45,87 +40,6 @@ static func build(dir: String) -> void:
 	_wraith(dir)
 	_king(dir)
 	_projectiles(dir)
-
-
-# --- tiles ------------------------------------------------------------------------
-
-## Polished obsidian slabs with pale marble veins; the cracks were mended with
-## gold (kintsugi), the court's answer to a world falling apart.
-static func _floor(path: String, size: int, seed_v: int) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed_v
-	var c := Px.new(size, size)
-	var tone := {}
-	for sy in size / 32:
-		for sx in size / 32:
-			tone[Vector2i(sx, sy)] = rng.randi_range(-1, 1)
-	for y in size:
-		for x in size:
-			var cell := Vector2i(x / 32, y / 32)
-			var lx := x % 32
-			var ly := y % 32
-			if lx == 31 or ly == 31:
-				c.put(x, y, Pal.OBSIDIAN[0])
-				continue
-			var b := 3 + int(tone[cell]) * (1 if Px.hash01(cell.x, cell.y, seed_v) > 0.5 else 0)
-			var idx := b
-			if lx == 0 or ly == 0:
-				idx = b + 1
-			elif lx == 30 or ly == 30:
-				idx = b - 1
-			var col: Color = Pal.ramp(Pal.OBSIDIAN, idx)
-			var v := GenTiles.pnoise(x / 9.0 + GenTiles.pnoise(x / 5.0, y / 5.0, size / 5, seed_v + 2) * 2.0, y / 9.0, size / 9, seed_v + 1)
-			if absf(v - 0.5) < 0.025:
-				col = Pal.ramp(Pal.OBSIDIAN, b + 2)
-			elif absf(v - 0.5) < 0.05:
-				col = col.lerp(Pal.ramp(Pal.OBSIDIAN, b + 1), 0.5)
-			if Px.hash01(x, y, seed_v * 3) > 0.985:
-				col = Pal.ramp(Pal.OBSIDIAN, b + 1)
-			c.put(x, y, col)
-	# gold-mended cracks wandering across the slabs
-	for k in 7:
-		var px := rng.randi_range(0, size - 1)
-		var py := rng.randi_range(0, size - 1)
-		var dir := Vector2(rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized()
-		for st in rng.randi_range(14, 30):
-			dir = dir.rotated(rng.randf_range(-0.5, 0.5))
-			px = posmod(px + roundi(dir.x), size)
-			py = posmod(py + roundi(dir.y), size)
-			c.put(px, py, Pal.GOLD[2] if st % 5 != 0 else Pal.GOLD[3])
-			if rng.randf() < 0.08:
-				c.put(posmod(px + 1, size), py, Pal.GOLD[1])
-	c.save(path)
-
-
-static func _load(path: String) -> Image:
-	return Image.load_from_file(ProjectSettings.globalize_path(path))
-
-
-## A gilded frieze along the top of every wall face, with sun-disc studs.
-static func _gold_band(path: String) -> void:
-	var img := _load(path)
-	var w := img.get_width()
-	for x in w:
-		img.set_pixel(x, 3, Pal.GOLD[1])
-		img.set_pixel(x, 4, Pal.GOLD[3] if x % 16 != 0 else Pal.GOLD[2])
-		img.set_pixel(x, 5, Pal.GOLD[2])
-		img.set_pixel(x, 6, Pal.OBSIDIAN[0])
-	for x0 in range(8, w, 16):
-		for d in [Vector2i(0, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(0, 0)]:
-			img.set_pixel(x0 + d.x, 10 + d.y, Pal.GOLD[4] if d == Vector2i.ZERO else Pal.GOLD[2])
-	img.save_png(ProjectSettings.globalize_path(path))
-
-
-static func _gold_capital(path: String) -> void:
-	var img := _load(path)
-	for x in 16:
-		img.set_pixel(x, 0, Pal.GOLD[4])
-		img.set_pixel(x, 1, Pal.GOLD[3])
-		img.set_pixel(x, 2, Pal.GOLD[2])
-		img.set_pixel(x, 3, Pal.GOLD[1])
-		img.set_pixel(x, 28, Pal.GOLD[3])
-		img.set_pixel(x, 29, Pal.GOLD[1])
-	img.save_png(ProjectSettings.globalize_path(path))
 
 
 # --- Gilded Sentinel: black plate, a sun-crested helm and a tower shield --------
