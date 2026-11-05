@@ -420,9 +420,19 @@ func below() -> void:
 		await wait(8.0)
 		_strip_bot()     # (a bot answers votes by itself: the person does it here)
 		await wait(2.0)
+		# the Forked Descent: the party takes the first way this floor offers
+		# (the same two on every machine), and every machine must arrive on it
+		var offer: Array = dun().layout.offer.duplicate() if dun() else []
 		if role == "host":
 			if Net.i.run_sync:
-				Net.i.run_sync.start_vote("stairs", -1, dun().player)
+				var sp: Prop = null
+				for p in dun().props:
+					if is_instance_valid(p) and p.kind == "stairs" and not offer.is_empty() and String(p.data.get("route", "")) == String(offer[0]):
+						sp = p
+				if sp:
+					Net.i.run_sync.start_vote("stairs:" + String(offer[0]), sp.net_idx, dun().player)
+				else:
+					Net.i.run_sync.start_vote("stairs", -1, dun().player)
 		else:
 			await until(func() -> bool: return RequestCard.ensure(Game.ui).mode == "vote", 30.0, "the stairs vote reached me")
 			await wait(0.6)
@@ -432,6 +442,9 @@ func below() -> void:
 			tap("party_yes")
 		var want_depth: int = depth
 		await until(func() -> bool: return dun() != null and Game.run != null and Game.run.depth == want_depth and not dun().paused_sim and not Game.ui.card_pending, 30.0, "down to depth %d together" % depth)
+		if not offer.is_empty() and dun():
+			expect(Game.run.route == String(offer[0]) and dun().layout.route == String(offer[0]), "down the way the party chose (%s: run %s, floor %s)" % [offer[0], Game.run.route, dun().layout.route])
+			print("[scenario] depth %d via %s: %d rooms" % [depth, dun().layout.route, dun().layout.rooms.size()])
 		await walk_check(depth)
 		if dun() and role == "host":
 			dun().player.add_child(Bot.new())

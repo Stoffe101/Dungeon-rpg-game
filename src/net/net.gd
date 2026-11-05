@@ -21,7 +21,7 @@ signal camp_changed
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 9
+const PROTOCOL := 10
 ## How long a seat waits for a Kindled that lost the link, and how long that
 ## Kindled keeps trying to reach the host again (seconds).
 const SEAT_WAIT := 60.0
@@ -653,7 +653,7 @@ func _rejoin(old: int, new: int) -> void:
 	_broadcast_roster()
 	var r := Game.run_of(new)
 	var params := {"seed": Game.run.seed, "region": "delve" if Game.run.delve else Game.run.region, "tier": Game.run.tier,
-		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth, "exp": expedition}
+		"omens": Game.run.omens.duplicate(), "run_id": Game.run.run_id, "depth": Game.run.depth, "exp": expedition, "route": Game.run.route}
 	rpc_id(new, "_rejoined", params, r.to_dict())
 	# what it carried into this depth, in case this host's fire goes out next
 	var cp: Dictionary = Game.checkpoints.get(String(entry.get("id", "")), {})
@@ -832,8 +832,8 @@ func _begin(params: Dictionary) -> void:
 
 
 @rpc("authority", "reliable")
-func _descend(depth: int) -> void:
-	_through("rel", true, func() -> void: Game.descend_client(depth))
+func _descend(depth: int, route: String) -> void:
+	_through("rel", true, func() -> void: Game.descend_client(depth, route))
 
 
 @rpc("authority", "reliable")

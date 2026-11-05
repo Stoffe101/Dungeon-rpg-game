@@ -32,7 +32,6 @@ const DEFAULTS := {
 	"world_names": "all",        # names over things and finds: all nearby | nearest | off (the prompt below instead)
 	"show_fps": false,
 	"aim_assist": 0.5,
-	"steer": "on",               # pointer steering: off | on (W follows a moved mouse) | always
 	"rumble": 1.0,
 	"net_overlay": false,        # co-op: the network overlay (F3 toggles it too)
 }
@@ -59,6 +58,7 @@ var DEFAULT_BINDINGS := {
 	"map": [_key(KEY_TAB), _joy_button(JOY_BUTTON_BACK)],
 	"pause": [_key(KEY_ESCAPE), _joy_button(JOY_BUTTON_START)],
 	"inventory": [_key(KEY_I), _joy_button(JOY_BUTTON_RIGHT_STICK)],
+	"hearthtree": [_key(KEY_K), _joy_button(JOY_BUTTON_DPAD_LEFT)],
 	"hearthcall": [_key(KEY_H), _joy_button(JOY_BUTTON_LEFT_STICK)],
 	# co-op: answer the party's question (an expedition, the stairs) from anywhere
 	"party_yes": [_key(KEY_Y), _joy_button(JOY_BUTTON_DPAD_UP)],

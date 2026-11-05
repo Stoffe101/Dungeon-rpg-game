@@ -1,0 +1,19 @@
+{
+	"anims": {
+		"bubble": {
+			"fps": 7.0,
+			"frames": 6,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		24,
+		24
+	],
+	"origin": [
+		12,
+		21
+	]
+}

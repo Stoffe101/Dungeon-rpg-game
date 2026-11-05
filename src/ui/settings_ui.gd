@@ -143,8 +143,6 @@ func _open_page(id: String) -> void:
 			_slider("Brightness", "brightness", 0.8, 1.5, 0.05, "How bright the world is drawn. The Undervault is meant to be dark, never unreadable.")
 			_switch("Show frame rate", "show_fps", "A frame counter in the corner.")
 		"gameplay":
-			_stepper("Pointer steering", "steer", ["on", "always", "off"], ["W follows the mouse", "Always", "Off"],
-				"On: hold W and move the mouse, and you walk toward the pointer until you let go of W. Always: every key walks relative to the pointer. Off: keys walk the screen's way.")
 			_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05, "With a pad, aim bends toward the foe nearest your stick.")
 			_slider("Rumble (pad)", "rumble", 0.0, 1.0, 0.05, "Pad vibration on hits, dodges and heartbeats.")
 			_switch("Hit-stop", "hitstop", "The world holds for a breath when a heavy blow lands (never in co-op).")
@@ -314,7 +312,7 @@ func _controls() -> void:
 	var groups := [
 		["MOVE", [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"], ["dodge", "Dodge"]]],
 		["FIGHT", [["attack", "Attack"], ["ward", "Ward"], ["ability_1", "Spell 1"], ["ability_2", "Spell 2"], ["ability_3", "Spell 3"], ["flask", "Flask"]]],
-		["EXPLORE", [["interact", "Interact / talk"], ["map", "Map"], ["inventory", "Satchel"], ["hearthcall", "Hearthcall (go home)"]]],
+		["EXPLORE", [["interact", "Interact / talk"], ["map", "Map"], ["inventory", "Satchel"], ["hearthtree", "Hearthtree"], ["hearthcall", "Hearthcall (go home)"]]],
 		["PARTY", [["party_yes", "Ready / agree"], ["party_no", "Not now"]]],
 	]
 	for g in groups:

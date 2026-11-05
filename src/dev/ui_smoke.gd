@@ -244,6 +244,7 @@ func _run() -> void:
 		await _finish_dialogue()
 		_expect(Residents.request_state(rid) == "rewarded", "handing it in grants the gift")
 	await _gear_checks(hub)
+	await _apothecary_checks(hub)
 	print("[smoke] respec: ", Profile.respec(), " skills after: ", Profile.skills())
 	print("[smoke] done")
 	get_tree().quit()
@@ -277,6 +278,20 @@ func _gear_checks(hub: Hub) -> void:
 	var before := hub.player.max_hp
 	await _close_all()
 	_expect(hub.player.max_hp >= before, "closing the satchel applies gear stats")
+	# a weapon of another kind, taken up in the sanctuary: in hand at once
+	var hammer := Profile.add_item(ItemDB.make_item("cinderhammer", "rare", 1, RandomNumberGenerator.new(), 1))
+	ui.inventory()
+	await _wait()
+	inv = ui.modals[ui.modals.size() - 1].get_child(0)
+	inv._equip(int(hammer.uid))
+	await _wait(2)
+	_expect(hub.player.weapon != null and hub.player.weapon.id == "hammer", "a hammer taken up in the sanctuary is in hand at once (%s)" % (hub.player.weapon.id if hub.player.weapon else "none"))
+	await _close_all()
+	# raising and improving a facility: nobody moves, nothing reloads
+	await _build_in_place(hub, "apothecary")
+	await _build_in_place(hub, "apothecary")
+	if Profile.building("shrine") == 0:
+		await _build_in_place(hub, "shrine")
 	ui.smithy()
 	await _wait()
 	var sm: SmithyUI = ui.modals[ui.modals.size() - 1].get_child(0)
@@ -302,6 +317,35 @@ func _gear_checks(hub: Hub) -> void:
 	var mats := Profile.material("grave_iron")
 	Profile.salvage(int(crafted.uid))
 	_expect(Profile.material("grave_iron") > mats, "salvage returns grave iron")
+	# a big satchel: picking a piece deep in the list keeps the list where it is
+	var bases := ItemDB.craftable()
+	for k in 60:
+		Profile.add_item(ItemDB.make_item(String(bases[k % bases.size()]), "rare", 1, RandomNumberGenerator.new(), 1))
+	sm.set_tab("temper")
+	await _wait(4)
+	sm._list_scroll.scroll_vertical = int(sm._list_scroll.get_v_scroll_bar().max_value)
+	await _wait(2)
+	var deep := sm._list_scroll.scroll_vertical
+	_expect(deep > 200, "a long temper list scrolls (%d)" % deep)
+	var keys: Array = sm._rows.keys()
+	var pick: String = keys[keys.size() - 2]
+	(sm._rows[pick] as Button).pressed.emit()
+	await _wait(3)
+	_expect(sm.selected == pick, "a piece deep in the smithy list is picked")
+	_expect(absi(sm._list_scroll.scroll_vertical - deep) <= 1, "picking it keeps the scroll (%d -> %d)" % [deep, sm._list_scroll.scroll_vertical])
+	Profile.mark_changed()     # a temper, a forge: the list redraws
+	await _wait(4)
+	_expect(absi(sm._list_scroll.scroll_vertical - deep) <= 1, "a redrawn smithy list keeps its place (%d)" % sm._list_scroll.scroll_vertical)
+	_expect(sm.selected == pick, "and its pick")
+	sm.slot_filter = "ring"
+	sm._refresh_list(true)
+	await _wait(2)
+	var all_rings := true
+	for k2 in sm._rows:
+		var it2 := Profile.find_item(int(k2))
+		if String(ItemDB.base(String(it2.base)).slot) != "ring":
+			all_rings = false
+	_expect(all_rings, "the slot filter shows only that slot")
 	await _close_all()
 	ui.peddler()
 	await _wait()
@@ -317,6 +361,78 @@ func _gear_checks(hub: Hub) -> void:
 		pd._sell(sell_uid)
 		await _wait(2)
 		_expect(Profile.find_item(sell_uid).is_empty(), "selling to the peddler")
+	await _close_all()
+
+
+## The Apothecary's screen: a reagent found teaches, the screen steeps it,
+## and the Hearthtree opens on its own key (the real action).
+func _apothecary_checks(hub: Hub) -> void:
+	if Profile.building("apothecary") == 0:
+		Profile.data.sanctuary.apothecary = 1
+	Profile.bank_find("reagent", "kindleroot", "smoke/1/1")
+	ui.apothecary()
+	await _wait()
+	var ap: ApothecaryUI = ui.modals[ui.modals.size() - 1].get_child(0)
+	ap._select("kindleroot")
+	await _wait(2)
+	var steep: Button = null
+	for b in ap.find_children("*", "Button", true, false):
+		if (b as Button).text == "Steep the flask":
+			steep = b
+	_expect(steep != null and not steep.disabled, "the Apothecary offers to steep Kindleroot")
+	if steep:
+		steep.pressed.emit()
+	await _wait(3)
+	_expect(String(Profile.tincture().id) == "kindleroot", "the flask is steeped with Kindleroot")
+	_check_fits("apothecary")
+	await _close_all()
+	# K opens the Hearthtree, and K closes it
+	var ev := InputEventAction.new()
+	ev.action = "hearthtree"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await _wait(4)
+	var top: Control = ui.modals[ui.modals.size() - 1] if ui.has_modal() else null
+	_expect(top != null and top.get_child(0) is SkillTreeUI, "the Hearthtree key opens the Hearthtree")
+	var ev2 := InputEventAction.new()
+	ev2.action = "hearthtree"
+	ev2.pressed = true
+	Input.parse_input_event(ev2)
+	await _wait(6)
+	_expect(not ui.has_modal(), "and closes it")
+	await _close_all()
+
+
+## Builds (or improves) a facility through its own screen and checks the camp
+## changed where the Kindled stands: the same Hub, the Kindled in place, the
+## new piece drawn.
+func _build_in_place(hub: Hub, id: String) -> void:
+	Profile.add_currency("embers", 2000)
+	Profile.add_currency("sunshards", 5)
+	var lvl := Profile.building(id)
+	var at := hub.player.pos
+	var stage_before := Game.stage
+	ui.sanctuary_build(id)
+	await _wait()
+	var top: Control = ui.modals[ui.modals.size() - 1]
+	var btn: Button = null
+	for b in top.find_children("*", "Button", true, false):
+		if (b as Button).text in ["Build", "Improve"]:
+			btn = b
+	_expect(btn != null and not btn.disabled, "%s: the build button is there" % id)
+	if btn == null:
+		await _close_all()
+		return
+	btn.pressed.emit()
+	await _wait(30)
+	_expect(Profile.building(id) == lvl + 1, "%s raised to %d" % [id, lvl + 1])
+	_expect(Game.stage == stage_before and is_instance_valid(hub) and not hub.is_queued_for_deletion(), "%s: the camp was not reloaded" % id)
+	_expect(hub.player.pos.distance_to(at) < 0.01, "%s: the Kindled stayed where they stood" % id)
+	var drawn := false
+	for p in hub.props:
+		if is_instance_valid(p) and p.kind == id and p.sprite and p.sprite.sheet.name == id and p.sprite.anim == "l%d" % (lvl + 1):
+			drawn = true
+	_expect(drawn or id != "apothecary", "%s: drawn at its new level" % id)
 	await _close_all()
 
 

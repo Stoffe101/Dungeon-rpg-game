@@ -189,7 +189,8 @@ func _refresh_header() -> void:
 	page_btn.tooltip_text = "Three saved builds. Switch between them in the sanctuary." if Game.run == null else "Builds can only be switched in the sanctuary."
 	var rc := Profile.respec_cost()
 	respec_btn.text = "Respec" if rc == 0 else "Respec %d" % rc
-	respec_btn.disabled = Profile.skills().size() <= 1 or Profile.currency("embers") < rc
+	respec_btn.disabled = Profile.skills().size() <= 1 or Profile.currency("embers") < rc or Game.run != null
+	respec_btn.tooltip_text = "" if Game.run == null else 'Respec at the Hearth, in the sanctuary.'
 	var hc := Profile.building_cost("hearth")
 	if hc.is_empty():
 		hearth_btn.text = "Hearth: max"
@@ -199,8 +200,20 @@ func _refresh_header() -> void:
 		for k in hc:
 			parts2.append("%d%s" % [hc[k], "" if k == "embers" else (" Shard" if int(hc[k]) == 1 else " Shards")])
 		hearth_btn.text = "Feed Hearth: %s" % " / ".join(parts2)
-		hearth_btn.disabled = not Profile.can_afford(hc)
+		hearth_btn.disabled = not Profile.can_afford(hc) or Game.run != null
 		hearth_btn.tooltip_text = Profile.SANCTUARY.hearth.desc
+
+
+## Below, new points can be kindled between fights - never while a room is
+## sealed around you (a co-op world does not stop for the menu, and a solo one
+## would be a pause to rebuild in).
+func _may_grow() -> bool:
+	var st := Game.stage
+	if st is Dungeon and (st as Dungeon).fight_on():
+		Audio.ui("deny")
+		Game.ui.toast("Not mid-fight: kindle your points once the seals fall.", UIKit.C_DIM)
+		return false
+	return true
 
 
 ## The side panel: every bonus the tree grants, the powers it unlocked and the abilities.
@@ -252,6 +265,8 @@ func _toggle_bonuses() -> void:
 
 
 func _feed_hearth() -> void:
+	if Game.run != null:
+		return
 	if Profile.upgrade_building("hearth"):
 		Audio.play("hearth_feed", 0.0)
 		Game.ui.toast("The Hearth burns brighter. (+10 max health)", UIKit.C_GOLD)
@@ -267,6 +282,8 @@ func _next_page() -> void:
 
 
 func _respec() -> void:
+	if Game.run != null:
+		return
 	Game.ui.confirm("Respec the Hearthtree?", "All points are returned. Cost: %d Embers." % Profile.respec_cost(), func() -> void:
 		if Profile.respec():
 			Audio.play("respec", 0.0)
@@ -394,6 +411,8 @@ func _set_hovered(id: String, force := false) -> void:
 ## Kindles `id` - and, when it is not adjacent, every node on the cheapest path to it.
 ## A kindled mastery takes another rank instead.
 func _try_allocate(id: String) -> void:
+	if not _may_grow():
+		return
 	if Profile.skills().has(id):
 		if Profile.allocate(id):
 			_bursts.append({"pos": SkillDB.position_of(id), "t": 0.0, "col": _branch_color(id)})
@@ -417,6 +436,11 @@ func _try_allocate(id: String) -> void:
 
 
 func _try_refund(id: String) -> void:
+	if Game.run != null:
+		# below, a point spent stays spent: no free respec between two rooms
+		Audio.ui("deny")
+		Game.ui.toast("Points are taken back at the Hearth, in the sanctuary.", UIKit.C_DIM)
+		return
 	if Profile.refund(id):
 		Audio.play("skill_refund", -2.0)
 		_set_hovered(hovered, true)

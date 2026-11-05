@@ -11,6 +11,7 @@ var embers_lbl: Label
 var shards_lbl: Label
 var depth_lbl: Label
 var omen_lbl: Label
+var objective_lbl: Label
 var level_lbl: Label
 var prompt_lbl: Label
 var relic_row: HBoxContainer
@@ -71,6 +72,10 @@ func _ready() -> void:
 	omen_lbl = UIKit.label("", 8, Omens.COLOR, true)
 	omen_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	cur.add_child(omen_lbl)
+	# the room's task (a route's seals, a vault's flame)
+	objective_lbl = UIKit.label("", 8, UIKit.C_GOLD, true)
+	objective_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	cur.add_child(objective_lbl)
 	level_lbl = UIKit.label("", 8, UIKit.C_SOUL, true)
 	add_child(level_lbl)
 	prompt_lbl = UIKit.label("", 8, UIKit.C_GOLD, true)
@@ -160,6 +165,7 @@ func refresh_controls() -> void:
 		["Flask", Settings.describe_action("flask")],
 		["Interact", Settings.describe_action("interact")],
 		["Satchel (gear)", Settings.describe_action("inventory")],
+		["Hearthtree (talents)", Settings.describe_action("hearthtree")],
 		["Hearthcall (home)", Settings.describe_action("hearthcall")],
 		["Map", Settings.describe_action("map")],
 	]
@@ -376,6 +382,11 @@ func _update_flask_slot(pl: Player) -> void:
 	else:
 		ic.modulate = Color(1, 1, 1, 1)
 	flask_slot.tooltip_text = "Flask: %d/%d charges, heals %d%% of your health" % [pl.flask, mx, int(pl.stats.v("flask_heal") * 100.0)]
+	var tc := pl.tincture()
+	if String(tc.get("id", "")) != "":
+		flask_slot.tooltip_text += "
+Steeped: %s (rank %d)
+%s" % [Tinctures.get_def(String(tc.id)).name, int(tc.rank), Tinctures.describe(String(tc.id), int(tc.rank))]
 	if _flask_seen != -1 and pl.flask < _flask_seen:
 		# a quick pop when a charge is drunk
 		flask_slot.pivot_offset = Vector2(13, 13)
@@ -432,7 +443,27 @@ func _process(_delta: float) -> void:
 		var guardian := Delve.is_boss_depth(pl.run.depth) if pl.run.delve else pl.run.depth >= int(EnemyDB.REGIONS.get(pl.run.region, {}).get("depths", 3))
 		depth_lbl.add_theme_color_override("font_color", Color(1.0, 0.6, 0.5) if guardian else UIKit.C_DIM)
 		omen_lbl.text = Omens.names(pl.run.omens)
+		var rd := DungeonGen.route_def(pl.run.route)
+		if not rd.is_empty():
+			depth_lbl.text += "  %s" % String(rd.name)
+		var ob: Dictionary = (st as Dungeon).objective if st is Dungeon else {}
+		objective_lbl.visible = not ob.is_empty()
+		if not ob.is_empty():
+			var k := float(ob.get("k", -1.0))
+			objective_lbl.text = String(ob.text) + ("   %d%%" % int(round(k * 100.0)) if k >= 0.0 else "")
+			objective_lbl.add_theme_color_override("font_color", ob.get("col", UIKit.C_GOLD))
+	else:
+		objective_lbl.visible = false
 	level_lbl.text = "LV %d" % Profile.level() if Profile.level() < Profile.MAX_LEVEL else "LV %d  Renown %d" % [Profile.level(), Profile.renown()]
+	# an unspent talent point stays in sight (softly) until it is spent
+	var free := Profile.skill_points_free()
+	if free > 0:
+		level_lbl.text += "    %d TALENT POINT%s  [%s]" % [free, "" if free == 1 else "S", Settings.describe_action("hearthtree")]
+		level_lbl.add_theme_color_override("font_color", UIKit.C_EMBER)
+		level_lbl.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.004)
+	else:
+		level_lbl.add_theme_color_override("font_color", UIKit.C_SOUL)
+		level_lbl.modulate.a = 1.0
 	# spells
 	for i in slot_nodes.size():
 		_update_spell_slot(pl, i)

@@ -49,8 +49,8 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `hearthcall` (start a Hearthcall a second after the floor loads), `audiolog` (print every sound played),
   `spawn=x,y` (where the Kindled starts in the camp), `open=bestiary`, `landmark` (every floor has its
   region's landmark), `urnlab`, `proplab`, `audiorec=S` (record the buses to `user://audio_rec/`), `perflog` (frame-time p50/p95/p99/worst every 10 s),
-  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
-  `search=<text>`), `warp=boss|event|landmark`, `pad` (act as if a
+  `open=skilltree|forge|descent|settings|controls|pause|relic|summary|inventory|smithy|peddler|apothecary|wardrobe|feats` (with `open=skilltree`: `hover=<node id>`,
+  `search=<text>`), `warp=boss|event|landmark|stairs|objective`, `route=trial|vault|quiet` (a floor reached that way), `pad` (act as if a
   gamepad is in use), `capture=<name> frames=N quit` (saves `captures/<name>.png` of the real rendered window),
   `frames=N quit` (quit after N frames), `autopilot` (bot plays), `godmode`, `profile=<file>` (use a separate save),
   `uismoke` (menu smoke test incl. synthetic gamepad checks; grep the log for `FAILED` / `SCRIPT ERROR`),
@@ -155,8 +155,8 @@ Key conventions:
   `SkillDB.unique()` rather than assuming the list is a set.
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
-  `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v13 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
+  `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`, `ApothecaryUI`
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v14 (v14: `alchemy` - the steeped tincture and reagents found). Save v13 (v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
@@ -167,6 +167,17 @@ Key conventions:
   peer as `["own", peer, ev]`.
 - Foes appear through `stage.foe_spot` (inside a sealed room's arena, `Dungeon.arena_of`); a counted foe
   outside the arena is brought back by `_watch_arena`. Attacks start only if `may_strike()` grants a turn.
+- Gear changes reach the live Kindled through one path: `Player.sync_gear` (watches `Profile.changed`);
+  never refresh stats or the weapon from a screen yourself. Sanctuary facilities are built in tagged groups
+  and rebuilt in place by `Hub.refresh_camp` (never `Game.goto_hub()` for an upgrade).
+- Tinctures: `src/data/tinctures.gd` (reagents teach and distil them; `Profile.tincture()`, `steep`);
+  poured host-side in `Player._pour`. Reagents are finds of one's own (kind "reagent").
+- The Forked Descent: `DungeonGen.ROUTES` / `route_offer` (two of three ways at every stairs room below
+  a guardian's floor), `generate(..., route)`; room objectives (`Room.objective`: seals / flame) run in
+  `Dungeon._begin_objective` / `_tend_objective`; the HUD's task line is `Dungeon.objective` ("obj" event).
+- The world shader's grammar (rims, contact shadows, quiet floors) is fed by `LevelBuilder` (UV2 bits,
+  COLOR = depth into the rock); the level mesh is built after the props. `sprite.gdshader` and
+  `silhouette.gdshader` pin their instance uniforms to the same `instance_index` slots - keep them so.
 - Grudges: `Profile.record_grudge` / `age_grudges` (traits by level in `GRUDGE_TRAITS`); spawned by
   `Dungeon._spawn_grudge`, whose room is picked before props so its fires can burn red.
 - Resident requests count through `Dungeon.note_request(key)` (chest, ward, toy, sunshard,
@@ -198,7 +209,7 @@ real OS cursor, which scripted events do not move).
 
 ## Workflow
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

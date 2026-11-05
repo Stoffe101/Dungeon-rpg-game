@@ -473,6 +473,8 @@ func label_name() -> String:
 		"merchant":
 			return "Merchant"
 		"stairs":
+			if data.has("route"):
+				return String(DungeonGen.route_def(String(data.route)).get("name", "Stairs Down"))
 			return "Stairs Down"
 		"hearthstone":
 			return "Hearthstone"
@@ -502,6 +504,8 @@ func label_color() -> Color:
 		"shrine":
 			return Color(0.98, 0.48, 0.62)
 		"stairs", "hearthstone":
+			if kind == "stairs" and data.has("route"):
+				return (DungeonGen.route_def(String(data.route)).get("color", Color.WHITE) as Color).lightened(0.25)
 			return Color(1.0, 0.94, 0.74)
 		"merchant":
 			return Color(1.0, 0.7, 0.42)
@@ -537,6 +541,8 @@ func prompt() -> String:
 		"merchant":
 			return "Trade"
 		"stairs":
+			if data.has("route"):
+				return "Descend: %s" % DungeonGen.route_def(String(data.route)).get("act", "")
 			return "Descend"
 		"hearthstone":
 			return "Return to the Hearth"

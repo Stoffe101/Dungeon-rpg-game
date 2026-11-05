@@ -554,9 +554,10 @@ func _check_vote(v: Dictionary) -> void:
 		if not v.yes.has(pid):
 			return
 	_finish_vote(v, true, "")
-	match String(v.kind):
+	match String(v.kind).get_slice(":", 0):
 		"stairs":
-			Game.descend()
+			# (the way down rides in the vote's kind: "stairs:trial")
+			Game.descend(String(v.kind).get_slice(":", 1))
 		"hearthstone":
 			var hs := _prop(int(v.idx))
 			Game.end_run("victory" if hs and hs.data.get("victory", false) else "extracted")
@@ -830,6 +831,9 @@ func apply_events(evs: Array) -> void:
 				teles.erase(int(ev[1]))
 			"banner":
 				Events.banner.emit(String(ev[1]), String(ev[2]))
+			"obj":
+				if stage is Dungeon:
+					(stage as Dungeon).objective = {} if String(ev[1]) == "" else {"text": String(ev[1]), "k": float(ev[2]), "col": ev[3]}
 			"toast":
 				Events.toast.emit(String(ev[1]), ev[2])
 			"boss":

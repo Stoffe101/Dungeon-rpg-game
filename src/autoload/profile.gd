@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 13
+const VERSION := 14
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -69,6 +69,7 @@ static func fresh() -> Dictionary:
 		"loadouts": [{}, {}, {}],
 		"delivered": {},
 		"last_run": "",
+		"alchemy": {"steeped": "hearthbalm", "reagents": {}},
 		"runes": {"owned": {}, "socketed": {}},
 		"settled_runs": [],
 		"identity": "",
@@ -264,6 +265,12 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not out.has("last_run"):
 			out["last_run"] = ""
 		v = 13
+	if v < 14:
+		# v14: the Apothecary's tinctures (what the flask is steeped with, the
+		# reagents found); every old save starts on Hearthbalm with none
+		if not (out.get("alchemy") is Dictionary):
+			out["alchemy"] = {"steeped": "hearthbalm", "reagents": {}}
+		v = 14
 	# fill any missing keys from a fresh profile (forward compatible)
 	var f := fresh()
 	for k in f:
@@ -658,7 +665,7 @@ const SANCTUARY := {
 			"A quench trough and a wall of tools: tempering gear costs 15% fewer Embers, and crafted gear rolls a little rarer.",
 			"A master's workshop - bellows, a grindstone, the smith's banner: tempering costs 30% fewer Embers and crafted gear comes off the anvil already tempered once."]},
 	"apothecary": {"name": "Ember Apothecary", "max": 3, "costs": [{"embers": 100}, {"embers": 250}, {"embers": 450, "sunshards": 1}],
-		"desc": "Distil hearth-light: +1 flask charge at level 1 and 3, stronger flasks at level 2."},
+		"desc": "Distil hearth-light: +1 flask charge at level 1 and 3, stronger flasks at level 2. Steep your flask with a tincture; at level 3 they distil to rank III."},
 	"shrine": {"name": "Shrine of Memory", "max": 1, "costs": [{"embers": 150, "sunshards": 1}],
 		"desc": "Remember your Grudges. Settling a Grudge returns double its Embers."},
 }
@@ -830,6 +837,8 @@ func character_sheet() -> Dictionary:
 		"known": known_blueprints().duplicate(),
 		"scrolls": scrolls().duplicate(),
 		"slots": slots(),
+		# what this Kindled's flask is steeped with (the host pours it for a guest)
+		"tincture": tincture(),
 		# a co-op host lets this Kindled's own Grudges hunt the party
 		"grudges": active_grudges().map(func(g): return {"id": g.id, "enemy": g.enemy, "name": g.get("name", ""),
 			"level": int(g.get("level", 1)), "embers": int(g.get("embers", 0)), "depth": int(g.get("depth", 1)),
@@ -970,8 +979,76 @@ func bank_find(kind: String, what: Variant, drop: String) -> bool:
 			var b := String(what)
 			if not scrolls().has(b) and not known_blueprints().has(b):
 				scrolls().append(b)
+		"reagent":
+			add_reagent(String(what))
 	_changed()
 	save_profile()
+	return true
+
+
+# --- the Ember Apothecary ------------------------------------------------------
+
+func alchemy() -> Dictionary:
+	if not (data.get("alchemy") is Dictionary):
+		data["alchemy"] = {"steeped": "hearthbalm", "reagents": {}}
+	return data.alchemy
+
+
+func reagent_count(id: String) -> int:
+	return int((alchemy().get("reagents", {}) as Dictionary).get(id, 0))
+
+
+## A reagent found below: the first teaches its tincture, every later one
+## distils it a rank higher. Returns how many of it are now known.
+func add_reagent(id: String) -> int:
+	if not Tinctures.REAGENTS.has(id):
+		return 0
+	var r: Dictionary = alchemy().get("reagents", {})
+	r[id] = int(r.get(id, 0)) + 1
+	alchemy()["reagents"] = r
+	return int(r[id])
+
+
+func tincture_known(id: String) -> bool:
+	var reag := String(Tinctures.get_def(id).get("reagent", ""))
+	return Tinctures.TINCTURES.has(id) and (reag == "" or reagent_count(reag) > 0)
+
+
+## Every tincture the Apothecary can steep now, in the table's order.
+func known_tinctures() -> Array:
+	return Tinctures.TINCTURES.keys().filter(func(t): return tincture_known(String(t)))
+
+
+## Hearthbalm's rank is the Apothecary's level; another's is how many of its
+## reagent were found (up to 2, or 3 once the Apothecary is fully restored).
+func tincture_rank(id: String) -> int:
+	# (the flask is the Kindled's own: their own Apothecary's level - or the one
+	# it was last steeped at, a host's for a guest - however far below they are)
+	var ap := maxi(building("apothecary"), int(alchemy().get("cap", 0)))
+	if ap <= 0 or not tincture_known(id):
+		return 0
+	var reag := String(Tinctures.get_def(id).get("reagent", ""))
+	if reag == "":
+		return clampi(ap, 1, Tinctures.MAX_RANK)
+	return clampi(reagent_count(reag), 1, 2 if ap < 3 else Tinctures.MAX_RANK)
+
+
+## What this Kindled's flask is steeped with: {id, rank} (rank 0: a plain flask
+## - no Apothecary yet).
+func tincture() -> Dictionary:
+	var id := String(alchemy().get("steeped", "hearthbalm"))
+	if not tincture_known(id):
+		id = "hearthbalm"
+	var rk := tincture_rank(id)
+	return {"id": id if rk > 0 else "", "rank": rk}
+
+
+func steep(id: String) -> bool:
+	if not tincture_known(id) or facility("apothecary") <= 0:
+		return false
+	alchemy()["steeped"] = id
+	alchemy()["cap"] = maxi(facility("apothecary"), building("apothecary"))
+	_changed()
 	return true
 
 

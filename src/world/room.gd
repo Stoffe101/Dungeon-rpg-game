@@ -26,6 +26,7 @@ var elite_affix := ""
 var grudge := false
 var event := ""
 var authored := ""                   # a hand-made room's id (DungeonGen.AUTHORED), else procedural
+var objective := ""                  # the route's own task here (DungeonGen._objectives): "" | seals | flame
 var landmark := ""                   # a great centrepiece's id (DungeonGen.LANDMARKS), else ""
 
 # runtime

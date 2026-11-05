@@ -135,6 +135,27 @@ generate the same floor).
   room fought to its end, steering, corners, footprints, attack turns,
   loadouts, the guest at the host's forge, every foe script compiling).
 
+### Tools of the expedition evolution pass
+
+- `-- walllab [behind]`: one of each building element by the start (a
+  waist-high wall, a pillar, a pit, a solid set piece, a walk-through one);
+  `behind` stands the Kindled behind the pillar (its silhouette). Compare
+  with `showcol` (the collision overlay).
+- `-- route=trial|vault|quiet` (a floor reached that way, depth 2) and
+  `warp=stairs|objective` (at the fork, or in the way's own room).
+- `-- open=apothecary`; the UI smoke now also steeps a tincture, presses the
+  Hearthtree key twice, raises and improves the Apothecary checking the
+  Kindled never moves, and scrolls the Smithy 60 pieces deep checking a pick
+  keeps its place.
+- `tests/test_evolution.gd`: the gear path (another kind, another form, a
+  tempered blade, armour on and off, a talent point), no steering left, the
+  Hearthtree key, the silhouette's instance slots, 90 floors walked for
+  reachability (doors, rooms, usable props) and every route's floors, the
+  v13->v14 migration, reagents teaching and distilling, each tincture's
+  effect, the fork's offer, and each way's shape.
+- The journey scenario's stairs vote now names a way (`stairs:<route>`) and
+  every machine checks it arrived on that way's floor.
+
 ## Human playtest on two PCs
 
 Two people, each on their own PC. For a LAN game, both on the same network:
@@ -312,3 +333,33 @@ where. Two (or more) PCs, a whole expedition, then:
   forward to, rare enough to stay special? Foes' flinches and falls.
 - **The Hearthtree:** the seven weapon masteries - do they change how your
   weapon plays?
+
+## Human playtest: the expedition evolution pass
+
+- **Gear in the sanctuary:** take up a weapon of another kind at the rack
+  and in the Satchel; swing at a dummy at once. Change armour and watch
+  health and the outfit change. Temper what you hold.
+- **Upgrades:** raise or improve the Forge (Expand the workshop), the
+  Apothecary and the Shrine while standing beside them: you should stay put
+  and watch them change. A guest: watch the host's camp change too.
+- **The Smithy:** scroll a long list, pick something near the bottom, temper
+  it: does the list stay where it was? The slot chips, rarity and "ready"
+  filters - useful?
+- **Movement:** walk with WASD while sweeping the mouse; the Kindled should
+  walk where the keys say and look where you aim, then look ahead again.
+  On a pad: left stick walks, right stick aims.
+- **K:** open the Hearthtree in camp and below; kindle a point between
+  fights (not while sealed in). Does the TALENT POINT reminder help?
+- **The orange blob:** any warm pixel cloud over the Kindled? Stand behind
+  a pillar or wall: is the outline readable, not distracting?
+- **Readable floors:** can you tell walls, waist-high walls, pillars, pits
+  and floor apart at a glance, in light and in the dark? Anything that
+  looks solid but is not, or the reverse?
+- **The Apothecary:** steep a tincture; try Kindleroot, Wardmilk and
+  Sunwater in a fight. Did you find a reagent? Did the screen tell you what
+  to look for next?
+- **The Forked Descent:** at the stairs, is the choice clear (names,
+  colours, the hint)? In a party, does the vote card make sense? Try each
+  way: does the Trial of Ash feel harder and worth it, the Lost Vault worth
+  the flame, the Silent Passage a real breather? The seals (can every build
+  break them?) and the flame (standing in it while fighting).

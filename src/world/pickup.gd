@@ -27,7 +27,7 @@ var _hang := 0.0              # a great find hangs in the air a moment before it
 static var _beam_tex: GradientTexture2D
 
 const SHEETS := {"ember": "pickup_ember", "xp": "pickup_memory", "heal": "pickup_heal", "sunshard": "pickup_sunshard",
-	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll", "rune": "pickup_scroll"}
+	"material": "pickup_mat", "gear": "pickup_gear", "blueprint": "pickup_scroll", "rune": "pickup_scroll", "reagent": "pickup_mat"}
 const COLORS := {"ember": Color(1.0, 0.6, 0.25), "xp": Color(0.4, 1.0, 0.9), "heal": Color(1.0, 0.45, 0.45), "sunshard": Color(1.0, 0.9, 0.5)}
 
 
@@ -78,6 +78,17 @@ func _ready() -> void:
 		sprite.set_tint(rc.lightened(0.3))
 		grade = 2
 		_loot_beam(rc)
+	elif kind == "reagent":
+		var gc2: Color = Tinctures.reagent(String(data.get("id", ""))).get("color", Color.WHITE)
+		light = OmniLight3D.new()
+		light.light_color = gc2
+		light.light_energy = 1.4
+		light.omni_range = 3.0
+		light.position = Vector3(0, 0.4, 0)
+		add_child(light)
+		sprite.set_tint(gc2.lightened(0.2))
+		grade = 2
+		_loot_beam(gc2)
 	elif kind == "blueprint":
 		light = OmniLight3D.new()
 		light.light_color = Color(1.0, 0.75, 0.35)
@@ -144,6 +155,10 @@ func _name_tag() -> void:
 		"blueprint":
 			text = "Blueprint: %s" % ItemDB.base(String(data.get("id", ""))).get("name", "?")
 			col = Color(1.0, 0.75, 0.35)
+		"reagent":
+			var rg := Tinctures.reagent(String(data.get("id", "")))
+			text = "Reagent: %s" % rg.get("name", "?")
+			col = rg.get("color", Color.WHITE)
 		_:
 			return
 	stage.fx.tag(self, 0.9, text, col)
@@ -330,7 +345,7 @@ func _collect(pl: Player) -> void:
 			Net.rec(["pick-", net_id])
 		elif owner_peer != Net.my_id():
 			Net.rec(["own", owner_peer, ["pick-", net_id]])
-	if kind in ["gear", "rune", "blueprint"]:
+	if kind in ["gear", "rune", "blueprint", "reagent"]:
 		_take_find(pl)
 		queue_free()
 		return
@@ -396,7 +411,7 @@ func _take_find(pl: Player) -> void:
 		Net.i.run_sync.give(pl, kind, payload, drop, grade)
 	elif pl.run:
 		# (no link: a stand-in Kindled in a test - its run carries it home)
-		var key: String = {"gear": "gear", "rune": "runes", "blueprint": "blueprints"}[kind]
+		var key: String = {"gear": "gear", "rune": "runes", "blueprint": "blueprints", "reagent": "reagents"}[kind]
 		(pl.run.loot[key] as Array).append(payload)
 	if kind == "gear" and grade >= 2:
 		Party.announce_find(stage, pl, payload)
@@ -415,6 +430,22 @@ static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: 
 			st.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
 			Events.toast.emit("Rune found: %s - in your Satchel; set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
 			Audio.play("learn", -4.0, 1.2)
+		"reagent":
+			var rid := String(what)
+			var rg := Tinctures.reagent(rid)
+			var rcol: Color = rg.get("color", Color.WHITE)
+			var tid := Tinctures.taught_by(rid)
+			var tname := String(Tinctures.get_def(tid).name)
+			st.fx.number(pl.pos, 2.6, String(rg.get("name", "REAGENT")).to_upper(), rcol, true)
+			st.fx.ring(pl.pos, 1.6, rcol, 0.4, 0.25)
+			st.fx.motes(pl.pos, 0.3, rcol, 14, 1.6, 1.0, 0.4)
+			# (banked already: the count says whether it taught or distilled)
+			var n := Profile.reagent_count(rid) if pl.sheet.is_empty() else 1
+			if n <= 1:
+				Events.toast.emit("Reagent found: %s - the Apothecary can steep %s now" % [rg.get("name", "?"), tname], rcol)
+			else:
+				Events.toast.emit("Reagent found: %s - %s distils stronger at the Apothecary" % [rg.get("name", "?"), tname], rcol)
+			Audio.play("learn", -4.0, 0.9)
 		"blueprint":
 			var bid := String(what)
 			st.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)

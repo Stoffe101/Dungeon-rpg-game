@@ -124,7 +124,10 @@ static func serve(d: Dungeon, who: Player, what: String, prop: Prop) -> bool:
 		return false
 	var nr := Net.i.run_sync
 	if what in VOTED and Net.party_size() > 1 and nr:
-		nr.start_vote(what, prop.net_idx, who)
+		var kind := what
+		if what == "stairs" and prop.data.has("route"):
+			kind = "stairs:" + String(prop.data.route)     # which way down is the question
+		nr.start_vote(kind, prop.net_idx, who)
 		return true
 	if who.controller != Player.Ctrl.REMOTE:
 		return false
@@ -377,8 +380,11 @@ static func _bot() -> bool:
 
 
 static func vote_title(kind: String, by: String) -> Array:
-	match kind:
+	match kind.get_slice(":", 0):
 		"stairs":
+			var rd := DungeonGen.route_def(kind.get_slice(":", 1))
+			if not rd.is_empty():
+				return ["Descend: %s?" % rd.name, "%s chose this way down: %s The whole party goes together." % [by, rd.line]]
 			return ["Descend?", "%s is at the stairs. The whole party goes down together." % by]
 		"hearthstone":
 			return ["Return to the Last Hearth?", "%s would take the party home. Everyone keeps what they carry." % by]

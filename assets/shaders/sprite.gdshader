@@ -18,12 +18,17 @@ uniform int swap_count = 0;
 uniform vec3 swap_from[12];
 uniform vec3 swap_to[12];
 
-instance uniform vec2 frame = vec2(0.0);
-instance uniform float flip = 0.0;
-instance uniform vec4 flash : source_color = vec4(1.0, 1.0, 1.0, 0.0);
-instance uniform float dissolve = 0.0;
-instance uniform vec4 tint : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-instance uniform float glow_mult = 1.0;
+// Per-instance values sit at fixed slots: the Kindled's silhouette pass
+// (silhouette.gdshader) reads the same ones from the same slots. Without the
+// pinned indices the two passes numbered `lead` differently, the silhouette
+// read the wrong lead, judged its own body to be in front of it and dithered
+// warm orange over the whole Kindled (the playtest's "yellow artifact").
+instance uniform vec2 frame : instance_index(0) = vec2(0.0);
+instance uniform float flip : instance_index(1) = 0.0;
+instance uniform vec4 flash : source_color, instance_index(2) = vec4(1.0, 1.0, 1.0, 0.0);
+instance uniform float dissolve : instance_index(3) = 0.0;
+instance uniform vec4 tint : source_color, instance_index(4) = vec4(1.0, 1.0, 1.0, 1.0);
+instance uniform float glow_mult : instance_index(5) = 1.0;
 
 // Sprites lead a little toward the camera - in depth only (the view is
 // orthographic, nothing moves on screen): a body beside a pillar or a wall's end
@@ -32,7 +37,7 @@ instance uniform float glow_mult = 1.0;
 // on the floor, and differs a hair between actors so two in one row never
 // flicker through each other.
 uniform float depth_lead = 0.8;
-instance uniform float lead = 1.0;
+instance uniform float lead : instance_index(6) = 1.0;
 
 void vertex() {
 	vec4 v = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);

@@ -159,7 +159,7 @@ func _enter_depth(depth: int) -> void:
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	DungeonGen.force_landmark = "landmark" in Dev.args()
-	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth)
+	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth, run.route)
 	_clear_stage()
 	var d := Dungeon.new()
 	d.replica = Net.is_client()
@@ -180,15 +180,17 @@ func _enter_depth(depth: int) -> void:
 	print("[game] entered depth %d (seed %d): %d rooms" % [depth, run.seed, lay.rooms.size()])
 
 
-func descend() -> void:
+func descend(route := "") -> void:
 	if transitioning or run == null or run.result != "":
 		return
 	transitioning = true
+	_take_route(route)
 	if Net.is_host():
 		for pl in stage.players:
 			if pl != stage.player and pl.run:
 				pl.store_to(pl.run)
-		Net.i.rpc("_descend", run.depth + 1)
+				pl.run.route = run.route
+		Net.i.rpc("_descend", run.depth + 1, run.route)
 	if stage and stage.player:
 		stage.player.store_to(run)
 		stage.player.input_enabled = false
@@ -202,7 +204,7 @@ func descend() -> void:
 	var next := run.depth + 1
 	var reg_id: String = Delve.region_for(next) if run.delve else run.region
 	var reg: Dictionary = EnemyDB.REGIONS[reg_id]
-	var words := Delve.depth_title(reg_id, next, run.delve)
+	var words := _route_words(Delve.depth_title(reg_id, next, run.delve))
 	ui.title_card(Delve.NAME if run.delve else String(reg.name), words[0], func() -> void:
 		transitioning = false
 		if run != null and run.result == "":
@@ -213,6 +215,23 @@ func descend() -> void:
 ## expedition - see Expedition): the gate flares, the Kindled steps into the
 ## light, and a title card covers the walk down. `tier` and `omens` are the
 ## party's agreed ones (otherwise this profile's choice).
+## The way down the party took (DungeonGen.ROUTES): the next floor is built
+## for it, and the expedition remembers it.
+func _take_route(route: String) -> void:
+	run.route = route if DungeonGen.ROUTES.has(route) else ""
+	if run.route != "":
+		run.routes.append(run.route)
+		Profile.stat_add("route_" + run.route)
+
+
+## The floor's title card names the way taken.
+func _route_words(words: Array) -> Array:
+	var rd := DungeonGen.route_def(run.route)
+	if rd.is_empty():
+		return words
+	return [String(words[0]) + "  -  " + String(rd.name), words[1]]
+
+
 func begin_descent(region: String, tier := -1, omens: Variant = null) -> void:
 	if transitioning:
 		return
@@ -289,12 +308,13 @@ func begin_coop_client(params: Dictionary) -> void:
 			_enter_depth(1), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 
 
-func descend_client(depth: int) -> void:
+func descend_client(depth: int, route := "") -> void:
 	if run == null:
 		return
+	_take_route(route)
 	var reg_id: String = Delve.region_for(depth) if run.delve else run.region
 	var reg: Dictionary = EnemyDB.REGIONS[reg_id]
-	var words := Delve.depth_title(reg_id, depth, run.delve)
+	var words := _route_words(Delve.depth_title(reg_id, depth, run.delve))
 	ui.title_card(Delve.NAME if run.delve else String(reg.name), words[0], func() -> void:
 		if run != null:
 			_enter_depth(depth), words[1])
@@ -339,6 +359,7 @@ func rejoin_coop_client(params: Dictionary, data: Dictionary) -> void:
 	ui.close_all()
 	var r := RunState.from_dict(data)
 	r.result = ""
+	r.route = String(params.get("route", r.route))     # (the floor is built for the way the party took)
 	run = r
 	Net.i.expedition = int(params.get("exp", Net.i.expedition))
 	Events.toast.emit("Back with the party.", Color(0.75, 0.95, 0.9))
@@ -498,6 +519,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 			Profile.scrolls().append(b)
 	for r in spoils.get("runes", []):
 		Profile.add_rune(String(r))
+	for rg in spoils.get("reagents", []):
+		Profile.add_reagent(String(rg))
 	var feats := Feats.check()
 	Ledger.note("settled", {"xp_gained": run.xp_gained, "omen_xp": omen_xp, "embers_kept": int(s.embers_kept)})
 	Ledger.finish(outcome)

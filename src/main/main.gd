@@ -105,10 +105,17 @@ func _ready() -> void:
 			Game.stage.player.input_enabled = false
 		"dungeon":
 			Game.start_run(region)
+			var dev_depth := -1
 			for a in Dev.args():
 				if a.begins_with("depth="):
 					# dev: start deeper (the Hollow Below's Echo depths, mostly)
-					Game._enter_depth(int(a.substr(6)))
+					dev_depth = int(a.substr(6))
+				if a.begins_with("route="):
+					# dev: a floor reached by one of the Forked Descent's ways (DungeonGen.ROUTES)
+					Game.run.route = a.substr(6)
+					dev_depth = maxi(dev_depth, 2)
+			if dev_depth > 0:
+				Game._enter_depth(dev_depth)
 		"boss":
 			Game.start_run(region)
 			var last := int(EnemyDB.REGIONS[region].depths)
@@ -204,6 +211,8 @@ func _open_dev_screen(what: String) -> void:
 			ui.smithy()
 		"peddler":
 			ui.peddler()
+		"apothecary":
+			ui.apothecary()
 		"relic":
 			var rng := RandomNumberGenerator.new()
 			ui.relic_choice(RelicDB.roll_offer(rng, 3, [], {}, ["flare"], 2), func(_id): pass)

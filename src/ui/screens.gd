@@ -752,8 +752,10 @@ static func _workshop_row(ui: UIRoot) -> Control:
 			Audio.play("forge", 0.0, 0.9)
 			Profile.save_profile()
 			Game.ui.toast("The workshop grows: %s" % ("a quench trough and tools" if Profile.building("forge") == 2 else "a master's workshop"), Color(1.0, 0.75, 0.4))
-			if Game.stage is Hub and not Net.active():
-				Game.goto_hub()     # the camp is rebuilt with its new pieces (a party sees it next time)
+			# the workshop changes where it stands (Hub.refresh_camp): close the
+			# screen and watch it - nobody is moved, nothing reloads
+			if Game.stage is Hub:
+				(Game.stage as Hub).refresh_camp()
 			ui.close_all(), 120)
 	b.disabled = not Profile.can_pay(cost)
 	row.add_child(b)
@@ -835,7 +837,7 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 				Profile.choose_weapon(id)
 				Profile.save_profile()
 				if Game.stage and Game.stage.player:
-					Game.stage.player.set_weapon(id, Profile.weapon_level(id))
+					Game.stage.player.sync_gear(true)
 				ctx.rebuild.call(), 60)
 			e.disabled = eq
 			row.add_child(e)
@@ -848,8 +850,8 @@ static func forge(ui: UIRoot, equip_only: bool) -> Control:
 							Profile.save_profile()
 							if Game.stage is Hub:
 								(Game.stage as Hub).workshop_flare(true)
-							if Game.stage and Game.stage.player and Profile.equipped_weapon() == id:
-								Game.stage.player.set_weapon(id, Profile.weapon_level(id))
+							if Game.stage and Game.stage.player:
+								Game.stage.player.sync_gear(true)
 						ctx.rebuild.call(), 84)
 					up.disabled = not Profile.can_pay(cost)
 					row.add_child(up)
@@ -888,10 +890,11 @@ static func sanctuary_build(ui: UIRoot, id: String) -> Control:
 		v.add_child(UIKit.cost_row(cost))
 		var btn := UIKit.button("Build" if lvl == 0 else "Improve", func() -> void:
 			if Profile.upgrade_building(id):
-				Audio.play("build", 0.0)
 				Profile.save_profile()
 				ui.close_top()
-				ui.fade(Game.goto_hub), 80)
+				# raised in place, the Kindled watching (Hub.refresh_camp plays the build)
+				if Game.stage is Hub:
+					(Game.stage as Hub).refresh_camp(), 80)
 		btn.disabled = not Profile.can_afford(cost)
 		v.add_child(btn)
 	v.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))

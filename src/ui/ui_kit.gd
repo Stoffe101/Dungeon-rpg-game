@@ -36,6 +36,11 @@ static func show_focus_ring(on: bool) -> void:
 	_focus_box().border_color = Color(C_GOLD, 1.0 if on else 0.0)
 
 
+## Is the keyboard / pad focus ring showing (the last navigation was not the mouse)?
+static func focus_ring_shown() -> bool:
+	return _focus_box().border_color.a > 0.5
+
+
 static func theme() -> Theme:
 	if _theme:
 		return _theme
