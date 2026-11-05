@@ -136,6 +136,25 @@ func after(seconds: float, fn: Callable) -> void:
 	_timers.append([seconds, fn])
 
 
+## A find's name rising over its finder. Several taken at once are named in
+## turn, not printed on top of each other. Only ever the finder's own screen.
+var _title_free := 0.0
+
+
+func find_title(pl: Player, height: float, text: String, col: Color) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	var wait := maxf(0.0, _title_free - now)
+	_title_free = now + wait + 0.6
+	if wait <= 0.0:
+		fx.number(pl.pos, height, text, col, true)
+		return
+	get_tree().create_timer(wait, false).timeout.connect(func() -> void:
+		if is_inside_tree() and is_instance_valid(pl):
+			Net.mute += 1
+			fx.number(pl.pos, height, text, col, true)
+			Net.mute -= 1)
+
+
 func simulate(dt: float) -> void:
 	if replica:
 		_replica_step(dt)

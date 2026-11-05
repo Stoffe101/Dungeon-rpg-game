@@ -1,8 +1,8 @@
 {
 	"anims": {
 		"attack": {
-			"fps": 10.0,
-			"frames": 2,
+			"fps": 12.0,
+			"frames": 3,
 			"loop": false,
 			"row": 3
 		},
@@ -32,7 +32,7 @@
 		},
 		"windup": {
 			"fps": 6.0,
-			"frames": 2,
+			"frames": 3,
 			"loop": false,
 			"row": 2
 		}
@@ -45,5 +45,6 @@
 	"origin": [
 		12,
 		22
-	]
+	],
+	"self_light": 0.22
 }

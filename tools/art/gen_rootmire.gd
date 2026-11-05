@@ -293,10 +293,10 @@ static func _weaver_frame(i: int, cast: bool) -> Px:
 	# root skirt
 	for k in 7:
 		var x0 := 6 + k * 2
-		limb(c, [[x0 + 1, 18 + b], [x0 - 1 + (k + i) % 3, 25], [x0 - 2 + (k % 3), 30]], Pal.WOOD, 2, 1)
+		limb(c, [[x0 + 1, 18 + b], [x0 - 1 + (k + i) % 3, 25], [x0 - 2 + (k % 3), 30]], Pal.WOOD, 3, 1)
 	# bark body
 	var body := c.mask().poly(V([[9, 10 + b], [15, 10 + b], [16, 20 + b], [8, 20 + b]]))
-	c.paint(body, Pal.WOOD, 2, true)
+	c.paint(body, Pal.WOOD, 3, true)
 	for y in range(12 + b, 20 + b, 3):
 		c.put(11, y, Pal.MOSS[3])
 	# leafy hair and mask-like face
@@ -309,13 +309,13 @@ static func _weaver_frame(i: int, cast: bool) -> Px:
 	c.put(12, 9 + b, Pal.INK)
 	# arms
 	if cast:
-		limb(c, [[9, 12 + b], [5, 7 + b], [4, 3 + b]], Pal.WOOD, 2, 1)
-		limb(c, [[15, 12 + b], [19, 7 + b], [20, 3 + b]], Pal.WOOD, 2, 1)
+		limb(c, [[9, 12 + b], [5, 7 + b], [4, 3 + b]], Pal.WOOD, 3, 1)
+		limb(c, [[15, 12 + b], [19, 7 + b], [20, 3 + b]], Pal.WOOD, 3, 1)
 		for k in 3:
 			c.lit(3 + k * 8, 1 + b + (k % 2), Pal.MOSS[5])
 	else:
-		limb(c, [[9, 12 + b], [6, 17 + b]], Pal.WOOD, 2, 1)
-		limb(c, [[15, 12 + b], [18, 17 + b]], Pal.WOOD, 2, 1)
+		limb(c, [[9, 12 + b], [6, 17 + b]], Pal.WOOD, 3, 1)
+		limb(c, [[15, 12 + b], [18, 17 + b]], Pal.WOOD, 3, 1)
 	c.outline(Pal.INK)
 	return c
 

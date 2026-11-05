@@ -61,6 +61,8 @@ func _run() -> void:
 			await stairs_only()
 		"sites":
 			await sites()
+		"guardian":
+			await guardian()
 		"bestiary":
 			await bestiary()
 		"partyhud":
@@ -1036,6 +1038,70 @@ func sites() -> void:
 			if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "altar" and not p.used:
 				return false
 		return true, 10.0, "the other answers are spent on my screen")
+	await wait(1.0)
+
+
+## A party's guardian: the stairs to depth 3, its arrival, the fight turning and
+## its fall, on every machine; its spoils land after the fall, for everyone.
+func guardian() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	for depth in [2, 3]:
+		if role == "host":
+			await wait(1.0)
+			Net.i.run_sync.start_vote("stairs", -1, dun().player)
+		else:
+			await until(func() -> bool: return RequestCard.ensure(Game.ui).mode == "vote", 30.0, "the stairs vote reached me")
+			await wait(0.4)
+			tap("party_yes")
+		var want: int = depth
+		await until(func() -> bool: return dun() != null and Game.run != null and Game.run.depth == want and not Game.ui.card_pending, 30.0, "down to depth %d" % depth)
+		_strip_bot()
+	await wait(1.5)
+	var boss_room: Room = dun().layout.room(dun().layout.exit_id)
+	if role == "host":
+		dun().player.godmode = true
+		dun().player.pos = dun().random_floor_near(boss_room.center() + Vector2(0, 3), 1.0)
+	if not await until(func() -> bool: return dun().boss != null and is_instance_valid(dun().boss), 20.0, "the guardian arrived on my screen"):
+		return
+	var b: Enemy = dun().boss
+	# every machine watches for itself from here, each on its own clock: a lagged
+	# guest must not be judged by when it happened to look
+	var began := now()
+	var turned := false
+	var did_turn := false
+	var did_fall := false
+	var t_fell := -1.0
+	var t_hoard := -1.0
+	var home := false
+	while now() < began + 30.0 and not (turned and t_hoard > 0.0 and home):
+		if role == "host" and not did_turn and now() > began + 3.5:
+			did_turn = true
+			b.phase_moment("The Fight Turns", "scenario", Color(0.7, 0.5, 0.95))
+			expect(b.aura.a > 0.0, "the guardian sheds its light from now on")
+			Net.i.dev_shot("e2e/guardian_turn")
+		if role == "host" and did_turn and not did_fall and now() > began + 6.5:
+			did_fall = true
+			b.hp = 0.0
+			b.die(dun().player)
+		if not turned and String(Game.ui.banner_title.text) == "THE FIGHT TURNS":
+			turned = true
+		if t_fell < 0.0 and (not is_instance_valid(b) or String(b.sprite.anim) == "death"):
+			t_fell = now()
+			if role == "host":
+				Net.i.dev_shot("e2e/guardian_fall")
+		if t_hoard < 0.0 and not dun().pickups.filter(func(p): return is_instance_valid(p) and p.kind == "sunshard").is_empty():
+			t_hoard = now()
+		home = not dun().props.filter(func(p): return is_instance_valid(p) and p.kind == "hearthstone" and p.data.get("victory", false)).is_empty()
+		await wait(0.03)
+	expect(turned, "the turn reached my screen")
+	expect(t_fell > 0.0, "it fell on my screen")
+	expect(t_hoard > 0.0, "its hoard landed on my screen")
+	expect(home, "the way home stands on my screen")
+	print("[scenario] the hoard came %.2f s after the fall" % (t_hoard - t_fell))
+	expect(t_hoard - t_fell > 1.5, "the fall had the floor to itself (%.2f s)" % (t_hoard - t_fell))
+	if role == "host":
+		Net.i.dev_shot("e2e/guardian_spoils")
 	await wait(1.0)
 
 

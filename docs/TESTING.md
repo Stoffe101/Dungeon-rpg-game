@@ -184,6 +184,22 @@ generate the same floor).
 - Rendered captures found what none of that could (see STATUS): after adding
   anything visible, walk into it and look at the capture.
 
+### Tools of the foes and guardians pass
+
+- `-- scene=dungeon region=<r> rosterlab [anim=windup] [lab=<id,id>]`: a region's
+  foes in rows on its real floor and light, held in one pose (they do not act).
+- `-- region=<r> depth=3 warp=boss autopilot bossat=0.5` starts a guardian at that
+  health; `bossdie=<seconds>` fells it that long after it arrives and prints the
+  frame, so `capture=<name> frames=<n> burst=8:50` can be aimed at the fall.
+- `tools/dev/e2e.sh <n> guardian` (DEVNET=1): a party down to depth 3 and through
+  a guardian's arrival, turn and fall; nothing may land on the blow, and its hoard
+  and the way home must reach every screen.
+- A check on a lagged guest must use that machine's own clock: the first
+  `guardian` scenario sampled once at a fixed step and failed for no game reason.
+- `tests/test_foes.gd`: rims and `self_light` on every foe, a rim gone from a
+  corpse, a fall for every guardian, wind-ups that change the silhouette, spoils
+  and titles, the three new foes' behaviour.
+
 ## Human playtest on two PCs
 
 Two people, each on their own PC. For a LAN game, both on the same network:
@@ -361,6 +377,21 @@ where. Two (or more) PCs, a whole expedition, then:
   forward to, rare enough to stay special? Foes' flinches and falls.
 - **The Hearthtree:** the seven weapon masteries - do they change how your
   weapon plays?
+
+## Human playtest: the foes and guardians pass
+
+- **Reading a crowd:** in a busy room in each region, can you tell what is about
+  to hit you at a glance? Is the rim helping, or is it too loud, or too neon?
+- **The foes seen most:** Husk, Guard, Archer, Skitter. Does the wind-up give you
+  time to react from the shape alone, before the red marker?
+- **Guardians:** does each arrival feel like that guardian? Does the turn make you
+  look up? Does the fall feel like an ending, and do you enjoy the short wait for
+  the spoils or want to skip it?
+- **Tollkeeper:** can you dodge through the ring on purpose? Is it too bright?
+- **Lurecap:** did one fool you? Could you have spotted the eye? Was it fair?
+- **Ash Herald:** did you see the mark? In a party, did someone go for the Herald?
+- **A friend's screen:** guardians and new foes should look the same on a guest's
+  machine.
 
 ## Human playtest: the living Undervault pass
 

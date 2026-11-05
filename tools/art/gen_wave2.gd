@@ -9,6 +9,7 @@ extends RefCounted
 const Px = preload("res://tools/art/px.gd")
 const Pal = preload("res://src/render/pal.gd")
 const Sheet = preload("res://tools/art/sheet.gd")
+const GenThrone = preload("res://tools/art/gen_throne.gd")
 
 
 static func V(pts: Array) -> PackedVector2Array:
@@ -259,11 +260,11 @@ static func _wright(p: Dictionary) -> Px:
 	# legs of root
 	var la := 9 + (1 if st == 0 else (-1 if st == 2 else 0))
 	var lb := 14 - (1 if st == 0 else (-1 if st == 2 else 0))
-	limb(c, [[10, 20], [la, 27]], Pal.WOOD, 2)
-	limb(c, [[13, 20], [lb, 27]], Pal.WOOD, 2)
+	limb(c, [[10, 20], [la, 27]], Pal.WOOD, 3)
+	limb(c, [[13, 20], [lb, 27]], Pal.WOOD, 3)
 	# hunched trunk wound with thorny vines
 	var body := c.mask().poly(V([[7 + sw, 9], [15 + sw, 8], [16, 21], [8, 21]]))
-	c.paint(body, Pal.WOOD, 2, true)
+	c.paint(body, Pal.WOOD, 3, true)
 	for y in range(10, 21, 3):
 		c.line(8, y, 15, y + 1, Pal.MOSS[2])
 		c.put(15, y, Pal.BONE[3])
@@ -275,17 +276,17 @@ static func _wright(p: Dictionary) -> Px:
 		c.line(9 + k * 2 + sw, 3, 8 + k * 2 + sw, 0, Pal.WOOD[1])
 	# arms
 	if p.get("raise", false):
-		limb(c, [[8, 11], [5, 6], [4, 2]], Pal.WOOD, 2, 1)
-		limb(c, [[15, 11], [18, 6], [19, 2]], Pal.WOOD, 2, 1)
+		limb(c, [[8, 11], [5, 6], [4, 2]], Pal.WOOD, 3, 1)
+		limb(c, [[15, 11], [18, 6], [19, 2]], Pal.WOOD, 3, 1)
 		if p.get("glow", false):
 			c.lit(4, 1, Pal.MOSS[5])
 			c.lit(19, 1, Pal.MOSS[5])
 	elif int(p.get("whip", 0)) > 0:
 		var wy := 10 if int(p.get("whip")) == 1 else 16
-		limb(c, [[15, 12], [19, wy], [23, wy + 1]], Pal.WOOD, 2, 1)
+		limb(c, [[15, 12], [19, wy], [23, wy + 1]], Pal.WOOD, 3, 1)
 		c.put(23, wy, Pal.BONE[3])
 	else:
-		limb(c, [[15, 12], [17, 17], [17, 21]], Pal.WOOD, 2, 1)
+		limb(c, [[15, 12], [17, 17], [17, 21]], Pal.WOOD, 3, 1)
 	c.outline(Pal.INK)
 	return c
 
@@ -314,15 +315,15 @@ static func _fencer(p: Dictionary) -> Px:
 	# legs: long, in a fencer's stance
 	var fa := 8 + (1 if st == 0 else (-1 if st == 2 else 0)) - lean
 	var fb := 13 - (1 if st == 0 else (-1 if st == 2 else 0)) + lean * 2
-	limb(c, [[10, 18 + b], [9, 23], [fa, 28]], Pal.OBSIDIAN, 2, 1)
-	limb(c, [[12, 18 + b], [13, 23], [fb, 28]], Pal.OBSIDIAN, 2, 1)
+	limb(c, [[10, 18 + b], [9, 23], [fa, 28]], GenThrone.PLATE, 2, 1)
+	limb(c, [[12, 18 + b], [13, 23], [fb, 28]], GenThrone.PLATE, 2, 1)
 	# a short gold cape behind
 	c.paint(c.mask().poly(V([[8 + lean, 9 + b], [10 + lean, 9 + b], [7, 20 + b], [4, 19 + b]])), Pal.GOLD, 2, true)
 	# slim torso, gold trim
-	c.paint(c.mask().rect(9 + lean, 9 + b, 5, 10), Pal.OBSIDIAN, 3, true)
+	c.paint(c.mask().rect(9 + lean, 9 + b, 5, 10), GenThrone.PLATE, 3, true)
 	c.line(9 + lean, 13 + b, 13 + lean, 13 + b, Pal.GOLD[3])
 	# helm with a plume
-	c.paint(c.mask().ellipse(11.0 + lean, 6.0 + b, 3.0, 3.2), Pal.OBSIDIAN, 3, true)
+	c.paint(c.mask().ellipse(11.0 + lean, 6.0 + b, 3.0, 3.2), GenThrone.PLATE, 3, true)
 	c.line(11 + lean, 9 + b, 14 + lean, 9 + b, Pal.GOLD[2])
 	c.lit(12 + lean, 6 + b, Pal.GOLD[4])
 	c.line(10 + lean, 3 + b, 7 + lean, 0 + b, Pal.BLOOD[3])

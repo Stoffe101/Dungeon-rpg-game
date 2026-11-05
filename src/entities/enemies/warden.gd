@@ -319,7 +319,7 @@ func _begin_gloamfall() -> void:
 	Audio.play("boss_roar", 3.0, 0.8)
 	stage.fx.shake(0.8)
 	stage.fx.number(pos, 4.0, "GLOAMFALL", Color(0.75, 0.5, 0.95), true)
-	Events.banner.emit("Gloamfall", "Relight the braziers to sear the Warden")
+	phase_moment("Gloamfall", "Relight the braziers to sear the Warden", Color(0.72, 0.48, 0.95))
 	_snuff_all()
 	summon_t = 3.0
 
@@ -402,14 +402,18 @@ func die(killer: Node) -> void:
 		stage.fx.burst(pos, 1.5, Color(0.4, 1.0, 0.9), 40, 8.0, 1.2, 1.0)
 	stage.fx.burst(pos, 1.0, Color(1.0, 0.85, 0.5), 30, 5.0, 1.5, -1.0)
 	Audio.play("boss_death", 3.0)
+	# the cage at its hip breaks: what it kept goes up past you
+	var at := pos
+	stage.look_toward(at, 2.4)
+	for k in 9:
+		stage.after(0.3 + k * 0.22, func() -> void:
+			stage.fx.motes(at + Vector2(randf_range(-1.2, 1.2), randf_range(-0.8, 0.8)), 1.2, Color(0.5, 1.0, 0.92), 6, 3.2, 1.4, 0.4))
+	stage.after(1.4, func() -> void:
+		stage.fx.ring(at, 8.0, Color(0.5, 1.0, 0.92), 1.2, 0.2)
+		stage.fx.flash_light(at, 3.0, Color(0.55, 1.0, 0.95), 5.0, 18.0, 1.6))
 	super.die(killer)
 	Events.boss_defeated.emit(self)
 
 
 func _death_effect() -> void:
-	sprite.play("stagger")
-	var tw := create_tween()
-	tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 2.2)
-	tw.tween_callback(queue_free)
-	if shadow:
-		shadow.visible = false
+	guardian_fall()

@@ -319,6 +319,11 @@ func tick(dt: float) -> void:
 		targetable = not phased
 		sprite.set_tint(Color(1, 1, 1, 0.35 if phased else 1.0))
 	super.tick(dt)
+	if aura.a > 0.0 and alive:
+		_shed_t -= dt
+		if _shed_t <= 0.0:
+			_shed_t = 0.16
+			stage.fx.motes(pos, 1.0 + randf() * 2.0, aura, 2, 1.4, 0.8, radius)
 	_tell()
 	_update_bar(dt)
 	_wildfire(dt)
@@ -938,6 +943,43 @@ func crown(title: String) -> void:
 	if nameplate:
 		nameplate.text = title
 		nameplate.add_theme_color_override("font_color", Color(1.0, 0.55, 0.3))
+
+
+# --- a guardian's moments ------------------------------------------------------------
+
+var aura := Color(0, 0, 0, 0)     # its second phase: what it sheds from then on
+var spoils := Callable()          # what falls when it has finished falling (host)
+var _shed_t := 0.0
+
+
+## The fight turns. Told by time, light and the guardian's own look as well as
+## in words, so a player mid-dodge feels it without reading anything. All of it
+## reaches guests as recorded effects and a banner.
+func phase_moment(title: String, sub: String, col: Color) -> void:
+	aura = col
+	stage.slow_motion(0.4, 0.45)
+	stage.fx.ring(pos, 6.0, col, 0.7, 0.35)
+	stage.fx.ring(pos, 10.0, col.lightened(0.3), 1.0, 0.15)
+	stage.fx.burst(pos, 2.0, col, 44, 7.0, 0.9, 2.0)
+	stage.fx.flash_light(pos, 2.4, col, 6.0, 14.0, 0.8)
+	stage.look_toward(pos, 0.9)
+	Events.banner.emit(title, sub)
+
+
+## How a guardian leaves: its fall plays out, it burns away, and only then does
+## what it held hit the floor. (Loot landing on the blow buried the best moment of
+## a run under four labels and a stack of titles.)
+func guardian_fall() -> void:
+	sprite.play("death")
+	var tw := create_tween()
+	tw.tween_interval(1.1)
+	tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 1.8)
+	tw.tween_callback(func() -> void:
+		if spoils.is_valid():
+			spoils.call()
+		queue_free())
+	if shadow:
+		shadow.visible = false
 
 
 func _make_nameplate() -> void:

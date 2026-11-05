@@ -332,6 +332,12 @@ Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
 controls. The human test plan is in docs/TESTING.md.
 
+## Protocol 12 (foes and guardians pass)
+
+No message changed shape: three new foes do. A guest on an older build would not
+know their ids and would draw nothing, so the two must not connect. A guardian's
+turn and fall reach guests as recorded effects, a banner and `replica_die`.
+
 ## Protocol 11 (living Undervault pass)
 
 - **`_begin` carries `world`**: the host's Chronicle snapshot (`Chronicle.snapshot`:

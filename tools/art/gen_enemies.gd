@@ -47,10 +47,14 @@ static func _husk(dir: String) -> void:
 	var walk: Array = []
 	for i in 6:
 		var ph := sin(i / 6.0 * TAU)
-		walk.append(husk_frame({"bob": i % 3 == 1, "arm": "reach", "step": ph, "sway": i % 2}))
+		# a shamble: the torso rolls over whichever leg is down
+		walk.append(husk_frame({"bob": i % 3 == 1, "arm": "reach", "step": ph, "sway": i % 2, "lean": roundi(ph)}))
 	s.add("walk", walk, 8.0)
-	s.add("windup", [husk_frame({"arm": "raise", "bob": 0}), husk_frame({"arm": "raise", "bob": 1, "lean": -1})], 6.0, false)
-	s.add("attack", [husk_frame({"arm": "rake", "lean": 2}), husk_frame({"arm": "rake2", "lean": 1})], 10.0, false)
+	# both arms up and the head thrown back, then the whole body falls forward
+	s.add("windup", [husk_frame({"arm": "raise", "lean": -1}), husk_frame({"arm": "raise", "lean": -2, "both": true, "bob": 1}),
+		husk_frame({"arm": "raise", "lean": -3, "both": true, "bob": 1})], 6.0, false)
+	s.add("attack", [husk_frame({"arm": "rake", "lean": 3}), husk_frame({"arm": "rake2", "lean": 4, "bob": 1}),
+		husk_frame({"arm": "rake2", "lean": 2, "bob": 1})], 12.0, false)
 	s.save(dir, "husk")
 
 
@@ -62,7 +66,10 @@ static func husk_frame(p: Dictionary) -> Px:
 	var lean: int = p.get("lean", 0)
 	var sw: int = p.get("sway", 0)
 	# back arm
-	limb(c, [[11 + lean, 11 + b], [10 + lean, 14 + b], [10 + lean, 17 + b]], Pal.BONE, 1, 1)
+	if p.get("both", false):
+		limb(c, [[11 + lean, 11 + b], [12 + lean, 6 + b], [10 + lean, 2 + b]], Pal.BONE, 1, 1)
+	else:
+		limb(c, [[11 + lean, 11 + b], [10 + lean, 14 + b], [10 + lean, 17 + b]], Pal.BONE, 1, 1)
 	# legs
 	var fa := 10 + roundi(st * 2.0)
 	var fb := 13 - roundi(st * 2.0)
@@ -152,7 +159,12 @@ static func skitter_frame(ph: float, by: int, blink: int, pose := "") -> Px:
 			limb(c, [[bx, 10 + by], [bx - 1 + off, 12], [bx - 2 + off, 13]], Pal.BONE, 2, 1)
 		else:
 			limb(c, [[bx, 10 + by], [bx + 1 + off, 12], [bx + off, 14]], Pal.BONE, 2, 1)
+	# squashed to spring, stretched in the air: the leap is told by its shape
 	var body := c.mask().ellipse(8.5, 8.0 + by, 4.3, 3.4)
+	if pose == "crouch":
+		body = c.mask().ellipse(8.5, 8.5 + by, 5.0, 2.6)
+	elif pose == "leap":
+		body = c.mask().ellipse(9.0, 8.0 + by, 5.4, 2.6)
 	c.paint(body, Pal.BONE, 3)
 	# crack on the cranium
 	c.put(7, 5 + by, Pal.BONE[1])
@@ -164,9 +176,11 @@ static func skitter_frame(ph: float, by: int, blink: int, pose := "") -> Px:
 	if blink == 0:
 		c.lit(11, 7 + by, Pal.SOUL[5])
 	c.put(7, 8 + by, Pal.INK)
-	# teeth
+	# teeth (bared in the air)
 	for x in range(8, 13):
 		c.put(x, 10 + by, Pal.INK if x % 2 == 0 else Pal.BONE[3])
+		if pose == "leap":
+			c.put(x, 11 + by, Pal.BONE[4] if x % 2 == 0 else Pal.INK)
 	c.outline(Pal.INK)
 	return c
 
@@ -183,8 +197,9 @@ static func _archer(dir: String) -> void:
 	for i in 4:
 		walk.append(archer_frame({"bob": i % 2, "pose": "idle", "step": sin(i / 4.0 * TAU), "sway": i % 2}))
 	s.add("walk", walk, 8.0)
-	s.add("aim", [archer_frame({"pose": "draw"}), archer_frame({"pose": "draw", "bob": 0, "glow": 1})], 6.0)
-	s.add("shoot", [archer_frame({"pose": "loose"}), archer_frame({"pose": "idle"})], 8.0, false)
+	# the draw is a slow pull ending in a bright arrowhead: that is the warning
+	s.add("aim", [archer_frame({"pose": "draw", "pull": 2}), archer_frame({"pose": "draw", "pull": 1}), archer_frame({"pose": "draw", "glow": 1})], 5.0, false)
+	s.add("shoot", [archer_frame({"pose": "loose"}), archer_frame({"pose": "loose", "bob": 1}), archer_frame({"pose": "idle"})], 9.0, false)
 	s.save(dir, "archer")
 
 
@@ -226,15 +241,20 @@ static func archer_frame(p: Dictionary) -> Px:
 	c.paint(bow, Pal.WOOD, 3, false, false)
 	match pose:
 		"draw":
-			# string pulled back with a nocked soul-arrow
-			c.line(bx, 4 + b, 14, 12 + b, Pal.BONE[4])
-			c.line(14, 12 + b, bx, 18 + b, Pal.BONE[4])
-			for x in range(13, bx + 4):
+			# string pulled back with a nocked soul-arrow (`pull`: how far short of full)
+			var pull: int = int(p.get("pull", 0))
+			var hx := 13 + pull * 2
+			c.line(bx, 4 + b, hx + 1, 12 + b, Pal.BONE[4])
+			c.line(hx + 1, 12 + b, bx, 18 + b, Pal.BONE[4])
+			for x in range(hx, bx + 4):
 				c.put(x, 12 + b, Pal.BONE[3])
 			c.lit(bx + 4, 12 + b, Pal.SOUL[5])
 			c.lit(bx + 3, 12 + b, Pal.SOUL[4])
+			if p.get("glow", 0) != 0:
+				c.lit(bx + 4, 11 + b, Pal.SOUL[4])
+				c.lit(bx + 4, 13 + b, Pal.SOUL[4])
 			limb(c, [[13, 10 + b], [16, 12 + b], [bx, 12 + b]], Pal.BONE, 2, 1)
-			limb(c, [[11, 11 + b], [13, 12 + b]], Pal.BONE, 2, 1)
+			limb(c, [[11, 11 + b], [hx, 12 + b]], Pal.BONE, 2, 1)
 		"loose":
 			c.line(bx, 4 + b, bx, 18 + b, Pal.BONE[4])
 			limb(c, [[13, 10 + b], [16, 12 + b], [bx, 12 + b]], Pal.BONE, 2, 1)
@@ -255,8 +275,10 @@ static func _guard(dir: String) -> void:
 	for i in 4:
 		walk.append(guard_frame({"bob": i % 2, "step": sin(i / 4.0 * TAU)}))
 	s.add("walk", walk, 6.0)
-	s.add("windup", [guard_frame({"shield": -2, "bob": 1}), guard_frame({"shield": -3, "bob": 2})], 5.0, false)
-	s.add("bash", [guard_frame({"shield": 3, "lean": 2}), guard_frame({"shield": 2, "lean": 1})], 10.0, false)
+	# gathers behind the shield, weight on the back foot, then drives through it
+	s.add("windup", [guard_frame({"shield": -2, "bob": 1, "lean": -1}), guard_frame({"shield": -4, "bob": 2, "lean": -2, "step": 0.5})], 5.0, false)
+	s.add("bash", [guard_frame({"shield": 3, "lean": 2, "step": -1.0}), guard_frame({"shield": 3, "lean": 1, "step": -1.0}),
+		guard_frame({"shield": 1, "lean": 1, "step": -0.5})], 10.0, false)
 	s.save(dir, "guard")
 
 

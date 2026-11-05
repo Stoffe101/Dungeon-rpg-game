@@ -2,7 +2,7 @@
 	"anims": {
 		"bash": {
 			"fps": 10.0,
-			"frames": 2,
+			"frames": 3,
 			"loop": false,
 			"row": 3
 		},
@@ -45,5 +45,6 @@
 	"origin": [
 		16,
 		30
-	]
+	],
+	"self_light": 0.22
 }

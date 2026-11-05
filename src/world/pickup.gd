@@ -426,7 +426,7 @@ static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: 
 		"rune":
 			var rd := Runes.get_def(String(what))
 			var rc2: Color = rd.get("color", Color.WHITE)
-			st.fx.number(pl.pos, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2, true)
+			st.find_title(pl, 2.6, String(rd.get("name", "RUNE")).to_upper(), rc2)
 			st.fx.ring(pl.pos, 1.6, rc2, 0.4, 0.25)
 			Events.toast.emit("Rune found: %s - in your Satchel; set it in a spell at the Gate (Runes)" % rd.get("name", "?"), rc2)
 			Audio.play("learn", -4.0, 1.2)
@@ -436,7 +436,7 @@ static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: 
 			var rcol: Color = rg.get("color", Color.WHITE)
 			var tid := Tinctures.taught_by(rid)
 			var tname := String(Tinctures.get_def(tid).name)
-			st.fx.number(pl.pos, 2.6, String(rg.get("name", "REAGENT")).to_upper(), rcol, true)
+			st.find_title(pl, 2.6, String(rg.get("name", "REAGENT")).to_upper(), rcol)
 			st.fx.ring(pl.pos, 1.6, rcol, 0.4, 0.25)
 			st.fx.motes(pl.pos, 0.3, rcol, 14, 1.6, 1.0, 0.4)
 			# (banked already: the count says whether it taught or distilled)
@@ -448,7 +448,7 @@ static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: 
 			Audio.play("learn", -4.0, 0.9)
 		"blueprint":
 			var bid := String(what)
-			st.fx.number(pl.pos, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35), true)
+			st.find_title(pl, 2.6, "BLUEPRINT", Color(1.0, 0.75, 0.35))
 			st.fx.ring(pl.pos, 1.6, Color(1.0, 0.75, 0.35), 0.4, 0.25)
 			st.fx.flash_light(pl.pos, 1.0, Color(1.0, 0.75, 0.35), 3.0, 5.0, 0.4)
 			Events.toast.emit("Blueprint found: %s - learn it in your Satchel" % ItemDB.base(bid).get("name", "?"), Color(1.0, 0.75, 0.35))
@@ -456,7 +456,7 @@ static func found_fx(st: Stage, pl: Player, kind: String, what: Variant, grade: 
 		"gear":
 			var it: Dictionary = what
 			var rc := ItemDB.color(it)
-			st.fx.number(pl.pos, 2.4, ItemDB.item_name(it).to_upper(), rc, true)
+			st.find_title(pl, 2.4, ItemDB.item_name(it).to_upper(), rc)
 			st.fx.ring(pl.pos, 1.2, rc, 0.3, 0.2)
 			if grade >= 2:
 				st.fx.ring(pl.pos, 2.0, rc, 0.5, 0.15)

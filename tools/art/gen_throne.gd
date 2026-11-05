@@ -9,6 +9,10 @@ const Pal = preload("res://src/render/pal.gd")
 const Sheet = preload("res://tools/art/sheet.gd")
 const GenTiles = preload("res://tools/art/gen_tiles.gd")
 
+## Black plate that still reads on black marble: the same purple-black as
+## OBSIDIAN, carried two steps up.
+const PLATE := [Color8(30, 26, 40), Color8(50, 44, 62), Color8(76, 68, 92), Color8(106, 98, 122), Color8(142, 134, 156), Color8(182, 176, 192)]
+
 
 static func V(pts: Array) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -79,16 +83,16 @@ static func sentinel_frame(p: Dictionary) -> Px:
 	var la := cx - 4 + roundi(st * 2.0)
 	var lb := cx + 1 - roundi(st * 2.0)
 	for lx in [la, lb]:
-		c.paint(c.mask().rect(lx, 21 + b / 2, 4, 30 - (21 + b / 2)), Pal.OBSIDIAN, 2, true)
-		c.paint(c.mask().rect(lx - 1, 28, 6, 2), Pal.OBSIDIAN, 3)
+		c.paint(c.mask().rect(lx, 21 + b / 2, 4, 30 - (21 + b / 2)), PLATE, 2, true)
+		c.paint(c.mask().rect(lx - 1, 28, 6, 2), PLATE, 3)
 		c.put(lx + 1, 24, Pal.GOLD[3])
 	# tabard and torso
 	var tor := c.mask().poly(V([[cx - 6, 10 + b], [cx + 5, 10 + b], [cx + 5, 22 + b], [cx - 6, 22 + b]]))
-	c.paint(tor, Pal.OBSIDIAN, 3, true)
+	c.paint(tor, PLATE, 3, true)
 	c.paint(c.mask().rect(cx - 2, 14 + b, 3, 10), Pal.BLOOD, 2)
 	c.line(cx - 6, 20 + b, cx + 5, 20 + b, Pal.GOLD[2])
 	# pauldron
-	c.paint(c.mask().ellipse(cx - 4.0, 11.0 + b, 3.6, 2.8), Pal.OBSIDIAN, 4, true)
+	c.paint(c.mask().ellipse(cx - 4.0, 11.0 + b, 3.6, 2.8), PLATE, 4, true)
 	c.put(cx - 5, 10 + b, Pal.GOLD[3])
 	# great helm with a sun-crest fan
 	var hx := cx + 1
@@ -100,7 +104,7 @@ static func sentinel_frame(p: Dictionary) -> Px:
 		c.lit(int(e.x), int(e.y), Pal.GOLD[4])
 	var helm := c.mask().rect(hx - 4, hy - 3, 8, 8)
 	helm.ellipse(hx, hy - 3, 4.0, 2.0)
-	c.paint(helm, Pal.OBSIDIAN, 3, true)
+	c.paint(helm, PLATE, 3, true)
 	c.line(hx - 1, hy, hx + 3, hy, Pal.INK)
 	c.lit(hx + 1, hy, Pal.GOLD[4])
 	c.lit(hx + 2, hy, Pal.GOLD[3])
@@ -110,7 +114,7 @@ static func sentinel_frame(p: Dictionary) -> Px:
 	var shm := c.mask().rect(sx, 9 + b, 7, 17)
 	shm.ellipse(sx + 3.5, 25.0 + b, 3.5, 2.0)
 	c.paint(shm, Pal.GOLD, 2, true)
-	c.paint(c.mask().rect(sx + 1, 10 + b, 5, 15), Pal.OBSIDIAN, 2)
+	c.paint(c.mask().rect(sx + 1, 10 + b, 5, 15), PLATE, 2)
 	var sun := c.mask().ellipse(sx + 3.5, 16.5 + b, 2.2, 2.2)
 	c.fill(sun, Pal.GOLD[3])
 	c.lit(sx + 3, 16 + b, Pal.GOLD[4])
@@ -154,7 +158,7 @@ static func hound_frame(p: Dictionary) -> Px:
 		limb(c, [[lx, by + 2], [lx + off / 2, by + 4], [lx + off, 14 if not leap else by + 5]], col, 1, 1)
 	# body
 	var body := c.mask().ellipse(10.5, by + 0.5, 6.5, 3.0)
-	c.paint(body, Pal.ASH, 2, true)
+	c.paint(body, Pal.ASH, 3, true)
 	# ember cracks along the ribs
 	for x in [7, 9, 11, 13]:
 		c.lit(x, by + int(p.get("breath", 0)), Pal.EMBER[3] if x % 4 == 1 else Pal.EMBER[2])
@@ -167,7 +171,7 @@ static func hound_frame(p: Dictionary) -> Px:
 	var hy := by - 2 - (1 if crouch else 0)
 	var head := c.mask().ellipse(hx, hy, 3.0, 2.4)
 	head.rect(hx, hy, 4, 2)
-	c.paint(head, Pal.ASH, 3, true)
+	c.paint(head, Pal.ASH, 4, true)
 	c.put(hx - 1, hy - 3, Pal.ASH[2])
 	c.put(hx - 2, hy - 3, Pal.ASH[1])
 	c.lit(hx + 1, hy - 1, Pal.EMBER[4])
@@ -205,7 +209,7 @@ static func acolyte_frame(p: Dictionary) -> Px:
 		if (x + hem) % 3 == 0:
 			robe.set_bit(x, 26 + b, false)
 			robe.set_bit(x, 25 + b, false)
-	c.paint(robe, Pal.OBSIDIAN, 2, true)
+	c.paint(robe, PLATE, 2, true)
 	c.line(7, 24 + b, 17, 24 + b, Pal.GOLD[2])
 	c.line(12, 12 + b, 12, 23 + b, Pal.GOLD[1])
 	for x in range(7, 18, 3):
@@ -214,7 +218,7 @@ static func acolyte_frame(p: Dictionary) -> Px:
 	# hood with the dark inside and two small suns for eyes
 	var hood := c.mask().ellipse(12.5, 6.5 + b, 4.5, 4.8)
 	hood.poly(V([[8, 7 + b], [17, 7 + b], [16, 11 + b], [9, 11 + b]]))
-	c.paint(hood, Pal.OBSIDIAN, 3, true)
+	c.paint(hood, PLATE, 3, true)
 	c.paint(c.mask().ellipse(13.5, 7.5 + b, 2.6, 2.8), [Pal.INK, Pal.INK, Pal.VOID], 1, false, false)
 	c.lit(13, 7 + b, Pal.GOLD[4])
 	c.lit(15, 7 + b, Pal.GOLD[4])
@@ -266,7 +270,7 @@ static func wraith_frame(p: Dictionary) -> Px:
 	var glow: int = int(p.get("glow", 0))
 	# smoke tail instead of legs
 	var body := c.mask().poly(V([[8 + ln, 8 + b], [15 + ln, 8 + b], [14 + ln, 15 + b], [11 + (tail % 3) - 1, 21], [9 + ln, 15 + b]]))
-	c.paint(body, Pal.ASH, 2, true)
+	c.paint(body, Pal.ASH, 3, true)
 	for y in range(16, 22):
 		for x in range(8, 16):
 			if body.has(x, y) and Px.bayer(x + tail, y) < (y - 15) / 7.0:
@@ -367,8 +371,8 @@ static func king_frame(p: Dictionary) -> Px:
 	var la := cx - 7 + roundi(st * 3.0)
 	var lb := cx + 3 - roundi(st * 3.0)
 	for lx in [la, lb]:
-		c.paint(c.mask().rect(lx, 44 + b / 2, 6, 61 - (44 + b / 2)), Pal.OBSIDIAN, 2, true)
-		c.paint(c.mask().rect(lx - 1, 57, 8, 4), Pal.OBSIDIAN, 3)
+		c.paint(c.mask().rect(lx, 44 + b / 2, 6, 61 - (44 + b / 2)), PLATE, 2, true)
+		c.paint(c.mask().rect(lx - 1, 57, 8, 4), PLATE, 3)
 		c.put(lx + 2, 50 + b / 2, Pal.GOLD[3])
 	# --- robe skirt, ash grey with a gold hem ---
 	var sk := c.mask().poly(V([[cx - 9, 34 + b], [cx + 9, 34 + b], [cx + 12, 49 + b], [cx - 12, 49 + b]]))
@@ -380,7 +384,7 @@ static func king_frame(p: Dictionary) -> Px:
 	c.line(cx - 11, 47 + b, cx + 11, 47 + b, Pal.GOLD[2])
 	# --- torso: black plate with a gilded sunburst ---
 	var tor := c.mask().poly(V([[cx - 9, 19 + b], [cx + 9, 19 + b], [cx + 8, 36 + b], [cx - 8, 36 + b]]))
-	c.paint(tor, Pal.OBSIDIAN, 3, true)
+	c.paint(tor, PLATE, 3, true)
 	var sb := Vector2(cx + 1, 26 + b)
 	for k in 8:
 		var a := k * TAU / 8.0
@@ -390,8 +394,8 @@ static func king_frame(p: Dictionary) -> Px:
 	c.paint(c.mask().rect(cx - 9, 34 + b, 18, 2), Pal.GOLD, 2)
 	# --- pauldrons ---
 	var pr := 21 + b
-	c.paint(c.mask().ellipse(cx - 9.0, pr, 5.0, 4.0), Pal.OBSIDIAN, 4, true)
-	c.paint(c.mask().ellipse(cx + 9.0, pr, 5.0, 4.0), Pal.OBSIDIAN, 4, true)
+	c.paint(c.mask().ellipse(cx - 9.0, pr, 5.0, 4.0), PLATE, 4, true)
+	c.paint(c.mask().ellipse(cx + 9.0, pr, 5.0, 4.0), PLATE, 4, true)
 	c.line(cx - 13, pr + 2, cx - 6, pr + 2, Pal.GOLD[3])
 	c.line(cx + 6, pr + 2, cx + 13, pr + 2, Pal.GOLD[3])
 	# --- head: an ash-grey face, ember eyes, a crown of cinders ---
@@ -439,20 +443,20 @@ static func king_frame(p: Dictionary) -> Px:
 	grip.line(int(pommel.x), int(pommel.y), int(hand.x), int(hand.y))
 	c.paint(grip, Pal.WOOD, 2, false, false)
 	c.paint(c.mask().ellipse(pommel.x, pommel.y, 1.4, 1.4), Pal.GOLD, 3)
-	c.paint(c.mask().ellipse(hand.x, hand.y, 2.6, 2.6), Pal.OBSIDIAN, 4)
+	c.paint(c.mask().ellipse(hand.x, hand.y, 2.6, 2.6), PLATE, 4)
 	var arm := c.mask()
 	arm.line(cx + 9, pr + 2, int(hand.x), int(hand.y))
 	arm.line(cx + 10, pr + 2, int(hand.x) + 1, int(hand.y))
 	arm.line(cx + 9, pr + 3, int(hand.x), int(hand.y) + 1)
-	c.paint(arm, Pal.OBSIDIAN, 3, false, false)
+	c.paint(arm, PLATE, 3, false, false)
 	# --- off hand: raised with a sun-orb when casting ---
 	if p.get("hand_up", false):
-		limb(c, [[cx - 9, pr + 1], [cx - 13, pr - 6], [cx - 12, pr - 12]], Pal.OBSIDIAN, 3)
+		limb(c, [[cx - 9, pr + 1], [cx - 13, pr - 6], [cx - 12, pr - 12]], PLATE, 3)
 		var orb := c.mask().ellipse(cx - 12, pr - 16, 3.5 + glow * 0.5, 3.5 + glow * 0.5)
 		c.fill_lit(orb, Pal.GOLD[4])
 		c.lit(cx - 13, pr - 17, Pal.WHITE)
 	else:
-		limb(c, [[cx - 9, pr + 1], [cx - 11, pr + 8], [cx - 10, pr + 14]], Pal.OBSIDIAN, 3)
+		limb(c, [[cx - 9, pr + 1], [cx - 11, pr + 8], [cx - 10, pr + 14]], PLATE, 3)
 	c.outline(Pal.INK)
 	return c
 

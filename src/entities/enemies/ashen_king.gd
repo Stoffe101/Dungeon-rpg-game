@@ -294,7 +294,7 @@ func _begin_eclipse_phase() -> void:
 	Audio.play("boss_roar", 3.0, 0.7)
 	stage.fx.shake(0.8)
 	stage.fx.number(pos, 4.5, "THE ECLIPSE", Color(1.0, 0.75, 0.35), true)
-	Events.banner.emit("The Eclipse", "When the sun goes out, stand in a brazier's light")
+	phase_moment("The Eclipse", "When the sun goes out, stand in a brazier's light", Color(1.0, 0.72, 0.32))
 	eclipse_t = 3.0
 	hound_t = 4.0
 
@@ -413,18 +413,24 @@ func die(killer: Node) -> void:
 	for i in 3:
 		stage.fx.burst(pos, 1.5, Color(1.0, 0.8, 0.4), 40, 8.0, 1.2, 1.0)
 	stage.fx.burst(pos, 1.0, Color(0.5, 0.45, 0.45), 40, 5.0, 1.8, -1.0)
+	# the fires come back one by one, and he comes down as ash
+	var at := pos
+	stage.look_toward(at, 2.4)
+	var k := 0
 	for b in braziers:
 		if is_instance_valid(b):
-			b.set_lit(true)
+			stage.after(0.2 + k * 0.28, func() -> void:
+				if is_instance_valid(b):
+					b.set_lit(true)
+					stage.fx.flash_light(b.pos, 1.6, Color(1.0, 0.8, 0.45), 4.0, 7.0, 0.7))
+			k += 1
+	for j in 16:
+		stage.after(0.2 + j * 0.16, func() -> void:
+			stage.fx.motes(at + Vector2(randf_range(-4.5, 4.5), randf_range(-3.0, 3.0)), 4.0, Color(0.62, 0.58, 0.56), 4, -1.0, 1.5, 0.4))
 	Audio.play("boss_death", 3.0, 0.85)
 	super.die(killer)
 	Events.boss_defeated.emit(self)
 
 
 func _death_effect() -> void:
-	sprite.play("stagger")
-	var tw := create_tween()
-	tw.tween_method(sprite.set_dissolve, 0.0, 1.05, 2.4)
-	tw.tween_callback(queue_free)
-	if shadow:
-		shadow.visible = false
+	guardian_fall()

@@ -201,9 +201,15 @@ func test_each_wave_of_a_gauntlet_burns_more_of_the_floor() -> void:
 	var r := _room_of(d, "gauntlet")
 	_into(d, r)
 	eq(d.hazards.size(), 0, "the first wave comes clean")
-	for e in d.room_enemies.duplicate():
-		_fell(d, e)
-	_tick(d, 2.5)
+	# (a burrowed gravemole cannot be struck until it surfaces)
+	var secs := 0.0
+	while d.wave < 1 and secs < 8.0:
+		for e in d.room_enemies.duplicate():
+			if is_instance_valid(e) and e.alive:
+				_fell(d, e)
+		_tick(d, 0.1)
+		secs += 0.1
+	_tick(d, 2.0)
 	check(d.wave >= 1, "a next wave came")
 	check(d.hazards.size() >= 3, "ash burns where it fell (%d)" % d.hazards.size())
 	d.queue_free()
