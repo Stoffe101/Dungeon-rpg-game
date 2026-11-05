@@ -382,6 +382,11 @@ func _update_flask_slot(pl: Player) -> void:
 	else:
 		ic.modulate = Color(1, 1, 1, 1)
 	flask_slot.tooltip_text = "Flask: %d/%d charges, heals %d%% of your health" % [pl.flask, mx, int(pl.stats.v("flask_heal") * 100.0)]
+	var tc := pl.tincture()
+	if String(tc.get("id", "")) != "":
+		flask_slot.tooltip_text += "
+Steeped: %s (rank %d)
+%s" % [Tinctures.get_def(String(tc.id)).name, int(tc.rank), Tinctures.describe(String(tc.id), int(tc.rank))]
 	if _flask_seen != -1 and pl.flask < _flask_seen:
 		# a quick pop when a charge is drunk
 		flask_slot.pivot_offset = Vector2(13, 13)

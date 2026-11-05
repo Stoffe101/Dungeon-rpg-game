@@ -898,7 +898,137 @@ machines.
 - **Weapon masteries:** seven Hearthtree notables, one per kind of weapon,
   that change how its forms fight.
 
+## Expedition evolution pass: everyday fixes, a readable dungeon, the Apothecary, the Forked Descent
+
+### Everyday fixes (each had a cause found in code first)
+- **Weapon not in hand after a change in the sanctuary.** `InventoryUI._equip`
+  only re-made the weapon below; in the sanctuary a weapon of another kind
+  never reached the Kindled until the camp was rebuilt. Now every change to
+  the save reaches the live Kindled through one path, `Player.sync_gear`
+  (watching `Profile.changed`, a frame later; at once from the Satchel and
+  the weapon rack): stats, weapon kind and form (a tempered blade too),
+  armour layers, spells. Armour, loadouts, tempering, the Hearthtree, runes,
+  buildings and residents' gifts all go through it (tests).
+- **Upgrades moved the Kindled to the fire.** `Game.goto_hub()` rebuilt the
+  whole camp. Facilities are now built in tagged groups and
+  `Hub.refresh_camp` rebuilds only the group that changed, in place: the new
+  pieces dissolve in out of sparks; whoever stands where a new piece sits is
+  eased a step aside. Guests' camps follow the host's the same way.
+- **The Smithy jumped to the top on every click.** It was rebuilt from
+  scratch. It is now built once in persistent sections (tabs, slot / rarity
+  / "ready" filters, list, detail, materials on hand); a pick restyles two
+  rows and redraws the detail; a save change redraws the list keeping its
+  scroll and focus (smoke test with 60 extra pieces).
+- **Mouse steering removed.** The keys always walk the screen's way. A
+  deliberate sweep of the mouse (18 px of hand travel, capped so it fades)
+  turns the Kindled's face toward the aim for 0.7 s while it walks on.
+- **K opens the Hearthtree** anywhere (D-pad left on a pad). Below, new
+  points can be kindled between fights only; refunds, respec, pages and
+  feeding the Hearth stay at the sanctuary (no free respec between rooms).
+  Unspent points show beside the level until spent.
+- **The yellow-orange blob on the Kindled.** Two causes, both in the
+  silhouette pass that draws the Kindled behind stone: (1) it declared its
+  instance uniforms in a different order from the body's shader, so Godot
+  gave `lead` two indices ("Only the first one will display correctly") and
+  the silhouette read the wrong depth lead, judged its own body to be in
+  front of it and dithered orange over the whole Kindled for some actor ids;
+  slots are now pinned (`instance_index`) in both and tested. (2) Even when
+  correct it was a half-dense orange checkerboard in screen pixels; it is
+  now a one-texel outline of the body's own texels with a sparse dim inside.
+
+### The dungeon's visual grammar (LevelBuilder + world.gdshader)
+The second playtest's complaint - walls that look like floor, floor that
+looks like walls - was measured with `-- showcol`: the solid mass between
+rooms was drawn with the same flagstones as a floor, a level up, and the
+waist-high walls inside rooms used a stretched 8-px trim strip that vanished
+into the floor. The rules now:
+- **Floor**: quieter than anything on it (contrast eased toward its own
+  average, x0.74); a stepped, dithered contact shadow where it meets a wall
+  (strongest at a wall's foot), a pillar or a solid set piece; a lit lip at
+  a pit.
+- **Wall cap**: a rim of the region's dressed stone on every open edge
+  (crypt blue-grey, root green, throne gold, hearth warm), with a faint
+  light of its own so outlines survive the dark; darkening toward the
+  middle of thick rock. "If it has a rim, it is the top of something solid."
+- **Wall face**: masonry at the texture's own scale, bottom-anchored, dark
+  at its foot, a lip under its cap.
+- **Pit**: falls into the dark at once below its lip.
+- **Set pieces**: solid ones get the floor's contact shadow (the level mesh
+  is built after the props); walk-through ones (bone heaps) do not.
+- **A Kindled behind stone**: an outline, not a blob.
+- Generation never lets a set piece close off a nook (`_floor_whole`); a
+  test walks 90 floors and every route floor checking every door, room
+  floor, usable prop and stairway is reachable.
+
+### The Ember Apothecary: tinctures
+Three upgrades of +flask left nothing to come back for. Now the flask is
+*steeped* with one tincture, chosen at the Apothecary and kept between
+expeditions (deliberately no brewing chore). Each changes what a drink does:
+Hearthbalm (heals more), Kindleroot (less health, a full Kindle), Wardmilk
+(a barrier after the drink: drink before the blow), Sunwater (haste and the
+dodges back), Grave-salt (washes afflictions off, wards against them), Last
+Ember (double on the edge, half otherwise), Gloamwater (blows chill). Each is
+learned from a reagent found below - each region's elites carry their own,
+vault chests Wardmoth Milk, guardians Ashen Marrow, the Lost Vault Gloamcap -
+and more reagents distil it to rank II (III once the Apothecary is fully
+restored). Reagents are personal finds (banked when taken, like runes). The
+host pours a guest's draught from their sheet; effects resolve host-side.
+The Apothecary is drawn at three levels with a cauldron and a drying rack.
+Considered and not chosen: consumable brews made before each run (a chore,
+and duplication risk in co-op), several flasks at once (HUD and input
+clutter), stat-only upgrades (not a decision).
+
+### Replayability research (what comparable games do, and what fits)
+From existing knowledge of these games' documented mechanics - not new
+research, and not proof that any mechanic retains players.
+
+| Game | Mechanic observed | Lesson | Fit here |
+|---|---|---|---|
+| Hades / Hades II | Doors show the next chamber's reward; Chaos gates trade a curse for a later boon; harder optional chambers | Show the consequence at the choice point | The forked stairs name the way and what it means |
+| Dead Cells | Several exits per biome lead to different biomes (difficulty, loot); permanent runes open new paths; cursed chests | Branching at the scale of whole levels; new paths as long-term goals | Forks at floor scale; a hidden fourth way later |
+| Curse of the Dead Gods | A path choice every room; darkness and torches change danger | Light as a tactical resource in the level | Keep the Flame; braziers that matter later |
+| Risk of Rain 2 | Teleporter event as each stage's goal; shrines (Mountain: harder boss for more) | Opt-in difficulty with a visible trade | Trial of Ash; the existing Trial altar and pacts |
+| Ravenswatch | Open map, a day timer, side objectives before the boss | Time-boxed exploration | Not adopted: a timer fights co-op regrouping |
+| Ember Knights | Door choices in 4-player co-op | The party needs one shared, legible choice | The stairs vote names the way |
+| Path of Exile | Map modifiers; optional in-map encounters; atlas | Optional encounter types inside ordinary floors | Omens are our modifiers; objectives our encounters |
+| Diablo III / IV | Rifts with a progress goal; cursed chests and shrines (timed waves) | Short, clear event goals inside a floor | Seals and Flame |
+
+**Chosen for the vertical slice:** physical forked stairways (no new route
+screen; a party vote it already understands), three ways that trade danger,
+discovery and safety instead of being strictly better, two objectives that
+belong to their ways, and the Apothecary's reagents as a reason to take the
+riskier ways. **Rejected for now:** a node map screen (more UI than this
+needs), timers (co-op regrouping), escort/rescue (AI pathing and softlock
+risk), environmental puzzles (stale on repeat, co-op sync), a collapsing
+chamber (navigation and softlock risk), shrines with consequences across
+expeditions (needs a world-state save design first: next priorities).
+
+### The Forked Descent
+- Every stairs room below a guardian's floor (the Hollow Below too) offers
+  two of three stairways, by the seed - the same two for the whole party.
+  Each is named over its steps in its colour, with a brazier lit in it.
+- **Trial of Ash**: +1 room, two elites, foes x1.25, Embers x1.4, elites
+  drop gear more often, and its largest hall is warded by three Ash Seals:
+  stationary foes that any blow, spell or shot breaks; while one stands the
+  hall's foes take a third of every blow (and shed ash so you can see it).
+  Won: a relic, a rune, Embers.
+- **The Lost Vault**: -1 room, +2 side branches (treasure, events), and a
+  vault held through three waves while its Vigil Lantern is kept lit by
+  standing in its light (it drains when nobody is there). Kept: an ancient
+  chest, a Gloamcap for each Kindled, a chance of a blueprint. Guttered: a
+  plain chest. The room opens either way.
+- **Silent Passage**: foes x0.7, no elite, a spring; Embers x0.7.
+- Floors on the plain way are unchanged per seed; a way's floor is seeded
+  with its name (deterministic per seed and way).
+- Neither objective can hold a room shut: seals are ordinary foes to the
+  arena and watchdog, and the flame only decides the vault's spoils.
+- Co-op: the way rides in the vote ("stairs:trial"), the descent message,
+  the run and the rejoin parameters; the HUD's task line reaches guests as
+  an "obj" event. Shared income rules are unchanged (route multipliers
+  apply to the foes' Embers, which are shared).
+
 ## Decisions log
+- 2026-11-05 Expedition evolution: one gear path (`Player.sync_gear`) instead of per-screen refreshes; facilities rebuilt in place by group; mouse steering removed (facing only); silhouette instance slots pinned; a dungeon grammar of rims, contact shadows and quiet floors; tinctures over flask stats; physical forked stairs over a route screen; objectives that cannot hold a room shut.
 
 - **Shared income is equal; gain bonuses are the party's.** The best XP / Ember
   bonus in a party applies to every Kindled's share (not each their own), so

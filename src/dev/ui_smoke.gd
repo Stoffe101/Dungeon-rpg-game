@@ -290,6 +290,8 @@ func _gear_checks(hub: Hub) -> void:
 	# raising and improving a facility: nobody moves, nothing reloads
 	await _build_in_place(hub, "apothecary")
 	await _build_in_place(hub, "apothecary")
+	if Profile.building("shrine") == 0:
+		await _build_in_place(hub, "shrine")
 	ui.smithy()
 	await _wait()
 	var sm: SmithyUI = ui.modals[ui.modals.size() - 1].get_child(0)

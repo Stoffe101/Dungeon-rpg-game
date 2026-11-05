@@ -332,6 +332,24 @@ Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
 controls. The human test plan is in docs/TESTING.md.
 
+## Protocol 10 (expedition evolution pass)
+
+- **`_descend(depth, route)`**: the way down the party took (DungeonGen.ROUTES:
+  `trial`, `vault`, `quiet`, or "" the plain way) rides with the descent;
+  every machine builds the next floor for it (`DungeonGen.generate(..., route)`,
+  seeded with the way's name). A rejoining guest gets it in `_rejoined`'s
+  params (`route`) and in its run (`RunState.route` / `routes`).
+- **The stairs vote names the way:** its kind is `stairs:<route>` (plain
+  `stairs` still works); the card shows the way's name and line; the host
+  descends by it when everyone agrees.
+- **`["obj", text, k, colour]`** (host event): the room's task line on the
+  HUD (seals left, the vault flame's strength); "" clears it. The seals are
+  ordinary foes and the Vigil Lantern an ordinary prop on the wire.
+- A sheet carries the Kindled's `tincture` ({id, rank}); the host pours a
+  guest's draught (heal, barrier, haste, Kindle, cleansing) host-side.
+- Reagents are finds of one's own (`kind` "reagent" through `_gift` /
+  `bank_find`, banked once by drop id).
+
 ## Protocol 9 (playtest foundations pass)
 
 - **Events for one peer:** an event recorded as `["own", peer, ev]` (a find

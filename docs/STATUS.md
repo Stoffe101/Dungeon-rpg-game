@@ -4,6 +4,26 @@ Last updated: 2026-11-05.
 
 ## Implemented
 
+- **Expedition evolution pass (branch feature/expedition-evolution)** -
+  details in DESIGN, "Expedition evolution pass":
+  - *Everyday fixes*: one gear path (`Player.sync_gear`: a weapon of another
+    kind in hand at once in the sanctuary, armour, tempering, loadouts,
+    talents); facilities raised and improved in place (`Hub.refresh_camp`,
+    guests too); the Smithy rebuilt in persistent sections (scroll and focus
+    kept; slot / rarity / ready filters; materials on hand); mouse steering
+    removed (the mouse turns the face, never the walk); K for the
+    Hearthtree anywhere (new points between fights below); the orange blob
+    on the Kindled (silhouette instance slots; an outline instead of a
+    checkerboard).
+  - *Readable dungeons*: wall caps with a stone rim and a darkening mass,
+    masonry faces at scale, quiet floors with contact shadows, deeper pits;
+    set pieces never seal a nook; `walllab`.
+  - *The Ember Apothecary*: seven tinctures steeped into the flask, learned
+    and distilled from reagents found below; drawn at three levels.
+  - *The Forked Descent*: two of three ways at every stairs room (Trial of
+    Ash with its Ash Seals, the Lost Vault with its Vigil Lantern, Silent
+    Passage), named on the stairs, voted by name in a party.
+  - Save v14, protocol 10.
 - **Playtest foundations pass (branch feature/playtest-foundations)** - the
   second two-PC playtest's findings; details in DESIGN, "Playtest
   foundations pass".
@@ -318,6 +338,7 @@ Last updated: 2026-11-05.
 
 | Kind | What |
 |---|---|
+| Expedition evolution pass (2026-11-05) | **Unit tests**: 176 pass, 0 failures (new in tests/test_evolution.gd: a weapon of another kind and another form in hand at once, a tempered blade taken up again, armour on and off, a talent point felt without a reload, no steering left, the Hearthtree key, the silhouette's instance slots, 90 floors walked - every door, room floor and usable prop reachable; it found a sarcophagus sealing a two-tile alcove and two stumps trapping a tile, both fixed in generation -, route floors walkable, the v13->v14 migration, reagents teaching and distilling, each tincture's effect, the fork's offer and each way's shape); a test file that fails to compile now fails the run instead of hanging it. **UI smoke**: 66 checks, 0 failures (the Apothecary raised and improved twice with the Kindled unmoved and the camp not reloaded, a hammer taken up in the sanctuary in hand at once, the Smithy scrolled 60 pieces deep keeping its place through a pick and a redraw, a tincture steeped, K opening and closing the Hearthtree). **Separate processes, real input, one PC (protocol 10)**: 4-player journey 73+65+64+64 and 2-player journey 55+53 (also under `netsim=typical`) - every machine voted a named way and arrived on it, floor for floor (Lost Vault 15 rooms, Trial of Ash 16); `scenario=loot` under `netsim=typical` 12+11; `scenario=partystart` 4+4; stairs under `netsim=typical` 7+9 - all passed, no script errors. **Solo autopilot**: a Trial of Ash floor (seals broken, the warded hall cleared) and a Lost Vault room (cleared with the flame unfed) without script errors. **Viewed in captures**: the orange artifact reproduced and gone (`docs/screenshots/evolution_kindled_artifact_before_after.png`), the silhouette behind a pillar before/after, `walllab` before/after in the Ossuary and after in the Rootmire and the Throne, the sanctuary under the new shading, the Apothecary at three levels in camp and its screen, the Smithy, the fork (braziers, names, hint), the Trial of Ash hall with its seals and HUD line, the Lost Vault's lantern, a guest's vote card naming the way. **Frame times** (`perflog`, V-Sync off, bot playing): 1920x1080 p50 3.7 ms, p95 4.3, p99 5.3; 3440x1440 over 60 s p50 5.1-5.3 ms, p95 5.8-6.3, p99 6.8-7.8; single worst frames 32-84 ms (loads and encounter starts). **Release check** passed. **Not done**: no human played; no two PCs or Steam; nothing listened to (no new sounds). |
 | Playtest foundations pass (2026-11-05) | **Unit tests**: 163 pass, 0 script errors in the run (new in tests/test_playtest.gd: steering, equal XP and Embers with personal bonuses, a friend's find invisible here, finds banked once and kept out of the settlement, a foe beyond a gate brought back, a room won while the host lies dead, bleeding out is death, a late Trial vote, 18 floors x every combat room fought to its end with parties of 1 and 4 - no foe outside its arena, every room opened -, corner rounding, interior walls, dressing footprints, attack turns, loadout checks, the guest at the host's forge, every foe script compiling, the v12->v13 migration; test_forms: the weapon masteries and the Thousandth Cut's buildup). **Separate processes, real input, one PC**: `scenario=loot` 2 players 11+10, 4 players 14+11+11+11, 2 players under `netsim=typical` 11+10 (only one's own find drawn, a guest is not sent another's, the find in the Satchel at once below, worn with a click, each save got exactly its run's XP, every run the same XP and Embers, the host sees guests wear their finds, every machine's map shows all four); `scenario=partystart` 4+4 (the guest follows the host from the title into camp without a click); regressions under protocol 9: 2-player journey 53+51, 4-player journey 71+63+62+62, stairs under `netsim=typical` 7+9 - all passed. **UI smoke**: 43 checks, 0 failures (its aim checks now use the scripted pointer; with the real cursor they failed at random while the PC was in use). **Solo autopilot** (seed 7): depths 1 and 2, no script errors. **Viewed in captures**: the full map (1080p, 3440x1440, a floor's start), the minimap, the Descent's spell cards and the picker (1080p and 960x540), the Satchel's loadout strip, the Hearthtree with a mastery hovered, the Ossuary before/after the light change, every foe sheet's new rows (husk, guard, skitter, bloat, duelist...), host and guest screens of private finds and of the 4-player map. **Measured**: `-- legendlab` (Thousandth Cut 2.5/min small fights, 4.5/min crowds; Hundred Embers ~7/min firing constantly; Sunfall every charged lunge). **Frame times** (1080p, bot fighting a crowd): this PC now runs at 60 Hz, so with V-Sync the old and new code both sit at p50 ~17 ms; with V-Sync off, old p50 5.2-5.4 ms, new 4.6-6.9 ms across runs on a PC in use - no reliable difference; the minimap costs ~0.1 ms a frame and bakes only when the map changes. **Not done**: no human played; no two PCs or Steam; the arena watchdog not seen in a real fight; no listening. |
 | Combat identity pass (2026-11-04) | **Unit tests**: 145 pass (every form's mechanic, the uniques' moments, each new spell and rework, foes striking all covered Kindled and their wind-up glow, Frenzied and Shepherd, synergy notables, loadouts and the v11->v12 migration, Urnlings). **UI smoke**: 43 checks at 1080p and 3440x1440 (the Satchel's loadout strip fits). **Rendered, bot fighting (`hitlab botcharge`)**: all 14 forms with no script errors; spells cast with `cast=` and build presets; uniques held; foes' wind-up glow and strike flash. **Separate processes, real input, one PC**: `scenario=spells` with `build=wall` (a guest's Rimewall rises and melts on both screens) and `build=pyreblade` (Hearthfire glow on both; the host's heat on the guest's gauge) - 6+6 checks each; regressions under protocol 8: 4-player journey 71+63+62+62, 2-player journey 53+51, facing 14+14, stairs under `netsim=typical` 7+9, 3-player bestiary - all passed. **Frame times** (`perflog`, 1080p, V-Sync 165 Hz, bot fighting a crowd with `build=beam|pyreblade|wall|shadow`): p50 6.1 ms, p95 6.2 ms, p99 at most 7.4 ms; single worst frames 12-62 ms, except ~230 ms stalls in the bot's own stuck-diagnostic dump (full path searches in src/dev/bot.gd, not game code - confirmed by timing the bot's frame and a run without the bot). **Audio events**: each weapon class plays its own impact (audio log). **Measured, not heard**: every new sound peaks at -1 dBFS without clipping; the hammer's crunch rebalanced to carry on small speakers. **Economy audit**: 12 seeds x 5 floors, exact (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
 | Development pass (2026-11-04) | **Unit tests**: 122 pass (party targeting and extras, rewards by worth, landmarks: generation leaves the rest of a seed's floor unchanged, its room stays walkable, each of the three answers, the Wonders feat; Hollow cycles; facing with every key). **UI smoke**: 43 checks pass at 1080p (three runs after a harness fix; a feat card opening late made the resident checks flaky). **Separate processes, real input, localhost (one PC)**: 2-player journey 53+51 checks; 4-player journey 71+63+62+62 (after making two talk checks wait on results: with four windows on one PC a dialogue opened up to 0.65 s after F); facing 14+14; stairs under `netsim=typical` 7+9; bestiary with 3 players; `landmark` (a guest presses F at the Colossus; every machine sees it wake and the whole map) 6+7; solo `talk` 13. **Viewed in captures**: facing on host and guest, labels, urns breaking (all makes), depth textures (9 region/depth pairs), the three landmarks idle and answered (solo and host+guest), loot hang and floor names, a guardian's arrival frame by frame, the Hollow at depth 10. **Frame times** (`perflog`, 1080p, V-Sync at 165 Hz, RTX 5070, bot playing): p50 and p95 6.1 ms, p99 at most 8.3 ms in the Ossuary, a Rootmire landmark floor, the Throne guardian fight and the sanctuary; single worst frames 6-34 ms after the first loading window. **Audio, measured not heard**: every new sound peak-normalised to -1 dBFS without clipping, low end checked per file; a 41 s guardian-floor recording of all buses: master peak -4.5 dBFS, no sample over -1 dBFS, bus loudness steady within ~3 dB; 41% of the master's energy below 120 Hz (mostly the guardian music). **Bot co-op evaluation**: Tier III, 3 seeds x 240 s per party (see Known issues). **Not done**: no human played or listened; no two-PC or Steam test. |
@@ -339,6 +360,17 @@ Last updated: 2026-11-05.
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
+
+- Expedition evolution pass: unit-tested, run as separate processes on one
+  PC and inspected in captures; nobody has played it. To judge in play: the
+  seals' ward (x0.35 damage on warded foes) and the flame's drain (about
+  12 s from full to out with nobody in it) are first numbers; the Silent
+  Passage's Embers x0.7 and the Trial's x1.4; whether a fork every floor is
+  a decision or a habit; tincture ranks (Kindleroot's 55% heal, Wardmilk's
+  barrier). The new wall grammar was viewed at 1080p only in the three
+  regions and the sanctuary, not at 3440x1440. Grudges, Undervault Memory
+  and the Hollow Below's own content were not changed in this pass (the
+  fork applies to Hollow floors too).
 
 - Playtest foundations pass: every fix is unit-tested and the party ones
   run on separate processes on one PC; nobody has played it. To watch in
@@ -438,6 +470,18 @@ Last updated: 2026-11-05.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. This pass with people: docs/TESTING.md "Human playtest: the expedition
+   evolution pass" - gear and upgrades in the sanctuary, the Smithy list,
+   movement and facing, K, readable floors, the Apothecary and the Forked
+   Descent alone and in a party.
+1. Let the Undervault remember the ways taken (Profile stats `route_*` are
+   already counted): a way taken often grows guarded, one never taken hides
+   a fourth stairway; shrines whose state carries to the next expedition
+   need a world-state save design first.
+2. More objectives only once the two have been played: candidates kept from
+   the research - an optional miniboss behind a warning door, light-the-
+   braziers rooms in the Lost Vault.
 
 0. This pass with people: docs/TESTING.md "Human playtest: the playtest
    foundations pass" - equal levels over a whole expedition (bring the XP
