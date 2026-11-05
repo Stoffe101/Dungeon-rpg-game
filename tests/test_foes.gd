@@ -162,3 +162,164 @@ func test_a_crowned_foe_stands_taller_and_answers_to_its_title() -> void:
 	check(e.visual.scale.x > 1.1, "a head taller")
 	check(e.has_meta("champion"), "guests are told")
 	d.queue_free()
+
+
+func _arena() -> Stage:
+	var g := TileGrid.new(30, 18)
+	for y in range(2, 16):
+		for x in range(2, 28):
+			g.put(x, y, TileGrid.FLOOR)
+	g.finalize_walls()
+	var st := Stage.new()
+	st.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(st)
+	st.setup(g, null)
+	return st
+
+
+func _kindled(st: Stage, p: Vector2) -> Player:
+	var pl := Player.new()
+	pl.pos = p
+	pl.input_enabled = false
+	st.add_actor(pl)
+	st.player = pl
+	pl.setup_from(RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""]))
+	return pl
+
+
+func _foe(st: Stage, id: String, p: Vector2) -> Enemy:
+	var scr: GDScript = load(EnemyDB.get_def(id).script)
+	var e: Enemy = scr.new()
+	e.configure(id)
+	e.pos = p
+	st.add_actor(e)
+	e.spawn_t = 0.01
+	e.state = "idle"
+	e.sprite.set_dissolve(0.0)
+	return e
+
+
+func test_the_tolls_ring_finds_you_in_the_open_once() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "tollkeeper", Vector2(10.5, 9.5))
+	var hp0 := pl.hp
+	e._toll()
+	for i in 60:
+		e._tend_rings(1.0 / 30.0)
+	check(pl.hp < hp0, "the ring found them")
+	var hp1 := pl.hp
+	for i in 30:
+		e._tend_rings(1.0 / 30.0)
+	eq(pl.hp, hp1, "once")
+	check(e._rings.is_empty(), "and it is spent")
+	st.queue_free()
+
+
+func test_a_wall_or_a_dodge_stops_the_toll() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "tollkeeper", Vector2(10.5, 9.5))
+	for y in range(7, 13):
+		st.grid.put(13, y, TileGrid.WALL)
+	var hp0 := pl.hp
+	e._toll()
+	for i in 60:
+		e._tend_rings(1.0 / 30.0)
+	eq(pl.hp, hp0, "a wall shelters them")
+	for y in range(7, 13):
+		st.grid.put(13, y, TileGrid.FLOOR)
+	pl.dodge_t = 9.0
+	e._toll()
+	for i in 60:
+		e._tend_rings(1.0 / 30.0)
+	eq(pl.hp, hp0, "a dodge goes through it")
+	st.queue_free()
+
+
+func test_the_ring_you_see_is_the_ring_that_hits() -> void:
+	# Fx.ring's curve, sampled
+	var R: float = load(EnemyDB.get_def("tollkeeper").script).RING_R
+	var script: GDScript = load(EnemyDB.get_def("tollkeeper").script)
+	near(script.ring_radius(0.0), R * 0.25, 0.01, "it starts small")
+	near(script.ring_radius(script.RING_LIFE), R, 0.01, "and ends at its edge")
+
+
+func test_a_lurecap_waits_until_you_are_close() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(20.5, 9.5))
+	var e := _foe(st, "lurecap", Vector2(10.5, 9.5))
+	for i in 30:
+		e.behave(1.0 / 30.0)
+	check(e.hidden, "far off it is a mushroom")
+	eq(e.vel, Vector2.ZERO, "and stands still")
+	pl.pos = e.pos + Vector2(1.6, 0.0)
+	e.behave(1.0 / 30.0)
+	check(not e.hidden, "close by it is not")
+	eq(e.state, "unfold", "it unfolds first: there is a moment to react")
+	st.queue_free()
+
+
+func test_a_struck_lurecap_gives_up_the_pretence() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(20.5, 9.5))
+	var e := _foe(st, "lurecap", Vector2(10.5, 9.5))
+	e.hp -= 1.0
+	e.behave(1.0 / 30.0)
+	check(not e.hidden, "hit first, it has lost its chance")
+	check(pl != null, "(a Kindled was there)")
+	st.queue_free()
+
+
+func test_a_room_never_ends_on_a_hunt_for_a_mushroom() -> void:
+	Profile.data = Profile.fresh()
+	var d := _boss_floor("rootmire")
+	var e := d._make_enemy("lurecap")
+	e.pos = d.player.pos + Vector2(9.0, 0.0)
+	d.add_actor(e)
+	d.room_enemies = [e]
+	e.spawn_t = 0.01
+	e.state = "idle"
+	check(e._spotted(), "the last foe of a room stops pretending")
+	d.queue_free()
+
+
+func test_a_decree_marks_one_kindled_until_its_voice_falls() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "herald", Vector2(10.5, 9.5))
+	var blow := func() -> float:
+		var hp0 := pl.hp
+		var h := Hit.make(null, 10.0, ["melee"])
+		h.can_crit = false
+		pl.invuln_t = 0.0
+		pl.take_enemy_hit(h, null)
+		var lost: float = hp0 - pl.hp
+		pl.hp = pl.max_hp
+		return lost
+	var plain: float = blow.call()
+	e._proclaim()
+	check(pl.marked_t > 0.0, "marked")
+	check(float(blow.call()) > plain, "every foe strikes harder")
+	e.hp = 0.0
+	e.die(null)
+	eq(pl.marked_t, 0.0, "the decree dies with its voice")
+	eq(float(blow.call()), plain, "and they stand as they were")
+	st.queue_free()
+
+
+func test_a_decree_runs_out_on_its_own() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var pl := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "herald", Vector2(10.5, 9.5))
+	e._proclaim()
+	for i in int(5.5 * 30.0):
+		st.simulate(1.0 / 30.0)
+	eq(pl.marked_t, 0.0, "five seconds, no more")
+	st.queue_free()

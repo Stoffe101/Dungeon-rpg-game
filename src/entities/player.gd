@@ -111,6 +111,7 @@ var hearthfire_t := 0.0       # Hearthfire Form
 var hearthfire_power := 1.0
 var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
+var marked_t := 0.0           # an Ash Herald's decree: every foe strikes harder
 var furnace := 0.0            # Furnace Heart: Kindle spent, banked for the next blow
 var answer_ready := false     # Perfect Answer: the next blow is a sure critical
 var mirror_t := 0.0           # Mirror of the Deep: until it answers again
@@ -838,6 +839,7 @@ func _timers(dt: float) -> void:
 	haste_t = maxf(0.0, haste_t - dt)
 	tonic_chill_t = maxf(0.0, tonic_chill_t - dt)
 	mirror_t = maxf(0.0, mirror_t - dt)
+	marked_t = maxf(0.0, marked_t - dt)
 	stillwater_t = maxf(0.0, stillwater_t - dt)
 	if ward_t > 0.0 and stats.has("hearth_anchor"):
 		gain_kindle(8.0 * dt / maxf(stats.v("kindle_gain"), 0.01))
@@ -1795,6 +1797,8 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		h.amount *= 0.85
 	if shelter_t > 0.0:
 		h.amount *= 0.9
+	if marked_t > 0.0:
+		h.amount *= 1.25     # an Ash Herald's decree
 	_calm_t = 0.0
 	if stats.has("last_light") and kindle > 0.0 and not h.has_tag("dot"):
 		# Last Light: the lantern's flame takes the blow before you do

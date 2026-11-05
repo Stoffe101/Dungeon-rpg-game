@@ -1,0 +1,50 @@
+{
+	"anims": {
+		"bite": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		},
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 5
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"idle": {
+			"fps": 3.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"rise": {
+			"fps": 7.0,
+			"frames": 3,
+			"loop": false,
+			"row": 1
+		},
+		"walk": {
+			"fps": 10.0,
+			"frames": 4,
+			"loop": true,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		22,
+		26
+	],
+	"origin": [
+		11,
+		25
+	],
+	"self_light": 0.22
+}

@@ -8,6 +8,7 @@ var fw: int
 var fh: int
 var origin: Vector2i
 var rows: Array = []
+var _hides := false
 
 
 func _init(frame_w: int, frame_h: int, foot: Vector2i) -> void:
@@ -26,9 +27,9 @@ func add(anim: String, frames: Array, fps: float, loop := true) -> void:
 ## fold up, soft and growing things slump and melt into the floor.
 const FALL_STYLE := {
 	"husk": "crumble", "ash_seal": "crumble", "bonecaller": "crumble", "lampwight": "crumble", "wraith": "crumble", "sunwatcher": "crumble",
-	"guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
+	"tollkeeper": "topple", "herald": "topple", "guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
 	"skitter": "curl", "spider": "curl", "moth": "curl", "hound": "curl", "thornback": "curl",
-	"bloat": "melt", "sporeling": "melt", "toad": "melt", "bramblewright": "melt", "rootweaver": "melt", "spore_mortar": "melt",
+	"lurecap": "melt", "bloat": "melt", "sporeling": "melt", "toad": "melt", "bramblewright": "melt", "rootweaver": "melt", "spore_mortar": "melt",
 }
 
 
@@ -43,11 +44,11 @@ const BOSS_FALL := {"warden": ["topple", "stagger"], "ashen_king": ["crumble", "
 ## of the Undervault, never the Kindled's ember), and a little of its own colour
 ## survives any light (`self_light`, the sidecar tells the sprite's material).
 const RIM := {
-	"husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
+	"tollkeeper": "soul", "husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
 	"spider": "soul", "gravemole": "soul", "lampwight": "soul", "warden": "soul",
-	"sporeling": "moss", "thornback": "moss", "moth": "moss", "rootweaver": "moss", "toad": "moss",
+	"lurecap": "moss", "sporeling": "moss", "thornback": "moss", "moth": "moss", "rootweaver": "moss", "toad": "moss",
 	"spore_mortar": "moss", "bramblewright": "moss", "bloom": "moss",
-	"sentinel": "ember", "hound": "ember", "acolyte": "ember", "wraith": "ember", "duelist": "ember",
+	"herald": "ember", "sentinel": "ember", "hound": "ember", "acolyte": "ember", "wraith": "ember", "duelist": "ember",
 	"sunwatcher": "ember", "ashen_king": "ember",
 }
 const RIM_COL := {"soul": Color8(28, 88, 90), "moss": Color8(58, 96, 46), "ember": Color8(116, 64, 32)}
@@ -58,7 +59,8 @@ const SELF_LIGHT := 0.22
 func _rim(kind: String) -> void:
 	var col: Color = RIM_COL[kind]
 	for r in rows:
-		if r.name == "death":
+		# (a Lurecap at rest must look like a glowcap, and glowcaps have no rim)
+		if r.name == "death" or (r.name == "idle" and _hides):
 			continue
 		var frames: Array = r.frames
 		for fi in frames.size():
@@ -79,6 +81,7 @@ func save(dir: String, sheet_name: String) -> void:
 		_reactions(String(FALL_STYLE[sheet_name]))
 	if BOSS_FALL.has(sheet_name):
 		_guardian_fall(String(BOSS_FALL[sheet_name][0]), String(BOSS_FALL[sheet_name][1]))
+	_hides = sheet_name == "lurecap"
 	if RIM.has(sheet_name):
 		_rim(String(RIM[sheet_name]))
 	var cols := 1
