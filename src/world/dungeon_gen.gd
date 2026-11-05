@@ -200,11 +200,11 @@ const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "o
 ##   path / branches: rooms added to the main path / side branches
 ##   foes: the encounter budget; embers: room-clear and enemy Embers
 const ROUTES := {
-	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "danger": 3, "spoils": 3, "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.25, "embers": 1.4,
+	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "danger": 3, "spoils": 3, "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.05, "embers": 1.25,
 		"line": "Harder fights and two elites; a hall warded by seals. Richer spoils."},
 	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "danger": 2, "spoils": 2, "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 1.0, "embers": 1.0,
 		"line": "Fewer fights, more side rooms - and a vault whose flame you must keep lit."},
-	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "danger": 1, "spoils": 1, "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.7,
+	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "danger": 1, "spoils": 1, "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.85,
 		"line": "Fewer, weaker foes, no elite, a spring of vigor. Lean spoils."},
 	# rare ways, offered as a third stairway (route_offer): short floors with one great fight
 	"breach": {"name": "The Breach", "short": "Breach", "act": "deadly, and rich", "danger": 4, "spoils": 4, "color": Color(0.95, 0.35, 0.3), "path": -2, "branches": 0, "foes": 1.35, "embers": 1.6, "rare": true,
@@ -1057,9 +1057,11 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 			budget = maxi(4, int(round(budget * foes)))
 			r.waves = 2 if (area > 400 or (lay.depth >= 2 and rng.randf() < 0.45)) else 1
 			if r.objective == "flame":
-				r.waves = 3      # the flame must be kept through three waves
+				r.waves = 3      # the flame must be kept through three waves...
+				budget = maxi(4, int(budget * 0.7))      # ...and you cannot kite them away from it
 			elif r.objective == "gauntlet":
 				r.waves = 4      # four waves, ash falling between them
+				budget = maxi(4, int(budget * 0.75))
 			elif r.objective == "workshop":
 				r.waves = 2
 			r.encounter = []

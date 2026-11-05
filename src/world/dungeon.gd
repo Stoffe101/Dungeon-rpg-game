@@ -736,6 +736,7 @@ func _break_in(r: Room) -> void:
 		e.room_id = r.id
 		e.spawn_t = 0.8
 		add_actor(e)
+		register_enemy(e)
 
 
 func _start_encounter(r: Room, by: Player = null) -> void:
@@ -1794,7 +1795,7 @@ const FLAME_COL := Color(1.0, 0.8, 0.4)
 func _begin_objective(r: Room) -> void:
 	match r.objective:
 		"champion":
-			var e := _champion("Ashen Champion", 2.6)
+			var e := _champion("Ashen Champion", 2.1)
 			if e:
 				Events.banner.emit("The Ashen Champion", "One foe, burning. It will not be hurried")
 				_set_objective("FELL THE CHAMPION", -1.0, SEAL_COL)
@@ -1810,7 +1811,11 @@ func _begin_objective(r: Room) -> void:
 			Events.banner.emit("The Ash Falls", "Four waves. Keep moving: the floor burns between them")
 			_set_objective("ENDURE   WAVE 1 OF %d" % r.encounter.size(), -1.0, SEAL_COL)
 		"lair":
-			Events.banner.emit("Its Lair", "It has been waiting for you here")
+			if grudge_spawned:
+				Events.banner.emit("Its Lair", "It has been waiting for you here")
+			elif _champion("What Was Left Behind", 2.0):
+				# (settled since the stairs were chosen: something else took the lair)
+				Events.banner.emit("An Empty Lair", "Something else has moved in")
 		"seals":
 			_seals_up(r)
 			Events.banner.emit("The Seals Hold", "While a seal stands, this hall's foes shrug off most of every blow")
@@ -1840,6 +1845,7 @@ func _seals_up(r: Room) -> void:
 		e.room_id = r.id
 		e.spawn_t = 0.3
 		add_actor(e)
+		register_enemy(e)
 		_seals.append(e)
 	_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
 
@@ -1990,7 +1996,7 @@ func _spoor() -> void:
 		var t: Vector2i = d.tiles[0]
 		for q in [t - Vector2i(d.dir) * 2, t + Vector2i(d.dir) * 2, t - Vector2i(d.dir) * 3]:
 			if grid.at(q.x, q.y) == TileGrid.FLOOR:
-				Prop.make(self, "spoor", q, {"sheet": "grudge_spoor", "low": true, "anim": "v%d" % (posmod(q.x + q.y, 3))})
+				Prop.make(self, "spoor", q, {"sheet": "grudge_spoor", "flat": true, "anim": "v%d" % (posmod(q.x + q.y, 3))})
 
 
 ## A Grudge of level 3 or more, settled for good, leaves something with its

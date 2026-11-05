@@ -267,7 +267,9 @@ func _build() -> void:
 			strike_radius = 1.6
 		_:
 			# generic data-driven prop (used by the sanctuary)
-			if data.has("sheet"):
+			if data.get("flat", false):
+				_flat(String(data.sheet), String(data.get("anim", "")))
+			elif data.has("sheet"):
 				_sprite(String(data.sheet), float(data.get("h", 0.0)), float(data.get("z", 0.0)), String(data.get("anim", "")))
 				if data.has("ox"):
 					position = Iso.to_world(pos + Vector2(float(data.ox), 0.0), 0.0)

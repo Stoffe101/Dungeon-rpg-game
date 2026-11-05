@@ -1271,7 +1271,7 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if t is Enemy and (t as Enemy).elite:
 		mult *= 1.0 + stats.v("elite_damage")
 	if stage is Dungeon and (stage as Dungeon).sealed_foe(t):
-		mult *= 0.35     # a Trial of Ash hall's seals ward its foes
+		mult *= 0.5      # a Trial of Ash hall's seals ward its foes
 	if t is Enemy and (t as Enemy).grudge_ward_t > 0.0:
 		mult *= 0.4      # a Grudge's red ward: step back and wait it out
 	if stats.has("berserk"):

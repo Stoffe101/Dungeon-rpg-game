@@ -115,6 +115,11 @@ func _process(delta: float) -> void:
 
 
 func _pick_target() -> Actor:
+	# a person breaks the seals first: their foes are warded until then
+	if pl.stage is Dungeon and (pl.stage as Dungeon).seals_up() > 0:
+		for s in (pl.stage as Dungeon)._seals:
+			if is_instance_valid(s) and s.alive:
+				return s
 	var best: Actor = null
 	var bd := 18.0
 	for a in pl.stage.hostiles(pl.team):

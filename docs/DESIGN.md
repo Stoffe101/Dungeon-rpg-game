@@ -1010,7 +1010,7 @@ expeditions (needs a world-state save design first: next priorities).
 - **Trial of Ash**: +1 room, two elites, foes x1.25, Embers x1.4, elites
   drop gear more often, and its largest hall is warded by three Ash Seals:
   stationary foes that any blow, spell or shot breaks; while one stands the
-  hall's foes take a third of every blow (and shed ash so you can see it).
+  hall's foes take half of every blow (and shed ash so you can see it).
   Won: a relic, a rune, Embers.
 - **The Lost Vault**: -1 room, +2 side branches (treasure, events), and a
   vault held through three waves while its Vigil Lantern is kept lit by
@@ -1026,6 +1026,101 @@ expeditions (needs a world-state save design first: next priorities).
   the run and the rejoin parameters; the HUD's task line reaches guests as
   an "obj" event. Shared income rules are unchanged (route multipliers
   apply to the foes' Embers, which are shared).
+
+## Living Undervault pass: stone, memory, rivals, the Hollow's own identity
+
+The audit's finding: the game had many systems that did not touch each other.
+Undervault Memory was one number, a Grudge was an elite with a name, the
+Hollow was the same regions with bigger numbers, and the floors' art argued
+with everything standing on them. The direction chosen was one idea - **the
+Undervault remembers, and you can see it** - with the art first because
+everything else has to be seen on it.
+
+### The stone (tools/art/gen_stone.gd)
+Real texture work, not more shader: floors twice the size (a repeat every 16
+tiles), soft mortar a step off the stone, slabs a quarter step apart, wear in
+long patches. Walls deep-cut, with a lit edge on every block and a plinth, and
+each region's own identity (skull niches; root and moss; a gilded frieze and
+pilasters; timber in the sanctuary). Columns shaded as round forms. Pits have
+strata of their own; doorways are framed by stone posts. The rule stayed:
+floors are quiet because everything that matters stands on them.
+
+### The Chronicle (src/data/chronicle.gd)
+One record, three kinds of memory: **sites** (each region's Hollow Altar),
+**marks** (counted deeds) and a **log** (the story in plain words, read at the
+Shrine). A party walks the *host's* world: the run carries a snapshot taken when
+the expedition starts, every machine generates from that, a guest's own altars
+are never touched, and a rejoin rebuilds the same floor. Guests only mark what
+they witnessed.
+
+**Hollow Altars**: due on one floor of an expedition into a region (until
+answered; one expedition in three after). Three answers, each opening something
+and costing something, physically separate offerings rather than a menu:
+- *Rekindle*: a spring on every floor there, a flask more.
+- *Break the seal*: a Breach stairway on every floor, foes go unbound (more elites).
+- *The Pale Pact*: a Pale Bowl by the door of every floor: 25% health for a
+  random reagent, and it feeds your Grudges (a level per three drinks).
+Nothing is permanent: the altar comes back and can be answered differently, and
+the Shrine can let one rest for Embers. No essential progression hangs on it.
+
+### Grudges as rivals
+A Grudge now remembers the fight that made it. Those who kept their distance
+(bow, tome, staff) meet one that lunges after a marked disc; those who stood and
+swung meet one that raises a red ward (blows land at 40% for 1.8 s: step back).
+It has a brand that grows with its level, spoor at its doors, a name card saying
+how often it killed you and what it learned. At level 2+ it flees once at 30%
+health, scarred, dropping a third of its hoard, and waits on the next floor
+still bleeding (never from a final floor, never from its own lair). Settled at
+level 3+ it leaves a trophy with its name, its owner's alone. Each of these is
+readable and answerable: nothing unmarked, nothing unavoidable. A party fights
+someone else's Grudge together; the nameplate says whose, the hoard and trophy
+go to its owner, shared income stays shared.
+
+### Deep Events (src/data/deep_events.gd)
+A table: where an event may appear, how rare, what it looks like, what choosing
+does. A new event touches no generator code. Three exceptional ones rather than
+twenty thin ones: the Hollow Altar; A Last Stand (a barricade, fallen shields, a
+cold brazier to relight: a scene that tells its story without a dialogue box);
+The Lost Procession (a bier, two waves, a gift meant for someone else).
+
+### The Forked Descent, grown
+- 30% of floors simply go down: a fork stays an event, not a chore.
+- Each way has variants, chosen by the seed: Trial of Ash (three seals; a
+  Champion with two affixes; a four-wave Gauntlet with ash falling between
+  waves, marked first), Lost Vault (a kept flame; a choose-one treasury with no
+  fight at all; a forgotten workshop).
+- Rare third ways: The Breach (a broken altar's), and a Grudge's lair (a level
+  2+ Grudge, 30% of forks). Short floors, one great fight.
+- Each way has its own arch, told apart by shape before its name; the long hint
+  became one line; details appear on approach; the party's card is one line
+  with Danger and Spoils.
+
+### The Hollow Below
+Not more numbers: **Fractures** (every sixth depth two regions overlap room by
+room, their stone and their foes, with a rift to close), **milestones** (5, 10,
+15, 20, 30: once per save, each a real find, nothing to farm), **Echo patterns**
+(Soul Lances, a Grasping Ring, Falling Suns: marked bursts that make each Echo
+fight differently from its guardian), **Omens that change play** (Volatile Dead:
+mind where you finish them. Thin Walls: hold the middle. Bleeding Lantern: spend
+it or lose it), with exclusions and a cap of five so a descent stays legible.
+
+### Build depth
+Four deep hybrid nodes: Furnace Heart (Kindle spent banks in your next blow, up to
+60%), Perfect Answer (a Ward or perfect dodge makes the next blow a sure
+critical that staggers), Shadowfrost, Hearth Anchor. Three uniques that change
+what you do: Mirror of the Deep (a Ward throws back your last spell), Ashwalker's
+Cinder (dodges leave burning ground), Stillwater Stone (stand still, gain a
+barrier). In a party, a friend's blow shatters what you froze: a bonus, never a need.
+
+### Rejected or postponed
+- **Host migration**: the risk to a reliable floor is far larger than its value
+  while disconnects already bank a checkpoint and a rejoin works. Postponed.
+- **New enemy roster and redrawn animation frames**: the pass spent its art
+  budget on the environment, which you named the top priority.
+- **Puzzle rooms, escorts, collapsing rooms**: softlock and stale-on-repeat risks
+  (see the last pass); the choose-one treasury gives a no-fight room without them.
+- **Permanent regional corruption**: a meter that only worsens punishes
+  experimenting; altars that can always be re-answered do the same work.
 
 ## Decisions log
 - 2026-11-05 Expedition evolution: one gear path (`Player.sync_gear`) instead of per-screen refreshes; facilities rebuilt in place by group; mouse steering removed (facing only); silhouette instance slots pinned; a dungeon grammar of rims, contact shadows and quiet floors; tinctures over flask stats; physical forked stairs over a route screen; objectives that cannot hold a room shut.
