@@ -212,8 +212,17 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
 		# alone, tabbing out pauses; in a party nothing pauses, so no menu
 		# appears to hold this player's hands while the fight goes on
-		if hud.visible and Game.stage is Dungeon and not has_modal() and not Net.active() and not "autopilot" in Dev.args():
+		if hud.visible and Game.stage is Dungeon and not has_modal() and not Net.active() and not "autopilot" in Dev.args() and not _dev_capture():
 			pause_menu()
+
+
+## A dev capture or scripted run must not pause when the window loses focus
+## (someone else is using the desktop).
+static func _dev_capture() -> bool:
+	for a in Dev.args():
+		if a.begins_with("capture=") or a.begins_with("scenario=") or a == "uismoke" or a.begins_with("frames="):
+			return true
+	return false
 
 
 # --- feedback --------------------------------------------------------------------

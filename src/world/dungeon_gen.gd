@@ -935,11 +935,18 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			var sheet: String = pieces[rng.randi_range(0, pieces.size() - 1)]
 			# a piece two tiles wide stands on two tiles (both against the wall)
 			# and blocks both: what you see is what stops you
+			var want: Array[Vector2i] = [t]
 			if WIDE_DRESSING.has(sheet):
 				var t2 := t + Vector2i(1, 0)
 				if not wall_adj.has(t2) or g.at(t2.x, t2.y - 1) != TileGrid.WALL:
 					continue
-				wall_adj.erase(t2)
+				want.append(t2)
+			# ...and never closes off a nook of the room: its floor stays one piece
+			# (a sarcophagus across a two-tile alcove sealed it, unreachable)
+			if not WALKABLE_DRESSING.has(sheet) and not _floor_whole(lay, r, want):
+				continue
+			if want.size() > 1:
+				wall_adj.erase(want[1])
 				r.props.append({"kind": "dressing", "tile": t, "sheet": sheet, "wide": true})
 			else:
 				r.props.append({"kind": "dressing", "tile": t, "sheet": sheet})
@@ -1116,6 +1123,56 @@ static func _doors_connected(lay: Layout, r: Room, blocked: Array[Vector2i]) -> 
 		if not seen.has(s):
 			return false
 	return true
+
+
+## Prop kinds that stand on their tile and stop whoever walks into it.
+const SOLID_KINDS := ["shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar", "bramble", "root_node"]
+
+
+## The tiles a room's props already make solid (as Dungeon places them).
+static func _solid_of(r: Room) -> Dictionary:
+	var out := {}
+	for pd in r.props:
+		var k := String(pd.kind)
+		if k == "dressing":
+			if pd.get("wide", false):
+				out[pd.tile] = true
+				out[pd.tile + Vector2i(1, 0)] = true
+			elif not WALKABLE_DRESSING.has(String(pd.sheet)):
+				out[pd.tile] = true
+		elif k in SOLID_KINDS:
+			out[pd.tile] = true
+	return out
+
+
+## Would the room's floor still be one walkable piece with `more` made solid
+## (on top of what its props already block)?
+static func _floor_whole(lay: Layout, r: Room, more: Array[Vector2i]) -> bool:
+	var g := lay.grid
+	var block := _solid_of(r)
+	for t in more:
+		block[t] = true
+	var total := 0
+	var start := Vector2i(-1, -1)
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if g.at(x, y) == TileGrid.FLOOR and not block.has(Vector2i(x, y)):
+				total += 1
+				if start.x < 0:
+					start = Vector2i(x, y)
+	if total == 0:
+		return false
+	var seen := {start: true}
+	var q: Array[Vector2i] = [start]
+	while not q.is_empty():
+		var c: Vector2i = q.pop_back()
+		for dd in DIRS:
+			var n: Vector2i = c + dd
+			if seen.has(n) or block.has(n) or not r.rect.has_point(n) or g.at(n.x, n.y) != TileGrid.FLOOR:
+				continue
+			seen[n] = true
+			q.append(n)
+	return seen.size() == total
 
 
 static func _prop_at(r: Room, t: Vector2i) -> bool:

@@ -34,7 +34,8 @@ void fragment() {
 	if (flip > 0.5) {
 		uv.x = 1.0 - uv.x;
 	}
-	vec4 c = texture(atlas, (frame + uv) * frame_uv);
+	vec2 auv = (frame + uv) * frame_uv;
+	vec4 c = texture(atlas, auv);
 	if (c.a < 0.5) {
 		discard;
 	}
@@ -44,11 +45,22 @@ void fragment() {
 	if (scene <= FRAGCOORD.z + 0.0004) {
 		discard;
 	}
-	int x = int(mod(FRAGCOORD.x, 4.0));
-	int y = int(mod(FRAGCOORD.y, 4.0));
-	if ((BAYER[x + y * 4] + 0.5) / 16.0 > 0.55) {
-		discard;
+	// a crisp outline of the body's own texels, and only a sparse, dim
+	// interior (it used to be a half-dense orange checkerboard over the whole
+	// figure, in screen pixels - a blob, not a Kindled)
+	vec2 ts = 1.0 / vec2(textureSize(atlas, 0));
+	bool edge = texture(atlas, auv + vec2(ts.x, 0.0)).a < 0.5 || texture(atlas, auv - vec2(ts.x, 0.0)).a < 0.5
+		|| texture(atlas, auv + vec2(0.0, ts.y)).a < 0.5 || texture(atlas, auv - vec2(0.0, ts.y)).a < 0.5;
+	vec2 texel = floor(auv / ts);
+	if (edge) {
+		ALBEDO = color.rgb;
+	} else {
+		int x = int(mod(texel.x, 4.0));
+		int y = int(mod(texel.y, 4.0));
+		if ((BAYER[x + y * 4] + 0.5) / 16.0 > 0.2) {
+			discard;
+		}
+		ALBEDO = color.rgb * 0.6;
 	}
-	ALBEDO = color.rgb;
 	ALPHA = 1.0;
 }

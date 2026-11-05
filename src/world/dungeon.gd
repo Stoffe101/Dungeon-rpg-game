@@ -38,14 +38,18 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	layout = lay
 	run = r
 	region = EnemyDB.REGIONS[lay.region]
+	if "walllab" in Dev.args():
+		_wall_lab(lay)
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
 	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
-	add_child(LevelBuilder.build(grid, theme))
 	_environment()
 	if not replica:
 		_pick_grudge_room()
 	_place_props()
+	# (built after the props: the floor shades a contact shadow around every
+	# solid one - LevelBuilder)
+	add_child(LevelBuilder.build(grid, theme))
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
@@ -55,6 +59,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	# the player (co-op: the whole party)
 	var start := layout.room(layout.start_id)
 	_spawn_party(start)
+	if "walllab" in Dev.args() and "behind" in Dev.args():
+		# dev: stand behind the lab's pillar (the silhouette shows through it)
+		player.pos = Vector2(Vector2i(start.center()) + Vector2i(3, -3)) + Vector2(0.5, 0.45)
 	if "autopilot" in Dev.args():
 		player.add_child(Bot.new())
 	if "hearthcall" in Dev.args():
@@ -253,6 +260,26 @@ func _environment() -> void:
 	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	if view:
 		view.set_environment(env)
+
+
+## Dev (`walllab`): one of each kind of thing a floor is built from, around
+## where the Kindled starts - a waist-high wall inside the room, a pillar, a
+## pit, a solid set piece and a walk-through one - to judge at a glance what
+## reads as solid, as floor, as a drop.
+func _wall_lab(lay: DungeonGen.Layout) -> void:
+	var r := lay.room(lay.start_id)
+	var c := Vector2i(r.center())
+	var g := lay.grid
+	for dx in range(-5, -2):
+		g.put(c.x + dx, c.y - 2, TileGrid.WALL)
+	g.put(c.x + 3, c.y - 2, TileGrid.PILLAR)
+	for p in [Vector2i(3, 2), Vector2i(4, 2), Vector2i(3, 3), Vector2i(4, 3)]:
+		g.put(c.x + p.x, c.y + p.y, TileGrid.PIT)
+	var solid: String = {"rootmire": "stump", "throne": "column_fallen"}.get(lay.region, "sarcophagus")
+	r.props.append({"kind": "dressing", "tile": c + Vector2i(-5, 2), "sheet": solid, "wide": true})
+	r.props.append({"kind": "dressing", "tile": c + Vector2i(-1, 3), "sheet": "bone_heap"})
+	if lay.region == "throne":
+		r.props.append({"kind": "dressing", "tile": c + Vector2i(1, -3), "sheet": "statue"})
 
 
 func _place_props() -> void:

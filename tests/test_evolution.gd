@@ -158,3 +158,107 @@ func test_the_kindleds_two_passes_agree_on_their_instance_slots() -> void:
 	for k in sil:
 		if not body.has(k):
 			check(not used.has(sil[k]), "the silhouette's own '%s' does not reuse a body slot" % k)
+
+
+# --- what you see is what stops you: the floor stays one walkable piece ---------------
+
+const SOLID_PROPS := ["shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar"]
+const REACH_PROPS := ["chest", "ember_pile", "relic_altar", "spring", "fountain", "ember_well", "trial_altar", "lost_camp", "shrine", "merchant",
+	"stairs", "hearthstone", "lore", "echo"]
+
+
+## The tiles a layout's props make solid (as Dungeon._place_props and Prop do).
+static func _solid_tiles(lay: DungeonGen.Layout) -> Dictionary:
+	var out := {}
+	for r in lay.rooms:
+		for pd in r.props:
+			var k := String(pd.kind)
+			if k == "dressing":
+				if pd.get("wide", false):
+					out[pd.tile] = true
+					out[pd.tile + Vector2i(1, 0)] = true
+				elif not DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)):
+					out[pd.tile] = true
+			elif k in SOLID_PROPS:
+				out[pd.tile] = true
+	return out
+
+
+func test_solid_props_never_cut_a_room_off_or_hide_what_you_use() -> void:
+	var cases := 0
+	for region in ["ossuary", "rootmire", "throne"]:
+		for s in [1, 2, 3, 7, 42, 99, 123, 777, 2024, 31337]:
+			for depth in [1, 2, 3]:
+				var lay := DungeonGen.generate(s, depth, region, depth == 3)
+				var g := lay.grid
+				var solid := _solid_tiles(lay)
+				var a := Vector2i(lay.room(lay.start_id).center())
+				var seen := {a: true}
+				var q: Array[Vector2i] = [a]
+				while not q.is_empty():
+					var p: Vector2i = q.pop_back()
+					for d in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+						var n: Vector2i = p + d
+						if seen.has(n) or solid.has(n):
+							continue
+						var t := g.at(n.x, n.y)
+						if t == TileGrid.FLOOR or t == TileGrid.GATE:
+							seen[n] = true
+							q.append(n)
+				var tag := "%s seed %d depth %d" % [region, s, depth]
+				for r in lay.rooms:
+					if r.type == Room.Type.SECRET:
+						continue
+					var cut: Array[Vector2i] = []
+					for y in range(r.rect.position.y, r.rect.end.y):
+						for x in range(r.rect.position.x, r.rect.end.x):
+							var t2 := Vector2i(x, y)
+							if g.at(x, y) == TileGrid.FLOOR and g.room_of[y * g.width + x] == r.id and not solid.has(t2) and not seen.has(t2):
+								cut.append(t2)
+					check(cut.is_empty(), "%s: room %d (%s) has %d floor tiles nobody can reach%s" % [tag, r.id, Room.Type.keys()[r.type], cut.size(),
+						"" if cut.is_empty() else _around(g, solid, seen, cut[0], r)])
+					for d in r.doors:
+						if d.secret:
+							continue
+						for dt: Vector2i in d.tiles:
+							check(seen.has(dt), "%s: room %d's door at %s is blocked" % [tag, r.id, dt])
+					for pd in r.props:
+						if not (String(pd.kind) in REACH_PROPS):
+							continue
+						var ok := seen.has(pd.tile)
+						for dy in range(-1, 2):
+							for dx in range(-1, 2):
+								ok = ok or seen.has(pd.tile + Vector2i(dx, dy))
+						check(ok, "%s: the %s at %s cannot be reached" % [tag, pd.kind, pd.tile])
+				cases += 1
+	check(cases == 90, "90 floors walked (%d)" % cases)
+
+
+## A little map around a tile for a failure message: # wall, P pillar, o solid
+## prop, . reachable floor, x unreachable floor, ~ pit, + gate.
+static func _around(g: TileGrid, solid: Dictionary, seen: Dictionary, c: Vector2i, r: Room) -> String:
+	var out := "
+"
+	for y in range(c.y - 4, c.y + 5):
+		for x in range(c.x - 6, c.x + 7):
+			var t := g.at(x, y)
+			var ch := " "
+			if solid.has(Vector2i(x, y)):
+				ch = "o"
+				for pd in r.props:
+					if pd.tile == Vector2i(x, y):
+						ch = String(pd.get("sheet", pd.kind)).substr(0, 1).to_upper()
+			elif t == TileGrid.WALL:
+				ch = "#"
+			elif t == TileGrid.PILLAR:
+				ch = "P"
+			elif t == TileGrid.PIT:
+				ch = "~"
+			elif t == TileGrid.GATE:
+				ch = "+"
+			elif t == TileGrid.FLOOR:
+				ch = "." if seen.has(Vector2i(x, y)) else "x"
+			out += ch
+		out += "
+"
+	return out
