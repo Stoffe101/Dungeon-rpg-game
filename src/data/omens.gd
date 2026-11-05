@@ -32,6 +32,22 @@ const OMENS := {
 		"cost": "Your flask holds one charge fewer.",
 		"unlock": {"bloom_kills": 1},
 	},
+	# (these change how a fight is played; the Hollow reads them too)
+	"volatile": {
+		"name": "Volatile Dead", "embers": 0.25, "xp": 0.1,
+		"cost": "One foe in two bursts a moment after it falls: mind where you finish them.",
+		"unlock": {"delve_best": 3},
+	},
+	"thin_walls": {
+		"name": "Thin Walls", "embers": 0.1, "xp": 0.25,
+		"cost": "Mid-fight, more foes break in through the doors. Hold the middle of the room.",
+		"unlock": {"delve_best": 3},
+	},
+	"bleeding_lantern": {
+		"name": "Bleeding Lantern", "embers": 0.2, "xp": 0.1,
+		"cost": "In a fight your Kindle bleeds away, but spells cost a third less: spend it or lose it.",
+		"unlock": {"delve_best": 6},
+	},
 	"hunted": {
 		"name": "Hunted", "embers": 0.0, "xp": 0.15,
 		"cost": "Your Grudges hunt you: one waits on every depth. Settled, they pay double.",
@@ -69,7 +85,22 @@ static func what_unlocks(id: String) -> String:
 		return "Fell the Hollow Bloom to read this sign."
 	if req.has("deaths"):
 		return "Only one who has died down there can read this sign."
+	if req.has("delve_best"):
+		return "Reach depth %d of the Hollow Below to read this sign." % int(req.delve_best)
 	return "Fell the Gloam Warden to read this sign."
+
+
+## Pairs that are unfair together (or cancel each other out): never both.
+const EXCLUSIVE := [["glass", "volatile"], ["dry_flask", "bleeding_lantern"]]
+
+
+static func compatible(id: String, active: Array) -> bool:
+	for pair in EXCLUSIVE:
+		if pair.has(id):
+			for other in pair:
+				if other != id and active.has(other):
+					return false
+	return true
 
 
 static func bonus(ids: Array, key: String) -> float:
@@ -86,6 +117,8 @@ static func apply(ids: Array, stats: Stats) -> void:
 		stats.add_mod("damage_taken", "more", 0.6)
 	if ids.has("dry_flask"):
 		stats.add_mod("flask_charges", "add", -1.0)
+	if ids.has("bleeding_lantern"):
+		stats.add_mod("ability_cost", "more", -0.33)
 
 
 static func names(ids: Array) -> String:

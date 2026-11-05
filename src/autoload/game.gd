@@ -165,7 +165,11 @@ func _enter_depth(depth: int) -> void:
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	DungeonGen.force_landmark = "landmark" in Dev.args()
-	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth, run.route, run.world)
+	var world := run.world
+	if run.delve and Delve.fractured(depth):
+		world = run.world.duplicate()
+		world["fracture"] = Delve.overlap_region(depth)
+	var lay := DungeonGen.generate(run.seed, depth, run.region, boss_depth, run.route, world)
 	_clear_stage()
 	var d := Dungeon.new()
 	d.replica = Net.is_client()
@@ -181,6 +185,11 @@ func _enter_depth(depth: int) -> void:
 	if "showcol" in Dev.args():
 		ColView.attach(d)
 	Profile.data.world.deepest = maxi(int(Profile.data.world.get("deepest", 0)), depth)
+	if run.delve:
+		var m := Delve.reach(depth, run.rng)
+		if not m.is_empty():
+			get_tree().create_timer(3.4, true).timeout.connect(func() -> void:
+				Events.banner.emit(String(m.title).to_upper(), String(m.line)))
 	if Net.i:
 		Net.i.set_where("below")
 	print("[game] entered depth %d (seed %d): %d rooms" % [depth, run.seed, lay.rooms.size()])

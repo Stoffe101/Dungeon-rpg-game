@@ -44,7 +44,7 @@ if os.path.isfile(os.path.join(export_dir, "steam_appid.txt")):
     problems.append("%s holds steam_appid.txt (development only)" % export_dir)
 
 profile = read("src/autoload/profile.gd")
-if "return TEST_STOCKPILE and Dev.enabled()" not in profile:
+if 'return TEST_STOCKPILE and Dev.enabled() and OS.has_feature("editor")' not in profile:
     problems.append("the testing stockpile is not gated to debug builds (Profile.stockpile)")
 dev = read("src/core/dev.gd")
 if "OS.is_debug_build()" not in dev:

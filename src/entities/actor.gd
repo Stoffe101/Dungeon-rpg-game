@@ -230,6 +230,8 @@ func take_hit(hit: Hit) -> Combat.Result:
 	if hit.chill > 0.0:
 		if status.apply_chill(hit.chill):
 			on_frozen()
+			if is_instance_valid(hit.source) and hit.source is Player:
+				set_meta("frozen_by", (hit.source as Player).peer_id)      # (a friend's blow shatters it)
 	if hit.expose > 0.0:
 		status.exposed_t = maxf(status.exposed_t, hit.expose)
 	if hp <= 0.0:

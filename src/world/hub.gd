@@ -75,7 +75,8 @@ static func camp_of_profile() -> Dictionary:
 	return {"hearth": Profile.building("hearth"), "forge": Profile.building("forge"), "apothecary": Profile.building("apothecary"),
 		"shrine": Profile.building("shrine"), "level": Profile.level(), "garden": Residents.garden_stage(),
 		"residents": Residents.count_present(), "feats": Feats.earned_count(), "trophies": trophies,
-		"cat": int(Profile.data.stats.get("runs", 0)) > 0, "forged": forged, "host": String(Settings.get_value("player_name", "Kindled"))}
+		"cat": int(Profile.data.stats.get("runs", 0)) > 0, "forged": forged, "host": String(Settings.get_value("player_name", "Kindled")),
+		"sites": (Chronicle.snapshot().sites as Dictionary).duplicate()}
 
 
 ## The camp to build: the host's while this machine is a guest in a party.
@@ -277,6 +278,17 @@ func _place_shrine() -> void:
 	if int(camp.shrine) > 0:
 		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial", "anim": "idle", "prompt": "Shrine of Memory", "radius": 1.6, "solid": true,
 			"light": [Color(0.75, 0.45, 0.95), 1.2, 5.0], "light_h": 1.4})
+		# a lamp for each Hollow Altar: the camp knows how they stand
+		var k := 0
+		for region in Chronicle.ALTARS:
+			var st := String((camp.get("sites", {}) as Dictionary).get(region, ""))
+			var on := st != ""
+			var col: Color = Chronicle.STATES.get(st, {}).get("color", Color(0.4, 0.4, 0.45))
+			var lp := Prop.make(self, "vigil_lamp", Vector2i(35, 13 + k), {"sheet": "hang_lantern", "anim": "lit" if on else "unlit",
+				"light": [col, 0.8, 3.0] if on else []  , "light_h": 1.2})
+			if lp.sprite and on:
+				lp.sprite.set_tint(col.lightened(0.3))
+			k += 1
 	else:
 		Prop.make(self, "memorial", Vector2i(33, 14), {"sheet": "memorial_ruin", "prompt": "Raise the Shrine of Memory", "radius": 1.6, "solid": true})
 
@@ -313,6 +325,8 @@ func refresh_camp(celebrate := true) -> Array:
 	var old := camp
 	camp = current_camp()
 	Profile.visiting = {} if own_camp() else camp.duplicate()
+	if old.get("sites") != camp.get("sites") and old.get("shrine") == camp.get("shrine"):
+		_rebuild_group("shrine", false)
 	for key in ["forge", "apothecary", "shrine", "hearth", "forged"]:
 		if old.get(key) != camp.get(key):
 			_rebuild_group(key, celebrate and int(camp.get(key, 0)) > int(old.get(key, 0)))

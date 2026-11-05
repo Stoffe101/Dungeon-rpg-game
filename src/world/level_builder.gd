@@ -104,9 +104,20 @@ static func mid_of(tex: Texture2D) -> Color:
 	return mid
 
 
-static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
+## `alt`: a second region's stone, laid over every odd room (the Hollow's Fracture).
+static func build(grid: TileGrid, theme: LevelTheme, alt: LevelTheme = null) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Level"
+	if alt != null:
+		_build_into(root, grid, alt, 1)
+		_build_into(root, grid, theme, 0)
+		return root
+	_build_into(root, grid, theme, -1)
+	return root
+
+
+## `odd`: -1 every tile, 0 the even rooms (and passages), 1 the odd rooms.
+static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: int) -> void:
 	var cx_n := int(ceil(grid.width / float(CHUNK)))
 	var cy_n := int(ceil(grid.height / float(CHUNK)))
 	var mats := {
@@ -146,6 +157,8 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 				tools[k] = {"st": st, "n": 0}
 			for y in range(cy * CHUNK, mini((cy + 1) * CHUNK, grid.height)):
 				for x in range(cx * CHUNK, mini((cx + 1) * CHUNK, grid.width)):
+					if odd >= 0 and (1 if posmod(grid.room_at(x, y), 2) == 1 and grid.room_at(x, y) >= 0 else 0) != odd:
+						continue
 					_emit_tile(grid, x, y, tools, tex_sizes, mass)
 			for k in tools:
 				if tools[k].n == 0:
@@ -154,13 +167,12 @@ static func build(grid: TileGrid, theme: LevelTheme) -> Node3D:
 				st.set_material(mats[k])
 				var mi := MeshInstance3D.new()
 				mi.mesh = st.commit()
-				mi.name = "%s_%d_%d" % [k, cx, cy]
+				mi.name = "%s_%d_%d_%d" % [k, cx, cy, odd]
 				if k == "floor" or k == "pit" or k == "pitwall":
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				else:
 					mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_DOUBLE_SIDED
 				root.add_child(mi)
-	return root
 
 
 ## Something a floor's edge meets that stands up from it: a contact shadow.

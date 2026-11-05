@@ -42,14 +42,13 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		_wall_lab(lay)
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
-	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
 	_environment()
 	if not replica:
 		_pick_grudge_room()
 	_place_props()
 	# (built after the props: the floor shades a contact shadow around every
 	# solid one - LevelBuilder)
-	add_child(LevelBuilder.build(grid, theme))
+	add_child(_build_level())
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
@@ -260,6 +259,8 @@ func _environment() -> void:
 	if run and run.delve:
 		# every pass through the regions, the Hollow is darker
 		env.ambient_light_energy *= Delve.gloom(layout.depth)
+		if Delve.fractured(layout.depth):
+			env.ambient_light_color = env.ambient_light_color.lerp(Color(0.5, 0.35, 0.8), 0.45)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.glow_enabled = true
 	env.glow_intensity = 0.55
@@ -273,6 +274,16 @@ func _environment() -> void:
 	env.adjustment_brightness = float(Settings.get_value("brightness", 1.0))
 	if view:
 		view.set_environment(env)
+
+
+## The floor's meshes; on a Fracture, a second region's stone in every odd room.
+func _build_level() -> Node3D:
+	var k := Delve.floor_index(layout.depth, run.delve) + 1
+	var theme := LevelBuilder.LevelTheme.named(region.theme, k)
+	var over := String(layout.world.get("fracture", ""))
+	if over == "" or not EnemyDB.REGIONS.has(over):
+		return LevelBuilder.build(grid, theme)
+	return LevelBuilder.build(grid, theme, LevelBuilder.LevelTheme.named(EnemyDB.REGIONS[over].theme, k))
 
 
 ## Dev (`walllab`): one of each kind of thing a floor is built from, around
@@ -486,6 +497,9 @@ func _pick_grudge_room() -> void:
 # --- per-frame -----------------------------------------------------------------------
 
 func _stage_tick(dt: float) -> void:
+	for pg in pings:
+		pg.t -= dt
+	pings = pings.filter(func(pg): return pg.t > 0.0)
 	if replica:
 		if player:
 			var rt := layout.room_at_tile(Vector2i(floori(player.pos.x), floori(player.pos.y)))
@@ -703,11 +717,33 @@ func _enter_room(r: Room, mine := true) -> void:
 
 # --- encounters ------------------------------------------------------------------------
 
+var _fight_began := 0.0
+
+
+## Thin Walls: foes break in through the room's doors, mid-fight.
+func _break_in(r: Room) -> void:
+	var ids := EnemyDB.party_extras(rng, layout.region, layout.depth, [], 3)
+	var memory := int(Profile.data.world.get("memory", 0))
+	Events.toast.emit("The walls are thin here. Something is coming through.", Omens.COLOR)
+	for k in ids.size():
+		var door: Dictionary = r.doors[k % r.doors.size()]
+		var t: Vector2i = door.tiles[0]
+		var e := _make_enemy(String(ids[k]))
+		e.pos = arena_spot(r, Vector2(t) - Vector2(door.dir) * 2.0)
+		_scale(e, layout.depth, memory)
+		_coop_scale(e)
+		e.xp = 0
+		e.room_id = r.id
+		e.spawn_t = 0.8
+		add_actor(e)
+
+
 func _start_encounter(r: Room, by: Player = null) -> void:
 	if OS.is_debug_build():
 		print("[dungeon] encounter start room %d (%s) waves=%d" % [r.id, r.type_name(), r.encounter.size()])
 	active_room = r
 	wave = 0
+	_fight_began = elapsed
 	# three or four Kindled: the room calls one more, smaller wave of flankers
 	# and marksmen when its own are done
 	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
@@ -929,6 +965,9 @@ func _update_encounter(dt: float) -> void:
 	if _watch_t <= 0.0:
 		_watch_t = 0.5
 		_watch_arena(0.5)
+	if run.has_omen("thin_walls") and active_room and active_room.is_combat() and active_room.type != Room.Type.BOSS and not active_room.get_meta("thin", false) and room_enemies.size() <= 2 and elapsed > _fight_began + 4.0:
+		active_room.set_meta("thin", true)
+		_break_in(active_room)
 	if room_enemies.is_empty() and _rising == 0 and elapsed >= _clear_hold and active_room.type != Room.Type.BOSS:
 		wave += 1
 		if wave < active_room.encounter.size():
@@ -1185,6 +1224,12 @@ func _spawn_reward(r: Room) -> void:
 			Events.banner.emit("The Ash Hall Falls", "Its spoils are yours")
 		"vault":
 			_open_vault(r, c)
+		"rift":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
+			Pickup.spawn(self, "sunshard", c + Vector2(1.0, 0.0), 1)
+			_rune_drop(c + Vector2(-1.2, 0.4))
+			Chronicle.mark("rifts_closed")
+			Events.banner.emit("The Rift Closes", "For a moment, the Undervault remembers what shape it was")
 		"workshop":
 			# a forgotten alchemist's bench: what the fight was guarding
 			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 2})
@@ -1503,6 +1548,7 @@ func _start_boss(r: Room) -> void:
 			e._apply_affix(a)
 			e.elite = true
 			e.display_name = "Echo of %s" % e.display_name
+			_echo_t = 7.0
 		add_actor(e)
 		register_enemy(e)
 		boss = e
@@ -1733,6 +1779,7 @@ func _chest_loot(prop: Prop, tier: int) -> void:
 # costs the vault its best spoils - the room still opens when its foes fall.
 
 var objective := {}              # {text, k (0..1, or -1), col} - the HUD's line
+var pings: Array = []            # {pos, col, t}: marks on the map (Party.ping)
 var _seals: Array = []
 var _seal_room := -1
 var _vigil: Prop
@@ -1756,28 +1803,17 @@ func _begin_objective(r: Room) -> void:
 			if e2:
 				Events.banner.emit("The Unbound", "It was sealed here for a reason")
 				_set_objective("FELL THE UNBOUND", -1.0, Color(0.95, 0.35, 0.3))
+		"rift":
+			_seals_up(r)
+			Events.banner.emit("The Rift Holds", "Three anchors keep this place torn open, and its foes warded")
 		"gauntlet":
 			Events.banner.emit("The Ash Falls", "Four waves. Keep moving: the floor burns between them")
 			_set_objective("ENDURE   WAVE 1 OF %d" % r.encounter.size(), -1.0, SEAL_COL)
 		"lair":
 			Events.banner.emit("Its Lair", "It has been waiting for you here")
 		"seals":
-			_seal_room = r.id
-			_seals.clear()
-			var c := r.center()
-			var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
-			for o in [Vector2(-0.3, -0.28), Vector2(0.3, -0.28), Vector2(0.0, 0.3)]:
-				var at := c + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y)
-				var e := _make_enemy("ash_seal")
-				e.pos = arena_spot(r, at)
-				_scale(e, layout.depth, memory)
-				_coop_scale(e)
-				e.room_id = r.id
-				e.spawn_t = 0.3
-				add_actor(e)
-				_seals.append(e)
+			_seals_up(r)
 			Events.banner.emit("The Seals Hold", "While a seal stands, this hall's foes shrug off most of every blow")
-			_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
 		"flame":
 			var t := Vector2i(_open_spot(r.center()))
 			_vigil = Prop.make(self, "vigil", t, {"sheet": "vigil_lantern", "anim": "lit", "solid": true,
@@ -1786,8 +1822,26 @@ func _begin_objective(r: Room) -> void:
 			_flame = 0.6
 			_flame_out = false
 			fx.ring(_vigil.pos, 2.4, FLAME_COL, 0.6, 0.3)
-			Events.banner.emit("Keep the Flame", "Stand in the lantern's light to feed it. If it goes out, the vault's best is lost")
+			Events.banner.emit("Keep the Flame", "Stand in its light to feed it; foes at the lantern choke it. If it goes out, the vault's best is lost")
 			_set_objective("KEEP THE FLAME", _flame, FLAME_COL)
+
+
+func _seals_up(r: Room) -> void:
+	_seal_room = r.id
+	_seals.clear()
+	var c := r.center()
+	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
+	for o in [Vector2(-0.3, -0.28), Vector2(0.3, -0.28), Vector2(0.0, 0.3)]:
+		var at := c + Vector2(o.x * r.rect.size.x, o.y * r.rect.size.y)
+		var e := _make_enemy("ash_seal")
+		e.pos = arena_spot(r, at)
+		_scale(e, layout.depth, memory)
+		_coop_scale(e)
+		e.room_id = r.id
+		e.spawn_t = 0.3
+		add_actor(e)
+		_seals.append(e)
+	_set_objective("BREAK THE SEALS   %d LEFT" % _seals.size(), -1.0, SEAL_COL)
 
 
 ## The room's greatest foe made greater: its first real fighter, two affixes,
@@ -1829,7 +1883,54 @@ func _ash_fall(r: Room) -> void:
 			h.period = 0.6)
 
 
+# --- an Echo is not its guardian with more health: each has a pattern of its own ------
+
+var _echo_t := -1.0
+
+
+func _echo_tick(dt: float) -> void:
+	if _echo_t < 0.0 or boss == null or not is_instance_valid(boss) or not boss.alive or replica:
+		return
+	_echo_t -= dt
+	if _echo_t > 0.0:
+		return
+	var n := Delve.echo_n(layout.depth)
+	_echo_t = maxf(6.0, 10.0 - 0.6 * n)
+	var t := nearest_player(boss.pos)
+	if t == null:
+		return
+	var dmg := boss.damage * 0.7
+	match layout.region:
+		"ossuary":
+			# Soul Lances: a line of bursts through where you stand
+			var dir := Vector2.from_angle(randf() * TAU)
+			for k in range(-3, 4):
+				_echo_burst(t.pos + dir * k * 1.6, 1.0, 0.9 + absf(k) * 0.1, dmg, Color(0.45, 0.95, 0.85))
+		"rootmire":
+			# Grasping Ring: a closing circle of roots: step out, or through
+			var c := 7 + mini(n, 3)
+			for k in c:
+				_echo_burst(t.pos + Vector2.from_angle(TAU * k / c) * 2.6, 0.9, 1.1, dmg, Color(0.55, 0.9, 0.4))
+		_:
+			# Falling Suns: scattered, then one right on you
+			for k in 4 + mini(n, 4):
+				_echo_burst(t.pos + Vector2(randf_range(-5.0, 5.0), randf_range(-4.0, 4.0)), 1.2, 1.0 + k * 0.08, dmg, Color(1.0, 0.72, 0.35))
+			_echo_burst(t.pos, 1.0, 1.5, dmg, Color(1.0, 0.72, 0.35))
+
+
+## A marked burst: the mark first, always (Enemy.telegraph), the blow after.
+func _echo_burst(at: Vector2, r: float, delay: float, dmg: float, col: Color) -> void:
+	var p := foe_spot(at, 0.3, boss.room_id)
+	boss.telegraph(Fx.Shape.DISC, p, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), delay)
+	after(delay, func() -> void:
+		if not is_inside_tree() or boss == null or not is_instance_valid(boss) or not boss.alive:
+			return
+		fx.burst(p, 0.6, col, 10, 3.0, 0.4, 3.0)
+		boss.strike_arc(p, Vector2.RIGHT, r, PI, dmg, 2.0))
+
+
 func _tend_objective(dt: float) -> void:
+	_echo_tick(dt)
 	if replica:
 		return
 	if _seal_room >= 0 and seals_up() > 0:
@@ -1850,6 +1951,13 @@ func _tend_objective(dt: float) -> void:
 			_flame = minf(1.0, _flame + (0.05 + 0.02 * (near - 1)) * dt)
 		else:
 			_flame = maxf(0.0, _flame - (0.05 + 0.005 * layout.depth) * dt)
+		# foes at the lantern choke it: standing there is not enough, keep them
+		# off it (more Kindled, more foes: a party has its own hands full)
+		var choking := 0
+		for e in room_enemies:
+			if is_instance_valid(e) and e.pos.distance_to(_vigil.pos) < 1.9:
+				choking += 1
+		_flame = maxf(0.0, _flame - 0.04 * mini(choking, 3) * dt)
 		if _vigil.sprite:
 			_vigil.sprite.play("low" if _flame < 0.3 else "lit")
 		if _vigil.light:
@@ -2030,6 +2138,17 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		var e := a as Enemy
 		if e.has_meta("fled"):
 			return     # (no death: it is waiting further down)
+		if run.has_omen("volatile") and not e.def.get("boss", false) and e.id != "ash_seal" and rng.randf() < 0.5:
+			var at := e.pos
+			var dmg := e.damage * 0.8
+			fx.ring(at, 1.5, Color(1.0, 0.5, 0.25), 0.9, 0.2)
+			after(0.9, func() -> void:
+				if not is_inside_tree():
+					return
+				fx.burst(at, 0.5, Color(1.0, 0.5, 0.25), 14, 3.5, 0.35, 3.0)
+				Audio.play_at("bloat", at, -8.0, 1.4)
+				for p in players_near(at, 1.5):
+					p.take_enemy_hit(Hit.make(null, dmg, ["fire"]), null))
 		run.kills += 1
 		# the party's kills count for everyone (guests bank them when they settle)
 		for pr in _party_runs():
@@ -2404,9 +2523,7 @@ func _open_secret(prop: Prop) -> void:
 	for c in get_children():
 		if c.name == "Level":
 			c.queue_free()
-	var theme := LevelBuilder.LevelTheme.named(region.theme, Delve.floor_index(layout.depth, run.delve) + 1)
-	var lvl := LevelBuilder.build(grid, theme)
-	add_child(lvl)
+	add_child(_build_level())
 	rebuild_nav()
 	# re-apply solid props to the fresh nav grid
 	for p in props:

@@ -11,10 +11,55 @@ const NAME := "The Hollow Below"
 const ORDER := ["ossuary", "rootmire", "throne"]
 const BLURB := "An endless descent through all three regions. Every third depth an Echo of its guardian waits; every depth reads another Omen. How deep can your light go?"
 const SEALED := "Sealed. Fell the Ashen King to find the way further down."
+const MAX_OMENS := 5        # a descent reads no more than this: fair, and legible
+
+## The first time this Kindled reaches a depth of the Hollow. Personal: each
+## machine of a party keeps its own. Worth going for once; nothing to farm.
+const MILESTONES := {
+	5: {"title": "Past the Last Map", "line": "Nobody charted this. Two Sunshards were left here, by someone.", "sunshards": 2},
+	10: {"title": "The Light Still Holds", "line": "A blueprint, pressed into the wall by a hand like yours.", "blueprint": true},
+	15: {"title": "Where the Regions Forget", "line": "Three Sunshards, and an old road's colours to wear.", "sunshards": 3, "look": "wanderer"},
+	20: {"title": "Deeper Than the Sun Fell", "line": "A legendary piece lay here, waiting for somebody to get this far.", "legendary": true},
+	30: {"title": "The Bottom of the Light", "line": "Whatever is below this, it has heard you.", "sunshards": 5},
+}
 
 
 static func unlocked() -> bool:
 	return int(Profile.data.world.get("ashen_king_kills", 0)) >= 1
+
+
+## Every sixth depth the Undervault fractures: two regions lie over each other,
+## room by room, their stone and their dead alike, and a rift must be closed.
+static func fractured(depth: int) -> bool:
+	return depth % 6 == 4
+
+
+## The region lying over this one on a fractured depth.
+static func overlap_region(depth: int) -> String:
+	return ORDER[(ORDER.find(region_for(depth)) + 1) % ORDER.size()]
+
+
+## This save reached `depth` of the Hollow: the first time past a milestone
+## pays and tells (returns it, or {}).
+static func reach(depth: int, rng: RandomNumberGenerator) -> Dictionary:
+	if not MILESTONES.has(depth) or Chronicle.marks("hollow_%d" % depth) > 0:
+		return {}
+	Chronicle.mark("hollow_%d" % depth)
+	var m: Dictionary = MILESTONES[depth]
+	Chronicle.note("Depth %d of the Hollow Below: %s." % [depth, m.title])
+	if m.has("sunshards"):
+		Profile.add_currency("sunshards", int(m.sunshards))
+	if m.has("look"):
+		Looks.unlock(String(m.look))
+	if m.get("blueprint", false):
+		var have: Array = Profile.known_blueprints() + Profile.scrolls()
+		var b := ItemDB.roll_blueprint(rng, have)
+		if b != "":
+			Profile.scrolls().append(b)
+	if m.get("legendary", false):
+		Profile.add_item(ItemDB.make_item("sunfall_mantle", "legendary", 1, rng, 3))
+	Profile.save_profile()
+	return m
 
 
 static func region_for(depth: int) -> String:
@@ -32,7 +77,9 @@ static func echo_n(depth: int) -> int:
 
 ## One more Omen, read when the party goes deeper (none left: none).
 static func next_omen(rng: RandomNumberGenerator, active: Array) -> String:
-	var pool: Array = Omens.OMENS.keys().filter(func(o): return not active.has(o) and Omens.unlocked(String(o)))
+	if active.size() >= MAX_OMENS:
+		return ""
+	var pool: Array = Omens.OMENS.keys().filter(func(o): return not active.has(o) and Omens.unlocked(String(o)) and Omens.compatible(String(o), active))
 	if pool.is_empty():
 		return ""
 	return String(pool[rng.randi_range(0, pool.size() - 1)])
@@ -80,6 +127,8 @@ static func depth_title(region: String, depth: int, delve: bool) -> Array:
 	if delve:
 		var bleed := bleed_region(depth)
 		var also := ("  The %s's dead walk here too." % String(EnemyDB.REGIONS[bleed].name).trim_prefix("The ")) if bleed != "" else ""
+		if fractured(depth):
+			return ["The Fracture  -  Depth %d" % depth, "%s lies over this place. Close the rift." % String(EnemyDB.REGIONS[overlap_region(depth)].name)]
 		if is_boss_depth(depth):
 			return [pre + "Depth %d" % depth, "An Echo of %s waits here. The Hollow Below has no floor.%s" % [boss_name, also]]
 		return [pre + "Depth %d" % depth, "No floor below. An Echo waits in %d.%s" % [3 - depth % 3, also]]

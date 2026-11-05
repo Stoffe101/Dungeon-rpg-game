@@ -177,6 +177,19 @@ const BASES := {
 	"verdant_totem": {"name": "Verdant Totem", "slot": "charm", "icon": "vd_totem", "set": "verdant", "mods": [["flask_heal", "add", 0.06], ["max_hp", "add", 8.0]]},
 
 	# ================= uniques (learned from blueprints) =================
+	# uniques that change what you do, not what a number says
+	"deep_mirror": {"name": "Mirror of the Deep", "slot": "ring", "icon": "band", "unique": true, "flags": {"deep_mirror": 1},
+		"mods": [["kindle_max", "add", 10.0]],
+		"desc": "A Ward throws back your last spell, free of Kindle, once every 6 seconds. Cast, guard, cast again.",
+		"recipe": {"soul_glass": 6, "ember_core": 3, "warden_sigil": 1, "embers": 320}},
+	"ash_cinder": {"name": "Ashwalker's Cinder", "slot": "charm", "icon": "totem", "unique": true, "flags": {"ash_cinder": 1},
+		"mods": [["move_speed", "add", 0.3]],
+		"desc": "Your dodge leaves burning ground behind you: run them through it.",
+		"recipe": {"ember_core": 4, "bone_dust": 8, "bloom_heart": 1, "embers": 300}},
+	"stillwater_stone": {"name": "Stillwater Stone", "slot": "charm", "icon": "totem", "unique": true, "flags": {"stillwater": 1},
+		"mods": [["armor", "add", 0.04]],
+		"desc": "Stand still for a second and a barrier of 15% of your health rises, once every 8 seconds. Knowing when not to move.",
+		"recipe": {"soul_glass": 4, "grave_iron": 6, "warden_sigil": 1, "embers": 300}},
 	# (a settled Grudge's: Dungeon._grudge_trophy names it after the rival; never rolled, never crafted)
 	"rival_fang": {"name": "Rival's Fang", "slot": "charm", "icon": "totem", "unique": true, "trophy": true,
 		"mods": [["elite_damage", "add", 0.2], ["max_hp", "add", 12.0]],

@@ -332,6 +332,26 @@ Not verified: two machines, a real internet route, a second player joining
 over Steam (needs a second Steam account on another PC), a human at the
 controls. The human test plan is in docs/TESTING.md.
 
+## Protocol 11 (living Undervault pass)
+
+- **`_begin` carries `world`**: the host's Chronicle snapshot (`Chronicle.snapshot`:
+  altars, whether a Grudge can keep a lair). Every machine's run holds it and
+  every floor is generated from it (`DungeonGen.generate(..., world)`), so a
+  guest's own altars never change what the party walks and a rejoin rebuilds
+  the same floor. On a Fracture the floor's `fracture` region is added to it
+  (deterministic from the depth).
+- **`site:<event>:<choice>` votes**: a Hollow Altar's answers and a treasury's
+  coffers are party votes; the card comes from `DeepEvents.ask`. Personal sites
+  (the Pale Bowl) resolve for whoever used them, on the host.
+- **`trial:procession`**: the Lost Procession's bier votes like a Trial.
+- **`["wit", id]`** (host event): a guest marks in its own Chronicle that it
+  witnessed something in the host's world; its world is untouched.
+- **`["ping", peer, pos]`** (and `ask "ping"`): a mark on the floor and the map.
+- A Grudge's dict (replicated in `_describe`) now carries `learned`, `slew`,
+  `scars`; every machine draws its brand and name from it.
+- `RunState` gained `world`, `pale`, `wounded`, `scars` (to/from_dict, so a
+  rejoin and a settlement keep them).
+
 ## Protocol 10 (expedition evolution pass)
 
 - **`_descend(depth, route)`**: the way down the party took (DungeonGen.ROUTES:

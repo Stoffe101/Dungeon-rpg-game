@@ -20,7 +20,9 @@ const TEST_STOCKPILE := true
 
 ## The testing stockpile is granted in debug builds only (never in a release export).
 static func stockpile() -> bool:
-	return TEST_STOCKPILE and Dev.enabled()
+	# the editor only: a debug export sent to a playtester must start like the
+	# real game (a fresh profile used to get the stockpile there too)
+	return TEST_STOCKPILE and Dev.enabled() and OS.has_feature("editor")
 
 var path := DEFAULT_PATH
 var data: Dictionary = {}

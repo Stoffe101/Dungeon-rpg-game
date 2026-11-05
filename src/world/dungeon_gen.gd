@@ -28,6 +28,81 @@ const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), 
 ## Hand-made rooms (22x12, a single cell), mixed into the procedural ones:
 ## . floor, # wall, o pillar, ~ pit, space void. Doors are kept clear after.
 const AUTHORED := {
+	# a burial hall: rows of tomb-plinths down both sides, a clear aisle
+	"ossuary_nave": [
+		"......................",
+		"..##..##..##..##..##..",
+		"......................",
+		"......................",
+		"o....o....o..o....o..o",
+		"......................",
+		"......................",
+		"o....o....o..o....o..o",
+		"......................",
+		"......................",
+		"..##..##..##..##..##..",
+		"......................",
+	],
+	# a ritual pit ringed by standing stones: fight around it, or be pushed in
+	"ossuary_rite": [
+		"......................",
+		"....o....o..o....o....",
+		"......................",
+		".o......~~~~~~......o.",
+		".......~~~~~~~~.......",
+		".......~~~~~~~~.......",
+		".......~~~~~~~~.......",
+		".o......~~~~~~......o.",
+		"......................",
+		"....o....o..o....o....",
+		"......................",
+		"......................",
+	],
+	# an overgrown courtyard: broken walls, a sunken pool in the middle
+	"root_court": [
+		"..####......####......",
+		"..#............#..##..",
+		"..#..o......o.....#...",
+		"......................",
+		".......~~~~~~.........",
+		"......~~~~~~~~........",
+		"......~~~~~~~~........",
+		".......~~~~~~.........",
+		"......................",
+		"..#..o......o.....#...",
+		"..#............#..##..",
+		"..####......####......",
+	],
+	# a processional hall: two rows of columns, the throne end walled
+	"throne_nave": [
+		"......................",
+		"..o...o...o..o...o...o",
+		"......................",
+		"......................",
+		"....##..........##....",
+		"....#............#....",
+		"....#............#....",
+		"....##..........##....",
+		"......................",
+		"......................",
+		"..o...o...o..o...o...o",
+		"......................",
+	],
+	# a sunken gallery: pits along the walls, bridges of stone between
+	"throne_gallery": [
+		"......................",
+		".~~~~..~~~~..~~~~..~~.",
+		".~~~~..~~~~..~~~~..~~.",
+		"......................",
+		"...o....o....o....o...",
+		"......................",
+		"......................",
+		"...o....o....o....o...",
+		"......................",
+		".~~~~..~~~~..~~~~..~~.",
+		".~~~~..~~~~..~~~~..~~.",
+		"......................",
+	],
 	"ossuary_chapel": [
 		"......................",
 		".o..o..o......o..o..o.",
@@ -113,8 +188,9 @@ const AUTHORED := {
 		"......................",
 	],
 }
-const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary"], "rootmire": ["root_hollow", "root_tangle"],
-	"throne": ["throne_colonnade", "throne_court"]}
+const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite"],
+	"rootmire": ["root_hollow", "root_tangle", "root_court"],
+	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery"]}
 
 
 
@@ -124,16 +200,16 @@ const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary"], "
 ##   path / branches: rooms added to the main path / side branches
 ##   foes: the encounter budget; embers: room-clear and enemy Embers
 const ROUTES := {
-	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.25, "embers": 1.4,
+	"trial": {"name": "Trial of Ash", "short": "Ash", "act": "harder fights, richer spoils", "danger": 3, "spoils": 3, "color": Color(1.0, 0.42, 0.25), "path": 1, "branches": 0, "foes": 1.25, "embers": 1.4,
 		"line": "Harder fights and two elites; a hall warded by seals. Richer spoils."},
-	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 1.0, "embers": 1.0,
+	"vault": {"name": "The Lost Vault", "short": "Vault", "act": "fewer fights, more to find", "danger": 2, "spoils": 2, "color": Color(1.0, 0.8, 0.4), "path": -1, "branches": 2, "foes": 1.0, "embers": 1.0,
 		"line": "Fewer fights, more side rooms - and a vault whose flame you must keep lit."},
-	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.7,
+	"quiet": {"name": "Silent Passage", "short": "Silent", "act": "safer, leaner", "danger": 1, "spoils": 1, "color": Color(0.45, 0.9, 0.85), "path": 0, "branches": 0, "foes": 0.7, "embers": 0.7,
 		"line": "Fewer, weaker foes, no elite, a spring of vigor. Lean spoils."},
 	# rare ways, offered as a third stairway (route_offer): short floors with one great fight
-	"breach": {"name": "The Breach", "short": "Breach", "act": "deadly, and rich", "color": Color(0.95, 0.35, 0.3), "path": -2, "branches": 0, "foes": 1.35, "embers": 1.6, "rare": true,
+	"breach": {"name": "The Breach", "short": "Breach", "act": "deadly, and rich", "danger": 4, "spoils": 4, "color": Color(0.95, 0.35, 0.3), "path": -2, "branches": 0, "foes": 1.35, "embers": 1.6, "rare": true,
 		"line": "A broken altar's way down: short, unbound, something old at the end of it."},
-	"lair": {"name": "A Trail of Red Embers", "short": "Lair", "act": "your Grudge waits", "color": Color(1.0, 0.3, 0.25), "path": -2, "branches": 0, "foes": 1.0, "embers": 1.2, "rare": true,
+	"lair": {"name": "A Trail of Red Embers", "short": "Lair", "act": "your Grudge waits", "danger": 3, "spoils": 3, "color": Color(1.0, 0.3, 0.25), "path": -2, "branches": 0, "foes": 1.0, "embers": 1.2, "rare": true,
 		"line": "Your Grudge's own lair. Settle it there, on its ground."},
 }
 ## How often a stairs room forks: a floor with one plain way down is a rest from
@@ -919,6 +995,7 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 	var reward_pool := ["relic", "relic", "relic", "embers", "embers", "vigor", "memory"]
 	_objectives(lay, rng)
 	var foes := float(ROUTES.get(lay.route, {}).get("foes", 1.0))
+	var over := String(lay.world.get("fracture", ""))
 	for r in lay.rooms:
 		# spawn tiles: floor, away from doors and walls
 		for y in range(r.rect.position.y, r.rect.end.y):
@@ -956,7 +1033,9 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 						r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, 7 + lay.depth * 4))
 			Room.Type.COMBAT:
 				r.reward = reward_pool[rng.randi_range(0, reward_pool.size() - 1)]
-				if r.objective in ["seals", "champion", "gauntlet"]:
+				if r.objective == "rift":
+					r.reward = "rift"
+				elif r.objective in ["seals", "champion", "gauntlet"]:
 					r.reward = "seals"
 				elif r.objective == "flame":
 					r.reward = "vault"
@@ -986,7 +1065,8 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 			r.encounter = []
 			for wv in r.waves:
 				var b := budget if wv == 0 else int(budget * 0.75)
-				r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, b))
+				# (a Fracture's odd rooms belong to the region lying over this one)
+				r.encounter.append(EnemyDB.roll_encounter(rng, over if over != "" and r.id % 2 == 1 else lay.region, lay.depth, b))
 			if r.type == Room.Type.ELITE:
 				r.elite_affix = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
 		_decorate(lay, r, rng)
@@ -1293,6 +1373,8 @@ static func _objectives(lay: Layout, rng: RandomNumberGenerator) -> void:
 		if r.type == Room.Type.COMBAT and r.id >= 1 and r.id < lay.exit_id and r.authored == "":
 			if best == null or r.rect.get_area() > best.rect.get_area():
 				best = r
+	if lay.world.has("fracture") and lay.route == "" and best:
+		best.objective = "rift"
 	match lay.route:
 		"trial":
 			lay.variant = ["seals", "champion", "gauntlet"][rng.randi_range(0, 2)]

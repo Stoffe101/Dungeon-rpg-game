@@ -117,6 +117,35 @@ static func announce_find(st: Stage, finder: Player, item: Dictionary) -> void:
 		Game.ui.toast(text, col)
 
 
+## A ping (G / D-pad right, co-op): a mark everyone sees for a moment, on the
+## floor and the map, in the pinger's colour. What it says follows what is there.
+static func ping(st: Stage, who: Player, at: Vector2) -> void:
+	if not Net.active() or Net.party_size() <= 1 or not (st is Dungeon):
+		return
+	if Net.is_host():
+		show_ping(st, who.peer_id, at)
+		Net.rec(["ping", who.peer_id, at])
+	else:
+		Net.ask("ping", [at])
+
+
+static func show_ping(st: Stage, peer: int, at: Vector2) -> void:
+	var text := "Here"
+	var foe := st.nearest_hostile(Actor.Team.PLAYER, at, 2.5)
+	var near_prop := st.nearest_interactable(at, 2.0)
+	if foe:
+		text = "Danger"
+	elif near_prop:
+		text = "Look"
+	var col: Color = Net.color_of(peer)
+	st.fx.ring(at, 1.4, col, 0.8, 0.25)
+	st.fx.ring(at, 0.7, col, 1.2, 0.25)
+	st.fx.number(at, 1.8, "%s: %s" % [Net.name_of(peer), text], col)
+	Audio.play_at("ui_click", at, -2.0, 1.4)
+	if st is Dungeon:
+		(st as Dungeon).pings.append({"pos": at, "col": col, "t": 4.0})
+
+
 ## The host's answer to someone using a prop in a shared expedition. False:
 ## not a co-op matter, the single-player path handles it (the host's own Kindled).
 static func serve(d: Dungeon, who: Player, what: String, prop: Prop) -> bool:
@@ -393,7 +422,7 @@ static func vote_title(kind: String, by: String) -> Array:
 		"stairs":
 			var rd := DungeonGen.route_def(kind.get_slice(":", 1))
 			if not rd.is_empty():
-				return ["Descend: %s?" % rd.name, "%s chose this way down: %s The whole party goes together." % [by, rd.line]]
+				return ["%s?" % rd.name, "%s's choice.  Danger %s   Spoils %s" % [by, "+".repeat(int(rd.get("danger", 2))), "+".repeat(int(rd.get("spoils", 2)))]]
 			return ["Descend?", "%s is at the stairs. The whole party goes down together." % by]
 		"hearthstone":
 			return ["Return to the Last Hearth?", "%s would take the party home. Everyone keeps what they carry." % by]

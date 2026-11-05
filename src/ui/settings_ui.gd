@@ -313,7 +313,7 @@ func _controls() -> void:
 		["MOVE", [["move_up", "Move up"], ["move_down", "Move down"], ["move_left", "Move left"], ["move_right", "Move right"], ["dodge", "Dodge"]]],
 		["FIGHT", [["attack", "Attack"], ["ward", "Ward"], ["ability_1", "Spell 1"], ["ability_2", "Spell 2"], ["ability_3", "Spell 3"], ["flask", "Flask"]]],
 		["EXPLORE", [["interact", "Interact / talk"], ["map", "Map"], ["inventory", "Satchel"], ["hearthtree", "Hearthtree"], ["hearthcall", "Hearthcall (go home)"]]],
-		["PARTY", [["party_yes", "Ready / agree"], ["party_no", "Not now"]]],
+		["PARTY", [["party_yes", "Ready / agree"], ["party_no", "Not now"], ["ping", "Ping"]]],
 	]
 	for g in groups:
 		var gl := UIKit.label(String(g[0]), 8, UIKit.C_DIM)

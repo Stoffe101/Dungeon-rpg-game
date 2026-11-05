@@ -383,6 +383,9 @@ func on_ask(peer: int, kind: String, args: Array) -> void:
 	if p0 and p0.pos.distance_to(pl.pos) > p0.interact_radius + 2.5:
 		p0 = null     # they walked away with the menu open
 	match kind:
+		"ping":
+			Party.show_ping(stage, peer, args[0])
+			Net.rec(["ping", peer, args[0]])
 		"buy":
 			if p0 and p0.kind == "merchant":
 				Party.buy(stage, pl, p0, int(args[1]))
@@ -833,6 +836,8 @@ func apply_events(evs: Array) -> void:
 				teles.erase(int(ev[1]))
 			"banner":
 				Events.banner.emit(String(ev[1]), String(ev[2]))
+			"ping":
+				Party.show_ping(stage, int(ev[1]), ev[2])
 			"wit":
 				Chronicle.mark("witnessed_" + String(ev[1]))     # a guest saw it; the world is the host's
 			"obj":

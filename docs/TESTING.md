@@ -156,6 +156,18 @@ generate the same floor).
 - The journey scenario's stairs vote now names a way (`stairs:<route>`) and
   every machine checks it arrived on that way's floor.
 
+### Tools of the living Undervault pass
+
+- `-- walllab` still shows every building element; `warp=altar` stands at the
+  floor's Hollow Altar (`seed=11` has one at depth 1), `warp=stairs` at the fork.
+- `-- region=delve depth=4`: a Fracture; `route=breach|lair` the rare ways.
+- `-- scaling routes=,trial,vault,quiet sizes=1,4 comps=mixed seeds=3 secs=170
+  tier=2 depth=2`: bots compare the ways (room time, health lost, deaths,
+  Embers per floor, finds), solo and in a party.
+- `tests/test_evolution.gd` also pins: the altar due once an expedition,
+  each answer's effect on later floors, Grudge history and lessons, the v14->v15
+  migration, Fractures, milestones paying once, Omen caps and exclusions.
+
 ## Human playtest on two PCs
 
 Two people, each on their own PC. For a LAN game, both on the same network:

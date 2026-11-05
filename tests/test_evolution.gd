@@ -508,3 +508,49 @@ func test_a_grudge_remembers_how_you_fought() -> void:
 	var lv := int(g.level)
 	Profile.age_grudges(rng, 3)
 	eq(int(g.level), lv + 1, "the Pale Bowl feeds it a whole level")
+
+
+# --- the Hollow Below -------------------------------------------------------------------------
+
+func test_the_hollow_fractures_and_its_milestones_pay_once() -> void:
+	Profile.data = Profile.fresh()
+	check(Delve.fractured(4) and Delve.fractured(10) and not Delve.fractured(5), "every sixth depth from the fourth")
+	check(not Delve.is_boss_depth(4) and not Delve.is_boss_depth(10) and not Delve.is_boss_depth(16), "never an Echo's floor")
+	eq(Delve.overlap_region(4), "throne", "the next region lies over this one")
+	var lay := DungeonGen.generate(11, 4, Delve.region_for(4), false, "", {"fracture": Delve.overlap_region(4)})
+	var rift := 0
+	var pools := {}
+	for r in lay.rooms:
+		if r.objective == "rift":
+			rift += 1
+		for w in r.encounter:
+			for id in w:
+				pools[EnemyDB.get_def(String(id)).get("sheet", "")] = true
+	eq(rift, 1, "one rift to close")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var before := Profile.currency("sunshards")
+	check(not Delve.reach(5, rng).is_empty(), "a milestone reached")
+	eq(Profile.currency("sunshards"), before + 2, "it pays")
+	check(Delve.reach(5, rng).is_empty(), "once")
+	check(Delve.reach(6, rng).is_empty(), "only at its depth")
+
+
+func test_omens_cap_and_exclude_each_other() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.world["warden_kills"] = 1
+	Profile.data.world["bloom_kills"] = 1
+	Profile.data.world["delve_best"] = 9
+	check(Omens.unlocked("volatile") and Omens.unlocked("bleeding_lantern"), "the Hollow's signs are readable once reached")
+	check(not Omens.compatible("volatile", ["glass"]), "Glass and Volatile never together")
+	check(not Omens.compatible("bleeding_lantern", ["dry_flask"]), "nor a Dry Flask and a Bleeding Lantern")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 2
+	var active: Array = []
+	for k in 12:
+		var o := Delve.next_omen(rng, active)
+		if o != "":
+			active.append(o)
+	eq(active.size(), Delve.MAX_OMENS, "a descent reads no more than five")
+	for a in active:
+		check(Omens.compatible(String(a), active.filter(func(x): return x != a)), "no excluded pair (%s)" % a)
