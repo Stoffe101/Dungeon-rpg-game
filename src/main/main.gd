@@ -64,6 +64,18 @@ func _ready() -> void:
 			for b in ids:
 				var it := Profile.add_item(ItemDB.make_item(b, "rare", 1, rng_w, 2))
 				Profile.equip(int(it.uid))
+		elif a.begins_with("hunt="):
+			# dev: carry the hunt notice for this region (its guardian counted as fallen)
+			var reg := a.substr(5)
+			Profile.data.world["%s_kills" % EnemyDB.REGIONS[reg].boss] = maxi(1, int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[reg].boss, 0)))
+			Profile.data["contracts"] = {"offer": ["hunt_" + reg], "taken": [], "done": 0}
+			Contracts.take("hunt_" + reg)
+		elif a.begins_with("evolve="):
+			# dev: the worn weapon (a great one) has grown and chosen this path
+			var wi: Variant = Profile.equipped().get("weapon")
+			if wi is Dictionary and Evolutions.can_evolve(wi):
+				wi["res"] = Evolutions.ASCEND
+				Evolutions.choose(wi, a.substr(7))
 		elif a.begins_with("look="):
 			Looks.unlock(a.substr(5))
 			Looks.choose(a.substr(5))

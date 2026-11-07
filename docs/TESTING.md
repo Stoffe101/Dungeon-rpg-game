@@ -217,6 +217,42 @@ generate the same floor).
 - `tools/dev/run_tests.sh` fails on any `SCRIPT ERROR` as well as on failures: a test that crashes
   half way otherwise reads as passed (the runner counts checks, not crashes).
 
+### Tools of the deepening pass
+
+Everything below runs through `tools/dev/bg.py`, so nothing appears on screen or takes focus
+(see CLAUDE.md, "Background runs only").
+
+- `python tools/dev/bg.py focuscheck`: a rendered capture while the foreground window is sampled
+  every 10 ms; passes only if Godot never had focus and was never on a screen.
+- `python tools/dev/bossbench.py`: guardians to the end without god mode (builds x skills x
+  forms x seeds, two at a time, headless at `--fixed-fps 30`); a lost fight names its last blows.
+- `-- weaponlab [secs=40] [bases=...]`: every weapon in the same fights (an unshielded brute, a
+  shielded Guard, packs of Husks, a Skitter swarm); `user://weapon_lab.md`.
+- `-- scaling ... comps=<preset>,...`: any build preset as a team; a downed bot prints its last
+  blows and what the room held (`[scaling] DOWN ...`).
+- `scenario=deep` with `HXARGS=hunt=ossuary GXARGS="wear=gloamfang evolve=storm"` (DEVNET=1):
+  the host's hunt on every machine's floor, a guest reading a sign with a real key press, a
+  guest's grown weapon applied on the host. `HXARGS`/`GXARGS` add switches to the host or the
+  guests alone.
+- Dev switches: `hunt=<region>`, `evolve=<path id>`, `botskill=`, `bossquit` (also on a death).
+
+## Human playtest: the deepening pass
+
+1. **Your weapon's technique.** Sword: press again just as a swing settles (a glint shows the
+   moment). Hammer: break one foe in a crowd. Daggers: get behind. Spear: strike with the tip.
+   Staff: hold a charge long past full. Bow: let go at the peak of the draw and do not get hit.
+   Is each one noticeable, learnable and worth it? Does any feel like a chore?
+2. **The tree.** Try one technique notable on another weapon, and one keystone (Perfect Cadence,
+   The Lantern's Edge, Vanguard's Weight, Unblinking). Does the price feel fair?
+3. **A hunt.** Fell a guardian, take its hunt from the noticeboard, go back: read the signs,
+   find the harbinger, fight the quarry. Did it feel different from a normal visit?
+4. **Altar consequences.** Kindled: take a lamp's flame. Broken: dig rubble; are fights too
+   crowded? Is the extra foe noticeable?
+5. **A great thing that grows.** Does the weapon look different once awake and once it has
+   chosen? Was the choice clear before you made it?
+6. **The map.** Is it cleaner without the facing line? Can you still tell yourself apart?
+7. **Listening** (nobody has heard these): cadence, evolve, snuff, chain throw, chain haul.
+
 ## Human playtest: the great evolution pass
 
 Two PCs, one expedition or two each, about an hour. Nothing here has been played by a person yet.

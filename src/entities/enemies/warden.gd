@@ -325,7 +325,7 @@ func _quake_land() -> void:
 			var pd := pl.pos.distance_to(center)
 			if absf(pd - rr * 0.93) < 0.45:
 				hit_done.append(pl)
-				var h := Hit.make(null, wave_dmg, ["melee"])
+				var h := Hit.make(null, wave_dmg, ["melee", "shockwave"])
 				h.can_crit = false
 				h.knockback = (pl.pos - center).normalized() * 8.0
 				h.from_dir = (pl.pos - center).normalized()
@@ -349,7 +349,7 @@ func _lanterns() -> void:
 func _gloamfire(p: Vector2) -> void:
 	var hz := Hazard.spawn(stage, p, 0.9, 4.0, Team.ENEMY, Color(0.55, 0.3, 0.8), func(_h: Hazard, a: Actor) -> void:
 		if a is Player:
-			var h := Hit.make(null, 7.0, ["dot"])
+			var h := Hit.make(null, 7.0, ["dot", "gloamfire"])
 			h.can_crit = false
 			(a as Player).take_enemy_hit(h, null))
 	hz.period = 0.45

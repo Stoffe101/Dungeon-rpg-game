@@ -142,6 +142,7 @@ var _over_t := 0.0              # a release is overcharged (its blows, a moment 
 var overcharged_ready := false
 var focus := 0
 var _breaking := false
+var _cue_done := false
 
 
 func technique() -> String:
@@ -150,6 +151,18 @@ func technique() -> String:
 
 func has_technique(t: String) -> bool:
 	return technique() == t or (player != null and player.stats != null and player.stats.has("tech_" + t))
+
+
+## A technique used (the noticeboard's practice notices count these): for whoever used
+## it, on their own machine, never the whole party.
+func _practised(key: String) -> void:
+	if predicting or not player.stage is Dungeon:
+		return
+	var d := player.stage as Dungeon
+	if player == d.player:
+		d.note_request(key, 1, false)
+	elif player.controller == Player.Ctrl.REMOTE:
+		Net.rec(["own", player.peer_id, ["note", key, 1]])
 
 
 ## A blow's share of the techniques: the multiplier on this one foe, and its touch.
@@ -165,12 +178,14 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 	if along >= POINT_FROM and has_technique("point"):
 		h.amount *= POINT_MULT
 		h.knockback *= 1.5
+		_practised("point")
 		player.cosmetic(func() -> void:
 			player.stage.fx.burst(a.pos, 0.6, Color(1.0, 0.9, 0.55), 6, 4.0, 0.18, 0.0, h.from_dir, 0.4))
 	if has_technique("behind") and a is Enemy and not (a as Enemy).def.get("boss", false):
 		var e := a as Enemy
 		if e.facing.dot((a.pos - player.pos).normalized()) > 0.35:
 			h.forced_crit = true
+			_practised("behind")
 			player.cosmetic(func() -> void:
 				player.stage.fx.number(a.pos, 1.9, "BEHIND", Color(0.8, 0.6, 1.0)))
 
@@ -180,6 +195,7 @@ func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
 		return
 	_breaking = true
+	_practised("breaker")
 	var heavy := player.stats.has("vanguard")
 	var reach := 5.2 if heavy else 2.6
 	player.cosmetic(func() -> void:
@@ -221,6 +237,7 @@ func _begin_cadenced() -> void:
 		return
 	cadence_run += 1
 	phase_len *= CADENCE_QUICK
+	_practised("cadence")
 	if player.stats.has("metronome"):
 		player.gain_kindle(2.0 / maxf(player.stats.v("kindle_gain"), 0.01))
 	player.cosmetic(func() -> void:
@@ -233,6 +250,8 @@ func add_focus() -> void:
 	if not has_technique("focus"):
 		return
 	focus = mini(focus_max(), focus + 1)
+	if focus == focus_max():
+		_practised("focus_full")
 	player.form_meter = float(focus) / focus_max() if form == "" else player.form_meter
 	player.cosmetic(func() -> void:
 		player.stage.fx.number(player.pos, 2.4, "FOCUS %d" % focus, Color(1.0, 0.9, 0.55)))
@@ -332,6 +351,7 @@ func _fire_charge() -> void:
 		if not _free_overcharge():
 			player.kindle -= OVERCHARGE_COST
 		_over_t = 0.9
+		_practised("overcharge")
 		player.cosmetic(func() -> void:
 			player.stage.fx.ring(player.pos, 1.6, Color(1.0, 0.95, 0.7), 0.25, 0.3)
 			player.stage.fx.number(player.pos, 2.4, "OVERCHARGED", Color(1.0, 0.9, 0.6)))
@@ -395,6 +415,7 @@ func _set_phase(p: int, length: float) -> void:
 	phase = p
 	phase_t = 0.0
 	phase_len = length
+	_cue_done = false
 
 
 func update(dt: float) -> void:
@@ -420,6 +441,13 @@ func update(dt: float) -> void:
 			if phase_t >= phase_len:
 				_set_phase(Phase.RECOVER, strike.get("recover", 0.16) / speed())
 		Phase.RECOVER:
+			if not _cue_done and has_technique("cadence") and phase_t >= phase_len * (0.25 if player.stats.has("metronome") else CADENCE_FROM):
+				# the moment to press: a glint on the blade, on its wielder's screen only
+				_cue_done = true
+				if player.controller != Player.Ctrl.REMOTE and visual:
+					Net.mute += 1
+					player.stage.fx.burst(player.pos + aim_dir * 0.7, 0.9, Color(1.0, 0.97, 0.85), 2, 1.2, 0.12, 0.0)
+					Net.mute -= 1
 			if buffered and phase_t >= phase_len * 0.35:
 				buffered = false
 				combo = (combo + 1) % max_combo()

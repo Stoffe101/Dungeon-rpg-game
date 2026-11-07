@@ -1990,7 +1990,10 @@ func _start_boss(r: Room) -> void:
 		add_actor(e)
 		register_enemy(e)
 		boss = e
-		var form := "" if run.delve else Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
+		# (deep in the Hollow, from depth 12, its Echoes come in their rarer forms)
+		var form := Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
+		if run.delve:
+			form = String(Guardians.FORMS.get(String(region.boss), {}).get("id", "")) if layout.depth >= 12 else ""
 		if hunted():
 			# the quarry: always its rarer form, weaker for all that was learned on the way
 			form = String(Guardians.FORMS.get(String(region.boss), {}).get("id", ""))
@@ -2670,8 +2673,8 @@ func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
 
 
 ## Counts progress on residents' requests and tells the player when one is done.
-func note_request(key: String, amount := 1) -> void:
-	if not replica:
+func note_request(key: String, amount := 1, shared := true) -> void:
+	if not replica and shared:
 		Net.rec(["note", key, amount])     # (a guest's own favours and notices count too)
 	Net.mute += 1     # each machine's own news, told only there
 	for title in Contracts.note(key, amount):

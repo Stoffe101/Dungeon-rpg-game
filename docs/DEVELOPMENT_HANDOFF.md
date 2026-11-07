@@ -25,6 +25,9 @@ reasons), `docs/STATUS.md` (validation per pass), `docs/ARCHITECTURE.md`,
 
 ## 0. Start here
 
+**Never let a Godot window take the owner's screen.** Every run goes through `tools/dev/bg.py`
+(CLAUDE.md, "Background runs only"). The owner works on this PC while you work.
+
 **State at handoff**
 
 | | |
@@ -139,7 +142,8 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #9 | `feature/expedition-evolution` | 11-05 | One gear path, in-place upgrades, readable walls, Apothecary, Forked Descent | **Owner's third report** |
 | #10 | `feature/living-undervault` | 11-05 | Redrawn stone, Chronicle, rival Grudges, Deep Events, Hollow identity, stockpile fix | "Great Underdeep" brief |
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
-| (draft) | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
+| #12 | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
+| (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
 
 ### Content inventory (checked against code at handoff)
 

@@ -1,9 +1,27 @@
 # Status
 
-Last updated: 2026-11-07.
+Last updated: 2026-11-08.
 
 ## Implemented
 
+- **The deepening pass (branch feature/combat-progression-deepening)** - details in DESIGN,
+  "The deepening pass"; what was verified how is under Validation:
+  - *Background runs*: `tools/dev/bg.py` (tests, rendered captures, co-op processes, performance,
+    focus proof, cleanup of its own processes only). Rendered runs never appear or take focus.
+  - *Minimap*: the facing line is gone; your own marker has a pale dot.
+  - *Weapons*: one technique per kind (Cadence, Breaking Blow, From Behind, The Point,
+    Overcharge, Focus), lent to any weapon by six Hearthtree notables; four specialisation
+    keystones; three technique uniques; the weapon lab (`-- weaponlab`); the Gravecleaver's
+    stagger toned down.
+  - *Great things*: bounded under a stress test of every path power at once, path colour on the
+    weapon, both paths previewed, a ceremony on choosing.
+  - *Guardian hunts*: noticeboard, trail signs, harbingers, the quarry in its rarer form.
+  - *Dungeon*: four authored device rooms; altar answers change play (lamp flames, restless
+    foes, rubble); foes set devices off.
+  - *Progression*: practice notices per technique; Hollow Echoes in rarer forms from depth 12;
+    milestones at 25 and 40.
+  - *Testing*: `tools/dev/bossbench.py` (guardians to the end without god mode), bot skill
+    levels use techniques, scenario `deep` (a hunt and a grown weapon in a party).
 - **The Great Evolution pass (branch feature/great-evolution)** - details in DESIGN,
   "The Great Evolution pass"; what was verified how is under Validation below:
   - *Foundations*: the ultrawide "stall" was the bot's own debug print through a pipe; the

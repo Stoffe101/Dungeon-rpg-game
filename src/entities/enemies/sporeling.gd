@@ -48,7 +48,7 @@ static func _cloud(st: Stage, p: Vector2) -> void:
 	st.fx.burst(p, 0.4, Color(0.6, 0.9, 0.35), 18, 3.0, 0.8, -0.5)
 	var hz := Hazard.spawn(st, p, 1.3, 2.6, Actor.Team.ENEMY, Color(0.55, 0.85, 0.35), func(_h: Hazard, a: Actor) -> void:
 		if a is Player:
-			var h := Hit.make(null, 4.0, ["dot"])
+			var h := Hit.make(null, 4.0, ["dot", "spore"])
 			h.can_crit = false
 			h.silent = true
 			(a as Player).take_enemy_hit(h, null))

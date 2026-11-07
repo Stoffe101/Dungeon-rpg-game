@@ -288,7 +288,7 @@ func _shockwave(center: Vector2, wave_dmg: float) -> void:
 			var pd := pl.pos.distance_to(center)
 			if absf(pd - rr * 0.93) < 0.45:
 				hit_done.append(pl)
-				var h := Hit.make(null, wave_dmg, ["melee"])
+				var h := Hit.make(null, wave_dmg, ["melee", "shockwave"])
 				h.can_crit = false
 				h.knockback = (pl.pos - center).normalized() * 8.0
 				h.from_dir = (pl.pos - center).normalized()

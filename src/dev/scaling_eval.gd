@@ -151,9 +151,17 @@ func _run_one(builds: Array, seed_v: int) -> Dictionary:
 			if p.hp < hp_prev[i]:
 				hurt[i] += (hp_prev[i] - p.hp) / maxf(1.0, p.max_hp)
 			hp_prev[i] = p.hp
-			if p.downed and not was_down[i]:
+			if (p.downed or not p.alive) and not was_down[i]:
 				downs[i] += 1
-			was_down[i] = p.downed
+				# what put them down: the last blows, by name, and what the room held
+				var last: Array = []
+				if p.run:
+					for b in (p.run.blows as Array).slice(maxi(0, p.run.blows.size() - 4)):
+						last.append("%s %d" % [b[1], int(b[2])])
+				var foes: Array = d.room_enemies.filter(func(e): return is_instance_valid(e) and e.alive).map(func(e): return e.id)
+				print("[scaling] DOWN %s room %s: %s | room holds %s" % [builds[i] if i < builds.size() else "?",
+					str(d.active_room.id) if d.active_room else "-", ", ".join(PackedStringArray(last)), str(foes)])
+			was_down[i] = p.downed or not p.alive
 		if d._death_t > 0.0:
 			wipe = true
 			break

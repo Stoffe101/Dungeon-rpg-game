@@ -4,7 +4,7 @@ Headless and hidden (tools/dev/bg.py's copy and user folder), several at a time 
 two, at below-normal priority. Prints one line a fight and a table at the end.
 
     python tools/dev/bossbench.py [--seeds 3] [--builds cadence,vanguard,...] [--skills fair,sharp]
-                                  [--regions ossuary,rootmire,throne] [--forms none,form] [--tier 1]
+                                  [--regions ossuary,rootmire,throne] [--forms none,form] [--tier 1] [--kit N]
 
 It measures whether a fight can be won and what kills people; it is not a verdict on
 difficulty for humans (bots are not people)."""
@@ -31,6 +31,7 @@ def main():
     regions = arg("--regions", "ossuary,rootmire,throne").split(",")
     forms = arg("--forms", "none,form").split(",")
     tier = arg("--tier", "1")
+    kit = arg("--kit", "")
     bg.sync(quiet=True)
     jobs = []
     for region in regions:
@@ -51,7 +52,7 @@ def main():
         log = os.path.join(out_dir, name + ".log")
         p = bg.launch("bossbench " + name, ["--headless", "--fixed-fps", "30", "--", "scene=dungeon", "depth=3", "region=" + region,
                                             "seed=%d" % seed, "warp=boss", "autopilot", "botskill=" + skill, "build=" + build, "tier=" + tier,
-                                            "form=" + f, "bossquit", "profile=bb_%s.json" % name[:40], "frames=60000", "quit", "bg"], log, False)
+                                            "form=" + f, "bossquit"] + (["kit=" + kit] if kit else []) + [ "profile=bb_%s.json" % name[:40], "frames=60000", "quit", "bg"], log, False)
         return (p, job, log, time.time())
 
     while jobs or running:

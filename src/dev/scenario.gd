@@ -63,6 +63,8 @@ func _run() -> void:
 			await sites()
 		"ways":
 			await ways()
+		"deep":
+			await deep()
 		"guardian":
 			await guardian()
 		"bestiary":
@@ -1161,6 +1163,39 @@ func _prop_kind(kind: String) -> Prop:
 		if is_instance_valid(p) and p.kind == kind:
 			return p
 	return null
+
+
+## The deepening pass in a party (run with HXARGS=hunt=ossuary GXARGS="wear=gloamfang evolve=storm"):
+## the host's hunt reaches every floor the same way; a guest reads a sign of the trail
+## with a real key press and the host counts it; a guest's grown weapon is a grown weapon
+## on the host too (its path's power is the host's to apply).
+func deep() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	await wait(2.0)
+	expect(dun().hunted(), "this floor is the hunt's, on my machine")
+	var signs: Array = []
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "spoor":
+			signs.append(p)
+	expect(signs.size() == 2, "two signs of its trail on my floor (%d)" % signs.size())
+	if signs.is_empty():
+		return
+	if role == "guest":
+		var near: Prop = signs[0]
+		for s in signs:
+			if s.pos.distance_to(dun().player.pos) < near.pos.distance_to(dun().player.pos):
+				near = s
+		expect(await walk_to(near.pos + Vector2(0.0, 1.0), 0.6, 25.0), "I walked to a sign")
+		tap("interact")
+		await until(func() -> bool: return not near.interactable(), 15.0, "the sign is read on my screen")
+		Net.i.dev_shot("e2e/deep_sign")
+	else:
+		await until(func() -> bool: return dun().run.hunt_signs >= 1, 40.0, "the host counted the guest's sign")
+		var g: Player = _guest_kindled()
+		expect(g != null and g.stats.has("storm_crit"), "the guest's grown weapon has its path's power on the host")
+		expect(g != null and g.stats.has("crit_knives"), "and its own")
+	await wait(1.5)
 
 
 ## The most recently made prop of a kind (the floor may have its own already).

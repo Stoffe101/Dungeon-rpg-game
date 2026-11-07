@@ -662,10 +662,10 @@ func test_an_unfinished_notice_is_kept_and_nothing_expires() -> void:
 
 func test_every_notice_counts_something_the_game_notes() -> void:
 	var src := ""
-	for f in ["res://src/world/dungeon.gd", "res://src/world/prop.gd", "res://src/world/pickup.gd", "res://src/entities/enemies/snuffer.gd"]:
+	for f in ["res://src/world/dungeon.gd", "res://src/world/prop.gd", "res://src/world/pickup.gd", "res://src/entities/enemies/snuffer.gd", "res://src/combat/weapon.gd"]:
 		src += FileAccess.get_file_as_string(f)
 	for c in Contracts.LIST:
-		var counted: bool = src.contains('note_request("%s"' % c.key) or (String(c.key).begins_with("hunt_") and src.contains('note_request("hunt_" + layout.region)'))
+		var counted: bool = src.contains('note_request("%s"' % c.key) or src.contains('_practised("%s"' % c.key) 			or (String(c.key).begins_with("hunt_") and src.contains('note_request("hunt_" + layout.region)'))
 		check(counted, "%s is counted" % c.key)
 		check(Contracts.pay_text(c.pay) != "", "%s pays" % c.id)
 		if c.pay.has("material"):

@@ -560,3 +560,42 @@ func test_a_foes_own_blow_sets_off_a_jar() -> void:
 	check(jar.used, "the jar goes up")
 	check(pl != null, "(a Kindled existed)")
 	d.queue_free()
+
+
+# --- practice notices and the deep ---------------------------------------------------------
+
+func test_a_techniques_notice_goes_up_for_whoever_wields_it() -> void:
+	Profile.data = Profile.fresh()
+	Profile.choose_weapon("sword")
+	var seen := {}
+	for k in 30:
+		Profile.data.contracts = {"offer": [], "taken": [], "done": k}
+		for id in Contracts.offers():
+			var c := Contracts.def_of(String(id))
+			if c.has("tech"):
+				seen[String(c.tech)] = true
+	check(seen.has("cadence"), "a sword's notice")
+	check(not seen.has("focus") and not seen.has("point"), "not another weapon's")
+
+
+func test_practice_is_counted_by_the_technique_itself() -> void:
+	Profile.data = Profile.fresh()
+	Profile.choose_weapon("sword")
+	Profile.data.contracts = {"offer": ["t_cadence"], "taken": [], "done": 0}
+	check(Contracts.take("t_cadence"), "taken")
+	var lay := DungeonGen.generate(7, 2, "ossuary", false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]), null)
+	var w := d.player.weapon
+	w._cadence_next = true
+	w._begin_cadenced()
+	eq(int(Contracts.taken()[0].n), 1, "a strike in time counts")
+	d.queue_free()
+
+
+func test_deep_hollow_echoes_wear_their_rarer_forms() -> void:
+	var src := FileAccess.get_file_as_string("res://src/world/dungeon.gd")
+	check(src.contains("layout.depth >= 12"), "from depth 12")
+	check(Delve.MILESTONES.has(25) and Delve.MILESTONES.has(40), "new milestones deeper down")

@@ -1323,7 +1323,17 @@ func _blow_name(attacker: Node, h: Hit) -> String:
 	var src: Node = attacker if attacker != null else h.source
 	if src is Enemy and is_instance_valid(src):
 		return (src as Enemy).display_name
-	return "Burning" if h.has_tag("fire") else ("The room" if h.has_tag("hazard") else "The Undervault")
+	if h.has_tag("spore"):
+		return "Spore clouds"
+	if h.has_tag("shockwave"):
+		return "A guardian's shockwave"
+	if h.has_tag("gloamfire"):
+		return "Gloamfire"
+	if h.has_tag("fire"):
+		return "Burning"
+	if h.has_tag("hazard"):
+		return "The room"
+	return "Lingering harm" if h.has_tag("dot") else "The Undervault"
 
 
 ## How far the lantern's light reaches, in tiles (The Lantern's Edge strikes inside it).

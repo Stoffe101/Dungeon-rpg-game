@@ -286,6 +286,8 @@ def cmd_e2e(args):
     sims = args[2:]
     limit = float(os.environ.get("LIMIT", "300"))
     xargs = os.environ.get("XARGS", "").split()
+    host_x = os.environ.get("HXARGS", "").split()      # (switches for the host alone)
+    guest_x = os.environ.get("GXARGS", "").split()     # (switches for every guest alone)
     devnet = os.environ.get("DEVNET", "0") == "1"
     res = os.environ.get("RES", "960x540")
     sync(quiet=True)
@@ -301,14 +303,14 @@ def cmd_e2e(args):
     guest_net = ["net=join:127.0.0.1", "autoaccept"] if devnet else []
     procs = []
     procs.append(launch("e2e host", ["--resolution", res, "--", "scene=hub", "scenario=" + scen, "role=host", "guests=%d" % (n - 1),
-                                     "name=Host", "profile=e2e_host.json", "seed=7", "wear=" + OUTFITS[0], "bg"] + host_net + xargs,
+                                     "name=Host", "profile=e2e_host.json", "seed=7", "wear=" + OUTFITS[0], "bg"] + host_net + xargs + host_x,
                         os.path.join(out, "host.log"), True))
     time.sleep(2.0)
     for k in range(1, n):
         sim = ["netsim=" + sims[k - 1]] if k - 1 < len(sims) and sims[k - 1] else []
         procs.append(launch("e2e guest%d" % k, ["--resolution", res, "--", "scene=hub", "scenario=" + scen, "role=guest",
                                                  "name=Guest%d" % k, "profile=e2e_guest%d.json" % k, "wear=" + OUTFITS[k % 4], "bg"]
-                            + sim + guest_net + xargs, os.path.join(out, "guest%d.log" % k), True))
+                            + sim + guest_net + xargs + guest_x, os.path.join(out, "guest%d.log" % k), True))
         time.sleep(1.0)
     code = 0
     t_end = time.time() + limit
