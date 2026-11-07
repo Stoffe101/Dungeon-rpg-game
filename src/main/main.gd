@@ -137,6 +137,8 @@ func _ready() -> void:
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a == "economy":
 			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
+		elif a == "weaponlab":
+			add_child(WeaponLab.new())       # dev: every weapon side by side, measured
 		elif a == "legendlab":
 			add_child(LegendLab.new())       # dev: how often signature weapon moments come
 		elif a == "sitefind":

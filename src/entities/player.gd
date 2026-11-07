@@ -1291,6 +1291,8 @@ func on_weapon_strike(_hits: int, _finisher: bool) -> void:
 func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	if t == null or not t.alive:
 		return Combat.Result.new()
+	if finisher and weapon and weapon.technique() != "focus" and weapon.has_technique("focus") and h.proc:
+		weapon.add_focus()     # the tree's Focus: a charged blow that lands is a true shot
 	var prev := Net.actor_peer
 	Net.actor_peer = peer_id
 	Net.actor_pos = pos
@@ -1941,6 +1943,8 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if res.amount > 0.0:
 		if run:
 			run.note_blow(stage.elapsed, _blow_name(attacker, h), res.amount)
+		if weapon:
+			weapon.on_hurt()
 		hurt_t = 0.25
 		invuln_t = maxf(invuln_t, 0.5)
 		if attacker is Enemy and is_instance_valid(attacker):

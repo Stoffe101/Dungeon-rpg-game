@@ -189,6 +189,9 @@ func _one_arrow(d: Vector2, dmg: float, pierce: int, perfect: bool, group: Dicti
 		pr.make_hit_fn = func(proj: Projectile, _t: Actor) -> Hit:
 			var h := Combat.player_hit(player, player.stats, proj.damage, proj.tags.duplicate())
 			h.forced_crit = true
+			if not group.has("focus"):
+				group["focus"] = true     # (one Focus a shot, however many it pierces)
+				add_focus()
 			h.knockback = proj.vel.normalized() * proj.knockback
 			h.from_dir = proj.vel.normalized()
 			h.poise = 30.0

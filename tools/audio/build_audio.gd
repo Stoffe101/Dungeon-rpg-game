@@ -616,6 +616,10 @@ func _sfx() -> void:
 	fx("ping", 0.5, func(s):
 		s.bell(0.0, 0.4, midi(88), 0.22, [[1.0, 1.0, 5.0], [2.0, 0.3, 8.0]])
 		s.bell(0.1, 0.38, midi(95), 0.16, [[1.0, 1.0, 6.0], [2.0, 0.25, 9.0]]))
+	# a blade in time: a short bright ring over a soft tick
+	fx("cadence", 0.35, func(s):
+		s.noise(0.0, 0.03, 0.4, 7000.0, 4000.0, 1500.0, 0.001, 9.0)
+		s.bell(0.0, 0.3, midi(93), 0.14, [[1.0, 1.0, 9.0], [2.76, 0.35, 14.0]]))
 	# a flame pinched out, and a breath of smoke
 	fx("snuff", 0.7, func(s):
 		s.noise(0.0, 0.08, 0.6, 2400.0, 800.0, 500.0, 0.001, 6.0)

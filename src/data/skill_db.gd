@@ -221,6 +221,19 @@ const NODES := [
 		"desc": "Your Rimewall chills what stands beside it every second, and when it shatters it freezes the already chilled."},
 	{"id": "p_pour", "name": "Steady Pour", "branch": "pyre", "kind": "notable", "at": [4.3, 3.2], "links": ["p_beam"], "flags": {"steady_pour": 1},
 		"desc": "You walk at full pace while pouring a Soulfire Beam, and it grows hot half again as fast."},
+	# techniques: each kind of weapon's own skill, lent by the tree to any weapon
+	{"id": "t_cadence", "name": "Cadence", "branch": "blade", "kind": "notable", "at": [3.6, -2.4], "links": ["b3l"], "flags": {"tech_cadence": 1},
+		"desc": "Any weapon learns the sword's rhythm: press again just as a swing settles and the next comes quicker and 25% harder; the third in time lands like a finisher."},
+	{"id": "t_breaker", "name": "Breaking Blow", "branch": "bulwark", "kind": "notable", "at": [3.6, -2.2], "links": ["w4l"], "flags": {"tech_breaker": 1},
+		"desc": "Any weapon hits like a hammer: a blow that breaks a foe's poise sends the shock into those beside it (30% of the blow, most of its stagger)."},
+	{"id": "t_behind", "name": "Knife in the Dark", "branch": "gloam", "kind": "notable", "at": [6.4, -1.0], "links": ["g5l"], "flags": {"tech_behind": 1},
+		"desc": "Any weapon finds the gap: a blow from behind a foe is always critical (guardians watch their backs)."},
+	{"id": "t_point", "name": "The Point", "branch": "rime", "kind": "notable", "at": [6.2, 1.6], "links": ["r5r"], "flags": {"tech_point": 1},
+		"desc": "Any thrust has a sweet spot: struck with the far end of its reach, a foe takes 35% more and is driven back."},
+	{"id": "t_overcharge", "name": "Overcharge", "branch": "kindle", "kind": "notable", "at": [3.4, 2.0], "links": ["k4r"], "flags": {"tech_overcharge": 1},
+		"desc": "Any charged attack can be held past full: after a breath more it is Overcharged, and its release costs 15 Kindle and hits 45% harder."},
+	{"id": "t_focus", "name": "Steady Eye", "branch": "pyre", "kind": "notable", "at": [2.8, 1.9], "links": ["p2r"], "flags": {"tech_focus": 1},
+		"desc": "Any weapon builds Focus: a charged blow that lands adds one (up to three, +12% damage each); any blow that lands on you loses it all."},
 	# weapon masteries: one notable per kind of weapon, each changing how its
 	# forms fight (read by the weapon scripts), on the branch whose spirit it shares
 	{"id": "m_sword", "name": "Sunder and Answer", "branch": "blade", "kind": "notable", "at": [4.8, -3.1], "links": ["b4l"], "flags": {"mastery_sword": 1},

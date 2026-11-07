@@ -94,7 +94,129 @@ func damage_scale() -> float:
 	var k := 1.0 + GearDB.FORGE_DAMAGE_PER_LEVEL * level
 	if player and player.stats:
 		k *= maxf(0.1, player.stats.v("weapon_damage"))
+	if _over_t > 0.0:
+		k *= OVERCHARGE_MULT
+	if focus > 0 and has_technique("focus"):
+		k *= 1.0 + FOCUS_STEP * focus
 	return k
+
+
+# --- techniques ---------------------------------------------------------------
+# Every kind of weapon has one thing a player can get better at. It is the weapon's
+# own; the Hearthtree can lend it to any other (a "tech_<id>" flag).
+#   cadence    (swords)  - press again as the swing settles: the next one is quicker and harder
+#   breaker    (hammers) - a blow that breaks a foe's poise sends the shock into those beside it
+#   behind     (daggers) - a blow from behind a foe always finds the gap (critical)
+#   point      (spears)  - the far end of a thrust is the sweet spot: harder, and it drives them back
+#   overcharge (staves)  - hold a charge past full, pay Kindle: a much bigger release
+#   focus      (bows)    - true shots that land build Focus (more damage); a blow that lands on you loses it
+const TECHNIQUES := {"sword": "cadence", "hammer": "breaker", "daggers": "behind", "spear": "point", "staff": "overcharge", "bow": "focus"}
+const CADENCE_FROM := 0.45      # of a recovery: a press after this is in time
+const CADENCE_MULT := 1.25
+const CADENCE_QUICK := 0.8      # its wind-up
+const POINT_FROM := 0.62        # of a thrust's reach
+const POINT_MULT := 1.35
+const OVERCHARGE_AFTER := 0.7   # seconds held past a full charge
+const OVERCHARGE_COST := 15.0
+const OVERCHARGE_MULT := 1.45
+const FOCUS_MAX := 3
+const FOCUS_STEP := 0.12
+var cadenced := false           # this strike was pressed in time
+var cadence_run := 0            # strikes in time, one after another
+var _cadence_next := false
+var _over_t := 0.0              # a release is overcharged (its blows, a moment after)
+var overcharged_ready := false
+var focus := 0
+var _breaking := false
+
+
+func technique() -> String:
+	return String(TECHNIQUES.get(id, ""))
+
+
+func has_technique(t: String) -> bool:
+	return technique() == t or (player != null and player.stats != null and player.stats.has("tech_" + t))
+
+
+## A blow's share of the techniques: the multiplier on this one foe, and its touch.
+func _technique(a: Actor, h: Hit, along := -1.0) -> void:
+	if cadenced:
+		h.amount *= CADENCE_MULT
+		if cadence_run >= 3:
+			h.poise *= 1.6     # the third in time lands like a finisher
+	if along >= POINT_FROM and has_technique("point"):
+		h.amount *= POINT_MULT
+		h.knockback *= 1.5
+		player.cosmetic(func() -> void:
+			player.stage.fx.burst(a.pos, 0.6, Color(1.0, 0.9, 0.55), 6, 4.0, 0.18, 0.0, h.from_dir, 0.4))
+	if has_technique("behind") and a is Enemy and not (a as Enemy).def.get("boss", false):
+		var e := a as Enemy
+		if e.facing.dot((a.pos - player.pos).normalized()) > 0.35:
+			h.forced_crit = true
+			player.cosmetic(func() -> void:
+				player.stage.fx.number(a.pos, 1.9, "BEHIND", Color(0.8, 0.6, 1.0)))
+
+
+## After a blow: a hammer's break spreads to those standing beside the one it broke.
+func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
+	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
+		return
+	_breaking = true
+	player.cosmetic(func() -> void:
+		player.stage.fx.ring(a.pos, 2.6, Color(1.0, 0.75, 0.4), 0.3, 0.3)
+		Audio.play("slam", -6.0, 1.3))
+	for b in player.stage.hostiles(player.team):
+		if b == a or not b.alive or b.pos.distance_to(a.pos) > 2.6:
+			continue
+		var s := Hit.make(player, h.amount * 0.3, ["melee"])
+		s.can_crit = false
+		s.proc = false
+		s.poise = h.poise * 0.6
+		s.knockback = (b.pos - a.pos).normalized() * 4.0
+		s.from_dir = (b.pos - a.pos).normalized()
+		player.deal_hit(b, s)
+	_breaking = false
+
+
+## A press now: is it in time with the swing settling? (swords, or the tree's Cadence)
+func _note_cadence() -> void:
+	if not has_technique("cadence"):
+		_cadence_next = false
+		return
+	_cadence_next = phase == Phase.RECOVER and phase_t >= phase_len * CADENCE_FROM
+
+
+## A strike begins: in time or not.
+func _begin_cadenced() -> void:
+	cadenced = _cadence_next
+	_cadence_next = false
+	if not cadenced:
+		cadence_run = 0
+		return
+	cadence_run += 1
+	phase_len *= CADENCE_QUICK
+	player.cosmetic(func() -> void:
+		player.stage.fx.burst(player.pos + aim_dir * 0.6, 0.8, Color(1.0, 0.95, 0.8), 4 + 2 * mini(cadence_run, 3), 3.0, 0.12, 0.0, aim_dir, 0.6)
+		Audio.play("cadence", -7.0, 1.0 + 0.06 * mini(cadence_run, 3)))
+
+
+## Focus: a true shot landed / a blow landed on you.
+func add_focus() -> void:
+	if not has_technique("focus"):
+		return
+	focus = mini(FOCUS_MAX, focus + 1)
+	player.form_meter = float(focus) / FOCUS_MAX if form == "" else player.form_meter
+	player.cosmetic(func() -> void:
+		player.stage.fx.number(player.pos, 2.4, "FOCUS %d" % focus, Color(1.0, 0.9, 0.55)))
+
+
+func on_hurt() -> void:
+	if focus > 0:
+		focus = 0
+		if form == "":
+			player.form_meter = 0.0
+		player.cosmetic(func() -> void:
+			player.stage.fx.number(player.pos, 2.4, "FOCUS LOST", Color(0.75, 0.7, 0.65)))
 
 
 # --- input -------------------------------------------------------------------
@@ -102,6 +224,7 @@ func damage_scale() -> float:
 func press() -> void:
 	held = true
 	hold_t = 0.0
+	_note_cadence()
 	if phase == Phase.IDLE:
 		begin_combo()
 	else:
@@ -150,6 +273,9 @@ func move_mult() -> float:
 func begin_combo() -> void:
 	if combo_timer <= 0.0:
 		combo = 0
+	cadenced = false     # (a fresh combo from rest is never in time)
+	cadence_run = 0
+	_cadence_next = false
 	start_strike(combo)
 
 
@@ -169,11 +295,19 @@ func release_charge() -> void:
 
 
 ## The charged blow: dealt by the host; a predicting client only takes its stance.
+## Overcharged (staves, or the tree's Overcharge): held long past full, paid in Kindle.
 func _fire_charge() -> void:
 	if predicting:
 		predict_charge()
-	else:
-		release_charge()
+		return
+	if overcharged_ready and player.kindle >= OVERCHARGE_COST:
+		player.kindle -= OVERCHARGE_COST
+		_over_t = 0.9
+		player.cosmetic(func() -> void:
+			player.stage.fx.ring(player.pos, 1.6, Color(1.0, 0.95, 0.7), 0.25, 0.3)
+			player.stage.fx.number(player.pos, 2.4, "OVERCHARGED", Color(1.0, 0.9, 0.6)))
+	overcharged_ready = false
+	release_charge()
 
 
 ## Co-op client: how the start of ACTIVE moves the Kindled (the host deals the hits).
@@ -237,6 +371,7 @@ func _set_phase(p: int, length: float) -> void:
 func update(dt: float) -> void:
 	if held:
 		hold_t += dt
+	_over_t = maxf(0.0, _over_t - dt)
 	combo_timer = maxf(0.0, combo_timer - dt)
 	phase_t += dt
 	match phase:
@@ -261,6 +396,7 @@ func update(dt: float) -> void:
 				combo = (combo + 1) % max_combo()
 				combo_timer = 0.0
 				start_strike(combo)
+				_begin_cadenced()
 			elif phase_t >= phase_len:
 				combo = (combo + 1) % max_combo()
 				combo_timer = 0.35 if combo != 0 else 0.0
@@ -275,6 +411,12 @@ func update(dt: float) -> void:
 			elif not charged and phase_t >= charge_time / speed():
 				charged = true
 				player.on_weapon_charged()
+			elif charged and not overcharged_ready and has_technique("overcharge") and phase_t >= charge_time / speed() + OVERCHARGE_AFTER \
+					and player.kindle >= OVERCHARGE_COST:
+				overcharged_ready = true
+				player.cosmetic(func() -> void:
+					Audio.play("charged", -2.0, 1.4)
+					player.stage.fx.ring(player.pos, 1.3, Color(1.0, 0.95, 0.75), 0.2, 0.3))
 			_charge_fx_t += dt
 			if _charge_fx_t > 0.05:
 				_charge_fx_t = 0.0
@@ -358,7 +500,10 @@ func line_hit(from: Vector2, to: Vector2, width: float, dmg: float, tags: Array,
 		if opts.has("each"):
 			# a form's touch on each foe struck (marks, roots, executions)
 			(opts.each as Callable).call(a, h)
+		_technique(a, h, t)
+		var was := a.status.is_staggered()
 		player.deal_hit(a, h, opts.get("finisher", false))
+		_after_blow(a, h, was)
 		n += 1
 	return n
 
@@ -383,6 +528,9 @@ func arc_hit(origin: Vector2, dir: Vector2, rng: float, half_angle: float, dmg: 
 		if opts.has("each"):
 			# a form's touch on each foe struck (marks, roots, executions)
 			(opts.each as Callable).call(a, h)
+		_technique(a, h)
+		var was := a.status.is_staggered()
 		player.deal_hit(a, h, opts.get("finisher", false))
+		_after_blow(a, h, was)
 		n += 1
 	return n
