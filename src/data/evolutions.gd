@@ -136,7 +136,7 @@ static func progress(item: Dictionary) -> String:
 ## An expedition's worth of Resonance. Every Kindled's own count of what they took
 ## part in; a death pays half, because it was still used.
 static func gain_of(run: RunState, outcome: String) -> int:
-	var n: int = run.kills + 30 * (run.bosses as Array).size() + 15 * (run.grudges_won as Array).size()
+	var n: int = run.kills + 30 * (run.bosses as Array).size() + 15 * (run.grudges_won as Array).size() + run.resonance_bonus
 	return n if outcome != "died" else n / 2
 
 

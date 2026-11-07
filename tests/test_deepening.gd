@@ -367,3 +367,105 @@ func test_new_uniques_can_be_learned_and_crafted() -> void:
 		check(not r.is_empty(), "%s has a recipe" % id)
 		for m in r:
 			check(m == "embers" or ItemDB.MATERIALS.has(m), "%s needs real materials (%s)" % [id, m])
+
+
+# --- guardian hunts ----------------------------------------------------------------------
+
+func _hunter(region := "ossuary") -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.world["%s_kills" % EnemyDB.REGIONS[region].boss] = 1
+	Profile.data.contracts = {"offer": [], "taken": [], "done": 0}
+
+
+func test_a_hunt_goes_up_only_once_its_guardian_has_fallen_and_is_always_on_the_board() -> void:
+	Profile.data = Profile.fresh()
+	for k in 20:
+		Profile.data.contracts = {"offer": [], "taken": [], "done": k}
+		for id in Contracts.offers():
+			check(not Contracts.def_of(String(id)).has("hunt"), "no hunt before the guardian has fallen")
+	_hunter()
+	var up := Contracts.offers()
+	check(up.has("hunt_ossuary"), "once it has: on the board")
+	check(not up.has("hunt_throne"), "and only that one")
+	check(Contracts.take("hunt_ossuary"), "taken")
+	eq(Contracts.hunt_regions(), ["ossuary"], "the next expedition there is a hunt")
+	eq(Chronicle.snapshot().hunts, ["ossuary"], "and the world it carries (to every guest) says so")
+
+
+func test_a_hunted_floor_holds_two_signs_and_a_harbinger_and_others_do_not() -> void:
+	var world := {"hunts": ["ossuary"]}
+	var hunted := 0
+	for s in range(1, 9):
+		var lay := DungeonGen.generate(s, 2, "ossuary", false, "", world)
+		var plain := DungeonGen.generate(s, 2, "ossuary", false, "", {})
+		var signs := 0
+		var harb := 0
+		for r in lay.rooms:
+			signs += r.props.filter(func(p): return p.kind == "site" and p.get("event", "") == "spoor").size()
+			harb += 1 if r.harbinger else 0
+		check(signs == 2, "two signs (%d)" % signs)
+		check(harb <= 1, "one harbinger at most")
+		hunted += harb
+		eq(plain.rooms.size(), lay.rooms.size(), "the floor is otherwise the same floor")
+		for r in plain.rooms:
+			check(not r.harbinger, "no harbinger unhunted")
+	check(hunted >= 6, "a harbinger on nearly every floor (%d of 8)" % hunted)
+	for r in DungeonGen.generate(3, 1, "rootmire", false, "", world).rooms:
+		check(r.props.filter(func(p): return p.get("event", "") == "spoor").is_empty(), "only the hunted region")
+
+
+func test_reading_signs_weakens_the_quarry_and_the_hunt_ends_in_its_rarer_form() -> void:
+	_hunter()
+	Contracts.take("hunt_ossuary")
+	var world := Chronicle.snapshot()
+	var lay := DungeonGen.generate(3, 3, "ossuary", true, "", world)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	var run := RunState.create(3, "ossuary", "sword", 0, ["flare", "", ""])
+	run.depth = 3
+	run.world = world
+	run.hunt_signs = 3
+	d.build(lay, run, null)
+	check(d.hunted(), "a hunt")
+	var r: Room = d.layout.room(d.layout.exit_id)
+	d.player.pos = r.center() + Vector2(0, 4)
+	d.current_room = r
+	d.active_room = r
+	d._start_boss(r)
+	for i in int((Dungeon.ENTRANCE + 0.2) * 30.0):
+		d.simulate(1.0 / 30.0)
+	var b: Enemy = d.boss
+	eq(b.form, "lightless", "always its rarer form")
+	var full := float(EnemyDB.get_def("warden").hp) * float(Guardians.FORMS.warden.hp)
+	check(b.max_hp < full * 0.8 and b.max_hp > full * 0.6, "weaker for three signs (%.0f of %.0f)" % [b.max_hp, full])
+	d._guardian_hoard(b)
+	check(Contracts.finished(Contracts.taken()[0]), "the hunt is done")
+	eq(d.run.resonance_bonus, 100, "and everything great worn remembers it")
+	d.queue_free()
+
+
+func test_a_sign_is_read_once_and_counts() -> void:
+	_hunter()
+	Contracts.take("hunt_ossuary")
+	var world := Chronicle.snapshot()
+	var d: Dungeon = null
+	for s in range(1, 9):
+		var lay := DungeonGen.generate(s, 2, "ossuary", false, "", world)
+		d = Dungeon.new()
+		d.process_mode = Node.PROCESS_MODE_DISABLED
+		tree_root.add_child(d)
+		var run := RunState.create(s, "ossuary", "sword", 0, ["flare", "", ""])
+		run.depth = 2
+		run.world = world
+		d.build(lay, run, null)
+		break
+	var sign: Prop = null
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "spoor":
+			sign = p
+	check(sign != null and sign.interactable(), "a sign to read")
+	sign.interact(d.player)
+	eq(d.run.hunt_signs, 1, "read")
+	check(not sign.interactable(), "once")
+	d.queue_free()

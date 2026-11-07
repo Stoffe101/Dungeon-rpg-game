@@ -29,6 +29,7 @@ var authored := ""                   # a hand-made room's id (DungeonGen.AUTHORE
 var objective := ""                  # the route's own task here (DungeonGen._objectives): "" | seals | flame
 var landmark := ""                   # a great centrepiece's id (DungeonGen.LANDMARKS), else ""
 var rule := ""                       # this fight's own rule (DeepEvents.RULES), else ""
+var harbinger := false               # a hunt's harbinger leads this fight
 
 # runtime
 var visited := false

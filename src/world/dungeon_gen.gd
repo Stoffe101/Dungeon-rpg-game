@@ -327,6 +327,7 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 			lay.seed = seed_v
 			_landmark(lay, seed_v)
 			DeepEvents.rule_room(lay, seed_v)
+			_hunt_signs(lay, seed_v)
 			_route = ""
 			return lay
 	push_error("DungeonGen: failed to generate a layout")
@@ -345,6 +346,24 @@ const LANDMARKS := {
 }
 ## Dev (`landmark`): every floor has one.
 static var force_landmark := false
+## A hunted region (Contracts): two signs of its guardian's trail and its harbinger on
+## every floor above it. On their own rng, so a seed's floor is otherwise the same.
+static func _hunt_signs(lay: Layout, seed_v: int) -> void:
+	if lay.boss_depth or not (lay.world.get("hunts", []) as Array).has(lay.region):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_v, lay.depth, "hunt"])
+	var cands: Array = lay.rooms.filter(func(r): return r.type == Room.Type.COMBAT and r.objective == "" and r.landmark == "" and r.rule == "" and r.id != lay.start_id)
+	_shuffle(cands, rng)
+	for k in mini(2, cands.size()):
+		var r: Room = cands[k]
+		var t := _clear_tile(lay, r, rng, false)
+		if t.x >= 0:
+			r.props.append({"kind": "site", "tile": t, "event": "spoor"})
+	if cands.size() > 2:
+		(cands[2] as Room).harbinger = true
+
+
 ## Dev (`plan=wing`): every floor takes this plan.
 static var force_plan := ""
 static var _attempt := 0

@@ -107,7 +107,7 @@ func damage_scale() -> float:
 	if focus > 0 and has_technique("focus"):
 		k *= 1.0 + FOCUS_STEP * focus
 	elif player and player.stats and player.stats.has("unblinking"):
-		k *= 0.85     # (Unblinking: nothing without Focus)
+		k *= 0.9     # (Unblinking: less without Focus)
 	return k
 
 

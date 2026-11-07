@@ -243,7 +243,7 @@ const NODES := [
 		"mods": [["attack_speed", "more", -0.1]],
 		"desc": "Staggered foes take 35% more from you, and a Breaking Blow's shock carries twice as far and hits twice as hard. You attack 10% slower."},
 	{"id": "s_unblinking", "name": "Unblinking", "branch": "pyre", "kind": "keystone", "at": [6.4, 2.6], "links": ["p_pour", "t_focus"], "flags": {"unblinking": 1},
-		"desc": "Focus gathers up to five, and a blow that lands on you costs one instead of all. Without Focus your blows deal 15% less. (Focus: Steady Eye, or a bow's true shots.)"},
+		"desc": "Focus gathers up to five, and a blow that lands on you costs one instead of all. Without Focus your blows deal 10% less. (Focus: Steady Eye, or a bow's true shots.)"},
 	# weapon masteries: one notable per kind of weapon, each changing how its
 	# forms fight (read by the weapon scripts), on the branch whose spirit it shares
 	{"id": "m_sword", "name": "Sunder and Answer", "branch": "blade", "kind": "notable", "at": [4.8, -3.1], "links": ["b4l"], "flags": {"mastery_sword": 1},

@@ -33,6 +33,7 @@ static func build(dir: String) -> void:
 	_chart_table(dir)
 	_noticeboard(dir)
 	_whetstone(dir)
+	_spoor(dir)
 
 
 # --- locked ways ------------------------------------------------------------------
@@ -363,6 +364,32 @@ static func _chart_table(dir: String) -> void:
 	c.outline(Pal.INK)
 	s.add("idle", [c], 1.0)
 	s.save(dir, "chart_table")
+
+
+## A guardian's trail: three deep gouges in the stone and its light still dripping
+## from them. Read, it goes dim.
+static func _spoor(dir: String) -> void:
+	var s := Sheet.new(40, 24, Vector2i(20, 14))
+	s.add("fresh", [_spoor_frame(0, true), _spoor_frame(1, true)], 2.5)
+	s.add("read", [_spoor_frame(0, false)], 1.0)
+	s.save(dir, "spoor")
+
+
+static func _spoor_frame(k: int, fresh: bool) -> Px:
+	var c := Px.new(40, 24)
+	for g in 3:
+		var x0 := 8 + g * 8
+		for t in 14:
+			var x := x0 + t
+			var y := 4 + roundi(t * 0.9) + (g % 2)
+			c.put(x, y, Pal.INK)
+			c.put(x, y + 1, Pal.STONE[0])
+			if fresh and (t + k + g) % 4 == 0:
+				c.lit(x, y + 2, Pal.SOUL[4] if t % 8 == 0 else Pal.SOUL[3])
+	if fresh:
+		c.lit(26, 19 + k, Pal.SOUL[5])
+		c.lit(14, 17, Pal.SOUL[4])
+	return c
 
 
 ## A travelling artisan's grindstone: a wheel in a frame, sparks still warm on it.

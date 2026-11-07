@@ -665,7 +665,8 @@ func test_every_notice_counts_something_the_game_notes() -> void:
 	for f in ["res://src/world/dungeon.gd", "res://src/world/prop.gd", "res://src/world/pickup.gd", "res://src/entities/enemies/snuffer.gd"]:
 		src += FileAccess.get_file_as_string(f)
 	for c in Contracts.LIST:
-		check(src.contains('note_request("%s"' % c.key), "%s is counted" % c.key)
+		var counted: bool = src.contains('note_request("%s"' % c.key) or (String(c.key).begins_with("hunt_") and src.contains('note_request("hunt_" + layout.region)'))
+		check(counted, "%s is counted" % c.key)
 		check(Contracts.pay_text(c.pay) != "", "%s pays" % c.id)
 		if c.pay.has("material"):
 			check(ItemDB.MATERIALS.has(c.pay.material[0]), "%s is a material" % c.pay.material[0])

@@ -35,7 +35,7 @@ SNAP = os.path.join(BASE, "project")
 STATE = os.path.join(BASE, "pids.json")
 LOGS = os.path.join(ROOT, "captures", "bg")
 USER_DIR = "KindledDeepBackgroundTests"
-COPY = [".godot", "addons", "assets", "src", "tests", "tools", "project.godot", "export_presets.cfg", "icon.svg", "icon.svg.import"]
+COPY = ["addons", "assets", "src", "tests", "tools", "project.godot", "export_presets.cfg", "icon.svg", "icon.svg.import"]
 OVERRIDE = """[display]
 
 window/size/mode=1
@@ -54,7 +54,8 @@ WIN = os.name == "nt"
 # --- the copy ----------------------------------------------------------------------
 
 def _copy_tree(src, dst):
-    """Copies what changed (size or time); removes what is gone."""
+    """Copies what changed (size or time); removes what is gone (never the copy's own
+    import cache)."""
     n = 0
     if os.path.isfile(src):
         if not os.path.exists(dst) or os.path.getmtime(src) > os.path.getmtime(dst) + 0.5 or os.path.getsize(src) != os.path.getsize(dst):
@@ -68,13 +69,21 @@ def _copy_tree(src, dst):
         have.discard(name)
         n += _copy_tree(os.path.join(src, name), os.path.join(dst, name))
     for gone in have:
+        if gone == ".godot" or gone.endswith(".import") or gone.endswith(".uid"):
+            continue     # (made by the copy's own import)
         p = os.path.join(dst, gone)
         shutil.rmtree(p, ignore_errors=True) if os.path.isdir(p) else os.remove(p)
     return n
 
 
 def sync(quiet=False):
+    """The copy: sources and assets refreshed; its own import cache, brought up to date by
+    a headless import whenever anything changed (new classes, new art), never the repo's
+    .godot (which the owner's editor may be writing)."""
     os.makedirs(SNAP, exist_ok=True)
+    first = not os.path.isdir(os.path.join(SNAP, ".godot"))
+    if first and os.path.isdir(os.path.join(ROOT, ".godot")):
+        _copy_tree(os.path.join(ROOT, ".godot"), os.path.join(SNAP, ".godot"))
     changed = 0
     for item in COPY:
         src = os.path.join(ROOT, item)
@@ -83,6 +92,10 @@ def sync(quiet=False):
     with open(os.path.join(SNAP, "override.cfg"), "w", encoding="utf-8") as f:
         f.write(OVERRIDE)
     os.makedirs(LOGS, exist_ok=True)
+    if changed or first:
+        log = os.path.join(LOGS, "import.log")
+        p = launch("import", ["--headless", "--import"], log, False)
+        finish(p, 600)
     if not quiet:
         print("[bg] copy up to date (%d files changed) at %s" % (changed, SNAP))
     return changed

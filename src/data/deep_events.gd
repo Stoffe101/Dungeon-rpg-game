@@ -163,6 +163,9 @@ static func site_data(pd: Dictionary, region: String, world: Dictionary) -> Dict
 			var s: Dictionary = Chronicle.STATES[choice]
 			return {"sheet": "altar_offering", "anim": choice, "label": String(s.verb), "prompt": "Choose this", "radius": 1.5, "col": s.color,
 				"solid": true, "light": [s.color, 0.8, 3.0], "light_h": 0.8}
+		"spoor":
+			return {"sheet": "spoor", "anim": "fresh", "label": "Its Trail", "prompt": "Read the trail", "radius": 1.6, "flat": true,
+				"col": Color(0.55, 0.95, 0.9), "light": [Color(0.45, 0.95, 0.9), 0.6, 2.5], "light_h": 0.2}
 		"survivor":
 			return {"sheet": "resident_maren", "anim": "sit", "label": "Someone Alive", "prompt": "Help them up", "radius": 1.6,
 				"col": Color(0.65, 0.85, 1.0), "solid": true, "light": [Color(1.0, 0.7, 0.4), 0.7, 3.5], "light_h": 0.6}
@@ -229,6 +232,14 @@ static func resolve(d: Dungeon, prop: Prop, who: Player) -> void:
 			_bowl(d, prop, who)
 		"coffer":
 			_coffer(d, prop, choice)
+		"spoor":
+			prop.used = true
+			if prop.sprite:
+				prop.sprite.play("read")
+			if prop.light:
+				prop.light.visible = false
+			d.fx.unmark(prop)
+			d.hunt_sign("You read its trail")
 		"survivor":
 			_survivor(d, prop)
 		"artisan":

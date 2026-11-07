@@ -15,8 +15,8 @@ const STRIKES := [
 	{"windup": 0.11, "active": 0.08, "recover": 0.26, "arc": 26.0, "range": 2.7, "kb": 8.0, "poise": 26.0, "lunge": 5.0, "from": 0.0, "to": 0.0, "thrust": true},
 ]
 const CLEAVES := [
-	{"windup": 0.16, "active": 0.09, "recover": 0.28, "arc": 96.0, "range": 2.35, "kb": 6.5, "poise": 28.0, "lunge": 2.4, "from": 105.0, "to": -95.0, "dmg": 20.0},
-	{"windup": 0.18, "active": 0.09, "recover": 0.34, "arc": 96.0, "range": 2.35, "kb": 7.5, "poise": 34.0, "lunge": 2.8, "from": -105.0, "to": 95.0, "dmg": 30.0},
+	{"windup": 0.16, "active": 0.09, "recover": 0.28, "arc": 96.0, "range": 2.35, "kb": 6.5, "poise": 17.0, "lunge": 2.4, "from": 105.0, "to": -95.0, "dmg": 20.0},
+	{"windup": 0.18, "active": 0.09, "recover": 0.34, "arc": 96.0, "range": 2.35, "kb": 7.5, "poise": 22.0, "lunge": 2.8, "from": -105.0, "to": 95.0, "dmg": 30.0},
 ]
 const THRUSTS := [
 	{"windup": 0.05, "active": 0.05, "recover": 0.12, "range": 2.5, "width": 0.5, "kb": 2.5, "poise": 8.0, "lunge": 1.9, "from": 0.0, "to": 0.0, "thrust": true, "dmg": 11.0},
