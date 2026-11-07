@@ -11,7 +11,6 @@
 ## Enrage (20%): faster, double rings.
 extends Enemy
 
-const SAFE_R := 2.6
 const ECLIPSE_T := 2.8
 
 var phase := 1
@@ -29,6 +28,18 @@ var double_ring := false
 var intro := true
 var _step_t := 0.0
 var _eclipses := 0
+var safe_r := 2.6
+var _long_night := false
+
+
+## The Eclipsed King: the Eclipse from the first blow, and past half his life the
+## Long Night: eclipses come sooner and the brazier light holds a smaller circle.
+func begin_form() -> void:
+	if form == "eclipsed":
+		phase = 2
+		attack_rate = 1.1
+		eclipse_t = 8.0
+		hound_t = 12.0
 
 
 func _ready() -> void:
@@ -57,6 +68,10 @@ func behave(dt: float) -> void:
 	if phase == 1 and hp_ratio() <= 0.5 and state != "roar":
 		_begin_eclipse_phase()
 		return
+	if form == "eclipsed" and not _long_night and hp_ratio() <= 0.5 and state != "eclipse":
+		_long_night = true
+		safe_r = 2.1
+		phase_moment("The Long Night", "The light holds a smaller circle now", Color(0.75, 0.5, 1.0))
 	if phase == 2 and attack_rate < 1.29 and hp_ratio() <= 0.2:
 		attack_rate = 1.3
 		double_ring = true
@@ -304,7 +319,7 @@ func _lit() -> Array:
 
 
 func _begin_eclipse() -> void:
-	eclipse_t = 13.0 if not double_ring else 10.0
+	eclipse_t = 9.0 if _long_night else (13.0 if not double_ring else 10.0)
 	_eclipses += 1
 	if tele and is_instance_valid(tele):
 		stage.fx.release(tele)
@@ -315,23 +330,25 @@ func _begin_eclipse() -> void:
 	# the dark comes in from everywhere; the brazier light holds
 	stage.fx.shape(Fx.Shape.DISC, arena_center, Vector2.RIGHT, Vector2(30, 30), Color(0.12, 0.04, 0.2, 0.5), Color(0.55, 0.3, 0.8, 1.0), ECLIPSE_T + 0.1, {"progress": 0.0})
 	for b in _lit():
-		stage.fx.shape(Fx.Shape.DISC, b.pos, Vector2.RIGHT, Vector2(SAFE_R * 2.0, SAFE_R * 2.0), Color(1.0, 0.8, 0.4, 0.3), Color(1.0, 0.9, 0.6, 1.0), ECLIPSE_T + 0.1, {"glow": 1.6})
+		stage.fx.shape(Fx.Shape.DISC, b.pos, Vector2.RIGHT, Vector2(safe_r * 2.0, safe_r * 2.0), Color(1.0, 0.8, 0.4, 0.3), Color(1.0, 0.9, 0.6, 1.0), ECLIPSE_T + 0.1, {"glow": 1.6})
 
 
 ## True when the Kindled stands in the light of a lit brazier.
 func sheltered(p: Vector2) -> bool:
 	for b in _lit():
-		if b.pos.distance_to(p) <= SAFE_R:
+		if b.pos.distance_to(p) <= safe_r:
 			return true
 	return false
 
 
 func _eclipse_land() -> void:
-	var pl := target()
 	stage.fx.shake(0.6)
 	stage.fx.flash_light(arena_center, 3.0, Color(0.5, 0.2, 0.8), 6.0, 16.0, 0.6)
 	Audio.play("boss_hurt", 0.0, 0.5)
-	if pl and not sheltered(pl.pos):
+	# (the dark takes every Kindled outside the light, not only the King's choice)
+	for pl in stage.active_players():
+		if sheltered(pl.pos):
+			continue
 		var h := make_hit(damage * 2.2, pos, 0.0)
 		h.tags = ["eclipse"]
 		h.unblockable = true

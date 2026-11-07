@@ -135,6 +135,8 @@ func die(killer: Node) -> void:
 		stage.fx.ring(victim.pos, 1.6, FLAME, 0.4, 0.25)
 		stage.fx.burst(victim.pos, 0.9, FLAME, 18, 3.0, 0.6, 2.0, Vector2.UP, 1.2)
 		stage.fx.number(victim.pos, 2.6, "FLAME RETURNED", FLAME, true)
+		if stage is Dungeon:
+			(stage as Dungeon).note_request("flame_back")
 		Audio.play_at("kindle_full", victim.pos, -4.0)
 	stolen = 0.0
 	super.die(killer)

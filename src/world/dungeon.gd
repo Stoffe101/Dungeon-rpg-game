@@ -495,6 +495,31 @@ func chart_floor() -> void:
 	minimap_changed.emit()
 
 
+## A grown Grudge, half gone: it will not simply fall. It wards, heals a little
+## and calls what it has gathered, once, and the words are its own history.
+func grudge_reckoning(e: Enemy) -> void:
+	var g: Dictionary = e.grudge
+	var h: Array = g.get("history", [])
+	Events.banner.emit("%s Will Not Fall" % e.display_name, String(h.back()) if not h.is_empty() else "It remembers you")
+	e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.15)
+	e.grudge_ward_t = 3.0
+	e.invuln_t = 1.2
+	fx.ring(e.pos, 5.0, GRUDGE_RED, 0.7, 0.3)
+	fx.shake(0.5)
+	Audio.play_at("boss_roar", e.pos, -5.0, 1.1)
+	var r: Room = layout.room(e.room_id)
+	for k in 3:
+		var kin := _make_enemy(EnemyDB._filler(layout.region))
+		kin.pos = foe_spot(e.pos + Vector2.from_angle(TAU * k / 3.0) * 2.0, 0.6)
+		_scale(kin, layout.depth, int(Profile.data.world.get("memory", 0)))
+		kin.room_id = r.id
+		kin.spawn_t = 1.0
+		kin.xp = 1
+		kin.embers = 0
+		add_actor(kin)
+		register_enemy(kin)
+
+
 ## The party has the key: every map shows where it fits.
 func carry_key(on: bool) -> void:
 	has_key = on
@@ -529,6 +554,7 @@ func _relight(prop: Prop, who: Player) -> void:
 	Party.award_xp(self, 15 + 10 * layout.depth, "lantern")
 	Chronicle.clear_fall(layout.region)
 	Chronicle.note("A cold lantern lit again, where %s had won." % by)
+	note_request("lantern")
 	fx.motes(prop.pos, 0.4, Color(1.0, 0.7, 0.4), 22, 1.8, 1.0, 0.4)
 	Audio.play("hearth_feed", -3.0, 1.2)
 	Events.banner.emit("You Fell Here", "To %s. The light is yours again." % by)
@@ -554,6 +580,8 @@ func _blast(at: Vector2, covers: Callable, foe_share: float, pal_share: float, b
 				h.poise = 60.0
 				h.burn = burn
 				src.deal_hit(e, h)
+				if not e.alive:
+					note_request("room_kill")
 	for p in active_players():
 		if covers.call(p):
 			var h := Hit.make(null, p.max_hp * pal_share, ["hazard"])
@@ -1266,7 +1294,10 @@ func _spawn_grudge(r: Room) -> void:
 	var count := {1: "It killed you once", 2: "It killed you twice"}.get(slew, "It has killed you %d times" % slew) as String
 	var owner_id := int(g.get("owner", 0))
 	var whose := "%s's Grudge. " % Net.name_of(owner_id) if owner_id != 0 and Net.active() and Net.party_size() > 1 else ""
-	var lesson := "It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else "It has learned to ward your blows."
+	var marks := ""
+	for m in g.get("marks", []):
+		marks += " " + String(Profile.GRUDGE_MARKS[m].banner)
+	var lesson := marks + " It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else marks + " It has learned to ward your blows."
 	Events.banner.emit(String(g.name), "%s%s. %s It carries %d Embers." % [whose, count, lesson, int(g.embers)])
 	fx.ring(e.pos, 3.0, GRUDGE_RED, 1.2, 0.3)
 	fx.shake(0.3)
@@ -1471,6 +1502,8 @@ func _room_cleared() -> void:
 		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
 	r.cleared = true
+	if r.rule != "" and r.type != Room.Type.BOSS:
+		note_request("rule")
 	if not objective.is_empty():
 		_set_objective("", -1.0, SEAL_COL)     # (its task is done, whatever it was)
 	run.rooms_cleared += 1
@@ -1885,6 +1918,7 @@ func _start_boss(r: Room) -> void:
 		add_actor(e)
 		register_enemy(e)
 		boss = e
+		var form := "" if run.delve else Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
 		for a in Dev.args():
 			if a.begins_with("bossat="):
 				e.hp = e.max_hp * float(a.substr(7))     # dev: its later moments, sooner
@@ -1903,11 +1937,20 @@ func _start_boss(r: Room) -> void:
 				p.data["boss"] = e
 				bz.append(p)
 		w.set("braziers", bz)
-		Net.rec(["boss", e.net_id])
+		var sub_line := String(e.def.get("epithet", ""))
+		if form != "":
+			var fd := Guardians.def_of(form)
+			e.max_hp *= float(fd.hp)
+			e.hp = e.max_hp
+			e.take_form(form)
+			e.begin_form()
+			sub_line = String(fd.sub)
+			Chronicle.mark("form_met_" + form)
+		Net.rec(["boss", e.net_id, form])
 		if players.size() > 1:
 			after(10.0, _guardian_call)
 		Events.boss_started.emit(e)
-		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
+		Events.banner.emit(e.display_name, sub_line)
 		Audio.play_music(String(region.get("boss_music", "boss")), 0.5)
 		# it is here: a blow on the floor, a burst of its light, a held breath
 		var col: Color = region.flame
@@ -2412,6 +2455,16 @@ func _grudge_trophy(e: Enemy) -> void:
 	var nm := e.display_name
 	Chronicle.mark("grudges_settled")
 	Chronicle.note("%s is settled." % nm)
+	note_request("grudge")
+	if int(e.get_meta("grudge_level", 1)) >= Profile.GRUDGE_MAX_LEVEL:
+		# the last of it: a line in the story for good
+		Chronicle.mark("nemeses")
+		Chronicle.note("%s, who would not stay dead, is finished. It took the whole Undervault's patience." % nm)
+		var ns: Array = Profile.data.world.get("nemeses", [])
+		if not ns.has(nm):
+			ns.append(nm)
+		Profile.data.world["nemeses"] = ns
+		Events.banner.emit("The Reckoning Is Over", "%s will not be coming back" % nm)
 	if int(e.get_meta("grudge_level", 1)) < 3:
 		return
 	var it := ItemDB.make_item("rival_fang", "epic", 1, rng, run.tier)
@@ -2433,12 +2486,16 @@ func grudge_flees(e: Enemy) -> bool:
 	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
 	var hoard := int(e.get_meta("grudge_embers", 0))
 	var share := hoard / 3
+	# what drove it off marks it: it comes back armoured against that, and only that
+	var kind := "flamescarred" if e.last_hit_tags.has("fire") else ("rimebound" if e.last_hit_tags.has("frost") else "hardened")
 	if owner == Net.my_id():
 		run.scars.append(gid)
+		run.scar_marks[gid] = kind
 	else:
 		for pl in players:
 			if pl.peer_id == owner and pl.run:
 				pl.run.scars.append(gid)
+				pl.run.scar_marks[gid] = kind
 	for i in 6:
 		Pickup.spawn(self, "ember", e.pos, maxi(1, share / 6), {"src": "grudge"})
 	e.set_meta("grudge_embers", hoard - share)
@@ -2533,13 +2590,18 @@ func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
 
 ## Counts progress on residents' requests and tells the player when one is done.
 func note_request(key: String, amount := 1) -> void:
+	if not replica:
+		Net.rec(["note", key, amount])     # (a guest's own favours and notices count too)
+	for title in Contracts.note(key, amount):
+		Events.toast.emit("Notice fulfilled: %s. It pays when you are home." % title, UIKit.C_GOLD)
+		Audio.play("relic", -6.0, 1.2)
 	var done := Residents.note(key, amount)
 	if OS.is_debug_build() and not Residents.journal().is_empty():
 		print("[request] %s x%d -> %s" % [key, amount, Residents.journal()])
 	for name in done:
 		Events.toast.emit("Request complete - return to %s at the Hearth." % name, UIKit.C_GOLD)
 		Audio.play("relic", -4.0)
-	for r in Residents.LIST:
+	for r in Residents.everyone():
 		var req: Dictionary = r.request
 		if req.key == key and Residents.request_state(r.id) == "active":
 			var n := Residents.request_progress(r.id)
@@ -2693,6 +2755,14 @@ func _boss_defeated(e: Enemy) -> void:
 
 ## A guardian's own hoard, on top of what any foe leaves.
 func _guardian_hoard(e: Enemy) -> void:
+	if e.form != "":
+		# a rarer form guards more, and is worth a line in the story
+		Pickup.spawn(self, "sunshard", e.pos, 2)
+		for k in 2:
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 2, rng, 0.45, run.tier, _favour))
+		Chronicle.mark("form_felled_" + e.form)
+		note_request("form")
+		Chronicle.note("%s fell, and the Undervault marked it." % e.display_name)
 	for i in 2:
 		Pickup.spawn(self, "sunshard", e.pos, 1)
 	for i in 16:

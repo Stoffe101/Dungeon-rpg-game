@@ -220,6 +220,9 @@ func rebuild_stats() -> void:
 			aura_cols.append(ItemDB.color(it))
 		elif ItemDB.is_unique(String(it.get("base", ""))):
 			aura_cols.append(Color(1.0, 0.82, 0.45))
+		if Evolutions.can_evolve(it) and Evolutions.stage(it) >= 1:
+			# grown things burn a little brighter, and another colour once they have chosen
+			aura_cols.append(Color(0.55, 1.0, 0.9) if Evolutions.stage(it) >= 2 else Color(1.0, 0.82, 0.45))
 	apply_look()
 	refresh_paperdoll()
 	if run:

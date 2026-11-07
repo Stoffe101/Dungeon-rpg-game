@@ -47,10 +47,47 @@ func extra_damage_taken(_h: Hit) -> float:
 	return 2.0 if state == "inhale" else 1.0
 
 
+## The Rootbound Bloom: it is not rooted to the floor, it is rooted to its roots.
+## It goes under and comes up at another of them. A burned root is one less place
+## to go; with all of them burned it has to stay where it stands.
+var burrow_t := 13.0
+var _burrow_to := Vector2.ZERO
+
+
+func _burrow_spot() -> Vector2:
+	var open: Array = []
+	for b in braziers:
+		if is_instance_valid(b) and not b.used and b.pos.distance_to(pos) > 4.0:
+			open.append(b)
+	if open.is_empty():
+		return Vector2.INF
+	var n: Node = open[randi() % open.size()]
+	var c: Vector2 = (n as Prop).pos
+	return stage.foe_spot(c + (arena_center - c).normalized() * 2.2, 1.2, room_id)
+
+
+func _begin_burrow() -> bool:
+	_burrow_to = _burrow_spot()
+	if _burrow_to == Vector2.INF:
+		burrow_t = 9999.0
+		return false
+	burrow_t = 13.0 if phase == 1 else 10.0
+	set_state("burrow")
+	sprite.play("wilt")
+	telegraph(Fx.Shape.DISC, _burrow_to, Vector2.RIGHT, Vector2(6.4, 6.4), 1.5 / attack_rate)
+	Audio.play_at("crumble", pos, 0.0, 0.7)
+	stage.fx.shake(0.3)
+	return true
+
+
 func behave(dt: float) -> void:
 	vel = Vector2.ZERO
 	cooldown -= dt * attack_rate * tempo
 	inhale_cd -= dt
+	if form == "rootbound":
+		burrow_t -= dt
+		if burrow_t <= 0.0 and state in ["idle", "recover"] and _begin_burrow():
+			return
 	if phase == 1 and hp_ratio() <= 0.55 and state in ["idle", "recover"]:
 		_bloom_phase()
 		return
@@ -74,6 +111,21 @@ func behave(dt: float) -> void:
 		"roar":
 			invuln_t = 0.2
 			if state_t > 1.4:
+				sprite.play("close")
+				set_state("recover")
+		"burrow":
+			invuln_t = 0.1
+			if timer(1.0):
+				pos = _burrow_to
+				set_state("erupt")
+				sprite.play("open")
+		"erupt":
+			invuln_t = 0.1
+			if timer(0.5):
+				strike_circle(pos, 3.2, damage * 1.2, 9.0)
+				stage.fx.burst(pos, 0.4, Color(0.5, 0.42, 0.3), 30, 5.0, 0.6, 8.0)
+				stage.fx.shake(0.4)
+				Audio.play_at("slam", pos, -1.0, 0.9)
 				sprite.play("close")
 				set_state("recover")
 		"lash":
@@ -249,6 +301,8 @@ func on_root_burned(_node: Node) -> void:
 	stage.fx.burst(pos, 2.0, Color(1.0, 0.6, 0.25), 30, 5.0, 0.8, 2.0)
 	Audio.play("boss_hurt", 0.0, 1.3)
 	Events.toast.emit("A root burns. %d remain." % left, Color(1.0, 0.7, 0.4))
+	if form == "rootbound" and left == 0:
+		Events.toast.emit("It has nowhere left to go.", Color(1.0, 0.7, 0.4))
 
 
 func on_poise_break(h: Hit) -> void:

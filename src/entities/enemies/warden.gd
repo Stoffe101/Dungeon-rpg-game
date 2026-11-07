@@ -39,10 +39,55 @@ func hit_color() -> Color:
 	return Color(0.55, 0.5, 0.6)
 
 
+## The Lightless Warden: the arena is dark from the start, the lantern shrinks in
+## it, and the Warden steps through the dark to wherever you are. Relighting the
+## braziers takes that away a flame at a time, and all four sear it, at any health.
+func take_form(id: String) -> void:
+	super.take_form(id)
+	if stage is Dungeon:
+		var d := stage as Dungeon
+		d.layout.room(d.layout.exit_id).rule = "unlit"
+
+
+func begin_form() -> void:
+	if form == "lightless":
+		_snuff_all()
+
+
+func _dark_task() -> void:
+	if form == "lightless" and stage is Dungeon:
+		var n := _lit_count()
+		(stage as Dungeon)._set_objective("" if n >= braziers.size() else "RELIGHT THE BRAZIERS  %d/%d" % [n, braziers.size()], -1.0, Color(0.72, 0.5, 1.0))
+
+
+func _begin_step() -> void:
+	set_state("step_out")
+	sprite.play("crouch")
+	Audio.play_at("wisp", pos, -4.0, 0.6)
+	stage.fx.burst(pos, 1.0, Color(0.5, 0.35, 0.8), 18, 2.5, 0.5, -1.0)
+
+
+func _step_through() -> void:
+	var t := target()
+	if t == null:
+		set_state("stalk")
+		return
+	var behind := t.pos - t.look.normalized() * 2.6
+	pos = stage.foe_spot(behind, 0.6, room_id)
+	aim_dir = (t.pos - pos).normalized()
+	facing = aim_dir
+	set_state("sweep_windup")
+	sprite.play("windup")
+	stage.fx.burst(pos, 1.0, Color(0.5, 0.35, 0.8), 18, 2.5, 0.5, -1.0)
+	telegraph(Fx.Shape.CONE, pos, aim_dir, Vector2(8.6, 8.6), 0.85 / attack_rate, {"half_angle": deg_to_rad(65.0)})
+	Audio.play("boss_windup", -2.0)
+
+
 func behave(dt: float) -> void:
 	cooldown -= dt * attack_rate * tempo
-	if phase == 2:
-		summon_t -= dt
+	if phase == 2 or form == "lightless":
+		if phase == 2:
+			summon_t -= dt
 		if summon_t <= 0.0:
 			summon_t = 9.0
 			_call_skitters()
@@ -78,6 +123,11 @@ func behave(dt: float) -> void:
 				set_state("stalk")
 		"stalk":
 			_stalk(dt)
+		"step_out":
+			vel = Vector2.ZERO
+			invuln_t = 0.1
+			if timer(0.6):
+				_step_through()
 		"sweep_windup":
 			vel = Vector2.ZERO
 			if timer(0.85):
@@ -197,6 +247,8 @@ func _stalk(dt: float) -> void:
 		opts.append("cast")
 	if phase == 2 and d > 3.0:
 		opts.append_array(["rush", "rush"])
+	if form == "lightless" and _lit_count() < braziers.size():
+		opts.append_array(["step", "step"])
 	opts.erase(last_attack)
 	if opts.is_empty():
 		opts = ["quake"]
@@ -205,6 +257,8 @@ func _stalk(dt: float) -> void:
 	aim_dir = dir_to_player()
 	facing = aim_dir
 	match pick:
+		"step":
+			_begin_step()
 		"sweep":
 			set_state("sweep_windup")
 			sprite.play("windup")
@@ -330,6 +384,7 @@ func _snuff_all() -> void:
 			b.set_lit(false)
 	stage.fx.ring(pos, 12.0, Color(0.55, 0.3, 0.8), 0.6, 0.05)
 	braziers_changed.emit(0)
+	_dark_task()
 
 
 func _lit_count() -> int:
@@ -345,7 +400,8 @@ func on_brazier_lit() -> void:
 	var n := _lit_count()
 	braziers_changed.emit(n)
 	print("[warden] braziers lit: %d/%d" % [n, braziers.size()])
-	if phase == 2 and n >= braziers.size() and seared_t <= 0.0:
+	_dark_task()
+	if (phase == 2 or form == "lightless") and n >= braziers.size() and seared_t <= 0.0:
 		print("[warden] seared")
 		seared_t = 5.0
 		status.stagger_t = 5.0

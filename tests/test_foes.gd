@@ -474,3 +474,134 @@ func test_a_guard_steps_between_a_kindled_and_the_rooms_shooter() -> void:
 	d.room_enemies = [g]
 	eq(g._stand(d.player), d.player.pos, "with nobody to guard it just comes for you")
 	d.queue_free()
+
+
+func _guardian_floor(region: String, form: String) -> Dungeon:
+	Profile.data = Profile.fresh()
+	Guardians.force = form
+	var boss: String = EnemyDB.REGIONS[region].boss
+	var lay := DungeonGen.generate(3, 3, region, true)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	var run := RunState.create(3, region, "sword", 0, ["flare", "", ""])
+	run.depth = 3
+	d.build(lay, run, null)
+	var r: Room = d.layout.room(d.layout.exit_id)
+	d.player.pos = r.center() + Vector2(0, 4)
+	d.current_room = r
+	d.active_room = r
+	d._start_boss(r)
+	for i in int((Dungeon.ENTRANCE + 0.2) * 30.0):
+		d.simulate(1.0 / 30.0)
+	Guardians.force = ""
+	check(is_instance_valid(d.boss) and d.boss.id == boss, "%s has arrived" % boss)
+	return d
+
+
+func test_a_guardian_is_only_changed_after_it_has_been_learned() -> void:
+	eq(Guardians.form_of("warden", "ossuary", 7, 3, {"felled": {"ossuary": 0}}), "", "the first meeting is the plain one")
+	var seen := 0
+	for s in 200:
+		var f := Guardians.form_of("warden", "ossuary", s, 3, {"felled": {"ossuary": 2}})
+		eq(f, Guardians.form_of("warden", "ossuary", s, 3, {"felled": {"ossuary": 2}}), "the same for every machine")
+		if f != "":
+			eq(f, "lightless", "its own form")
+			seen += 1
+	check(seen > 40 and seen < 120, "sometimes (%d of 200)" % seen)
+
+
+func test_the_lightless_warden_fights_in_the_dark_and_the_braziers_answer_it() -> void:
+	var d := _guardian_floor("ossuary", "lightless")
+	var w: Enemy = d.boss
+	eq(w.form, "lightless", "its form")
+	eq(w.display_name, "The Lightless Warden", "named")
+	eq(w._lit_count(), 0, "the arena is dark")
+	eq(d.layout.room(d.layout.exit_id).rule, "unlit", "the lantern shrinks here")
+	check(String(d.objective.get("text", "")).contains("0/4"), "the HUD says what to do")
+	eq(d.rule_here(), "unlit", "and the rule holds")
+	for b in w.braziers:
+		b.set_lit(true)
+		w.on_brazier_lit()
+	eq(w.state, "seared", "all four sear it, whatever its health")
+	check(d.objective.is_empty(), "the task is done")
+	eq(d.rule_here(), "", "the light is back")
+	d.queue_free()
+
+
+func test_the_lightless_warden_steps_behind_you_with_a_warning() -> void:
+	var d := _guardian_floor("ossuary", "lightless")
+	var w: Enemy = d.boss
+	d.player.look = Vector2.RIGHT
+	w.intro = false
+	w._begin_step()
+	eq(w.state, "step_out", "it goes into the dark")
+	w._step_through()
+	eq(w.state, "sweep_windup", "and comes out winding up, never mid-blow")
+	check(w.pos.distance_to(d.player.pos) < 5.0, "beside you")
+	check(not d.grid.box_blocked(w.pos, w.box()), "on open floor")
+	d.queue_free()
+
+
+func test_the_plain_warden_is_as_it_was() -> void:
+	var d := _guardian_floor("ossuary", "")
+	var w: Enemy = d.boss
+	eq(w.form, "", "no form")
+	eq(w._lit_count(), w.braziers.size(), "its braziers burn")
+	eq(d.rule_here(), "", "no rule")
+	d.queue_free()
+
+
+func test_the_rootbound_bloom_moves_between_roots_and_burning_them_pins_it() -> void:
+	var d := _guardian_floor("rootmire", "rootbound")
+	var b: Enemy = d.boss
+	eq(b.form, "rootbound", "its form")
+	b.intro = false
+	b.state = "idle"
+	var from: Vector2 = b.pos
+	check(b._begin_burrow(), "it goes under")
+	eq(b.state, "burrow", "with a warning where it will rise")
+	for i in 60:
+		b.behave(1.0 / 30.0)
+		b.state_t += 1.0 / 30.0
+	check(b.pos.distance_to(from) > 3.0, "it has moved (%.1f)" % b.pos.distance_to(from))
+	check(not d.grid.box_blocked(b.pos, 0.4), "onto open floor")
+	for n in b.braziers:
+		n.used = true
+	b.state = "idle"
+	check(not b._begin_burrow(), "all burned: nowhere to go")
+	d.queue_free()
+
+
+func test_the_eclipsed_king_opens_with_the_eclipse_and_it_finds_everyone() -> void:
+	var d := _guardian_floor("throne", "eclipsed")
+	var k: Enemy = d.boss
+	eq(k.phase, 2, "the Eclipse from the first blow")
+	check(k.eclipse_t > 0.0, "with time to find the light")
+	for b in k.braziers:
+		b.set_lit(false)
+	k.braziers[0].set_lit(true)
+	d.player.pos = k.braziers[0].pos + Vector2(1, 0)
+	check(k.sheltered(d.player.pos), "the light shelters")
+	var hp: float = d.player.hp
+	k._eclipse_land()
+	eq(d.player.hp, hp, "and it holds")
+	d.player.pos = k.braziers[0].pos + Vector2(6, 0)
+	d.player.invuln_t = 0.0
+	k._eclipse_land()
+	check(d.player.hp < hp, "outside it does not")
+	k.hp = k.max_hp * 0.4
+	k.state = "recover"
+	k.behave(0.01)
+	check(k._long_night and k.safe_r < 2.6, "the Long Night")
+	d.queue_free()
+
+
+func test_a_rarer_form_guards_more() -> void:
+	var d := _guardian_floor("ossuary", "lightless")
+	var w: Enemy = d.boss
+	var before: int = d.get_child_count()
+	d._guardian_hoard(w)
+	check(d.get_child_count() > before, "its hoard")
+	eq(Chronicle.marks("form_felled_lightless"), 1, "the Chronicle keeps it")
+	d.queue_free()

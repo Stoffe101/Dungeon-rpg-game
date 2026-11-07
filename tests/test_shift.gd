@@ -532,3 +532,234 @@ func test_a_grindstone_whets_each_kindled_once() -> void:
 			check(String(o) != "whetted", "not in an offer")
 	check(d.player.stats.v("weapon_damage") >= before, "it does not take away")
 	d.queue_free()
+
+
+# --- great things that grow ----------------------------------------------------------
+
+func _great(base := "gloamfang") -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	return ItemDB.make_item(base, "legendary", 1, rng, 1)
+
+
+func test_a_great_thing_wakes_with_use_and_says_so() -> void:
+	var it := _great()
+	check(Evolutions.can_evolve(it), "it can grow")
+	eq(Evolutions.stage(it), 0, "asleep")
+	check(Evolutions.progress(it).contains("0/"), "the tooltip counts it")
+	var before := ItemDB.mods_of(it)
+	var said := Evolutions.feed({"weapon": it}, Evolutions.AWAKE)
+	eq(Evolutions.stage(it), 1, "awake")
+	check(ItemDB.item_name(it).begins_with("Awakened"), "its name says so")
+	check(not said.is_empty(), "and the way home says so")
+	var grown := ItemDB.mods_of(it)
+	check(float(grown[0][2]) > float(before[0][2]), "its own powers grew")
+
+
+func test_a_path_is_chosen_once_and_gives_another_great_things_power() -> void:
+	var it := _great()
+	check(not Evolutions.choose(it, "storm"), "not before it is ready")
+	it["res"] = Evolutions.ASCEND
+	check(Evolutions.ready(it), "ready")
+	check(not Evolutions.choose(it, "nothing"), "only its own paths")
+	check(Evolutions.choose(it, "storm"), "chosen")
+	check(not Evolutions.ready(it), "once")
+	check(not Evolutions.choose(it, "shade"), "for good")
+	eq(ItemDB.item_name(it), "Gloamfang, Fang of Storms", "named for it")
+	var st := Stats.new()
+	ItemDB.apply_equipped({"weapon": it}, st)
+	check(st.has("storm_crit"), "it has the other's power")
+	check(st.has("crit_knives"), "and keeps its own")
+
+
+func test_every_path_names_a_flag_the_game_reads() -> void:
+	var src := FileAccess.get_file_as_string("res://src/entities/player.gd") + FileAccess.get_file_as_string("res://src/entities/enemy.gd") \
+		+ FileAccess.get_file_as_string("res://src/combat/volley.gd") + FileAccess.get_file_as_string("res://src/combat/abilities.gd")
+	for id in Evolutions.PATHS:
+		check(not ItemDB.base(String(id)).is_empty(), "%s exists" % id)
+		eq((Evolutions.PATHS[id] as Array).size(), 2, "two ways")
+		for p in Evolutions.PATHS[id]:
+			for f in p.flags:
+				check(src.contains('"%s"' % f), "%s is read somewhere" % f)
+
+
+func test_anything_else_great_has_the_common_paths_and_trophies_stay_as_they_are() -> void:
+	var it := _great("glass_lantern")
+	eq(Evolutions.paths_of(it), Evolutions.COMMON, "the common paths")
+	it["res"] = Evolutions.ASCEND
+	check(Evolutions.choose(it, "hearth"), "chosen")
+	var st := Stats.new()
+	st.base["kindle_max"] = 100.0
+	ItemDB.apply_equipped({"charm": it}, st)
+	check(st.v("kindle_max") >= 115.0, "its mods apply")
+	check(not Evolutions.can_evolve(_great("rival_fang")), "a trophy is a trophy")
+	var plain := ItemDB.make_item("hearthblade", "rare", 1, RandomNumberGenerator.new(), 1)
+	check(not Evolutions.can_evolve(plain), "and a sword is a sword")
+
+
+func test_an_old_save_item_is_simply_asleep_and_a_new_one_survives_the_file() -> void:
+	var old := {"uid": 1, "base": "gloamfang", "rarity": "legendary", "level": 1, "tier": 1, "affixes": []}
+	eq(Evolutions.stage(old), 0, "asleep")
+	eq(ItemDB.item_name(old), "Gloamfang", "named as it was")
+	var it := _great()
+	it["res"] = Evolutions.ASCEND
+	Evolutions.choose(it, "shade")
+	var back: Dictionary = JSON.parse_string(JSON.stringify(it))
+	eq(Evolutions.stage(back), 2, "after a save it has still chosen")
+	eq(ItemDB.item_name(back), ItemDB.item_name(it), "and is still named so")
+
+
+func test_an_expedition_pays_resonance_half_on_a_death() -> void:
+	var run := RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""])
+	run.kills = 60
+	run.bosses = ["warden"]
+	eq(Evolutions.gain_of(run, "extracted"), 90, "by what was done")
+	eq(Evolutions.gain_of(run, "died"), 45, "half on a death")
+
+
+# --- the noticeboard -----------------------------------------------------------------
+
+func test_the_noticeboard_offers_three_and_lets_you_carry_two() -> void:
+	Profile.data = Profile.fresh()
+	var up := Contracts.offers()
+	eq(up.size(), Contracts.OFFERS, "three up")
+	check(Contracts.take(String(up[0])), "one taken")
+	check(Contracts.take(String(Contracts.offers()[0])), "two taken")
+	eq(Contracts.taken().size(), Contracts.CARRY, "hands full")
+	var third := String(Contracts.offers()[0])
+	check(not Contracts.take(third), "no third")
+	check(not Contracts.offers().has(String(Contracts.taken()[0].id)), "what you carry is not on the board")
+	Contracts.drop(String(Contracts.taken()[0].id))
+	check(Contracts.take(third), "one put back, one taken")
+
+
+func test_a_notice_counts_what_it_asks_and_pays_on_the_way_home() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.contracts = {"offer": ["elites"], "taken": [], "done": 0}
+	check(Contracts.take("elites"), "taken")
+	Contracts.note("chest")
+	eq(int(Contracts.taken()[0].n), 0, "not what it asked for")
+	Contracts.note("elite")
+	Contracts.note("elite")
+	eq(Contracts.note("elite"), ["A Verse or Two"], "finished")
+	check(Contracts.note("elite").is_empty(), "counts stop at the goal")
+	var embers := Profile.currency("embers")
+	var said := Contracts.settle()
+	eq(said.size(), 1, "paid")
+	eq(Profile.currency("embers"), embers + 200, "in Embers")
+	check(Contracts.taken().is_empty(), "off your hands")
+	eq(int(Profile.data.contracts.done), 1, "counted")
+
+
+func test_an_unfinished_notice_is_kept_and_nothing_expires() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.contracts = {"offer": ["chests"], "taken": [], "done": 0}
+	Contracts.take("chests")
+	Contracts.note("chest", 2)
+	check(Contracts.settle().is_empty(), "nothing to pay")
+	eq(int(Contracts.taken()[0].n), 2, "kept for the next expedition")
+
+
+func test_every_notice_counts_something_the_game_notes() -> void:
+	var src := ""
+	for f in ["res://src/world/dungeon.gd", "res://src/world/prop.gd", "res://src/world/pickup.gd", "res://src/entities/enemies/snuffer.gd"]:
+		src += FileAccess.get_file_as_string(f)
+	for c in Contracts.LIST:
+		check(src.contains('note_request("%s"' % c.key), "%s is counted" % c.key)
+		check(Contracts.pay_text(c.pay) != "", "%s pays" % c.id)
+		if c.pay.has("material"):
+			check(ItemDB.MATERIALS.has(c.pay.material[0]), "%s is a material" % c.pay.material[0])
+
+
+# --- rivals --------------------------------------------------------------------------
+
+func _rival(level: int, marks: Array = []) -> Dictionary:
+	return {"id": "g1", "enemy": "husk", "name": "Oth the Ruined", "affix": "hasted", "level": level, "embers": 80, "depth": 2,
+		"settled": false, "slew": level, "scars": 0, "learned": "ward", "history": ["Slew you: the Ossuary, depth 2."], "marks": marks}
+
+
+func test_what_drove_a_grudge_off_marks_it_and_something_else_still_works() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.grudges = [_rival(2)]
+	Profile.scar_grudge("g1", "flamescarred")
+	eq(Profile.data.grudges[0].marks, ["flamescarred"], "marked")
+	check((Profile.data.grudges[0].history as Array).back().contains("Flamescarred"), "its story says so")
+	var d := _floor(7)
+	var e := _foe(d, Vector2(_spot(d)) + Vector2(2.5, 0.5))
+	e.make_grudge(Profile.data.grudges[0])
+	check(e.display_name.contains("Flamescarred"), "named for it")
+	var fire := Hit.make(d.player, 100.0, ["fire"])
+	e.block_mult(fire)
+	check(fire.amount < 60.0, "fire does little")
+	var steel := Hit.make(d.player, 100.0, ["melee"])
+	e.block_mult(steel)
+	eq(steel.amount, 100.0, "anything else bites as ever")
+	d.queue_free()
+
+
+func test_a_scar_is_only_counted_once_per_kind() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.grudges = [_rival(2)]
+	Profile.scar_grudge("g1", "hardened")
+	Profile.scar_grudge("g1", "hardened")
+	eq((Profile.data.grudges[0].marks as Array).size(), 1, "bounded")
+	eq(int(Profile.data.grudges[0].scars), 2, "both scars counted")
+
+
+func test_a_grown_grudge_makes_a_last_stand_once() -> void:
+	Profile.data = Profile.fresh()
+	var d := _floor(7)
+	var e := _foe(d, Vector2(_spot(d)) + Vector2(2.5, 0.5))
+	e.make_grudge(_rival(4))
+	e.state = "chase"
+	e.set_meta("grudge_id", "g1")
+	var foes: int = d.hostiles(Actor.Team.PLAYER).size()
+	e.room_id = d.layout.start_id
+	e.hp = e.max_hp * 0.4
+	e._grudge_tick(0.03)
+	check(e._reckoned, "it stands")
+	check(e.hp > e.max_hp * 0.5, "it heals a little")
+	check(d.hostiles(Actor.Team.PLAYER).size() >= foes + 3, "it calls kin")
+	var hp := e.hp
+	e.hp = e.max_hp * 0.4
+	foes = d.hostiles(Actor.Team.PLAYER).size()
+	e._grudge_tick(0.03)
+	eq(d.hostiles(Actor.Team.PLAYER).size(), foes, "only once")
+	check(hp > 0.0, "still standing")
+	d.queue_free()
+
+
+func test_a_grudge_at_its_greatest_no_longer_runs() -> void:
+	Profile.data = Profile.fresh()
+	var d := _floor(7)
+	var e := _foe(d, Vector2(_spot(d)) + Vector2(2.5, 0.5))
+	e.make_grudge(_rival(Profile.GRUDGE_MAX_LEVEL))
+	e.state = "chase"
+	e._reckoned = true
+	e.hp = e.max_hp * 0.2
+	e._grudge_tick(0.03)
+	check(e.alive and not e.has_meta("fled"), "this ends one way or the other")
+	d.queue_free()
+
+
+func test_finishing_a_nemesis_is_kept_for_good() -> void:
+	Profile.data = Profile.fresh()
+	var d := _floor(7)
+	var e := _foe(d, Vector2(_spot(d)) + Vector2(2.5, 0.5))
+	e.make_grudge(_rival(Profile.GRUDGE_MAX_LEVEL))
+	e.set_meta("grudge_level", Profile.GRUDGE_MAX_LEVEL)
+	e.set_meta("grudge_owner", Net.my_id())
+	d._grudge_trophy(e)
+	check((Profile.data.world.nemeses as Array).size() == 1, "on the Shrine's list")
+	eq(Chronicle.marks("nemeses"), 1, "and in the Chronicle")
+	d.queue_free()
+
+
+func test_an_old_grudge_reads_without_marks() -> void:
+	Profile.data = Profile.fresh()
+	var old := _rival(2)
+	old.erase("marks")
+	var m := Profile.migrate({"version": 15, "grudges": [old], "contracts": null})
+	eq(int(m.version), Profile.VERSION, "brought up to date")
+	eq(m.grudges[0].marks, [], "no marks yet")
+	check(m.contracts is Dictionary, "a noticeboard")

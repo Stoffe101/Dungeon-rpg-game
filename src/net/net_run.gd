@@ -797,6 +797,8 @@ func apply_events(evs: Array) -> void:
 			"own":
 				if int(ev[1]) == Net.my_id():
 					apply_events([ev[2]])
+			"note":
+				stage.note_request(String(ev[1]), int(ev[2]))
 			"snuff":
 				stage.player.snuff(float(ev[1]))
 			"haul":
@@ -868,6 +870,8 @@ func apply_events(evs: Array) -> void:
 				Events.toast.emit(String(ev[1]), ev[2])
 			"boss":
 				var b = replicas.get(int(ev[1]))
+				if b and ev.size() > 2 and String(ev[2]) != "":
+					b.take_form(String(ev[2]))
 				if b:
 					stage.boss = b as Enemy
 					Events.boss_started.emit(b)

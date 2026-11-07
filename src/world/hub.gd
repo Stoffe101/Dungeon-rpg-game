@@ -199,6 +199,7 @@ func _place() -> void:
 	Prop.make(self, "keeper", Vector2i(24, 13), {"sheet": "keeper", "anim": "idle", "prompt": "Speak with the Keeper", "radius": 1.2,
 		"light": [Color(1.0, 0.8, 0.5), 0.6, 3.0], "light_h": 1.2})
 	_group("hearth", _place_posts)
+	Prop.make(self, "noticeboard", Vector2i(16, 5), {"sheet": "noticeboard", "anim": "idle", "prompt": "Read the noticeboard", "radius": 1.8, "solid": true})
 	if (camp.get("rescued", []) as Array).has("maren"):
 		Prop.make(self, "chart_table", Vector2i(27, 6), {"sheet": "chart_table", "anim": "idle", "prompt": "Consult Maren's chart table", "radius": 1.8, "solid": true,
 			"light": [Color(1.0, 0.75, 0.45), 0.5, 2.5], "light_h": 0.9})
@@ -924,6 +925,8 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.wardrobe()
 		"chart_table":
 			_chart_table()
+		"noticeboard":
+			Game.ui.noticeboard()
 		"cat":
 			(prop as CampCat).pet()
 	prop.set_meta("last_used", elapsed)

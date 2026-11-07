@@ -176,6 +176,8 @@ func _enter_depth(depth: int) -> void:
 	for a in Dev.args():
 		if a.begins_with("plan="):
 			DungeonGen.force_plan = a.substr(5)
+		if a.begins_with("form="):
+			Guardians.force = a.substr(5)
 	var world := run.world
 	if run.delve and Delve.fractured(depth):
 		world = run.world.duplicate()
@@ -516,7 +518,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		Profile.add_currency("sunshards", int(s.sunshards))
 	# Grudges not settled this time grow in the dark (before a new one is made)
 	for gid in run.scars:
-		Profile.scar_grudge(String(gid))
+		Profile.scar_grudge(String(gid), String(run.scar_marks.get(gid, "")))
 	for k in run.pale:
 		Profile.age_grudges(run.rng, 3)     # the Bowl feeds them
 	var grew := Profile.age_grudges(run.rng)
@@ -560,6 +562,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 		Profile.add_rune(String(r))
 	for rg in spoils.get("reagents", []):
 		Profile.add_reagent(String(rg))
+	var woke := Evolutions.feed(Profile.equipped(), Evolutions.gain_of(run, outcome))
+	var paid := Contracts.settle()
 	var feats := Feats.check()
 	Ledger.note("settled", {"xp_gained": run.xp_gained, "omen_xp": omen_xp, "embers_kept": int(s.embers_kept)})
 	Ledger.finish(outcome)
@@ -572,7 +576,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
 		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp, "grudges_grew": grew,
-		"delve": run.delve, "delve_best": delve_best,
+		"delve": run.delve, "delve_best": delve_best, "woke": woke, "contracts": paid,
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

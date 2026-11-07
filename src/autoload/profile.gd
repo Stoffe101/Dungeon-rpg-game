@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 15
+const VERSION := 16
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -274,6 +274,14 @@ static func migrate(d: Dictionary) -> Dictionary:
 		if not (out.get("alchemy") is Dictionary):
 			out["alchemy"] = {"steeped": "hearthbalm", "reagents": {}}
 		v = 14
+	if v < 16:
+		# v16: the noticeboard; Grudges carry named marks; items may carry Resonance
+		# ("res", "ev", "path" are read with defaults, so an old item is simply asleep)
+		if not (out.get("contracts") is Dictionary):
+			out["contracts"] = {"offer": [], "taken": [], "done": 0}
+		for g in out.get("grudges", []):
+			if g is Dictionary and not g.has("marks"):
+				g["marks"] = []
 	if v < 15:
 		# v15: the Chronicle (altars, deeds, the story so far). An old save's
 		# world is untouched; its Grudges have no history yet, and start one
@@ -1206,12 +1214,27 @@ static func _grudge_note(g: Dictionary, line: String) -> void:
 	g["history"] = h
 
 
-## It got away, wounded: a scar it will carry from now on.
-func scar_grudge(gid: String) -> void:
+## It got away, wounded: a scar it will carry from now on, and a name for it. What
+## drove it off is what it armours itself against, so the next fight asks for
+## something else: another element, another way of hitting it.
+const GRUDGE_MARKS := {
+	"flamescarred": {"name": "Flamescarred", "text": "fire does little to it", "banner": "Fire scarred it once. Fire does little now.", "col": Color(1.0, 0.55, 0.25), "tag": "fire"},
+	"rimebound": {"name": "Rimebound", "text": "cold does little to it", "banner": "Frost marked it once. Cold does little now.", "col": Color(0.55, 0.85, 1.0), "tag": "frost"},
+	"hardened": {"name": "Hardened", "text": "blades turn on its hide", "banner": "Your blade taught it. Steel bites less now.", "col": Color(0.8, 0.78, 0.72), "tag": "melee"},
+}
+
+
+func scar_grudge(gid: String, mark := "") -> void:
 	for g in data.grudges:
 		if g.id == gid:
 			g["scars"] = int(g.get("scars", 0)) + 1
-			_grudge_note(g, "You scarred it. It fled.")
+			var marks: Array = g.get("marks", [])
+			if GRUDGE_MARKS.has(mark) and not marks.has(mark):
+				marks.append(mark)
+				_grudge_note(g, "You scarred it. It fled, %s." % String(GRUDGE_MARKS[mark].name))
+			else:
+				_grudge_note(g, "You scarred it. It fled.")
+			g["marks"] = marks
 			_changed()
 			return
 

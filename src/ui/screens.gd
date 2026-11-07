@@ -636,7 +636,7 @@ static func pause(ui: UIRoot) -> Control:
 	var v := UIKit.vbox(5)
 	row.add_child(v)
 	# residents' requests: what they asked for and how far along it is
-	var journal := Residents.journal()
+	var journal := Contracts.journal() + Residents.journal()
 	if not journal.is_empty():
 		var jv := UIKit.vbox(3)
 		jv.add_child(UIKit.label("REQUESTS", 8, UIKit.C_GOLD, true))
@@ -916,6 +916,9 @@ static func memorial(ui: UIRoot) -> Control:
 		if not g.get("settled", false):
 			var lesson := "closes on those who keep away" if String(g.get("learned", "ward")) == "closer" else "wards against those who stand and swing"
 			v.add_child(UIKit.label("    killed you %d time%s, scarred %d, %s" % [int(g.get("slew", 1)), "" if int(g.get("slew", 1)) == 1 else "s", int(g.get("scars", 0)), lesson], 8, UIKit.C_DIM))
+		for m in g.get("marks", []):
+			if not g.get("settled", false):
+				v.add_child(UIKit.label("    %s: %s" % [Profile.GRUDGE_MARKS[m].name, Profile.GRUDGE_MARKS[m].text], 8, Profile.GRUDGE_MARKS[m].col))
 		var traits: Array = g.get("traits", [])
 		if not g.get("settled", false) and not traits.is_empty():
 			v.add_child(UIKit.label("    has grown: " + ", ".join(PackedStringArray(traits.map(func(x): return String(Profile.GRUDGE_TRAIT_TEXT.get(x, x))))), 8, Color(1.0, 0.55, 0.45)))
@@ -925,12 +928,63 @@ static func memorial(ui: UIRoot) -> Control:
 	var st: Dictionary = Profile.data.stats
 	v.add_child(UIKit.label("Expeditions %d   Deaths %d   Returns %d   Victories %d" % [int(st.get("runs", 0)), int(st.get("deaths", 0)), int(st.get("extractions", 0)), int(st.get("victories", 0))], 8))
 	v.add_child(UIKit.label("Foes slain %d   Embers gathered %d   Warden felled %d" % [int(st.get("kills", 0)), int(st.get("embers_earned", 0)), int(Profile.data.world.get("warden_kills", 0))], 8))
+	for nm in Profile.data.world.get("nemeses", []):
+		v.add_child(UIKit.label("Finished for good: %s" % nm, 8, UIKit.C_GOOD))
 	v.add_child(UIKit.label("Undervault Memory: %d" % int(Profile.data.world.get("memory", 0)), 8, UIKit.C_SOUL))
 	var row := UIKit.hbox(6)
 	row.add_child(UIKit.button("Read the Chronicle", func() -> void: ui.open(chronicle(ui)), 110))
 	row.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
 	v.add_child(row)
 	return _center(p)
+
+
+## The noticeboard by the gate: three notices up, two in hand.
+static func noticeboard(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("The Noticeboard", UIKit.C_GOLD))
+	v.add_child(UIKit.para("Nothing here expires, and nobody minds if you ignore it. It pays when you come home.", 280, UIKit.C_DIM))
+	var body := UIKit.vbox(4)
+	v.add_child(body)
+	var ctx := {}
+	ctx["fill"] = func() -> void:
+		for c in body.get_children():
+			c.queue_free()
+		var carried := Contracts.taken()
+		body.add_child(UIKit.label("CARRYING  %d/%d" % [carried.size(), Contracts.CARRY], 8, UIKit.C_GOLD, true))
+		for t in carried:
+			var c := Contracts.def_of(String(t.id))
+			body.add_child(_notice(c, "%d/%d" % [int(t.n), int(c.goal)], "Put back", func() -> void:
+				Contracts.drop(String(t.id))
+				Profile.save_profile()
+				ctx.fill.call()))
+		body.add_child(UIKit.label("ON THE BOARD", 8, UIKit.C_GOLD, true))
+		for id in Contracts.offers():
+			var c := Contracts.def_of(String(id))
+			var full := carried.size() >= Contracts.CARRY
+			var row := _notice(c, "", "Hands full" if full else "Take", func() -> void:
+				if Contracts.take(String(id)):
+					Audio.play("skill_unlock", -8.0, 1.3)
+					Profile.save_profile()
+					ctx.fill.call())
+			body.add_child(row)
+	ctx.fill.call()
+	var close := UIKit.button("Close", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
+
+
+static func _notice(c: Dictionary, state: String, act: String, cb: Callable) -> Control:
+	var row := UIKit.hbox(6)
+	var t := UIKit.vbox(1)
+	t.add_child(UIKit.label(String(c.title) + ("   " + state if state != "" else ""), 8, UIKit.C_TEXT, true))
+	t.add_child(UIKit.para(String(c.line), 210, UIKit.C_TEXT))
+	t.add_child(UIKit.para("Pays " + Contracts.pay_text(c.pay), 210, UIKit.C_GOLD))
+	row.add_child(t)
+	row.add_child(UIKit.button(act, cb, 60))
+	return row
 
 
 ## What the Undervault remembers of you: the altars and how they stand (each
@@ -1464,6 +1518,10 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		v.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
 	for n in s.get("grudges_grew", []):
 		v.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
+	for n in s.get("contracts", []):
+		v.add_child(UIKit.label("Notice paid - %s" % n, 8, UIKit.C_GOLD))
+	for n in s.get("woke", []):
+		v.add_child(UIKit.label(String(n), 8, UIKit.C_SOUL))
 	if String(s.get("unlocked", "")) != "":
 		v.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
 	var rl: Array = s.get("relics", [])

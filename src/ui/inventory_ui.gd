@@ -97,6 +97,11 @@ func rebuild() -> void:
 	body.add_child(_wardrobe_panel() if wardrobe_open else _bag_panel())
 	if stats_open:
 		body.add_child(GearUI.stats_panel(140, "SatchelPocket"))
+	var eq := Profile.equipped()
+	for slot in eq:
+		var it: Variant = eq[slot]
+		if it is Dictionary and not (it as Dictionary).is_empty() and Evolutions.ready(it):
+			outer.add_child(UIKit.button("%s is ready to choose a path" % ItemDB.item_name(it), func() -> void: _choose_path(it), 200))
 	outer.add_child(_loadout_strip())
 	var hint := UIKit.label("", 8, Color(0.85, 0.74, 0.6), true)
 	hint.text = "A equip / take off   X salvage   B close" if Settings.using_pad else "Click: equip / take off    Right-click: salvage    %s: close" % Settings.describe_action("inventory")
@@ -565,6 +570,23 @@ func _materials(v: VBoxContainer) -> void:
 		h.mouse_filter = Control.MOUSE_FILTER_PASS
 		mg.add_child(h)
 	v.add_child(mg)
+
+
+## Once, for good: the great thing grows one way. Both ways are read out first.
+func _choose_path(it: Dictionary) -> void:
+	var lines: Array = []
+	var choices: Array = []
+	for p in Evolutions.paths_of(it):
+		lines.append("%s: %s" % [String(p.name), String(p.desc)])
+		choices.append([String(p.name), func() -> void:
+			if Evolutions.choose(it, String(p.id)):
+				Audio.play("relic", 0.0, 0.9)
+				Game.ui.toast("%s has chosen." % ItemDB.item_name(it), UIKit.C_GOLD)
+				Profile.changed.emit()
+				Profile.save_profile()
+				rebuild()])
+	choices.append(["Not yet", Callable()])
+	Game.ui.dialogue(ItemDB.item_name(it), lines, Callable(), choices)
 
 
 func _bag_panel() -> PanelContainer:

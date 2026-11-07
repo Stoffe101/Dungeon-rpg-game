@@ -42,6 +42,7 @@ var routes: Array = []         # every way taken this expedition, in order
 var pale := 0                  # times this Kindled fed the Pale Bowl (its Grudges grow for it)
 var wounded: Dictionary = {}   # Grudges that fled this expedition: id -> health left (0..1)
 var scars: Array = []          # this Kindled's own Grudges scarred on this run (ids)
+var scar_marks: Dictionary = {}   # ...and what each was marked by (Profile.GRUDGE_MARKS)
 var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": [], "reagents": []}
 ## Everything of one's own found this expedition: [{kind, what, drop}] (the
 ## summary's list; each was banked the moment it was taken).
@@ -81,7 +82,7 @@ func to_dict() -> Dictionary:
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
 		"loot": loot.duplicate(true), "found": found.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
 		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate(),
-		"route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "wounded": wounded.duplicate(), "scars": scars.duplicate()}
+		"route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "scar_marks": scar_marks.duplicate(), "wounded": wounded.duplicate(), "scars": scars.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -105,6 +106,7 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.pale = int(d.get("pale", 0))
 	r.wounded = (d.get("wounded", {}) as Dictionary).duplicate()
 	r.scars = (d.get("scars", []) as Array).duplicate()
+	r.scar_marks = (d.get("scar_marks", {}) as Dictionary).duplicate()
 	r.route = String(d.get("route", ""))
 	r.routes = (d.get("routes", []) as Array).duplicate()
 	r.run_id = String(d.get("run_id", ""))

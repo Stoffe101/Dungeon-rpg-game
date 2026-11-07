@@ -646,6 +646,10 @@ func memorial() -> void:
 	open(Screens.memorial(self))
 
 
+func noticeboard() -> void:
+	open(Screens.noticeboard(self))
+
+
 func descent_prompt() -> void:
 	open(Screens.descent(self))
 
