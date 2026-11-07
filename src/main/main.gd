@@ -18,6 +18,9 @@ func _ready() -> void:
 	add_child(Capture.from_args())
 	if "perflog" in Dev.args():
 		get_tree().process_frame.connect(_perf_tick)
+	for a in Dev.args():
+		if a == "stallog" or a.begins_with("stallog="):
+			add_child(StallProbe.new())     # dev: takes slow frames apart
 	fps_label = UIKit.label("", 8, UIKit.C_DIM, true)
 	fps_label.position = Vector2(4, 0)
 	ui.root.add_child(fps_label)

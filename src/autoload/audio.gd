@@ -151,6 +151,7 @@ func _stream(dir: String, sname: String) -> AudioStream:
 	var key := dir + sname
 	if _cache.has(key):
 		return _cache[key]
+	var t_load := Dev.tick()
 	var s: AudioStream = null
 	for d in ([LICENSED_DIR, dir] if dir == SFX_DIR else [dir]):
 		var path: String = d + sname + ".wav"
@@ -158,6 +159,7 @@ func _stream(dir: String, sname: String) -> AudioStream:
 			s = load(path)
 			break
 	_cache[key] = s
+	Dev.lap("sound " + sname, t_load, 1.0)
 	return s
 
 

@@ -23,6 +23,7 @@ class SheetInfo:
 static func get_sheet(sheet_name: String) -> SheetInfo:
 	if _sheets.has(sheet_name):
 		return _sheets[sheet_name]
+	var t_load := Dev.tick()
 	var base := "res://assets/sprites/" + sheet_name
 	var info := SheetInfo.new()
 	info.name = sheet_name
@@ -57,6 +58,7 @@ static func get_sheet(sheet_name: String) -> SheetInfo:
 	q.material = mat
 	info.mesh = q
 	_sheets[sheet_name] = info
+	Dev.lap("sheet " + sheet_name, t_load, 1.0)
 	return info
 
 

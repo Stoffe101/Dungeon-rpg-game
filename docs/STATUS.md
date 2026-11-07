@@ -424,11 +424,12 @@ Last updated: 2026-11-05.
   in a crowd (3 s). Two repeats were clean and the log was overwritten, so the
   cause is unknown. It may be the test's short window; it may be a real walk-then-
   talk failure in a crowd.
-- Frame stalls, solo bot: 40-80 ms frames around fights in every run, and a
-  220-270 ms frame in 3 of 4 runs at 3440x1440 (about 50 ms at 720p). Caught slow
-  frames spent 4-7 ms in game code and compiled no shaders, so the cost is in
-  rendering or the driver, but the largest stall was not caught in the probed
-  run. Cause unknown. Watch for it on the real ultrawide.
+- ~~Frame stalls at 3440x1440~~ **Resolved, and the earlier report was wrong.** The
+  220-270 ms frame was the test bot's own debug dump printed through a terminal
+  pipe (45 ms to a file, 274 ms piped), not the game, and never at any fault of
+  ultrawide. The "4-7 ms in game code" reading came from a monitor a frame late.
+  Real hitches it hid (first-use loads up to 63 ms, a 30 ms minimap repaint on
+  every room change) are fixed. Measure with `stallog` and the log in a file.
 - Expedition evolution pass: unit-tested, run as separate processes on one
   PC and inspected in captures; nobody has played it. To judge in play: the
   seals' ward (x0.35 damage on warded foes) and the flame's drain (about

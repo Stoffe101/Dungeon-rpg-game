@@ -42,6 +42,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		_wall_lab(lay)
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
+	_warm_up()
 	_environment()
 	if not replica:
 		_pick_grudge_room()
@@ -898,11 +899,34 @@ func _second_affix(first: String, id := "") -> String:
 	return EnemyDB.roll_affix(rng, id, first)
 
 
+## What this floor can show, loaded now. A foe or a find seen for the first time
+## used to load in the frame it appeared, up to 60 ms in the middle of a fight;
+## this is the floor's own loading moment, when nobody is fighting.
+static var _kept: Dictionary = {}
+
+
+func _warm_up() -> void:
+	var t := Dev.tick()
+	var ids: Array = (region.pool as Array).duplicate()
+	ids.append(String(region.boss))
+	for id in ids:
+		var def := EnemyDB.get_def(String(id))
+		if def.is_empty() or _kept.has(id):
+			continue
+		_kept[id] = load(String(def.script))     # (held: an unreferenced script is dropped)
+		SpriteLib.get_sheet(String(def.sheet))
+	for sheet in Pickup.SHEETS.values():
+		SpriteLib.get_sheet(String(sheet))
+	Dev.lap("warm up", t, 0.0)
+
+
 func _make_enemy(id: String) -> Enemy:
+	var t := Dev.tick()
 	var def := EnemyDB.get_def(id)
 	var scr: GDScript = load(def.script)
 	var e: Enemy = scr.new()
 	e.configure(id)
+	Dev.lap("foe " + id, t, 1.0)
 	return e
 
 

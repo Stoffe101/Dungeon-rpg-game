@@ -14,7 +14,7 @@ var _strafe := 1.0
 var _stuck_t := 0.0
 var _last_pos := Vector2.ZERO
 var _jitter := Vector2.ZERO
-var log_every := 5.0
+var log_every := 5.0     # (never measure frame times with this piped: `> file`)
 var _log_t := 0.0
 var _goal := Vector2.ZERO
 var _stuck_total := 0.0
@@ -25,6 +25,7 @@ var eval_mode := false
 
 
 func _dump_area() -> void:
+	Dev.mark("BOT DUMP")
 	var g := pl.stage.grid
 	var c := Vector2i(pl.pos)
 	print("[bot] STUCK at ", pl.pos, " goal ", _goal, " step ", pl.stage.path_step(pl.pos, _goal))
@@ -97,9 +98,10 @@ func _process(delta: float) -> void:
 		_stuck_total += delta
 		if _stuck_total > 6.0 and target == null:
 			_stuck_total = -20.0
-			# (the dump runs full path searches: a ~0.2s stall of the bot's own,
-			# not the game's - ignore it in perflog measurements)
-			_dump_area()
+			# (only on request: 15 lines through a terminal pipe take 270 ms, and
+			# this was mistaken for a game stall on ultrawide for two passes)
+			if "botdebug" in Dev.args():
+				_dump_area()
 		if _stuck_t > 0.8:
 			_jitter = Vector2.from_angle(randf() * TAU)
 			_stuck_t = 0.0

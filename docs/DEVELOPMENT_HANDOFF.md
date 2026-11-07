@@ -364,10 +364,8 @@ not in the repository.
 
 **Open and unexplained**
 
-- **Frame stall on ultrawide:** a 220-270 ms frame in most bot runs at 3440x1440, about
-  50 ms at 720p, and 40-80 ms frames around fights in every run. Caught slow frames spent
-  only 4-7 ms in game code and compiled no shaders, so the cost looks like rendering or the
-  driver, but the largest stall was never caught in a probed run.
+- **Frame stall on ultrawide: resolved.** It was the test bot's debug dump through a terminal
+  pipe, not the game (see STATUS). Never measure frame times with output piped.
 - **Keeper click:** one guest in one of several 4-player journeys timed out clicking the
   Keeper in a crowd. Five clean runs since. Log lost. May be the test's 3 s window, may be a
   real walk-then-talk failure.
@@ -522,8 +520,7 @@ when one is asked for, and honest in each.
 4. **A party fights a guardian to the end** as a scenario, real hits and all.
 5. **Steam with a second account** when the owner can arrange it (`docs/STEAM.md` checklist).
    The long-term goal is smooth four-player Steam co-op.
-6. **Chase the ultrawide stall** on the owner's hardware.
-7. **Make the tools work on Linux** (section 9).
+6. **Make the tools work on Linux** (section 9).
 
 **Open creative directions, once played**
 

@@ -19,6 +19,9 @@ var _tex: ImageTexture
 var _sig := ""
 var _owner := PackedInt32Array()     # tile -> room (passages belong to the nearest room)
 var _owner_lay: Object = null        # the layout `_owner` was made for
+var _walk := PackedInt32Array()      # every tile a room owns (they can change: a gate closes)
+var _edge := PackedInt32Array()      # every wall touching one
+var _edge_rooms: Array = []          # ...and the rooms each touches
 var _bounds := Rect2i()              # the tiles of everything known
 var _centre := Vector2(-1, -1)       # minimap: where it looks (tiles), eased
 
@@ -91,6 +94,7 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 	if _owner_lay != d.layout or _owner.size() != g.width * g.height:
 		_owner_lay = d.layout
 		_owner = _owners(g)
+		_index(g)
 		_sig = ""
 	var keys := known.keys()
 	keys.sort()
@@ -98,40 +102,73 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 	if sig == _sig and _tex:
 		return
 	_sig = sig
+	var t_bake := Dev.tick()
 	if _img == null or _img.get_width() != g.width or _img.get_height() != g.height:
 		_img = Image.create(g.width, g.height, false, Image.FORMAT_RGBA8)
 	_img.fill(Color(0, 0, 0, 0))
 	var here := d.current_room.id if d.current_room else -1
 	var mn := Vector2i(g.width, g.height)
 	var mx := Vector2i(-1, -1)
+	var w := g.width
+	# (the lists made in `_index`: walking every tile of the grid here took 30 ms
+	# in script on every room change, a visible hitch at a door)
+	for i in _walk:
+		var rid := _owner[i]
+		if not known.has(rid):
+			continue
+		var x := i % w
+		var y := i / w
+		var t := g.at(x, y)
+		var lvl: int = known[rid]
+		var c := C_FLOOR if lvl == 2 else C_FLOOR_KNOWN
+		if rid == here:
+			c = C_FLOOR_HERE
+		match t:
+			TileGrid.PILLAR:
+				c = C_BLOCK if lvl == 2 else C_WALL_KNOWN
+			TileGrid.PIT:
+				c = C_PIT
+			TileGrid.GATE:
+				c = C_GATE
+		_img.set_pixel(x, y, c)
+		mn = Vector2i(mini(mn.x, x), mini(mn.y, y))
+		mx = Vector2i(maxi(mx.x, x), maxi(mx.y, y))
+	# walls: the edge around what is shown
+	for k in _edge.size():
+		var best := 0
+		for r2 in _edge_rooms[k]:
+			if known.has(r2):
+				best = maxi(best, int(known[r2]))
+		if best > 0:
+			var i: int = _edge[k]
+			_img.set_pixel(i % w, i / w, C_WALL if best == 2 else C_WALL_KNOWN)
+	if mx.x < 0:
+		mn = Vector2i.ZERO
+		mx = Vector2i(g.width - 1, g.height - 1)
+	_bounds = Rect2i(mn - Vector2i(2, 2), mx - mn + Vector2i(5, 5))
+	if _tex == null or _tex.get_width() != g.width or _tex.get_height() != g.height:
+		_tex = ImageTexture.create_from_image(_img)
+	else:
+		_tex.update(_img)
+	Dev.lap("map", t_bake, 1.0)
+
+
+## Which tiles the plan ever draws, listed once per floor.
+func _index(g: TileGrid) -> void:
+	_walk = PackedInt32Array()
+	_edge = PackedInt32Array()
+	_edge_rooms = []
 	for y in g.height:
 		for x in g.width:
 			var t := g.at(x, y)
-			if t == TileGrid.VOID or t == TileGrid.WALL:
+			if t == TileGrid.VOID:
 				continue
-			var rid := _owner[y * g.width + x]
-			if rid < 0 or not known.has(rid):
+			var i := y * g.width + x
+			if t != TileGrid.WALL:
+				if _owner[i] >= 0:
+					_walk.append(i)
 				continue
-			var lvl: int = known[rid]
-			var c := C_FLOOR if lvl == 2 else C_FLOOR_KNOWN
-			if rid == here:
-				c = C_FLOOR_HERE
-			match t:
-				TileGrid.PILLAR:
-					c = C_BLOCK if lvl == 2 else C_WALL_KNOWN
-				TileGrid.PIT:
-					c = C_PIT
-				TileGrid.GATE:
-					c = C_GATE
-			_img.set_pixel(x, y, c)
-			mn = Vector2i(mini(mn.x, x), mini(mn.y, y))
-			mx = Vector2i(maxi(mx.x, x), maxi(mx.y, y))
-	# walls: the edge around what is shown
-	for y in g.height:
-		for x in g.width:
-			if g.at(x, y) != TileGrid.WALL:
-				continue
-			var best := 0
+			var rooms := PackedInt32Array()
 			for oy in range(-1, 2):
 				for ox in range(-1, 2):
 					var nx := x + ox
@@ -142,18 +179,11 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 					if t2 == TileGrid.VOID or t2 == TileGrid.WALL:
 						continue
 					var r2 := _owner[ny * g.width + nx]
-					if r2 >= 0 and known.has(r2):
-						best = maxi(best, int(known[r2]))
-			if best > 0:
-				_img.set_pixel(x, y, C_WALL if best == 2 else C_WALL_KNOWN)
-	if mx.x < 0:
-		mn = Vector2i.ZERO
-		mx = Vector2i(g.width - 1, g.height - 1)
-	_bounds = Rect2i(mn - Vector2i(2, 2), mx - mn + Vector2i(5, 5))
-	if _tex == null or _tex.get_width() != g.width or _tex.get_height() != g.height:
-		_tex = ImageTexture.create_from_image(_img)
-	else:
-		_tex.update(_img)
+					if r2 >= 0 and not rooms.has(r2):
+						rooms.append(r2)
+			if not rooms.is_empty():
+				_edge.append(i)
+				_edge_rooms.append(rooms)
 
 
 ## Every walkable tile's room: a room's own tiles, and the passages between
