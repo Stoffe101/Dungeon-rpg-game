@@ -89,8 +89,10 @@ func _ready() -> void:
 			var kt := clampi(int(a.substr(4)), 1, ItemDB.MAX_TIER)
 			var krng := RandomNumberGenerator.new()
 			krng.seed = kt
+			var arch_now := Profile.equipped_weapon()
 			for slot in ItemDB.SLOTS:
-				var pool: Array = ItemDB.BASES.keys().filter(func(b): return ItemDB.base(b).slot == slot and not ItemDB.is_unique(b) and not ItemDB.base(b).has("set") and not ItemDB.base(b).get("legendary", false))
+				# (the weapon stays the kind already chosen: a build's weapon is its moveset)
+				var pool: Array = ItemDB.weapon_bases(arch_now) if slot == "weapon" else ItemDB.BASES.keys().filter(func(b): return ItemDB.base(b).slot == slot and not ItemDB.is_unique(b) and not ItemDB.base(b).has("set") and not ItemDB.base(b).get("legendary", false))
 				Profile.equipped()[slot] = ItemDB.make_item(String(pool[krng.randi_range(0, pool.size() - 1)]), "epic", 5, krng, kt)
 		elif a.begins_with("tier="):
 			# dev: open and select a difficulty tier

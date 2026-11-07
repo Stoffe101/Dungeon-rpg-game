@@ -1181,12 +1181,23 @@ func deep() -> void:
 	expect(signs.size() == 2, "two signs of its trail on my floor (%d)" % signs.size())
 	if signs.is_empty():
 		return
+	if role == "host":
+		# the floor's own signs lie in rooms that seal for their fights: one more is set
+		# down beside the guest (the reading, by the guest's own key, is what is tested)
+		await wait(1.0)
+		var g0: Player = _guest_kindled()
+		if g0:
+			var at := Vector2i(dun().foe_spot(g0.pos + Vector2(2.0, 0.0), 0.6))
+			var pd := {"kind": "site", "tile": at, "event": "spoor"}
+			var extra := DeepEvents.site_data(pd, dun().layout.region, dun().run.world)
+			extra["event"] = "spoor"
+			Prop.make(dun(), "site", at, extra)
 	if role == "guest":
-		var near: Prop = signs[0]
-		for s in signs:
-			if s.pos.distance_to(dun().player.pos) < near.pos.distance_to(dun().player.pos):
-				near = s
-		expect(await walk_to(near.pos + Vector2(0.0, 1.0), 0.6, 25.0), "I walked to a sign")
+		await until(func() -> bool:
+			var s := _newest("site")
+			return s != null and String(s.data.get("event", "")) == "spoor" and s.pos.distance_to(dun().player.pos) < 5.0, 20.0, "a sign was set down beside me")
+		var near := _newest("site")
+		expect(await walk_to(near.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the sign")
 		tap("interact")
 		await until(func() -> bool: return not near.interactable(), 15.0, "the sign is read on my screen")
 		Net.i.dev_shot("e2e/deep_sign")
