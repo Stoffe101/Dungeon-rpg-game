@@ -1111,17 +1111,20 @@ func ways() -> void:
 	var mine := dun().player
 	var before: float = mine.kindle
 	if role == "host":
-		var g: Player = _guest_kindled()
-		if g:
+		# every guest's own lantern, at once
+		var thieves: Array = []
+		for g in _guests():
 			g.kindle = g.kindle_max()
-			var e := _spawn_near("snuffer", g)
-			await wait(1.0)
-			e.state = "spent"
-			e.landed_on(g)
-			await wait(2.0)
-			Net.i.dev_shot("e2e/ways_snuffed")
-			e.hp = 0.0
-			e.die(dun().player)
+			thieves.append([_spawn_near("snuffer", g), g])
+		await wait(1.0)
+		for pair in thieves:
+			pair[0].state = "spent"
+			pair[0].landed_on(pair[1])
+		await wait(2.0)
+		Net.i.dev_shot("e2e/ways_snuffed")
+		for pair in thieves:
+			pair[0].hp = 0.0
+			pair[0].die(dun().player)
 	else:
 		await wait(0.2)
 		mine.kindle = mine.kindle_max()
@@ -1130,16 +1133,18 @@ func ways() -> void:
 	# a Gravehook's chain on the guest's own feet
 	if role == "host":
 		await wait(1.0)
-		var g2: Player = _guest_kindled()
-		if g2:
-			var h := _spawn_near("gravehook", g2, 6.0)
-			await wait(1.0)
-			h.aim_dir = (g2.pos - h.pos).normalized()
-			h.state = "thrown"
-			h.landed_on(g2)
-			await wait(2.0)
-			h.hp = 0.0
-			h.die(dun().player)
+		var hooks: Array = []
+		for g2 in _guests():
+			hooks.append([_spawn_near("gravehook", g2, 6.0), g2])
+		await wait(1.0)
+		for pair in hooks:
+			pair[0].aim_dir = (pair[1].pos - pair[0].pos).normalized()
+			pair[0].state = "thrown"
+			pair[0].landed_on(pair[1])
+		await wait(2.0)
+		for pair in hooks:
+			pair[0].hp = 0.0
+			pair[0].die(dun().player)
 	else:
 		var from: Vector2 = mine.pos
 		var moved := 0.0
@@ -1165,6 +1170,10 @@ func _newest(kind: String) -> Prop:
 		if is_instance_valid(p) and p.kind == kind and (best == null or p.net_idx > best.net_idx):
 			best = p
 	return best
+
+
+func _guests() -> Array:
+	return dun().players.filter(func(pl): return pl != dun().player)
 
 
 func _guest_kindled() -> Player:

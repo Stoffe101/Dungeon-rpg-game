@@ -139,13 +139,15 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #9 | `feature/expedition-evolution` | 11-05 | One gear path, in-place upgrades, readable walls, Apothecary, Forked Descent | **Owner's third report** |
 | #10 | `feature/living-undervault` | 11-05 | Redrawn stone, Chronicle, rival Grudges, Deep Events, Hollow identity, stockpile fix | "Great Underdeep" brief |
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
+| (draft) | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
 
 ### Content inventory (checked against code at handoff)
 
 - **Regions:** Hollow Ossuary, Rootmire, Sunken Throne (capstone), three depths each,
   and the endless Hollow Below.
-- **Foes:** 25 regular foes, 3 guardians (Gloam Warden, Hollow Bloom, Ashen King), the Ash
-  Seal objective, Echoes of guardians in the Hollow.
+- **Foes:** 27 regular foes (Snuffer and Gravehook added in the Great Evolution pass), 3 guardians
+  (Gloam Warden, Hollow Bloom, Ashen King) each with a rarer form, the Ash Seal objective, Echoes of
+  guardians in the Hollow.
 - **Weapons:** 7 archetypes (seven scripts in `src/combat/weapons/`), 14 forms, forge to +10.
 - **Spells:** 14, in three slots (the third opens at level 5), customised by Ember Runes.
 - **Items:** 35 uniques, tier sets, blueprints, transmog looks, visible armour.
@@ -334,7 +336,8 @@ Use this rather than assuming. "None reported" means the owner has not said.
 | Everyday fixes, walls, Apothecary, Forked Descent (PR #9) | **None reported** | No | Yes | Yes | Yes |
 | Chronicle, altars, rival Grudges, Deep Events, Hollow identity (PR #10) | **None reported** | No | Altars and pings only | Yes | Most; Vigil lamps never viewed |
 | Foes, guardians, new foes (PR #11) | **None reported** | No | Yes (`guardian`, `bestiary`) | Yes | Yes |
-| A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Bots only | Partly |
+| Great Evolution pass (keys, devices, rule rooms, new foes, forms, evolutions, notices, HUD) | **None** | No | `ways` (2 and 4 players, netsim), regressions | Yes | Most |
+| A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Solo bot, real hits, all six forms (god mode) | Partly |
 | Steam: one account, private lobby, hosted session | No | No | Yes, on one account | | |
 | **Steam: a second player joining** | **No** | **No** | **Impossible on one account** | | |
 | Internet route | **Not recorded.** The owner never said how the two PCs connected. | | Simulated links only | | |
@@ -342,7 +345,7 @@ Use this rather than assuming. "None reported" means the owner has not said.
 | Physical gamepad | **Never tested** | | Synthetic events only | | |
 | Ashen King beaten | **No human report**; a god-mode bot only | | | | |
 | Tiers V to VIII | **Never played by anyone** | | | Formula and bots | |
-| Save migration | No | | | v3 to v15 on real files plus a copy of the owner's save | |
+| Save migration | No | | | v5 to v15 to v16 on real files plus a copy of the owner's save (v3-v4 gain the editor stockpile, as before) | |
 | Release export | Debug zips were played; **none since PR #8** | | | Starts in a scratch `APPDATA` | |
 | Linux | **Never run with a window** | | | **219 tests pass on CI** | |
 
@@ -366,9 +369,9 @@ not in the repository.
 
 - **Frame stall on ultrawide: resolved.** It was the test bot's debug dump through a terminal
   pipe, not the game (see STATUS). Never measure frame times with output piped.
-- **Keeper click:** one guest in one of several 4-player journeys timed out clicking the
-  Keeper in a crowd. Five clean runs since. Log lost. May be the test's 3 s window, may be a
-  real walk-then-talk failure.
+- **Keeper click: fixed in the Great Evolution pass.** A click out of reach silently became an
+  attack (the old test's comment claimed a walk-then-talk that did not exist). It now walks over
+  and talks; `tests/test_shift.gd` covers the walk and keys taking over.
 
 **Balance is unproven everywhere.** Numbers are first guesses or bot-derived: new foes,
 routes, seals, flame drain, tinctures, Omens, Echoes, Tier II Throne (bots wipe with or
@@ -394,7 +397,7 @@ Whether that feels fair is for play.
 
 - `docs/STATUS.md` is an append-only log and contains old statements, for example
   about pointer steering in the "Playtest foundations" entry. Trust the newest entry.
-- `README.md` is out of date (it says five weapons).
+- `README.md` was brought up to date in the Great Evolution pass; keep its feature list current.
 - `src/dev/` carries many dev switches. All go through `Dev.args()`; `release_check.py`
   verifies gating.
 - `tests/` have no shared floor helper: `_dungeon`, `_floor`, `_arena` are repeated.

@@ -428,9 +428,13 @@ func _process(_delta: float) -> void:
 	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 22)
 	prompt_lbl.size.x = 200
 	relic_row.position = Vector2(8 + inset, vp.y - 26)
+	var toast_y := vp.y * 0.45
 	if controls_card.visible:
 		controls_card.reset_size()
 		controls_card.position = Vector2(8 + inset, vp.y - 40 - controls_card.size.y)
+		# notices sit above the controls card, never over it (at a large interface size they met)
+		toast_y = minf(toast_y, controls_card.position.y - Game.ui.toast_box.size.y - 6.0)
+	Game.ui.toast_box.position.y = maxf(40.0, toast_y)
 	level_lbl.position = Vector2(8 + inset, vp.y - 12)
 	boss_name.position = Vector2(vp.x * 0.5 - 150, 14)
 	boss_name.size.x = 300
@@ -671,8 +675,8 @@ func _draw_dangers(st: Stage) -> void:
 		var a := to.angle()
 		var pulse := 0.65 + 0.35 * sin(Time.get_ticks_msec() * 0.018)
 		var c := Color(col.r, col.g, col.b, pulse)
-		var tip := edge + to * 5.0
-		var pts := PackedVector2Array([tip, edge + Vector2.from_angle(a + 2.4) * 6.0, edge, edge + Vector2.from_angle(a - 2.4) * 6.0])
+		var tip := edge + to * 7.0
+		var pts := PackedVector2Array([tip, edge + Vector2.from_angle(a + 2.4) * 8.0, edge, edge + Vector2.from_angle(a - 2.4) * 8.0])
 		draw_colored_polygon(pts, c)
 		pts.append(pts[0])
 		draw_polyline(pts, Color(0.05, 0.02, 0.04, 0.9), 1.0)

@@ -22,7 +22,8 @@ func behave(dt: float) -> void:
 		"walk":
 			var d := dist_to_player()
 			var t := target()
-			if d > 5.5:
+			# it keeps its chain's distance, and closes in while the chain is coiled
+			if d > 5.5 or (cd > 0.0 and d > 1.9):
 				chase(speed, dt)
 			else:
 				vel = Vector2.ZERO

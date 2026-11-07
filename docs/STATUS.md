@@ -1,9 +1,33 @@
 # Status
 
-Last updated: 2026-11-05.
+Last updated: 2026-11-07.
 
 ## Implemented
 
+- **The Great Evolution pass (branch feature/great-evolution)** - details in DESIGN,
+  "The Great Evolution pass"; what was verified how is under Validation below:
+  - *Foundations*: the ultrawide "stall" was the bot's own debug print through a pipe; the
+    hitches it hid are gone (StallProbe, `stallog`). The Keeper: a click out of reach now walks
+    over and talks instead of swinging.
+  - *Floors with a plan*: plain, direct, wing (a barred vault and its key) and ring (a lever and a
+    short way back). Room devices for every build: struts, kindle jars, rime vents. An altar's
+    answer marks its region's stone; a cold lantern waits where you fell.
+  - *Rare finds*: rule rooms (One Pulse, the Unlit Room, the Hungry Floor), Maren the Chartwright
+    (rescued once; the chart table), a travelling grindstone.
+  - *Foes*: the Snuffer (steals the lantern's flame), the Gravehook (a chain that drags), Guards
+    that step in front of the room's shooters.
+  - *Guardians*: a rarer form each, after the first meeting: the Lightless Warden, the Rootbound
+    Bloom, the Eclipsed King. The Eclipse now takes every Kindled outside the light.
+  - *Progression*: evolving legendaries (Resonance, Awakening, one path of two); the noticeboard
+    (three up, two carried, nothing expires; old hands' notices after the first guardian); the
+    Hollow Below's moods by depth band.
+  - *Rivals*: Grudges marked by what drove them off, a last stand from level 4, no running at
+    their greatest, a nemesis finished for good.
+  - *UI*: HUD corners come in on ultrawide (setting), status in words, off-screen danger chevrons,
+    strong warnings, how-it-ended and the whole-run analysis, Satchel filters and order, upgrade
+    hint, summary that scrolls.
+  - Save v16, protocol 15. `note_request` reaches guests; its toasts no longer reach the wrong
+    machine (older bug).
 - **Foes and guardians pass (branch feature/enemy-presentation)** - details in
   DESIGN, "Foes and guardians pass":
   - *A roster that reads*: a regional rim on every foe, some of its own colour in
@@ -379,6 +403,7 @@ Last updated: 2026-11-05.
 
 | Kind | What |
 |---|---|
+| Great Evolution pass (2026-11-07) | **Unit tests**: 285 pass, 0 failures, 0 script errors (tests/test_shift.gd: 52, test_foes.gd +14). **Separate processes on one PC (localhost ENet, real key presses)**: `ways` 2 players (direct and typical), 4 players (typical, moderate, stress): every check passes; regressions: 4-player journey (host 73, guests 64-65 checks), 2-player journey under typical, guardian x3 moderate, sites x4 typical, loot, stairs, bestiary, partystart: 0 failures, 0 script errors. **Bot, real hits**: every guardian and every form felled from its antechamber (god mode, kit 6, sharp bot): Warden 49 s, Lightless Warden 74 s, Bloom 71 s, Rootbound Bloom 64 s, Ashen King 102 s, Eclipsed King 117 s. **Performance** (RTX 5070, autopilot 60 s, vsync off, output to a file): 3440x1440 p50 3.9-4.2 ms, p95 10.6-10.7, p99 11.2-13.0, worst 31-33 ms (floor load), 1-2 frames over 20 ms; 1080p p50 4.0-4.1, p95 10.9-11.0, worst 31-32 ms. The branch's start measured the same way (1080p Throne): p50 4.2-4.5, p95 9.4-10.1, p99 11.6-12.0, worst 37 ms; floors differ by seed now, so this is close, not identical. **Bots (Tier II, 2 seeds, noisy)**: hurt per room solo 3-26% by region and build; Throne melee pair wiped in 1 of 2 seeds; novice to sharp bot cut melee hurt from 17% to 5%. **Saves**: copies of v5 to v15 and of the owner's v13 save migrate to v16 with values kept; the real save untouched. **Release**: release check passed; release export starts with a scratch APPDATA; the debug export upgraded a copy of the owner's save (v13 to v16, Embers, level, skills kept, .bak written) and a fresh profile had no stockpile. **Viewed**: floor plans, the map, survivor, rule rooms, new foes, every guardian form, the sanctuary's board and table, noticeboard, recap, Satchel, HUD at 1080p x2/x3, 3440x1440 x2/x3 and 1280x720, off-screen chevrons, both machines' captures of `ways`. **Not done**: no human play, no Steam second account, no listening (three new sounds measured only). |
 | Foes and guardians pass (2026-11-05) | **Unit tests**: 219 pass, 0 failures (18 new in tests/test_foes.gd). **Separate processes on one PC**: `guardian` (arrival, turn, fall, spoils on every machine) 2 local, 3 moderate and 4 typical: the hoard lands 2.8-3 s after the fall everywhere. Also 4, 3 and 2 player journeys (4 players twice more with the final code, clean), bestiary, `sites`, loot, stairs, partystart. Two guardian failures on the first run were the scenario's own timing on lagged guests, rewritten to measure on each machine's clock. **Solo**: UI smoke no failures, `scenario=talk`, autopilot in all three regions without script errors. **Bots**: with and without the new foes (DESIGN). **Viewed**: rosters in three regions before and after, wind-ups, each guardian's fall in full, the Warden's turn, a guest's view of the fall, the Tollkeeper's ring with and without Reduce flashes, the Herald's mark, a Lurecap unfolding. **Performance** (solo bot): 1080p p50 3.8 ms, p99 4.5-5.5; 3440x1440 p50 3.3, p99 4.1-4.7, and the unexplained 227 ms frame again. **Not done**: two PCs, real Steam, human play. |
 | Living Undervault pass (2026-11-05) | **Unit tests**: 201 pass, 0 failures (20 new in tests/test_living.gd, which plays the content on real floors). **Separate processes on one PC**: 4-player journey 3 runs (two clean, 73+65+64+64; one with a guest's click on the Keeper timing out, 3 checks, not reproduced, its log lost), 3 players 64+59+58, 2 players with typical latency 55+53, stairs 2 typical 7+9 and 3 moderate 9+11+11, loot typical 12+11, partystart 4+4, `sites` (altar vote, pings) 4 players typical 6+8+8+8 and 2 local 6+8. **Solo**: UI smoke no failures, `scenario=talk` 13, autopilot no script errors. **Bots**: the ways compared (DESIGN). **Saves**: real files of v3-v14 and a copy of the real v13 save all reach v15 without errors, values kept (v3-v4 gain the editor's stockpile, never in an export); the real save was not written. **Performance** (solo bot, vsync off, RTX 5070): 1080p p50 3.2-3.3 ms, p99 4.1-5.2; 3440x1440 p50 3.2-3.4, p99 4.0-5.3. **Release**: release_check passes, both exports built and started in a scratch APPDATA, no script errors; a debug export's fresh profile has no stockpile. **Viewed**: every way's room, Last Stand, Procession, altar, the fork, Fracture, Echo, the Chronicle, the tree, sanctuary, regions and third depths, 3440x1440 at UI scale 3, 1080p at UI scale 2. **Audio**: eight new generated sounds measured with tools/audio/analyze.py, **not listened to**. **Not done**: two PCs, real Steam, human play. |
 | Expedition evolution pass (2026-11-05) | **Unit tests**: 176 pass, 0 failures (new in tests/test_evolution.gd: a weapon of another kind and another form in hand at once, a tempered blade taken up again, armour on and off, a talent point felt without a reload, no steering left, the Hearthtree key, the silhouette's instance slots, 90 floors walked - every door, room floor and usable prop reachable; it found a sarcophagus sealing a two-tile alcove and two stumps trapping a tile, both fixed in generation -, route floors walkable, the v13->v14 migration, reagents teaching and distilling, each tincture's effect, the fork's offer and each way's shape); a test file that fails to compile now fails the run instead of hanging it. **UI smoke**: 66 checks, 0 failures (the Apothecary raised and improved twice with the Kindled unmoved and the camp not reloaded, a hammer taken up in the sanctuary in hand at once, the Smithy scrolled 60 pieces deep keeping its place through a pick and a redraw, a tincture steeped, K opening and closing the Hearthtree). **Separate processes, real input, one PC (protocol 10)**: 4-player journey 73+65+64+64 and 2-player journey 55+53 (also under `netsim=typical`) - every machine voted a named way and arrived on it, floor for floor (Lost Vault 15 rooms, Trial of Ash 16); `scenario=loot` under `netsim=typical` 12+11; `scenario=partystart` 4+4; stairs under `netsim=typical` 7+9 - all passed, no script errors. **Solo autopilot**: a Trial of Ash floor (seals broken, the warded hall cleared) and a Lost Vault room (cleared with the flame unfed) without script errors. **Viewed in captures**: the orange artifact reproduced and gone (`docs/screenshots/evolution_kindled_artifact_before_after.png`), the silhouette behind a pillar before/after, `walllab` before/after in the Ossuary and after in the Rootmire and the Throne, the sanctuary under the new shading, the Apothecary at three levels in camp and its screen, the Smithy, the fork (braziers, names, hint), the Trial of Ash hall with its seals and HUD line, the Lost Vault's lantern, a guest's vote card naming the way. **Frame times** (`perflog`, V-Sync off, bot playing): 1920x1080 p50 3.7 ms, p95 4.3, p99 5.3; 3440x1440 over 60 s p50 5.1-5.3 ms, p95 5.8-6.3, p99 6.8-7.8; single worst frames 32-84 ms (loads and encounter starts). **Release check** passed. **Not done**: no human played; no two PCs or Steam; nothing listened to (no new sounds). |
@@ -404,6 +429,7 @@ Last updated: 2026-11-05.
 
 ## Known issues / limitations
 
+- Great Evolution pass: nobody has played it. Every number is a first guess or a bot's: plan weights, key and lever placement, device damage (a column takes 55% of a foe's health), rule room odds (one floor in four), Snuffer and Gravehook numbers, guardian form odds (30-60%) and health, Resonance thresholds (150 / 500), notice pay. Guardian hunts across floors were not built (forms cover variants, phases and rare versions). The four-player `ways` run first failed for two guests because the scenario only aimed at the first guest (a test fault, fixed and passed). The bot's skill levels are a model, not people: ranged bots stay noisy. p95 frame time is about 1 ms higher than at the branch's start on a different floor of the same seed; not explained further. Audio not listened to.
 - Foes and guardians pass: nobody has played it. The new foes' numbers are first
   guesses from two seeds of bots, who never dodge. To judge in play: is the rim too
   loud; is the Tollkeeper's ring too bright; does the Lurecap feel fair; is the
@@ -539,6 +565,10 @@ Last updated: 2026-11-05.
 - Combat feel has been tuned from captured freeze frames and code review only - it needs hands on a controller.
 
 ## Next priorities
+
+0. The Great Evolution pass with people: docs/TESTING.md "Human playtest: the great evolution pass" - the Keeper, keys and levers in a party, the room devices, rule rooms, the Snuffer and Gravehook in a crowd, guardian forms, the noticeboard, evolving items, a death's recap, the HUD on the ultrawide.
+1. Tune from that play only: plan weights, form odds, Resonance pace, notice pay.
+2. Guardian hunts across floors, if forms prove too little.
 
 0. Both passes with people: docs/TESTING.md "Human playtest: the foes and
    guardians pass" and "Human playtest: the living Undervault pass": the Forked Descent's forms, the altars, Grudges, the third

@@ -33,6 +33,7 @@ const C_WALL_KNOWN := Color(0.28, 0.25, 0.31)
 const C_BLOCK := Color(0.47, 0.40, 0.34)
 const C_PIT := Color(0.03, 0.03, 0.05)
 const C_GATE := Color(0.95, 0.38, 0.26)
+const LOCK_COLS := {"key": Color(1.0, 0.82, 0.4), "lever": Color(0.62, 0.68, 0.78), "pale": Color(0.72, 0.62, 1.0)}
 const C_SELF := Color(1.0, 0.78, 0.38)
 
 
@@ -100,7 +101,7 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 		_sig = ""
 	var keys := known.keys()
 	keys.sort()
-	var sig := "%s|%s|%d|%d" % [str(keys), str(known.values()), d.current_room.id if d.current_room else -1, d.active_room.id if d.active_room else -1]
+	var sig := "%s|%s|%d|%d|%d" % [str(keys), str(known.values()), d.current_room.id if d.current_room else -1, d.active_room.id if d.active_room else -1, d.layout.locks.filter(func(l): return l.open).size()]
 	if sig == _sig and _tex:
 		return
 	_sig = sig
@@ -112,6 +113,12 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 	var mn := Vector2i(g.width, g.height)
 	var mx := Vector2i(-1, -1)
 	var w := g.width
+	# barred ways in the colour of what opens them, never the red of a room's seal
+	var barred := {}
+	for lk in d.layout.locks:
+		if not lk.open:
+			for bt: Vector2i in lk.tiles:
+				barred[bt.y * w + bt.x] = LOCK_COLS.get(String(lk.kind), C_GATE)
 	# (the lists made in `_index`: walking every tile of the grid here took 30 ms
 	# in script on every room change, a visible hitch at a door)
 	for i in _walk:
@@ -131,7 +138,7 @@ func _bake(d: Dungeon, known: Dictionary) -> void:
 			TileGrid.PIT:
 				c = C_PIT
 			TileGrid.GATE:
-				c = C_GATE
+				c = barred.get(i, C_GATE)
 		_img.set_pixel(x, y, c)
 		mn = Vector2i(mini(mn.x, x), mini(mn.y, y))
 		mx = Vector2i(maxi(mx.x, x), maxi(mx.y, y))
