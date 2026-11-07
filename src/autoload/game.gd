@@ -165,6 +165,9 @@ func _enter_depth(depth: int) -> void:
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	DungeonGen.force_landmark = "landmark" in Dev.args()
+	for a in Dev.args():
+		if a.begins_with("plan="):
+			DungeonGen.force_plan = a.substr(5)
 	var world := run.world
 	if run.delve and Delve.fractured(depth):
 		world = run.world.duplicate()
@@ -514,6 +517,12 @@ func end_run(outcome: String, killer_id := "") -> void:
 			if killer_id != "" and int(s.embers_lost) > 0:
 				var g := Profile.record_grudge(killer_id, int(s.embers_lost), run.depth, run.rng, run.weapon_id, run.region)
 				s["grudge"] = g
+			# the floor keeps the lantern you dropped (the world is the host's)
+			if not run.delve and not Net.is_client():
+				var by: String = String(s.get("grudge", {}).get("name", "")) if s.get("grudge", {}) is Dictionary else ""
+				if by == "" and killer_id != "":
+					by = String(EnemyDB.get_def(killer_id).get("name", ""))
+				Chronicle.record_fall(run.region, run.depth, by if by != "" else "the dark")
 		"extracted":
 			Profile.stat_add("extractions")
 		"victory":

@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"key": {
+			"fps": 2.0,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"open": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"pale": {
+			"fps": 2.0,
+			"frames": 2,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		22,
+		26
+	],
+	"origin": [
+		11,
+		25
+	]
+}

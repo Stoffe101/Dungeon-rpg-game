@@ -489,12 +489,18 @@ func world_dump(for_peer := 0) -> Array:
 	for r in stage.layout.rooms:
 		if r.visited:
 			out.append(["room", r.id])
+	for i in stage.layout.locks.size():
+		if stage.layout.locks[i].open:
+			out.append(["unlock", i])
+	if stage.has_key:
+		out.append(["key", true])
 	for rid in stage.gate_nodes:
-		var nodes: Array = stage.gate_nodes[rid]
-		if not nodes.is_empty():
-			var t: Vector2i = nodes[0].get_meta("tile")
-			if stage.grid.at(t.x, t.y) == TileGrid.GATE:
-				out.append(["gate", rid, true])
+		for g in stage.gate_nodes[rid]:
+			if not stage.behind_bars(g):
+				var t: Vector2i = g.get_meta("tile")
+				if stage.grid.at(t.x, t.y) == TileGrid.GATE:
+					out.append(["gate", rid, true])
+				break
 	for a in stage.actors:
 		if is_instance_valid(a) and a.alive and a.net_id != 0 and not (a is Player):
 			out.append(["actor+", a.net_id, _describe(a)])
@@ -826,6 +832,10 @@ func apply_events(evs: Array) -> void:
 				_apply_prop(int(ev[1]), ev[2])
 			"gate":
 				stage._set_gates(stage.layout.room(int(ev[1])), bool(ev[2]))
+			"unlock":
+				stage.open_lock(int(ev[1]))
+			"key":
+				stage.carry_key(bool(ev[1]))
 			"room":
 				stage.visit_room(stage.layout.room(int(ev[1])))
 			"tele":

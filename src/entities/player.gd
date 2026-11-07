@@ -450,6 +450,8 @@ func _process(delta: float) -> void:
 			_release_pending = true
 		return
 	move_in = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if _approach:
+		_tend_approach(delta)
 	var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
 	# the mouse wins as soon as it is used (Settings sees every input event;
 	# this node lives in the world SubViewport, which receives none)
@@ -490,10 +492,15 @@ func _process(delta: float) -> void:
 		Party.ping(stage, self, aim_point)
 	# in the sanctuary a click on someone (or something) within reach talks to them
 	var clicked: Prop = null
+	var walking_over := false
 	if Input.is_action_just_pressed("attack") and not _pad_aim and stage is Hub:
 		clicked = stage.interactable_at(aim_point, pos)
+		if clicked == null:
+			walking_over = approach(stage.interactable_at(aim_point, pos, APPROACH_REACH))
 	if clicked:
 		_use(clicked)
+	elif walking_over:
+		pass
 	elif Input.is_action_just_pressed("attack"):
 		press("attack")
 		_attack_down = true
@@ -545,6 +552,41 @@ func press(k: String) -> void:
 
 
 ## Uses the nearest interactable prop (chest, merchant, stairs...). Returns it, or null.
+## A click on someone out of reach: the Kindled walks over and talks. (It used to
+## swing a sword at them instead, with no word of why: in a crowd round the Keeper,
+## being eased a step aside was enough to make a click do nothing it seemed to mean.)
+const APPROACH_REACH := 14.0
+var _approach: Prop = null
+var _approach_t := 0.0
+
+
+func approach(p: Prop) -> bool:
+	if p == null:
+		return false
+	_approach = p
+	_approach_t = 5.0
+	return true
+
+
+## Keys take over at once; someone unreachable is given up on out loud.
+func _tend_approach(delta: float) -> void:
+	_approach_t -= delta
+	if move_in.length() > 0.1 or not is_instance_valid(_approach) or not _approach.interactable():
+		_approach = null
+		return
+	if stage.interactable_at(_approach.pos, pos) == _approach:
+		var p := _approach
+		_approach = null
+		move_in = Vector2.ZERO
+		_use(p)
+		return
+	if _approach_t <= 0.0:
+		_approach = null
+		Events.toast.emit("You cannot reach them from here.", Color(0.8, 0.75, 0.7))
+		return
+	move_in = (stage.path_step(pos, _approach.pos) - pos).normalized()
+
+
 func try_interact() -> Prop:
 	if stage == null or not alive or downed:
 		return null

@@ -68,6 +68,8 @@ static func known_rooms(d: Dungeon) -> Dictionary:
 					known[dd.to] = 1
 	if lay.boss_depth and not known.has(lay.exit_id):
 		known[lay.exit_id] = 1
+	if d.has_key and lay.vault_room >= 0 and not known.has(lay.vault_room):
+		known[lay.vault_room] = 1     # the key shows where it fits
 	if d.remembered():
 		for r in lay.rooms:
 			if not known.has(r.id):

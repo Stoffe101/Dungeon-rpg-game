@@ -238,6 +238,8 @@ func _explore(_delta: float) -> void:
 	var d := st as Dungeon
 	if best_p == Vector2.INF and d:
 		for p in st.props:
+			if is_instance_valid(p) and p.kind == "lock_plate" and not (d.has_key and p.data.get("anim", "") == "key"):
+				continue     # (a person reads what it asks; the bot only takes what is free)
 			if is_instance_valid(p) and p.room_id == (d.current_room.id if d.current_room else -2) and p.interactable() and not p.data.get("sealed", false) and p.kind in ["relic_altar", "chest", "spring", "ember_pile", "fountain", "ember_well", "trial_altar", "echo", "sconce", "lost_camp", "landmark"]:
 				best_p = p.pos
 				if p.pos.distance_to(pl.pos) < p.interact_radius + 0.6:
@@ -290,7 +292,7 @@ func _next_room_point(d: Dungeon) -> Vector2:
 				c /= dd.tiles.size()
 				return c + Vector2(dd.dir) * 5.5
 		for door in r.doors:
-			if door.secret:
+			if door.secret or (int(door.get("lock", -1)) >= 0 and not d.layout.locks[int(door.lock)].open):
 				continue
 			var o: Room = d.layout.room(door.to)
 			if o.type == Room.Type.BOSS and not done:

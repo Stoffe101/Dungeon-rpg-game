@@ -101,7 +101,26 @@ static func snapshot() -> Dictionary:
 	for g in Profile.active_grudges():
 		if int(g.get("level", 1)) >= 2:
 			lair = true
-	return {"sites": (_rec().sites as Dictionary).duplicate(), "lair": lair}
+	var felled := {}
+	for region in EnemyDB.REGIONS:
+		felled[region] = int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[region].boss, 0))
+	return {"sites": (_rec().sites as Dictionary).duplicate(), "lair": lair, "felled": felled,
+		"falls": (_rec().get("falls", {}) as Dictionary).duplicate(true)}
+
+
+## Where a Kindled last fell in a region: their lantern lies there, cold, until
+## somebody relights it.
+static func record_fall(region: String, depth: int, by: String) -> void:
+	var r := _rec()
+	if not r.has("falls"):
+		r["falls"] = {}
+	r.falls[region] = {"depth": depth, "by": by, "at": int(Time.get_unix_time_from_system())}
+
+
+static func clear_fall(region: String) -> void:
+	var r := _rec()
+	if r.has("falls"):
+		(r.falls as Dictionary).erase(region)
 
 
 ## Cost of letting an altar rest (the Shrine of Memory): a reversal is always

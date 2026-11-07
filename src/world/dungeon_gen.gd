@@ -218,7 +218,32 @@ const FORK_CHANCE := 0.7
 static var _route := ""          # (set by generate while a floor is built)
 static var _offer: Array = []
 static var _altar_due := false
+static var _plan := "plain"
 static var _world_now: Dictionary = {}
+
+
+## A floor's plan: how it asks to be walked. The seed chooses, so a party shares it,
+## and some floors are simply short: not every floor is a place to get lost in.
+##   plain: a main way with its side rooms.
+##   direct: short and to the point. A breather, or a rare way's one idea.
+##   wing: a vault near the start behind barred doors, its key far from the main way.
+##   ring: a barred way back from late in the floor to its start, opened from the far side.
+const PLANS := {"plain": 34, "direct": 20, "wing": 30, "ring": 16}
+
+
+static func plan_of(seed_v: int, depth: int, boss_depth: bool, route := "") -> String:
+	if boss_depth:
+		return "plain"
+	if ROUTES.get(route, {}).get("rare", false):
+		return "direct"
+	var k := posmod(hash([seed_v, depth, "plan"]), 100)
+	if route == "quiet":
+		return "direct" if k < 50 else "plain"     # (it promises no elite: no key room here)
+	for p in PLANS:
+		k -= int(PLANS[p])
+		if k < 0:
+			return p
+	return "plain"
 
 
 ## The ways down this floor's stairs offer ([] = one plain stairway). By the
@@ -255,6 +280,11 @@ class Layout:
 	var variant := ""             # which form its own room took (seals, champion, flame...)
 	var offer: Array = []         # the ways down its stairs offer
 	var world: Dictionary = {}    # the Chronicle as the expedition reads it
+	var plan := "plain"           # how the floor asks to be walked (PLANS)
+	var locks: Array = []         # [{kind, a, b, tiles, dir, open}]: barred ways
+	var key_room := -1            # where the vault's key lies
+	var vault_room := -1          # the room behind its doors
+	var lantern_room := -1        # a Kindled fell here: their lantern waits
 	var altar_due := false        # the region's Hollow Altar waits on this floor
 	var grid: TileGrid
 	var rooms: Array[Room] = []
@@ -276,6 +306,7 @@ class Layout:
 static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, route := "", world := {}) -> Layout:
 	_route = route if ROUTES.has(route) else ""
 	_world_now = world
+	_plan = plan_of(seed_v, depth, boss_depth, _route) if force_plan == "" or boss_depth else force_plan
 	# a guardian's floor has one way on; most others fork
 	_offer = [] if boss_depth else route_offer(seed_v, depth, world, region)
 	# the region's Hollow Altar waits on one floor of an expedition - always
@@ -285,6 +316,7 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 		and floor_n == posmod(hash([seed_v, region, "altar"]), 2) + 1 \
 		and (Chronicle.site_of(world, region) == "" or posmod(hash([seed_v, region, "again"]), 3) == 0)
 	for attempt in 60:
+		_attempt = attempt
 		var rng := RandomNumberGenerator.new()
 		# (the plain way keeps every seed's floor as it always was)
 		rng.seed = hash([seed_v, depth, attempt]) if _route == "" else hash([seed_v, depth, attempt, _route])
@@ -310,6 +342,9 @@ const LANDMARKS := {
 }
 ## Dev (`landmark`): every floor has one.
 static var force_landmark := false
+## Dev (`plan=wing`): every floor takes this plan.
+static var force_plan := ""
+static var _attempt := 0
 
 
 static func landmark_def(id: String) -> Dictionary:
@@ -378,6 +413,8 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 	# 1. main path
 	var start := Vector2i(rng.randi_range(2, 4), GH - 1)
 	var path_len := 6 + mini(depth, 3) + int(rt.get("path", 0))
+	if _plan == "direct":
+		path_len = maxi(4, path_len - 2)
 	var path := _walk(rng, start, path_len, owner)
 	if path.size() < path_len:
 		return null
@@ -447,6 +484,8 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 		specials.append(Room.Type.REST)      # the Vigil's keepers left a spring
 	_shuffle(specials, rng)
 	var branch_count := 3 + (1 if rng.randf() < 0.5 else 0) + int(rt.get("branches", 0))
+	if _plan == "direct":
+		branch_count = 2
 	if _route == "vault":
 		# its treasure is down a side branch: make sure one is taken
 		specials.erase(Room.Type.TREASURE)
@@ -491,6 +530,21 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 				types[i] = Room.Type.ELITE
 				break
 
+	# the floor's plan
+	lay.plan = _plan
+	var planned := true
+	if _plan == "wing":
+		planned = _wing(lay, rng, path, owner, room_cells, types, links)
+	elif _plan == "ring":
+		planned = _way_back(rng, path, owner, links, "lever")
+	if not planned:
+		# a walk that cannot take this plan: walk again, and only then give it up
+		if _attempt < 30:
+			return null
+		lay.plan = "plain"
+	if site == "pact":
+		_way_back(rng, path, owner, links, "pale")     # the pact's door: paid in blood
+
 	# 4. merge some combat rooms into bigger halls
 	for i in room_cells.size():
 		if types[i] != Room.Type.COMBAT or room_cells[i].size() != 1 or rng.randf() > 0.38:
@@ -521,6 +575,8 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 				continue
 			if types[a] == Room.Type.START or types[b] == Room.Type.START:
 				continue
+			if a == lay.vault_room or b == lay.vault_room:
+				continue     # a barred vault has one way in
 			if rng.randf() < 0.22:
 				_link(links, a, b, c, n)
 
@@ -534,7 +590,7 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 					continue
 				var nb: Array = []
 				for d in DIRS:
-					if owner.has(c + d) and types[owner[c + d]] != Room.Type.BOSS:
+					if owner.has(c + d) and types[owner[c + d]] != Room.Type.BOSS and owner[c + d] != lay.vault_room:
 						nb.append(c + d)
 				if nb.size() >= 1:
 					cands.append([c, nb])
@@ -573,7 +629,7 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 	# doors (corridor gaps) first, so stamps know which tiles must stay open
 	for k in links:
 		var L: Array = links[k]
-		_carve_door(lay, L[0], L[1], L[2], L[3], L[4])
+		_carve_door(lay, L[0], L[1], L[2], L[3], L[4], L[5])
 	for r in lay.rooms:
 		_shape_room(lay, r, rng)
 	grid.finalize_walls()
@@ -583,6 +639,10 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 			if d.secret:
 				for t: Vector2i in d.gap:
 					grid.put(t.x, t.y, TileGrid.WALL)
+	# barred ways start shut
+	for lk in lay.locks:
+		for t: Vector2i in lk.tiles:
+			grid.put(t.x, t.y, TileGrid.GATE)
 	lay.start_id = 0
 
 	# 8. contents: rewards, encounters, props
@@ -604,8 +664,79 @@ static func _key(a: int, b: int) -> String:
 	return "%d:%d" % [mini(a, b), maxi(a, b)]
 
 
-static func _link(links: Dictionary, a: int, b: int, ca: Vector2i, cb: Vector2i, secret := false) -> void:
-	links[_key(a, b)] = [a, b, ca, cb, secret]
+static func _link(links: Dictionary, a: int, b: int, ca: Vector2i, cb: Vector2i, secret := false, lock := "") -> void:
+	links[_key(a, b)] = [a, b, ca, cb, secret, lock]
+
+
+## A vault near the start, and its key at the end of a guarded passage from late in
+## the floor: you see the door early, and decide later if the walk back is worth it.
+static func _wing(lay: Layout, rng: RandomNumberGenerator, path: Array, owner: Dictionary, room_cells: Array, types: Array, links: Dictionary) -> bool:
+	var from := -1
+	var vault := Vector2i.ZERO
+	for i in range(1, mini(4, path.size() - 1)):
+		var opts: Array = []
+		for d in DIRS:
+			var c: Vector2i = path[i] + d
+			if c.x >= 0 and c.y >= 0 and c.x < GW and c.y < GH and not owner.has(c):
+				opts.append(c)
+		if not opts.is_empty():
+			from = i
+			vault = opts[rng.randi_range(0, opts.size() - 1)]
+			break
+	if from < 0:
+		return false
+	var late := -1
+	var br: Array = []
+	var taken := owner.duplicate()
+	taken[vault] = -1
+	for i in range(path.size() - 2, from, -1):
+		var w := _walk(rng, path[i], 3, taken)
+		if w.size() >= 3:
+			late = i
+			br = w
+			break
+	if late < 0:
+		return false
+	var vi := room_cells.size()
+	owner[vault] = vi
+	room_cells.append([vault])
+	types.append(Room.Type.TREASURE)
+	lay.vault_room = vi
+	_link(links, from, vi, path[from], vault, false, "key")
+	var prev_i := late
+	var prev_c: Vector2i = path[late]
+	for k in range(1, br.size()):
+		var ni := room_cells.size()
+		owner[br[k]] = ni
+		room_cells.append([br[k]])
+		types.append(Room.Type.COMBAT if k < br.size() - 1 else Room.Type.ELITE)
+		_link(links, prev_i, ni, prev_c, br[k])
+		prev_i = ni
+		prev_c = br[k]
+	lay.key_room = prev_i
+	return true
+
+
+## A barred door between a room late in the floor and one near its start, where the
+## map happens to bring them side by side. False: this floor has no such place.
+static func _way_back(rng: RandomNumberGenerator, path: Array, owner: Dictionary, links: Dictionary, lock: String) -> bool:
+	var cands: Array = []
+	var last := path.size() - 1
+	for a in range(last, 2, -1):
+		for d in DIRS:
+			var c: Vector2i = path[a] + d
+			if not owner.has(c):
+				continue
+			var b: int = owner[c]
+			# anywhere earlier on the walk, two rooms back at least; never the start
+			if b == 0 or b > a - 2 or links.has(_key(a, b)):
+				continue
+			cands.append([a, b, path[a], c])
+	if cands.is_empty():
+		return false
+	var p: Array = cands[rng.randi_range(0, cands.size() - 1)]
+	_link(links, p[0], p[1], p[2], p[3], false, lock)
+	return true
 
 
 ## Random self-avoiding walk of `n` cells starting at `from` (inclusive),
@@ -651,7 +782,7 @@ static func _walk(rng: RandomNumberGenerator, from: Vector2i, n: int, owner: Dic
 	return best
 
 
-static func _carve_door(lay: Layout, a: int, b: int, ca: Vector2i, cb: Vector2i, secret: bool) -> void:
+static func _carve_door(lay: Layout, a: int, b: int, ca: Vector2i, cb: Vector2i, secret: bool, lock := "") -> void:
 	var g := lay.grid
 	var tiles_a: Array[Vector2i] = []
 	var tiles_b: Array[Vector2i] = []
@@ -687,8 +818,21 @@ static func _carve_door(lay: Layout, a: int, b: int, ca: Vector2i, cb: Vector2i,
 				tiles_a.append(Vector2i(x, gy0 + 3))
 	var ra := lay.rooms[a]
 	var rb := lay.rooms[b]
-	ra.doors.append({"to": b, "dir": d, "tiles": tiles_a, "gap": gap, "secret": secret})
-	rb.doors.append({"to": a, "dir": -d, "tiles": tiles_b, "gap": gap, "secret": secret})
+	var li := -1
+	if lock != "":
+		# the bars stand in the middle of the passage, one line of tiles across it
+		var bars: Array[Vector2i] = []
+		var mid := Vector2.ZERO
+		for t in gap:
+			mid += Vector2(t)
+		mid /= gap.size()
+		for t in gap:
+			if (d.y == 0 and t.x == floori(mid.x)) or (d.y != 0 and t.y == floori(mid.y)):
+				bars.append(t)
+		li = lay.locks.size()
+		lay.locks.append({"kind": lock, "a": a, "b": b, "tiles": bars, "dir": d, "open": false})
+	ra.doors.append({"to": b, "dir": d, "tiles": tiles_a, "gap": gap, "secret": secret, "lock": li})
+	rb.doors.append({"to": a, "dir": -d, "tiles": tiles_b, "gap": gap, "secret": secret, "lock": li})
 
 
 # ---------------------------------------------------------------------------
@@ -1046,7 +1190,7 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 				elif r.objective == "breach":
 					r.reward = "breach"
 			Room.Type.ELITE:
-				r.reward = "sunshard"
+				r.reward = "key" if r.id == lay.key_room else "sunshard"
 			Room.Type.SECRET:
 				r.reward = "secret"
 		if r.is_combat() and r.type != Room.Type.BOSS:
@@ -1072,6 +1216,8 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 			if r.type == Room.Type.ELITE:
 				r.elite_affix = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
 		_decorate(lay, r, rng)
+		_hazards(lay, r, rng)
+	_scars(lay, rng)
 
 
 static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
@@ -1196,6 +1342,14 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 					r.props.append({"kind": "site", "tile": c + Vector2i(-4 + k * 4, -1 if k == 1 else 0), "event": "coffer", "choice": cc[k]})
 				r.props.append({"kind": "candles", "tile": c + Vector2i(-2, 2)})
 				r.props.append({"kind": "candles", "tile": c + Vector2i(2, 2)})
+			elif r.id == lay.vault_room:
+				# what the walk was for: an ancient chest, a relic, and the hoard around them
+				r.props.append({"kind": "chest", "tile": c, "tier": 3})
+				r.props.append({"kind": "relic_altar", "tile": c + Vector2i(0, -3), "tier": 2})
+				for o in [Vector2i(-4, 0), Vector2i(4, 0)]:
+					r.props.append({"kind": "ember_pile", "tile": c + o})
+				for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-3, 2), Vector2i(3, 2)]:
+					r.props.append({"kind": "candles", "tile": c + o})
 			else:
 				r.props.append({"kind": "chest", "tile": c, "tier": 1})
 				for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
@@ -1263,6 +1417,113 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			for o in [Vector2(-8, -5), Vector2(8, -5), Vector2(-8, 5), Vector2(8, 5)]:
 				var bt := Vector2i(bc + o)
 				r.props.append({"kind": node_kind, "tile": bt})
+
+
+# ---------------------------------------------------------------------------
+# What is in a room to use, and what a floor remembers
+
+## Open floor to put something on: clear of doors and of what already stands there.
+## (-1, -1): the room has no such place.
+static func _clear_tile(lay: Layout, r: Room, rng: RandomNumberGenerator, solid: bool) -> Vector2i:
+	var g := lay.grid
+	for k in 30:
+		var t := Vector2i(rng.randi_range(r.rect.position.x + 2, r.rect.end.x - 3), rng.randi_range(r.rect.position.y + 2, r.rect.end.y - 3))
+		if g.at(t.x, t.y) != TileGrid.FLOOR or _prop_at(r, t):
+			continue
+		var near_door := false
+		for d in r.doors:
+			for dt: Vector2i in d.tiles:
+				if absi(dt.x - t.x) + absi(dt.y - t.y) < 5:
+					near_door = true
+		if near_door:
+			continue
+		if solid:
+			var one: Array[Vector2i] = [t]
+			if not _floor_whole(lay, r, one):
+				continue
+		return t
+	return Vector2i(-1, -1)
+
+
+## A fight's room may hold something to turn on it. All of it answers to any blow,
+## spell or shot, so no build is shut out, and none of it is ever needed.
+static func _hazards(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
+	if r.type != Room.Type.COMBAT and r.type != Room.Type.ELITE:
+		return
+	if r.objective != "" or r.landmark != "" or r.rect.get_area() < 140:
+		return
+	var roll := rng.randf()
+	var kinds: Dictionary = {"ossuary": ["strut", "strut", "rime_vent"], "rootmire": ["kindle_jar", "kindle_jar", "rime_vent"],
+		"throne": ["strut", "kindle_jar", "kindle_jar"]}
+	if roll > 0.55:
+		return
+	var pool: Array = kinds.get(lay.region, kinds.ossuary)
+	var kind: String = pool[rng.randi_range(0, pool.size() - 1)]
+	var n := 1 if kind == "strut" else rng.randi_range(2, 3)
+	if kind == "strut" and r.rect.get_area() > 220:
+		n = 2
+	var at := _clear_tile(lay, r, rng, kind == "strut")
+	for k in n:
+		if at.x < 0:
+			return
+		r.props.append({"kind": kind, "tile": at})
+		if kind == "kindle_jar" and k < n - 1:
+			# a cluster: one blow sets off the lot
+			var next := at + Vector2i(rng.randi_range(-2, 2), rng.randi_range(1, 2))
+			at = next if lay.grid.at(next.x, next.y) == TileGrid.FLOOR and not _prop_at(r, next) else _clear_tile(lay, r, rng, false)
+		else:
+			at = _clear_tile(lay, r, rng, kind == "strut")
+
+
+## What the Chronicle says happened here, written on the floor. It has to be seen,
+## or it may as well not have happened: every answer at an altar changes the stone.
+static func _scars(lay: Layout, rng: RandomNumberGenerator) -> void:
+	var site := Chronicle.site_of(lay.world, lay.region)
+	var walk: Array = []
+	for r in lay.rooms:
+		if r.type in [Room.Type.COMBAT, Room.Type.ELITE, Room.Type.START, Room.Type.REST, Room.Type.STAIRS] and r.landmark == "":
+			walk.append(r)
+	match site:
+		"kindled":
+			# the order keeps the halls: lamps tended along the way, warmth on the stone
+			for r in walk:
+				for k in 2:
+					var t := _clear_tile(lay, r, rng, true)
+					if t.x >= 0:
+						r.props.append({"kind": "lamp", "tile": t})
+				var w := _clear_tile(lay, r, rng, false)
+				if w.x >= 0:
+					r.props.append({"kind": "scar", "tile": w, "anim": "kindled"})
+		"broken":
+			# what was held in is out: the walls came down and the floor is split
+			for r in walk:
+				if r.type == Room.Type.START or rng.randf() < 0.3:
+					continue
+				for k in rng.randi_range(1, 3):
+					var t := _clear_tile(lay, r, rng, true)
+					if t.x >= 0:
+						r.props.append({"kind": "dressing", "tile": t, "sheet": "rubble", "anim": "a" if k % 2 == 0 else "b", "scene": true})
+				for k in 2:
+					var w := _clear_tile(lay, r, rng, false)
+					if w.x >= 0:
+						r.props.append({"kind": "scar", "tile": w, "anim": "broken" if k == 0 else "broken2"})
+		"pact":
+			for r in walk:
+				for k in rng.randi_range(1, 2):
+					var t := _clear_tile(lay, r, rng, false)
+					if t.x >= 0:
+						r.props.append({"kind": "dressing", "tile": t, "sheet": "pale_growth", "anim": "a" if k == 0 else "b", "low": true, "scene": true})
+				var w := _clear_tile(lay, r, rng, false)
+				if w.x >= 0:
+					r.props.append({"kind": "scar", "tile": w, "anim": "pale"})
+	# where a Kindled fell, their lantern lies
+	var fall: Dictionary = (lay.world.get("falls", {}) as Dictionary).get(lay.region, {})
+	if not fall.is_empty() and int(fall.get("depth", -1)) == lay.depth and not walk.is_empty():
+		var r: Room = walk[posmod(hash([lay.depth, lay.region, int(fall.get("at", 0))]), walk.size())]
+		var t := _clear_tile(lay, r, rng, false)
+		if t.x >= 0:
+			r.props.append({"kind": "cold_lantern", "tile": t})
+			lay.lantern_room = r.id
 
 
 ## A line of spike traps across the room, firing in a rolling wave.
@@ -1397,7 +1658,7 @@ static func _objectives(lay: Layout, rng: RandomNumberGenerator) -> void:
 
 
 ## Prop kinds that stand on their tile and stop whoever walks into it.
-const SOLID_KINDS := ["shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar", "bramble", "root_node"]
+const SOLID_KINDS := ["strut", "lamp", "lock_plate", "lever", "key_altar", "shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar", "bramble", "root_node"]
 
 
 ## The tiles a room's props already make solid (as Dungeon places them).

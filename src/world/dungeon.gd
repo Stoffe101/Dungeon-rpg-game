@@ -53,6 +53,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
+	_place_locks()
 	_place_door_frames()
 	_place_door_icons()
 	if grudge_room >= 0:
@@ -89,6 +90,17 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for rm in layout.rooms:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
+				start = rm
+	if "warp=lock" in Dev.args() or "warp=key" in Dev.args():
+		# dev: beside the floor's barred way, or at the room that holds its key
+		for rm in layout.rooms:
+			var hit: bool = rm.id == layout.key_room if "warp=key" in Dev.args() else (not layout.locks.is_empty() and rm.id == int(layout.locks[0].a))
+			if hit:
+				for other in layout.rooms:
+					if other != rm and other.type != Room.Type.BOSS:
+						other.visited = true
+						other.cleared = true
+				player.pos = _open_spot(rm.center() + Vector2(0, 2.5))
 				start = rm
 	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args() or "warp=altar" in Dev.args():
 		# dev: at the fork (the stairs room), inside the route's own room, or at the altar
@@ -321,6 +333,9 @@ func _place_props() -> void:
 			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
 				if pd.has(k):
 					extra[k] = pd[k]
+			for more in ["anim", "tier"]:
+				if pd.has(more):
+					extra[more] = pd[more]
 			if pd.kind == "site":
 				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
@@ -362,6 +377,238 @@ func _place_props() -> void:
 				cw.room_id = r.id
 
 
+# --- barred ways: a vault's doors, a way back, a pale door ---------------------------
+
+var lock_bars: Dictionary = {}     # lock index -> its bars
+var has_key := false               # the party carries the vault's key
+
+
+func _place_locks() -> void:
+	for i in layout.locks.size():
+		var lk: Dictionary = layout.locks[i]
+		var bars: Array = []
+		for t: Vector2i in lk.tiles:
+			var s := PixelSprite.new()
+			add_child(s)
+			s.setup("pale_bars" if lk.kind == "pale" else "lock_bars", "shut")
+			s.position = Iso.to_world(Vector2(t) + Vector2(0.5, 0.75), 0.0)
+			set_tile_solid(t, true)
+			bars.append(s)
+		lock_bars[i] = bars
+		# what opens it stands on the side you meet it from
+		var here: Room = layout.room(int(lk.b if lk.kind == "pale" else lk.a))
+		var other := int(lk.a if lk.kind == "pale" else lk.b)
+		var d := here.door_to(other)
+		if d.is_empty():
+			continue
+		var mid := Vector2.ZERO
+		for t: Vector2i in d.tiles:
+			mid += Vector2(t) + Vector2(0.5, 0.5)
+		mid /= (d.tiles as Array).size()
+		var inward := -Vector2(d.dir)
+		var at := mid + inward * 2.0 + Vector2(inward.y, inward.x) * 3.0
+		var kind := "lever" if lk.kind == "lever" else "lock_plate"
+		var p := Prop.make(self, kind, Vector2i(_open_spot(at)), {"lock": i, "anim": "pale" if lk.kind == "pale" else ("key" if lk.kind == "key" else "up")})
+		p.room_id = here.id
+
+
+## A barred way opens, on every machine.
+func open_lock(i: int) -> void:
+	if i < 0 or i >= layout.locks.size() or layout.locks[i].open:
+		return
+	Net.rec(["unlock", i])
+	var lk: Dictionary = layout.locks[i]
+	lk.open = true
+	for t: Vector2i in lk.tiles:
+		grid.put(t.x, t.y, TileGrid.FLOOR)
+		set_tile_solid(t, false)
+	var col := Color(0.72, 0.62, 1.0) if lk.kind == "pale" else Color(1.0, 0.8, 0.45)
+	for s in lock_bars.get(i, []):
+		var bar: PixelSprite = s
+		bar.play("open", true)
+		bar.animation_finished.connect(func(_a): if is_instance_valid(bar): bar.visible = false, CONNECT_ONE_SHOT)
+	var mid: Vector2 = Vector2(lk.tiles[(lk.tiles as Array).size() / 2]) + Vector2(0.5, 0.5)
+	fx.burst(mid, 1.2, col, 22, 3.0, 0.7, 4.0)
+	Audio.play_at("gate_open", mid, -2.0, 0.7)
+	Audio.play_at("crumble", mid, -6.0, 1.3)
+	minimap_changed.emit()
+
+
+func _use_lock(prop: Prop, who: Player) -> void:
+	var i := int(prop.data.get("lock", -1))
+	match String(layout.locks[i].kind):
+		"key":
+			if not has_key:
+				Audio.play("deny", -2.0)
+				Events.toast.emit("Barred. Its key lies elsewhere on this floor, deep in.", Color(1.0, 0.8, 0.5))
+				return
+			carry_key(false)
+			prop.used = true
+			prop.sprite.play("open")
+			_set_objective("", -1.0, SEAL_COL)
+			open_lock(i)
+			Events.banner.emit("The Vault Opens", "Whoever sealed this meant it to stay sealed")
+			Chronicle.mark("vaults_opened")
+		"pale":
+			prop.used = true
+			who.hp = maxf(1.0, who.hp - who.max_hp * 0.2)
+			fx.motes(who.pos, 0.6, Color(0.72, 0.62, 1.0), 16, 1.6, 0.9, 0.4)
+			Audio.play("blood_pact", -4.0)
+			open_lock(i)
+			Events.toast.emit("It opens. It remembers the taste.", Color(0.72, 0.62, 1.0))
+
+
+func _pull_lever(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.play("down")
+	Audio.play_at("gate_close", prop.pos, -4.0, 1.4)
+	open_lock(int(prop.data.get("lock", -1)))
+	Events.toast.emit("Somewhere near the way you came, bars slide up. A short way back.", Color(1.0, 0.8, 0.5))
+	Chronicle.mark("ways_back")
+
+
+## The party has the key: every map shows where it fits.
+func carry_key(on: bool) -> void:
+	has_key = on
+	Net.rec(["key", on])
+	if on and layout.vault_room >= 0:
+		pings.append({"pos": layout.room(layout.vault_room).center(), "col": Color(1.0, 0.8, 0.45), "t": 10.0})
+	minimap_changed.emit()
+
+
+func _take_key(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.play("taken")
+	if prop.light:
+		prop.light.visible = false
+	fx.burst(prop.pos, 1.6, Color(1.0, 0.85, 0.45), 24, 3.0, 0.7, 2.0, Vector2.UP, 1.2)
+	Audio.play("relic", -3.0)
+	Events.banner.emit("The Bone Key", "The barred vault lies back toward the start of the floor")
+	_set_objective("CARRY THE KEY TO THE VAULT", -1.0, Color(1.0, 0.8, 0.45))
+	carry_key(true)
+
+
+## Where you fell. The lantern is cold; lighting it is not much, and it is yours.
+func _relight(prop: Prop, who: Player) -> void:
+	prop.used = true
+	prop.sprite.play("lit")
+	if not prop.light:
+		prop._light(Color(1.0, 0.65, 0.35), 0.9, 4.5, Vector3(0, 0.6, 0.1))
+	var fall: Dictionary = (run.world.get("falls", {}) as Dictionary).get(layout.region, {})
+	var by := String(fall.get("by", "the dark"))
+	who.kindle = who.kindle_max()
+	who.heal(who.max_hp * 0.2)
+	Party.award_xp(self, 15 + 10 * layout.depth, "lantern")
+	Chronicle.clear_fall(layout.region)
+	Chronicle.note("A cold lantern lit again, where %s had won." % by)
+	fx.motes(prop.pos, 0.4, Color(1.0, 0.7, 0.4), 22, 1.8, 1.0, 0.4)
+	Audio.play("hearth_feed", -3.0, 1.2)
+	Events.banner.emit("You Fell Here", "To %s. The light is yours again." % by)
+	if grudge_room >= 0:
+		# it has not gone far: the lantern's light shows which way
+		pings.append({"pos": layout.room(grudge_room).center(), "col": GRUDGE_RED, "t": 12.0})
+		Events.toast.emit("Something passed this way. Its trail still burns on your map.", GRUDGE_RED)
+
+
+# --- what is in a room to use ---------------------------------------------------------
+
+## Whoever is there, on either side. Foes take a share of their health, so a falling
+## column means the same at every tier; guardians are too great to be moved by it.
+func _blast(at: Vector2, covers: Callable, foe_share: float, pal_share: float, by: Node, col: Color, burn := 0) -> void:
+	var src: Player = by if by is Player else nearest_player(at)
+	if src:
+		for a in hostiles(Actor.Team.PLAYER):
+			if a is Enemy and not (a as Enemy).def.get("boss", false) and covers.call(a):
+				var e := a as Enemy
+				var h := Hit.make(src, e.max_hp * foe_share * (0.5 if e.elite else 1.0), ["ability"])
+				h.can_crit = false
+				h.proc = false
+				h.poise = 60.0
+				h.burn = burn
+				src.deal_hit(e, h)
+	for p in active_players():
+		if covers.call(p):
+			var h := Hit.make(null, p.max_hp * pal_share, ["hazard"])
+			h.can_crit = false
+			h.burn = burn
+			p.take_enemy_hit(h, null)
+	fx.flash_light(at, 1.0, col, 3.0, 6.0, 0.3)
+
+
+func room_device(p: Prop, by: Node) -> void:
+	match p.kind:
+		"strut":
+			_fell_strut(p, by)
+		"kindle_jar":
+			_burst_jar(p, by)
+		"rime_vent":
+			_open_vent(p)
+
+
+## A blow brings it down the way it was struck. Marked first: it falls on anyone.
+func _fell_strut(p: Prop, by: Node) -> void:
+	var from: Vector2 = (by as Actor).pos if by is Actor else p.pos + Vector2(0, -1)
+	var dir := (p.pos - from).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.DOWN
+	var col := Color(1.0, 0.5, 0.22)
+	var fall_t := 0.8
+	p.sprite.play("shake")
+	Audio.play_at("crumble", p.pos, -5.0, 0.7)
+	fx.shape(Fx.Shape.RECT, p.pos, dir, Vector2(5.4, 2.6), Color(col.r, col.g, col.b, 0.3), col, fall_t + 0.05, {})
+	after(fall_t, func() -> void:
+		if not is_inside_tree() or not is_instance_valid(p):
+			return
+		p.sprite.play("down")
+		p.stops_shots = false
+		var covers := func(a: Actor) -> bool:
+			var v: Vector2 = a.pos - p.pos
+			var along := v.dot(dir)
+			return along > -0.6 and along < 5.8 and absf(v.dot(dir.orthogonal())) < 1.5
+		_blast(p.pos + dir * 2.7, covers, 0.55, 0.22, by, col)
+		for k in 5:
+			fx.burst(p.pos + dir * (0.8 + k * 1.1), 0.4, Color(0.6, 0.58, 0.55), 10, 3.5, 0.6, 9.0)
+		fx.shake(0.5)
+		Audio.play_at("crumble", p.pos + dir * 2.5, 2.0, 0.6))
+
+
+## Ember in a jar: a short fuse, a hot breath, and whatever else nearby can burn.
+func _burst_jar(p: Prop, by: Node) -> void:
+	var col := Color(1.0, 0.5, 0.2)
+	var r := 2.3
+	var at := p.pos
+	fx.shape(Fx.Shape.DISC, at, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), Color(col.r, col.g, col.b, 0.25), col, 0.45, {})
+	Audio.play_at("ignite", at, -6.0, 1.3)
+	after(0.4, func() -> void:
+		if not is_inside_tree():
+			return
+		if is_instance_valid(p) and p.sprite:
+			p.sprite.visible = false
+			if p.light:
+				p.light.visible = false
+		var covers := func(a: Actor) -> bool:
+			return a.pos.distance_to(at) <= r + a.radius
+		_blast(at, covers, 0.3, 0.12, by, col, 2)
+		fx.burst(at, 0.6, col, 34, 6.0, 0.6, 3.0)
+		fx.ring(at, r, col, 0.3, 0.3)
+		fx.shake(0.25)
+		Audio.play_at("bloat", at, -3.0, 1.1)
+		strike_props_circle(at, r, by, true))     # the next jar, the brambles, the roots
+
+
+## A vent let go: cold spreads over the floor and takes the foes standing on it,
+## fast enough that a frozen foe is a shattered one.
+func _open_vent(p: Prop) -> void:
+	p.sprite.play("spent")
+	if p.light:
+		p.light.visible = false
+	var col := Color(0.55, 0.85, 1.0)
+	Audio.play_at("gate_close", p.pos, -8.0, 1.8)
+	Hazard.spawn(self, p.pos, 2.7, 3.2, Actor.Team.PLAYER, col, func(_h: Hazard, a: Actor) -> void:
+		if a is Enemy and not (a as Enemy).def.get("boss", false):
+			a.status.apply_chill(0.34))
+
+
 func _place_gates() -> void:
 	for r in layout.rooms:
 		if not r.is_combat() and not (r.event in ["trial", "procession"]):
@@ -374,6 +621,7 @@ func _place_gates() -> void:
 				var g := PixelSprite.new()
 				add_child(g)
 				g.setup(String(region.get("gate", "gate")), "closed")
+				g.set_meta("lock", int(d.get("lock", -1)))
 				g.position = Iso.to_world(Vector2(t) + Vector2(0.5, 0.5 if d.dir.y == 0 else (0.95 if d.dir.y < 0 else 0.15)), 0.0)
 				g.visible = false
 				g.set_meta("tile", t)
@@ -1229,6 +1477,11 @@ func _finish_clear() -> void:
 func _spawn_reward(r: Room) -> void:
 	var c := _open_spot(r.center())
 	match r.reward:
+		"key":
+			Prop.make(self, "key_altar", Vector2i(c), {})
+			for i in 6:
+				Pickup.spawn(self, "ember", c + Vector2(1.0, 1.0), 3)
+			Events.banner.emit("It Was Guarding Something", "A key lies here. Far from any door you have seen")
 		"relic":
 			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 1})
 		"embers":
@@ -1303,6 +1556,12 @@ func _open_spot(p: Vector2) -> Vector2:
 
 ## Seals (closed) or releases a room's doors. The grid, the nav grid and the
 ## seal sprites always change together, so what you see is what blocks.
+## This gate stands in a way that is still barred.
+func behind_bars(g: Node) -> bool:
+	var li := int(g.get_meta("lock", -1))
+	return li >= 0 and not layout.locks[li].open
+
+
 func _set_gates(r: Room, closed: bool) -> void:
 	Net.rec(["gate", r.id, closed])
 	Net.mute += 1
@@ -1313,6 +1572,8 @@ func _set_gates(r: Room, closed: bool) -> void:
 func _seal(r: Room, closed: bool) -> void:
 	var soul := Color(0.45, 1.0, 0.9)
 	for g in gate_nodes.get(r.id, []):
+		if behind_bars(g):
+			continue     # a room's seal never touches a barred way
 		var t: Vector2i = g.get_meta("tile")
 		var c := Vector2(t) + Vector2(0.5, 0.5)
 		grid.put(t.x, t.y, TileGrid.GATE if closed else TileGrid.FLOOR)
@@ -2186,6 +2447,10 @@ func on_seal_broken() -> void:
 
 
 func _set_objective(text: String, k: float, col: Color) -> void:
+	if text == "" and has_key:
+		text = "CARRY THE KEY TO THE VAULT"     # (it outlives the room's own task)
+		k = -1.0
+		col = Color(1.0, 0.8, 0.45)
 	objective = {} if text == "" else {"text": text, "k": k, "col": col}
 	if Net.recording:
 		Net.rec(["obj", text, snappedf(k, 0.01), col])
@@ -2427,6 +2692,14 @@ func request(what: String, prop: Prop) -> void:
 	if Party.serve(self, who, what, prop):
 		return
 	match what:
+		"lock_plate":
+			_use_lock(prop, who)
+		"lever":
+			_pull_lever(prop)
+		"key_altar":
+			_take_key(prop)
+		"cold_lantern":
+			_relight(prop, who)
 		"site":
 			DeepEvents.interact(self, who, prop)
 		"stairs":
