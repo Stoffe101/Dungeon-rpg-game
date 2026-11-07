@@ -494,6 +494,8 @@ func world_dump(for_peer := 0) -> Array:
 			out.append(["unlock", i])
 	if stage.has_key:
 		out.append(["key", true])
+	if stage.charted:
+		out.append(["chart"])
 	for rid in stage.gate_nodes:
 		for g in stage.gate_nodes[rid]:
 			if not stage.behind_bars(g):
@@ -836,6 +838,8 @@ func apply_events(evs: Array) -> void:
 				stage.open_lock(int(ev[1]))
 			"key":
 				stage.carry_key(bool(ev[1]))
+			"chart":
+				stage.chart_floor()
 			"room":
 				stage.visit_room(stage.layout.room(int(ev[1])))
 			"tele":
@@ -851,6 +855,8 @@ func apply_events(evs: Array) -> void:
 				Party.show_ping(stage, int(ev[1]), ev[2])
 			"wit":
 				Chronicle.mark("witnessed_" + String(ev[1]))     # a guest saw it; the world is the host's
+				if String(ev[1]).begins_with("rescued_"):
+					Chronicle.rescue(String(ev[1]).substr(8))     # ...but whoever helped them up has them at home
 			"obj":
 				if stage is Dungeon:
 					(stage as Dungeon).objective = {} if String(ev[1]) == "" else {"text": String(ev[1]), "k": float(ev[2]), "col": ev[3]}

@@ -105,7 +105,20 @@ static func snapshot() -> Dictionary:
 	for region in EnemyDB.REGIONS:
 		felled[region] = int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[region].boss, 0))
 	return {"sites": (_rec().sites as Dictionary).duplicate(), "lair": lair, "felled": felled,
-		"falls": (_rec().get("falls", {}) as Dictionary).duplicate(true)}
+		"falls": (_rec().get("falls", {}) as Dictionary).duplicate(true), "rescued": (_rec().get("rescued", []) as Array).duplicate()}
+
+
+## Someone found alive: they live at this save's Hearth from now on.
+static func rescue(id: String) -> void:
+	var r := _rec()
+	if not r.has("rescued"):
+		r["rescued"] = []
+	if not (r.rescued as Array).has(id):
+		r.rescued.append(id)
+
+
+static func rescued(id: String) -> bool:
+	return (_rec().get("rescued", []) as Array).has(id)
 
 
 ## Where a Kindled last fell in a region: their lantern lies there, cold, until

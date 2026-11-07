@@ -70,6 +70,26 @@ const LIST := [
 ]
 
 
+## Those who do not come to the Hearth by themselves: they were found down there
+## (Chronicle.rescue). They keep the same rig, requests and words as anyone.
+const RESCUED := [
+	{"id": "maren", "name": "Maren", "title": "the Chartwright", "sheet": "resident_maren", "likes": ["hearth", "tent", "descent"],
+		"barks": ["Every map I drew is wrong by now. That is the point of drawing the next one.", "It moves, you know. Not much. Enough.", "Mind the table. That took me nine years."],
+		"request": {"key": "vault", "goal": 2, "title": "The Places Not on the Map",
+			"ask": ["There are barred vaults down there I could never draw. I only ever saw the doors.", "Open two of them and tell me what the walls looked like."],
+			"done": ["Two. And the stonework runs north, you are certain? I knew it.", "Take this. It kept me alive when I had nothing else: you will always know which way you came."],
+			"reward": [["move_speed", "inc", 0.04]], "gift": "Maren's Compass: +4% movement speed"},
+		"talk": [
+			["I had a room, a candle and a hope nobody would find the room. You are the first who was not trying to eat me.", "The table is yours as well. Ask me for a chart before you go down."],
+			["I walked the Ossuary for nine years with a stick of charcoal. The Warden used to let me pass.", "Whatever you did to it, the corridors have been quieter since. I do not like that."],
+		]},
+]
+
+
+static func everyone() -> Array:
+	return LIST + RESCUED
+
+
 ## How many residents have found the Hearth: more come as it grows and as
 ## expeditions return.
 static func count_present() -> int:
@@ -80,6 +100,9 @@ static func count_present() -> int:
 ## Has this resident found this profile's Hearth? (A guest in a friend's
 ## sanctuary meets residents of the host's camp that may not live in theirs.)
 static func present(id: String) -> bool:
+	for r in RESCUED:
+		if String(r.id) == id:
+			return Chronicle.rescued(id)
 	var n := count_present()
 	for i in n:
 		if String(LIST[i].id) == id:
@@ -88,7 +111,7 @@ static func present(id: String) -> bool:
 
 
 static func get_def(id: String) -> Dictionary:
-	for r in LIST:
+	for r in everyone():
 		if r.id == id:
 			return r
 	return {}
@@ -161,7 +184,7 @@ static func start_request(id: String) -> void:
 ## "elite"). Returns the names of residents whose request just completed.
 static func note(key: String, amount := 1) -> Array:
 	var done: Array = []
-	for r in LIST:
+	for r in everyone():
 		var req: Dictionary = r.get("request", {})
 		if req.get("key", "") != key or request_state(r.id) != "active":
 			continue
@@ -187,7 +210,7 @@ static func wants_toy() -> bool:
 
 
 static func apply_rewards(stats: Stats) -> void:
-	for r in LIST:
+	for r in everyone():
 		if request_state(r.id) == "rewarded":
 			stats.apply_mods(r.request.reward)
 
@@ -195,7 +218,7 @@ static func apply_rewards(stats: Stats) -> void:
 ## One line per request the player knows about, for the pause menu.
 static func journal() -> Array:
 	var out: Array = []
-	for r in LIST:
+	for r in everyone():
 		var st := request_state(r.id)
 		if st == "":
 			continue

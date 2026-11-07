@@ -13,6 +13,9 @@ const RARITY_COLOR := {
 }
 
 const RELICS := [
+	# --- found, never offered ---
+	{"id": "whetted", "name": "Whetted Edge", "rarity": "rare", "tags": [], "icon": "sword", "found": true,
+		"mods": [["weapon_damage", "add", 0.12]], "desc": "+12% weapon damage. A travelling grindstone did this."},
 	# --- common ---
 	{"id": "tinderbox", "name": "Tinderbox", "rarity": "common", "tags": ["pyre"], "icon": "flame",
 		"mods": [["burn_chance", "add", 0.12]], "desc": "+12% chance to Burn on hit."},
@@ -117,7 +120,7 @@ static func roll_offer(rng: RandomNumberGenerator, count: int, held: Array, bran
 		for t in relic(h).get("tags", []):
 			held_tags[t] = int(held_tags.get(t, 0)) + 1
 	for r in RELICS:
-		if held.has(r.id):
+		if held.has(r.id) or r.get("found", false):
 			continue
 		var req: String = r.get("requires_ability", "")
 		if req != "" and not abilities.has(req):

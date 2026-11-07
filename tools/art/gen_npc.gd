@@ -52,6 +52,8 @@ static func specs() -> Dictionary:
 			"hair": Pal.EMBER, "hair_style": "short", "beard": "full", "head": "cap", "hat": Pal.STONE, "hold": "axe", "back": "logs", "plaid": true},
 		"resident_sefa": {"build": "slim", "outfit": "dress", "cloth": Pal.BLOOD, "trim": Pal.GOLD, "skin": SKIN_DEEP, "hair": Pal.STONE,
 			"hair_style": "bun", "blush": true, "hold": "lute"},
+		"resident_maren": {"build": "slim", "elder": true, "outfit": "coat", "cloth": Pal.GLOAM, "cloth2": Pal.EARTH, "trim": Pal.GOLD, "skin": Pal.SKIN,
+			"hair": Pal.BONE, "hair_style": "bun", "head": "scarf", "hat": Pal.FROST, "back": "pack", "hold": "chart"},
 	}
 
 
@@ -244,14 +246,14 @@ static func frame(sp: Dictionary, p: Dictionary) -> Px:
 	if side:
 		var swing: int = p.get("arm", 0)
 		var hand := Vector2i(16 + swing, ty + 8)
-		if hold in ["staff_lantern", "pole_lantern", "lantern", "basket", "hammer", "toy"]:
+		if hold in ["staff_lantern", "pole_lantern", "lantern", "basket", "hammer", "toy", "chart"]:
 			hand = Vector2i(17 + sw - 1, ty + 7)
 		var arm := c.mask().line(16, ty + 1, hand.x, hand.y - 1).line(17, ty + 1, hand.x + 1, hand.y - 1)
 		c.paint(arm, sleeve, 2, false, true)
 		c.paint(c.mask().rect(hand.x, hand.y, 2, 2), skin, 2)
 		_held_side(c, sp, hold, hand, ty, f)
 	else:
-		var gesture := talk > 0 and hold in ["none", "basket", "lantern", "toy", "sling", "hammer", "axe", "pole_lantern", "staff_lantern"]
+		var gesture := talk > 0 and hold in ["none", "basket", "chart", "lantern", "toy", "sling", "hammer", "axe", "pole_lantern", "staff_lantern"]
 		# screen-left arm: the talking hand
 		if hold == "sling":
 			c.paint(c.mask().rect(16 - hw, ty + 4, hw + 1, 2), sleeve, 2)
@@ -363,6 +365,11 @@ static func _held_front(c: Px, sp: Dictionary, hold: String, h: Vector2i, ty: in
 			else:
 				c.paint(c.mask().rect(hd.x, hd.y - 4, 1, 6), Pal.WOOD, 2, false, false)
 				c.paint(c.mask().rect(hd.x - 1, hd.y - 6, 4, 3), Pal.STEEL, 3)
+		"chart":
+			# a rolled map, its ends tied in thread
+			c.paint(c.mask().rect(h.x - 2, h.y + 1, 8, 2), Pal.BONE, 3, true)
+			c.put(h.x - 1, h.y + 1, Pal.EARTH[2])
+			c.put(h.x + 4, h.y + 1, Pal.EARTH[2])
 		"basket":
 			var bk := c.mask().ellipse(h.x + 1.5, h.y + 3.0, 3.2, 2.4)
 			bk.rect(h.x - 1, h.y + 1, 6, 2)
@@ -398,6 +405,8 @@ static func _held_front(c: Px, sp: Dictionary, hold: String, h: Vector2i, ty: in
 
 static func _held_side(c: Px, sp: Dictionary, hold: String, h: Vector2i, ty: int, f: int) -> void:
 	match hold:
+		"chart":
+			c.paint(c.mask().rect(h.x, h.y, 2, 6), Pal.BONE, 3, true)
 		"staff_lantern":
 			var top := ty - 12
 			c.paint(c.mask().rect(h.x + 1, top, 1, 30 - top), Pal.WOOD, 3, false, false)

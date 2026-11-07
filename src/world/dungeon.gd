@@ -91,6 +91,15 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
+	if "warp=rule" in Dev.args():
+		for rm in layout.rooms:
+			if rm.rule != "":
+				for other in layout.rooms:
+					if other != rm and other.type != Room.Type.BOSS:
+						other.visited = true
+						other.cleared = true
+				player.pos = _open_spot(rm.center() + Vector2(0, 2.5))
+				start = rm
 	if "warp=lock" in Dev.args() or "warp=key" in Dev.args():
 		# dev: beside the floor's barred way, or at the room that holds its key
 		for rm in layout.rooms:
@@ -413,6 +422,9 @@ func _place_locks() -> void:
 
 
 ## A barred way opens, on every machine.
+var charted := false
+
+
 func open_lock(i: int) -> void:
 	if i < 0 or i >= layout.locks.size() or layout.locks[i].open:
 		return
@@ -449,6 +461,7 @@ func _use_lock(prop: Prop, who: Player) -> void:
 			open_lock(i)
 			Events.banner.emit("The Vault Opens", "Whoever sealed this meant it to stay sealed")
 			Chronicle.mark("vaults_opened")
+			note_request("vault")
 		"pale":
 			prop.used = true
 			who.hp = maxf(1.0, who.hp - who.max_hp * 0.2)
@@ -465,6 +478,21 @@ func _pull_lever(prop: Prop) -> void:
 	open_lock(int(prop.data.get("lock", -1)))
 	Events.toast.emit("Somewhere near the way you came, bars slide up. A short way back.", Color(1.0, 0.8, 0.5))
 	Chronicle.mark("ways_back")
+
+
+## The rule of the fight this machine stands in, while it lasts (the objective
+## line is what every machine shares, and it goes out with the fight).
+func rule_here() -> String:
+	if current_room and current_room.rule != "" and not objective.is_empty() and not current_room.cleared:
+		return current_room.rule
+	return ""
+
+
+## A floor someone has drawn: every room of it on every map.
+func chart_floor() -> void:
+	charted = true
+	Net.rec(["chart"])
+	minimap_changed.emit()
 
 
 ## The party has the key: every map shows where it fits.
@@ -952,7 +980,7 @@ func _enter_room(r: Room, mine := true) -> void:
 				var ld := DungeonGen.landmark_def(r.landmark)
 				Events.banner.emit(String(ld.get("name", "")), String(ld.get("line", "")))
 		if r.type == Room.Type.EVENT:
-			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
+			var msg := {"survivor": "Someone is breathing in here.", "artisan": "A grindstone, still turning. Nobody near it.", "well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
 				"vault": "A sealed reliquary, and cold sconces around it. Light them together.", "camp": "A camp. Its fire went out long ago."}
 			Events.toast.emit(msg.get(r.event, ""), Color(1.0, 0.8, 0.55))
 	if not r.is_combat():
@@ -996,6 +1024,11 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 	active_room = r
 	wave = 0
 	_fight_began = elapsed
+	if r.rule != "":
+		var ru: Dictionary = DeepEvents.RULES[r.rule]
+		Events.banner.emit(String(ru.name), String(ru.line))
+		_set_objective(String(ru.name).to_upper(), -1.0, ru.col)
+		Chronicle.mark("rules_met")
 	# three or four Kindled: the room calls one more, smaller wave of flankers
 	# and marksmen when its own are done
 	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
@@ -1168,6 +1201,13 @@ func _warm_up() -> void:
 	Dev.lap("warm up", t, 0.0)
 
 
+## The Hungry Floor: what comes here is quicker, and worth more.
+func _hungry(e: Enemy) -> void:
+	if active_room and active_room.rule == "hungry":
+		e.speed *= 1.25
+		e.embers *= 2
+
+
 func _make_enemy(id: String) -> Enemy:
 	var t := Dev.tick()
 	var def := EnemyDB.get_def(id)
@@ -1186,6 +1226,7 @@ func register_enemy(e: Enemy) -> void:
 	e.room_id = active_room.id
 	if not room_enemies.has(e):
 		room_enemies.append(e)
+		_hungry(e)
 
 
 func _spawn_grudge(r: Room) -> void:
@@ -1477,6 +1518,8 @@ func _finish_clear() -> void:
 func _spawn_reward(r: Room) -> void:
 	var c := _open_spot(r.center())
 	match r.reward:
+		"rule":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
 		"key":
 			Prop.make(self, "key_altar", Vector2i(c), {})
 			for i in 6:

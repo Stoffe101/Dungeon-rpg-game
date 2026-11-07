@@ -70,7 +70,7 @@ static func known_rooms(d: Dungeon) -> Dictionary:
 		known[lay.exit_id] = 1
 	if d.has_key and lay.vault_room >= 0 and not known.has(lay.vault_room):
 		known[lay.vault_room] = 1     # the key shows where it fits
-	if d.remembered():
+	if d.remembered() or d.charted or Game.chart_run:
 		for r in lay.rooms:
 			if not known.has(r.id):
 				known[r.id] = 1

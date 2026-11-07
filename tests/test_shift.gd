@@ -337,3 +337,198 @@ func test_keys_take_over_from_a_click() -> void:
 	d.player._tend_approach(0.03)
 	check(d.player._approach == null, "walking cancels it")
 	d.queue_free()
+
+
+## The first seed with a rule room of this kind, at depth 2.
+func _ruled(rule: String) -> Array:
+	for s in range(1, 600):
+		var lay := DungeonGen.generate(s, 2, "ossuary", false)
+		for r in lay.rooms:
+			if r.rule == rule:
+				return [lay, s, r]
+	return []
+
+
+func _into_rule(rule: String) -> Array:
+	var got := _ruled(rule)
+	var d := _built(got[0], got[1])
+	var r: Room = got[2]
+	for a in d.hostiles(Actor.Team.PLAYER):
+		a.queue_free()
+	d.player.pos = r.center()
+	d.current_room = r
+	d.active_room = r
+	d.objective = {"text": rule, "k": -1.0, "col": Color.WHITE}
+	return [d, r]
+
+
+func test_rule_rooms_are_rare_named_and_fixed_by_the_seed() -> void:
+	var floors := 0
+	for s in range(1, 121):
+		var lay := DungeonGen.generate(s, 2, "ossuary", false)
+		var again := DungeonGen.generate(s, 2, "ossuary", false)
+		var ruled: Array = lay.rooms.filter(func(r): return r.rule != "")
+		eq(ruled.size(), again.rooms.filter(func(r): return r.rule != "").size(), "the same on every machine")
+		check(ruled.size() <= 1, "one to a floor")
+		if not ruled.is_empty():
+			floors += 1
+			var r: Room = ruled[0]
+			check(DeepEvents.RULES.has(r.rule), "a rule we know")
+			eq(r.reward, "rule", "it pays")
+			check(r.type == Room.Type.COMBAT and r.objective == "", "only a plain fight")
+			check(r.props.filter(func(p): return p.kind == "scar").size() >= 1, "the stone says so first")
+	check(floors > 12 and floors < 50, "now and then (%d of 120)" % floors)
+	for r in DungeonGen.generate(5, 1, "ossuary", false).rooms:
+		eq(r.rule, "", "never on the first floor")
+
+
+func test_one_pulse_shares_a_blow_with_the_rooms_foes_only() -> void:
+	Profile.data = Profile.fresh()
+	var o := _into_rule("one_pulse")
+	var d: Dungeon = o[0]
+	var r: Room = o[1]
+	var a := _foe(d, r.center() + Vector2(1, 0))
+	var b := _foe(d, r.center() + Vector2(-1, 0))
+	var other := _foe(d, r.center() + Vector2(0, 2))
+	d.room_enemies = [a, b]
+	var h := Hit.make(d.player, 100.0, ["melee"])
+	h.can_crit = false
+	h.silent = true
+	var res := d.player.deal_hit(a, h)
+	check(res.amount > 0.0, "the blow lands")
+	check(b.hp < 400.0 and b.hp >= 400.0 - res.amount * 0.45, "the other feels part of it (%.0f)" % (400.0 - b.hp))
+	eq(other.hp, 400.0, "nothing outside the fight does")
+	d.queue_free()
+
+
+func test_the_unlit_room_shrinks_the_lantern_and_feeds_it_on_a_kill() -> void:
+	Profile.data = Profile.fresh()
+	var o := _into_rule("unlit")
+	var d: Dungeon = o[0]
+	var r: Room = o[1]
+	d.player._update_lantern(0.02)
+	var dim := d.player.lantern.omni_range
+	d.objective = {}
+	d.player._update_lantern(0.02)
+	check(dim < d.player.lantern.omni_range * 0.7, "smaller in there (%.1f, %.1f)" % [dim, d.player.lantern.omni_range])
+	d.objective = {"text": "unlit", "k": -1.0, "col": Color.WHITE}
+	d.player.kindle = 0.0
+	var e := _foe(d, r.center() + Vector2(1, 0), 5.0)
+	var h := Hit.make(d.player, 50.0, ["ability"])
+	h.can_crit = false
+	h.silent = true
+	d.player.deal_hit(e, h)
+	check(not e.alive and d.player.kindle >= d.player.kindle_max() * 0.19, "a kill feeds it")
+	d.queue_free()
+
+
+func test_the_hungry_floor_makes_foes_quick_and_rich() -> void:
+	Profile.data = Profile.fresh()
+	var o := _into_rule("hungry")
+	var d: Dungeon = o[0]
+	var plain := d._make_enemy("husk")
+	var e := d._make_enemy("husk")
+	e.pos = (o[1] as Room).center()
+	d.add_actor(e)
+	d.register_enemy(e)
+	check(is_equal_approx(e.speed, plain.speed * 1.25), "quicker")
+	eq(e.embers, plain.embers * 2, "worth more")
+	d.queue_free()
+
+
+func test_a_rule_fight_pays_a_chest() -> void:
+	Profile.data = Profile.fresh()
+	var o := _into_rule("hungry")
+	var d: Dungeon = o[0]
+	var before := d.props.filter(func(p): return is_instance_valid(p) and p.kind == "chest").size()
+	d._spawn_reward(o[1])
+	eq(d.props.filter(func(p): return is_instance_valid(p) and p.kind == "chest").size(), before + 1, "a chest")
+	d.queue_free()
+
+
+func _event_floor(ev: String) -> Array:
+	for s in range(1, 800):
+		var lay := DungeonGen.generate(s, 2, "ossuary", false)
+		for r in lay.rooms:
+			if r.event == ev:
+				return [lay, s]
+	return []
+
+
+func _site(d: Dungeon, ev: String) -> Prop:
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == ev:
+			return p
+	return null
+
+
+func test_a_survivor_gives_the_floor_and_comes_home_once() -> void:
+	Profile.data = Profile.fresh()
+	var got := _event_floor("survivor")
+	check(not got.is_empty(), "she can be found")
+	var d := _built(got[0], got[1])
+	check(Minimap.known_rooms(d).size() < d.layout.rooms.size(), "the floor is unknown")
+	var s := _site(d, "survivor")
+	check(s != null and s.interactable(), "she can be helped")
+	check(not Residents.present("maren"), "not at the Hearth yet")
+	s.interact(d.player)
+	check(d.charted and s.used, "her map")
+	eq(Minimap.known_rooms(d).size(), d.layout.rooms.size(), "every room of it")
+	check(Residents.present("maren"), "she is home")
+	check(Chronicle.rescued("maren"), "the Chronicle knows")
+	d.queue_free()
+	# nobody is lost twice
+	var world := Chronicle.snapshot()
+	for sd in range(1, 100):
+		for r in DungeonGen.generate(sd, 2, "ossuary", false, "", world).rooms:
+			check(r.event != "survivor", "found is found")
+
+
+func test_her_request_counts_vaults_and_pays() -> void:
+	Profile.data = Profile.fresh()
+	Chronicle.rescue("maren")
+	Residents.start_request("maren")
+	Residents.note("vault")
+	eq(Residents.request_state("maren"), "active", "one is not two")
+	Residents.note("vault")
+	eq(Residents.request_state("maren"), "complete", "two is")
+	check(Residents.claim("maren"), "she pays")
+	var st := Stats.new()
+	st.base["move_speed"] = 5.0
+	Residents.apply_rewards(st)
+	check(st.v("move_speed") > 5.0, "the gift is real")
+
+
+func test_the_chart_table_sells_one_descent() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.flags["chart_ready"] = true
+	Game._take_chart()
+	check(Game.chart_run, "this descent's map is whole")
+	check(not Profile.data.flags.has("chart_ready"), "and it is spent")
+	Game._take_chart()
+	check(not Game.chart_run, "only the one")
+
+
+func test_a_grindstone_whets_each_kindled_once() -> void:
+	Profile.data = Profile.fresh()
+	var got := _event_floor("artisan")
+	check(not got.is_empty(), "it can be found")
+	var d := _built(got[0], got[1])
+	var run := RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""])
+	d.player.run = run
+	var s := _site(d, "artisan")
+	var before: float = d.player.stats.v("weapon_damage")
+	s.interact(d.player)
+	check(d.player.run.has_relic("whetted"), "whetted")
+	check(s.interactable(), "the stone stays for the next")
+	eq((s.data.taken as Array).size(), 1, "one edge")
+	s.interact(d.player)
+	eq((s.data.taken as Array).size(), 1, "once each")
+	check(RelicDB.relic("whetted").get("found", false), "found, never offered")
+	for k in 50:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = k
+		for o in RelicDB.roll_offer(rng, 3, [], {}, [], 2):
+			check(String(o) != "whetted", "not in an offer")
+	check(d.player.stats.v("weapon_damage") >= before, "it does not take away")
+	d.queue_free()

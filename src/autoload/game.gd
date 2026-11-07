@@ -111,6 +111,13 @@ static func new_run_id() -> String:
 
 
 var world_override := {}       # (begin_descent: the snapshot just sent to the party)
+var chart_run := false         # this machine's maps show every room (Maren's chart)
+
+
+## A chart bought at the table is spent on the next descent, by whoever bought it.
+func _take_chart() -> void:
+	chart_run = bool(Profile.data.flags.get("chart_ready", false))
+	Profile.data.flags.erase("chart_ready")
 
 
 func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omens: Variant = null) -> void:
@@ -125,6 +132,7 @@ func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omen
 		run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	run.world = world_override.duplicate(true) if not world_override.is_empty() else Chronicle.snapshot()
 	world_override = {}
+	_take_chart()
 	coop_runs.clear()
 	if Net.is_host():
 		# every other Kindled gets a run of their own (settled on their machine)
@@ -324,6 +332,7 @@ func begin_coop_client(params: Dictionary) -> void:
 			run.tier = int(params.tier)
 			run.omens = omens.duplicate()
 			run.world = (params.get("world", {}) as Dictionary).duplicate(true)     # the host's world, not this save's
+			_take_chart()
 			Profile.stat_add("runs")
 			_enter_depth(1), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 

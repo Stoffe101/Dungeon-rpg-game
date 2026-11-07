@@ -324,6 +324,7 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 		if lay != null:
 			lay.seed = seed_v
 			_landmark(lay, seed_v)
+			DeepEvents.rule_room(lay, seed_v)
 			_route = ""
 			return lay
 	push_error("DungeonGen: failed to generate a layout")
@@ -1369,7 +1370,7 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "fountain", "tile": c})
 		Room.Type.EVENT:
 			match r.event:
-				"altar", "last_stand", "procession":
+				"altar", "last_stand", "procession", "survivor", "artisan":
 					DeepEvents.build(lay, r, rng)
 				"well":
 					r.props.append({"kind": "ember_well", "tile": c})

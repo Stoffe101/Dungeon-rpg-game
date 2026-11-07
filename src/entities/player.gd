@@ -1295,6 +1295,31 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	return res
 
 
+var _pulsing := false
+
+
+## A fight with a rule of its own (DeepEvents.RULES) answers the blows in it.
+func _room_rule(t: Actor, res: Combat.Result, dot: bool) -> void:
+	match (stage as Dungeon).rule_here():
+		"unlit":
+			if not t.alive:
+				gain_kindle(kindle_max() * 0.2)
+		"one_pulse":
+			if dot or _pulsing:
+				return
+			_pulsing = true
+			for a in stage.hostiles(Actor.Team.PLAYER):
+				if a != t and a is Enemy and a.alive and (stage as Dungeon).room_enemies.has(a):
+					var e := Hit.make(self, res.amount * 0.3, ["ability"])
+					e.can_crit = false
+					e.proc = false
+					e.silent = true
+					e.poise = 0.0
+					deal_hit(a, e)
+					stage.fx.burst(a.pos, 0.7, Color(1.0, 0.45, 0.42), 3, 2.0, 0.3, 4.0)
+			_pulsing = false
+
+
 func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var dot := h.has_tag("dot")
 	var direct := (h.has_tag("melee") or h.has_tag("ranged")) and not dot
@@ -1429,6 +1454,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var res := t.take_hit(h)
 	if res.amount <= 0.0:
 		return res
+	if stage is Dungeon:
+		_room_rule(t, res, dot)
 	if not runes.is_empty() and h.proc:
 		_rune_on_hit(t, h, res, runes)
 	if stats.has("ashbringer") and h.has_tag("ability") and h.has_tag("fire") and float(t.get_meta("ash_cd", -1.0)) < stage.elapsed:
@@ -2307,6 +2334,9 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("glass_lantern"):
 		rng *= 1.4
 		en *= 1.15
+	if stage is Dungeon and (stage as Dungeon).rule_here() == "unlit":
+		rng *= 0.5
+		en *= 0.75
 	gloom_t -= dt
 	# a faint drift of light in the colour of each great thing worn
 	if not aura_cols.is_empty() and hearthcall_t < 0.0:

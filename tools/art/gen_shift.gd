@@ -32,6 +32,7 @@ static func build(dir: String) -> void:
 	_pale_growth(dir)
 	_chart_table(dir)
 	_noticeboard(dir)
+	_whetstone(dir)
 
 
 # --- locked ways ------------------------------------------------------------------
@@ -362,6 +363,27 @@ static func _chart_table(dir: String) -> void:
 	c.outline(Pal.INK)
 	s.add("idle", [c], 1.0)
 	s.save(dir, "chart_table")
+
+
+## A travelling artisan's grindstone: a wheel in a frame, sparks still warm on it.
+static func _whetstone(dir: String) -> void:
+	var s := Sheet.new(32, 30, Vector2i(16, 28))
+	var frames: Array = []
+	for k in 2:
+		var c := Px.new(32, 30)
+		for x in [7, 23]:
+			c.paint(c.mask().rect(x, 14, 2, 14), Pal.WOOD, 2, true)
+		c.paint(c.mask().rect(5, 24, 22, 3), Pal.WOOD, 1, true)
+		c.paint(c.mask().ellipse(16.0, 14.0, 9.0, 9.0), Pal.STONE, 3, true)
+		c.paint(c.mask().ellipse(16.0, 14.0, 2.0, 2.0), Pal.STEEL, 3, true)
+		c.line(9, 14, 23, 14, Pal.STONE[1])
+		c.line(16, 7, 16, 21, Pal.STONE[1])
+		for p in [[25, 9 + k], [27, 12 - k], [26, 6 + k * 2]]:
+			c.put(p[0], p[1], Pal.GOLD[4])
+		c.outline(Pal.INK)
+		frames.append(c)
+	s.add("idle", frames, 3.0)
+	s.save(dir, "whetstone")
 
 
 static func _noticeboard(dir: String) -> void:
