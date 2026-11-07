@@ -124,6 +124,13 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				start = rm
 	if view:
 		view.focus = Iso.to_world(player.pos)
+	for pr in _party_runs():
+		for k in pr.taken:
+			_taken_before += float(pr.taken[k])
+	_rooms_before = run.rooms_cleared
+	if layout.depth > 3 and not Delve.band(layout.depth).is_empty():
+		var b := Delve.band(layout.depth)
+		after(3.0, func() -> void: Events.toast.emit("%s: %s." % [b.name, b.line], Color(0.72, 0.62, 1.0)))
 	_enter_room(start)
 	if "hitlab" in Dev.args() and not replica:
 		# dev: enemies right beside the player, to look at hit feedback up close
@@ -1057,6 +1064,10 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 		Events.banner.emit(String(ru.name), String(ru.line))
 		_set_objective(String(ru.name).to_upper(), -1.0, ru.col)
 		Chronicle.mark("rules_met")
+	if String(Delve.band(layout.depth).get("id", "")) == "crowded" and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("crowded", false):
+		r.set_meta("crowded", true)
+		r.encounter = r.encounter.duplicate()
+		r.encounter.append(EnemyDB.party_extras(rng, layout.region, layout.depth, [], 2))
 	# three or four Kindled: the room calls one more, smaller wave of flankers
 	# and marksmen when its own are done
 	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
@@ -1895,6 +1906,7 @@ func _floor_inside(r: Room, p: Vector2) -> Vector2:
 # --- boss ----------------------------------------------------------------------------
 
 func _start_boss(r: Room) -> void:
+	_boss_flasks = player.flask if player else 0
 	Audio.stop_music(1.0)
 	var c := r.center()
 	var at := c + Vector2(0, -3)
@@ -2754,7 +2766,26 @@ func _boss_defeated(e: Enemy) -> void:
 
 
 ## A guardian's own hoard, on top of what any foe leaves.
+## Leaving a floor: the old hands' notices look at how it went.
+func floor_left() -> void:
+	var taken := 0.0
+	for r in _party_runs():
+		for k in r.taken:
+			taken += float(r.taken[k])
+	if is_equal_approx(taken, _taken_before) and run.rooms_cleared > _rooms_before:
+		note_request("clean_floor")
+	if elapsed < 150.0 and run.rooms_cleared > _rooms_before:
+		note_request("quick_floor")
+
+
+var _taken_before := 0.0
+var _rooms_before := 0
+var _boss_flasks := 0
+
+
 func _guardian_hoard(e: Enemy) -> void:
+	if player and player.flask >= _boss_flasks:
+		note_request("dry_guardian")
 	if e.form != "":
 		# a rarer form guards more, and is worth a line in the story
 		Pickup.spawn(self, "sunshard", e.pos, 2)

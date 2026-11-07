@@ -7,6 +7,8 @@ signal died_enemy(e: Enemy)
 
 const TELE_COLOR := Color(1.0, 0.2, 0.35, 0.55)
 const TELE_EDGE := Color(1.0, 0.45, 0.5, 1.0)
+const TELE_STRONG := Color(1.0, 0.75, 0.25, 0.72)     # (Settings: strong_tells)
+const TELE_STRONG_EDGE := Color(1.0, 1.0, 0.92, 1.0)
 
 var id := ""
 var def: Dictionary = {}
@@ -577,8 +579,10 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 		voice("attack", -7.0)
 	var p := params.duplicate()
 	p["progress"] = 0.0
+	stage.note_danger(center, duration, {"kind": kind, "dir": dir, "size": size, "half": float(params.get("half_angle", 0.0))})
+	var strong := bool(Settings.get_value("strong_tells", false))
 	Net.mute += 1
-	tele = stage.fx.shape(kind, center, dir, size, TELE_COLOR, TELE_EDGE, duration + 0.05, p)
+	tele = stage.fx.shape(kind, center, dir, size, TELE_STRONG if strong else TELE_COLOR, TELE_STRONG_EDGE if strong else TELE_EDGE, duration + 0.05, p)
 	Net.mute -= 1
 	if Net.recording:
 		var tid := Net.i.run_sync.next_proj_id()

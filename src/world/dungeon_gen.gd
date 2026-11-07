@@ -237,6 +237,8 @@ static func plan_of(seed_v: int, depth: int, boss_depth: bool, route := "") -> S
 	if ROUTES.get(route, {}).get("rare", false):
 		return "direct"
 	var k := posmod(hash([seed_v, depth, "plan"]), 100)
+	if String(Delve.band(depth).get("id", "")) == "roads":
+		return "wing" if k < 55 else "ring"
 	if route == "quiet":
 		return "direct" if k < 50 else "plain"     # (it promises no elite: no key room here)
 	for p in PLANS:

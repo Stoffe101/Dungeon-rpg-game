@@ -45,10 +45,54 @@ func _dump_area() -> void:
 var _hold_t := -1.0
 var _attacks := 0
 
+## How well it plays (`botskill=novice|fair|sharp`): how long a warning takes to
+## register, and how many it never notices. It reads the warning drawn on the floor,
+## as a person does, not the foe's internal state.
+const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4}, "sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5}}
+var skill: Dictionary = SKILLS.fair
+var _missed := {}
+
 
 func _ready() -> void:
 	pl = get_parent() as Player
 	pl.autopilot = true
+	for a in Dev.args():
+		if a.begins_with("botskill="):
+			skill = SKILLS.get(a.substr(9), SKILLS.fair)
+
+
+## The warning this Kindled stands in and has noticed, or [] for none.
+func _threat() -> Array:
+	var st := pl.stage
+	var now := st.elapsed
+	var best: Array = []
+	for d in st.dangers:
+		var until := float(d[1])
+		if until < now or now - float(d[2]) < float(skill.react) or d[3].is_empty():
+			continue
+		var key := int(float(d[2]) * 100.0)
+		if not _missed.has(key):
+			_missed[key] = randf() < float(skill.miss)
+		if _missed[key] or not Bot.inside(pl.pos, d[0], d[3]):
+			continue
+		if best.is_empty() or until < float(best[1]):
+			best = d
+	return best
+
+
+static func inside(p: Vector2, at: Vector2, s: Dictionary) -> bool:
+	var size: Vector2 = s.get("size", Vector2.ZERO)
+	var dir: Vector2 = s.get("dir", Vector2.RIGHT)
+	match int(s.get("kind", -1)):
+		Fx.Shape.DISC:
+			return p.distance_to(at) <= size.x * 0.5 + 0.4
+		Fx.Shape.CONE:
+			var to := p - at
+			return to.length() <= size.x * 0.5 + 0.4 and (to.length() < 0.6 or absf(dir.angle_to(to)) <= float(s.get("half", 0.0)) + 0.1)
+		Fx.Shape.RECT:
+			var q := Geometry2D.get_closest_point_to_segment(p, at, at + dir * size.x)
+			return q.distance_to(p) <= size.y * 0.5 + 0.4
+	return false
 
 
 func _process(delta: float) -> void:
@@ -112,7 +156,7 @@ func _process(delta: float) -> void:
 	if _jitter != Vector2.ZERO:
 		pl.move_in = (pl.move_in + _jitter).normalized()
 		_jitter = _jitter * 0.9 if _jitter.length() > 0.1 else Vector2.ZERO
-	if pl.hp_ratio() < 0.4 and pl.flask > 0:
+	if pl.hp_ratio() < float(skill.flask) and pl.flask > 0:
 		pl.press("flask")
 
 
@@ -173,16 +217,18 @@ func _fight(t: Actor, delta: float) -> void:
 			_hold_t = 1.35
 		else:
 			pl._release_pending = true
-	# dodge threats: enemies winding up close by, or projectiles inbound
+	# a warning on the floor under its feet: walk out if there is time, dodge if not
+	var th := _threat()
+	if not th.is_empty():
+		var away: Vector2 = (pl.pos - th[0]).normalized() if pl.pos.distance_to(th[0]) > 0.1 else Vector2.from_angle(randf() * TAU)
+		if int(th[3].kind) == Fx.Shape.RECT:
+			away = (th[3].dir as Vector2).orthogonal()
+			away *= signf(away.dot(pl.pos - th[0])) if away.dot(pl.pos - th[0]) != 0.0 else 1.0
+		pl.move_in = away
+		if float(th[1]) - st.elapsed < 0.3 and _dodge_cd <= 0.0 and pl.dodge_charges >= 1.0:
+			pl.press("dodge")
+			_dodge_cd = 0.7
 	if _dodge_cd <= 0.0:
-		for a in st.hostiles(pl.team):
-			if a is Enemy and (a as Enemy).state in WINDUPS and a.pos.distance_to(pl.pos) < 4.5:
-				var e := a as Enemy
-				if e.state_t > 0.25:
-					pl.move_in = (pl.pos - a.pos).normalized().rotated(randf_range(-1.0, 1.0))
-					pl.press("dodge")
-					_dodge_cd = 0.7
-					break
 		for p in st.projectiles:
 			if is_instance_valid(p) and p.team != pl.team and p.pos.distance_to(pl.pos) < 2.2:
 				if randf() < 0.5 and pl.ward_cd <= 0.0:

@@ -25,6 +25,10 @@ const LIST := [
 	{"id": "wards", "title": "Late, Not Early", "line": "Turn aside ten blows with a clean Ward.", "key": "ward", "goal": 10, "pay": {"embers": 150, "xp": 110}},
 	{"id": "lantern", "title": "What You Dropped", "line": "Relight your own cold lantern.", "key": "lantern", "goal": 1, "pay": {"embers": 200, "sunshards": 1}},
 	{"id": "shard", "title": "Warm Stones", "line": "Bring home two Sunshards.", "key": "sunshard", "goal": 2, "pay": {"embers": 220, "material": ["sun_gold", 1]}},
+	# the old hands' notices: up once a guardian has fallen to you, for those who want them
+	{"id": "untouched", "title": "Not a Mark on You", "line": "Leave a floor without one blow landing on anybody.", "key": "clean_floor", "goal": 1, "pay": {"sunshards": 2, "xp": 200}, "mastery": true},
+	{"id": "dry", "title": "Without Drinking", "line": "Fell a guardian without touching your flask.", "key": "dry_guardian", "goal": 1, "pay": {"sunshards": 3, "rune": true}, "mastery": true},
+	{"id": "quick", "title": "Before the Candle Burns Down", "line": "Leave a floor inside two and a half minutes.", "key": "quick_floor", "goal": 1, "pay": {"embers": 320, "material": ["ember_core", 1]}, "mastery": true},
 ]
 
 
@@ -60,8 +64,9 @@ static func offers() -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(["board", int(r.done), int(Profile.data.stats.get("runs", 0)) / 2])
 	var pool: Array = []
+	var seasoned := int(Profile.data.stats.get("victories", 0)) > 0
 	for c in LIST:
-		if not carrying(String(c.id)) and not up.has(c.id):
+		if not carrying(String(c.id)) and not up.has(c.id) and (seasoned or not c.get("mastery", false)):
 			pool.append(String(c.id))
 	while up.size() < OFFERS and not pool.is_empty():
 		up.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))

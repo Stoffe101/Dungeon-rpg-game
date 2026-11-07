@@ -970,7 +970,9 @@ func _tele(ev: Array) -> void:
 	var dur := float(ev[6])
 	var params: Dictionary = (ev[7] as Dictionary).duplicate()
 	params["progress"] = 0.0
-	var n := stage.fx.shape(int(ev[2]), ev[3], ev[4], ev[5], Enemy.TELE_COLOR, Enemy.TELE_EDGE, dur + 0.05, params)
+	stage.note_danger(ev[3], dur, {"kind": int(ev[2]), "dir": ev[4], "size": ev[5], "half": float((ev[7] as Dictionary).get("half_angle", 0.0))})
+	var strong := bool(Settings.get_value("strong_tells", false))
+	var n := stage.fx.shape(int(ev[2]), ev[3], ev[4], ev[5], Enemy.TELE_STRONG if strong else Enemy.TELE_COLOR, Enemy.TELE_STRONG_EDGE if strong else Enemy.TELE_EDGE, dur + 0.05, params)
 	teles[int(ev[1])] = n
 	if ev.size() > 8:
 		# the foe winding up glows on this screen too

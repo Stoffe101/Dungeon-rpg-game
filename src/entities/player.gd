@@ -1299,6 +1299,23 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	return res
 
 
+## What a blow is counted under in the run analysis.
+func _hit_name(h: Hit, ab: String) -> String:
+	if ab != "":
+		return String(GearDB.ability(ab).get("name", ab.capitalize()))
+	if h.has_tag("dot"):
+		return "Burn and poison"
+	return String(GearDB.weapon(weapon.id if weapon else "").get("name", "Weapon"))
+
+
+## Who to blame, in a word a player would use.
+func _blow_name(attacker: Node, h: Hit) -> String:
+	var src: Node = attacker if attacker != null else h.source
+	if src is Enemy and is_instance_valid(src):
+		return (src as Enemy).display_name
+	return "Burning" if h.has_tag("fire") else ("The room" if h.has_tag("hazard") else "The Undervault")
+
+
 ## The lantern burns low for a while (every machine sees its own Kindled's).
 func snuff(seconds: float) -> void:
 	snuffed_t = seconds
@@ -1473,6 +1490,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var res := t.take_hit(h)
 	if res.amount <= 0.0:
 		return res
+	if run:
+		run.note_dealt(_hit_name(h, ab), res.amount)
 	if stage is Dungeon:
 		_room_rule(t, res, dot)
 	if not runes.is_empty() and h.proc:
@@ -1920,6 +1939,8 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		last_attacker_id = (h.source as Enemy).id
 	var res := take_hit(h)
 	if res.amount > 0.0:
+		if run:
+			run.note_blow(stage.elapsed, _blow_name(attacker, h), res.amount)
 		hurt_t = 0.25
 		invuln_t = maxf(invuln_t, 0.5)
 		if attacker is Enemy and is_instance_valid(attacker):
@@ -2362,6 +2383,8 @@ func _update_lantern(dt: float) -> void:
 		snuffed_t -= dt
 		rng *= 0.5
 		en *= 0.55
+	if stage is Dungeon and String(Delve.band((stage as Dungeon).layout.depth).get("id", "")) == "thin":
+		rng *= 0.8
 	gloom_t -= dt
 	# a faint drift of light in the colour of each great thing worn
 	if not aura_cols.is_empty() and hearthcall_t < 0.0:

@@ -145,6 +145,8 @@ func _ready() -> void:
 
 func _open_dev_screen(what: String) -> void:
 	match what:
+		"noticeboard":
+			Game.ui.noticeboard()
 		"skilltree":
 			ui.skill_tree()
 			for a in Dev.args():

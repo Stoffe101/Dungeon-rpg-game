@@ -29,6 +29,8 @@ const DEFAULTS := {
 	"effects_intensity": 1.0,
 	"ally_effects": 0.6,         # co-op: other Kindled's particles, relative to your own
 	"damage_numbers": true,
+	"hud_width": "centered",     # very wide screens: the HUD's corners sit near the fight, or at the edges
+	"strong_tells": false,       # brighter, harder-edged warnings on the floor
 	"world_names": "all",        # names over things and finds: all nearby | nearest | off (the prompt below instead)
 	"show_fps": false,
 	"aim_assist": 0.5,

@@ -149,6 +149,18 @@ static func bark(id: String, rng: RandomNumberGenerator) -> String:
 		pool.append("The Warden's gone. I still can't believe it.")
 	if Profile.skill_points_free() > 0:
 		pool.append("The Hearth is humming. It wants you.")
+	if Chronicle.rescued("maren"):
+		pool.append("That cartographer talks in her sleep. Corridors, mostly.")
+	if not Contracts.taken().is_empty():
+		pool.append("I saw you take a notice off the board. Good. Somebody should.")
+	if Chronicle.marks("altar_kindled") > 0:
+		pool.append("They say a Vigil burns down there again. I would like to see that.")
+	if Chronicle.marks("altar_broken") > 0:
+		pool.append("Something you broke down there, the walls up here felt it.")
+	if Chronicle.marks("altar_pact") > 0:
+		pool.append("Whatever you agreed to down there, I would rather not hear it.")
+	if Chronicle.marks("nemeses") > 0:
+		pool.append("%s is finished. People here are sleeping better." % Profile.data.world.nemeses[0])
 	return pool[rng.randi_range(0, pool.size() - 1)]
 
 

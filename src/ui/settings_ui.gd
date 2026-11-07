@@ -141,6 +141,7 @@ func _open_page(id: String) -> void:
 			_stepper("Frame cap", "max_fps", [0, 60, 120, 144, 240], ["Unlimited", "60", "120", "144", "240"], "The most frames per second drawn.")
 			_switch("V-Sync", "vsync", "Waits for the monitor: no tearing, a little more input delay.")
 			_slider("Brightness", "brightness", 0.8, 1.5, 0.05, "How bright the world is drawn. The Undervault is meant to be dark, never unreadable.")
+			_stepper("HUD width", "hud_width", ["centered", "full"], ["Near the fight", "Screen edges"], "On very wide screens: keep health, the map and notices near the fight, or out at the edges.")
 			_switch("Show frame rate", "show_fps", "A frame counter in the corner.")
 		"gameplay":
 			_slider("Aim assist (pad)", "aim_assist", 0.0, 1.0, 0.05, "With a pad, aim bends toward the foe nearest your stick.")
@@ -151,6 +152,7 @@ func _open_page(id: String) -> void:
 			_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05, "How hard the camera kicks on impacts.")
 			_slider("Effect intensity", "effects_intensity", 0.25, 1.0, 0.05, "Particles and flashes from your own Kindled.")
 			_switch("Reduce flashes", "reduce_flashes", "Softens bright flashes and the damage pulse at the screen's edges.")
+			_switch("Strong warnings", "strong_tells", "Attack warnings on the floor are brighter, with a pale hard edge that does not rely on red.")
 			_stepper("Object names", "world_names", ["all", "nearest", "off"], ["All nearby", "Only the nearest", "Off"],
 				"Names over chests, shrines and finds. Off: what F would use is told at the bottom of the screen instead.")
 		"coop":

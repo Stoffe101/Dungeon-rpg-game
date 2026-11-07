@@ -37,7 +37,8 @@ static func rule_room(lay, seed_v: int) -> void:
 		return
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([seed_v, lay.depth, "rule"])
-	if rng.randi_range(0, 99) >= RULE_CHANCE:
+	var odds := RULE_CHANCE * (3 if String(Delve.band(lay.depth).get("id", "")) == "whisper" else 1)
+	if rng.randi_range(0, 99) >= odds:
 		return
 	var cands: Array = []
 	for r in lay.rooms:

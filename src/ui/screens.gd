@@ -1514,6 +1514,8 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 	var g: Dictionary = s.get("grudge", {})
 	if not g.is_empty():
 		v.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
+	if String(s.get("outcome", "")) == "died":
+		_how_it_ended(v, s)
 	for n in s.get("settled", []):
 		v.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
 	for n in s.get("grudges_grew", []):
@@ -1536,11 +1538,79 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 	var b := UIKit.button("Return to the Sanctuary", func() -> void:
 		ui.close_all()
 		ui.title_card("The Sanctuary", "The Hearth still burns.", Game.goto_hub), 140)
-	var cc := CenterContainer.new()
+	var cc := UIKit.hbox(6)
+	cc.alignment = BoxContainer.ALIGNMENT_CENTER
 	cc.add_child(b)
+	if not (s.get("dealt", {}) as Dictionary).is_empty() or not (s.get("taken", {}) as Dictionary).is_empty():
+		cc.add_child(UIKit.button("The whole run", func() -> void: ui.open(run_analysis(ui, s)), 90))
 	v.add_child(cc)
 	b.call_deferred("grab_focus")
 	return _center(p)
+
+
+## The end, in a line or two: what landed last, and what did most of the damage.
+static func _how_it_ended(v: VBoxContainer, s: Dictionary) -> void:
+	var blows: Array = s.get("blows", [])
+	if blows.is_empty():
+		return
+	v.add_child(UIKit.label("HOW IT ENDED", 8, UIKit.C_BAD, true))
+	var last: Array = blows.back()
+	var shown: Array = blows.slice(maxi(0, blows.size() - 3))
+	for b in shown:
+		v.add_child(UIKit.label("  %.1f s before the end: %s, %d" % [float(last[0]) - float(b[0]), String(b[1]), int(round(float(b[2])))], 8, UIKit.C_TEXT))
+	var top := top_source(s.get("taken", {}))
+	if not top.is_empty() and float(top[1]) >= 0.35:
+		v.add_child(UIKit.para("%s dealt %d%% of all you took this expedition. The Bestiary at the Shrine says how it fights." % [top[0], int(round(float(top[1]) * 100.0))], 280, UIKit.C_DIM))
+
+
+## [name, share of the total] of the biggest entry ([] for none).
+static func top_source(by: Dictionary) -> Array:
+	var total := 0.0
+	var best := ""
+	for k in by:
+		total += float(by[k])
+		if best == "" or float(by[k]) > float(by[best]):
+			best = String(k)
+	return [] if best == "" or total <= 0.0 else [best, float(by[best]) / total]
+
+
+## Everything the run kept, for whoever wants it: never in the way of going home.
+static func run_analysis(ui: UIRoot, s: Dictionary) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("The Whole Run"))
+	v.add_child(UIKit.label("%d foes felled in %d rooms, %d:%02d" % [int(s.get("kills", 0)), int(s.get("rooms", 0)), int(s.get("time", 0.0)) / 60, int(s.get("time", 0.0)) % 60], 8, UIKit.C_DIM))
+	var row := UIKit.hbox(14)
+	row.add_child(_shares("WHAT YOU DEALT IT WITH", s.get("dealt", {}), Color(1.0, 0.72, 0.35)))
+	row.add_child(_shares("WHAT HURT YOU", s.get("taken", {}), Color(0.85, 0.3, 0.32)))
+	v.add_child(row)
+	var close := UIKit.button("Back", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
+
+
+static func _shares(title: String, by: Dictionary, col: Color) -> Control:
+	var v := UIKit.vbox(2)
+	v.custom_minimum_size = Vector2(170, 0)
+	v.add_child(UIKit.label(title, 8, UIKit.C_GOLD, true))
+	var total := 0.0
+	var keys: Array = by.keys()
+	for k in keys:
+		total += float(by[k])
+	keys.sort_custom(func(a, b): return float(by[a]) > float(by[b]))
+	if keys.is_empty():
+		v.add_child(UIKit.label("Nothing at all.", 8, UIKit.C_DIM))
+	for k in keys.slice(0, 7):
+		var share := float(by[k]) / maxf(total, 1.0)
+		v.add_child(UIKit.label("%s  %d  (%d%%)" % [String(k), int(round(float(by[k]))), int(round(share * 100.0))], 8, UIKit.C_TEXT))
+		var bar := ColorRect.new()
+		bar.color = col
+		bar.custom_minimum_size = Vector2(maxf(2.0, 160.0 * share), 2)
+		bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		v.add_child(bar)
+	return v
 
 
 # --- developer tools ------------------------------------------------------------------------------

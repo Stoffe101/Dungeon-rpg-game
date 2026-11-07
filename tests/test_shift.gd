@@ -763,3 +763,125 @@ func test_an_old_grudge_reads_without_marks() -> void:
 	eq(int(m.version), Profile.VERSION, "brought up to date")
 	eq(m.grudges[0].marks, [], "no marks yet")
 	check(m.contracts is Dictionary, "a noticeboard")
+
+
+# --- the satchel ---------------------------------------------------------------------
+
+func test_the_bag_can_be_filtered_and_ordered_without_changing_it() -> void:
+	var bag: Array = [
+		{"uid": 1, "base": "hearthblade", "rarity": "common", "tier": 1, "level": 1},
+		{"uid": 2, "base": "gloamfang", "rarity": "legendary", "tier": 1, "level": 1},
+		{"uid": 3, "base": "glass_lantern", "rarity": "legendary", "tier": 3, "level": 1},
+	]
+	eq(int(InventoryUI.arranged(bag, "all", "new")[0].uid), 3, "newest first")
+	eq(InventoryUI.arranged(bag, "weapon", "new").size(), 2, "arms only")
+	eq(InventoryUI.arranged(bag, "jewel", "new").size(), 1, "rings and charms")
+	eq(InventoryUI.arranged(bag, "armour", "new").size(), 0, "nothing worn on the body")
+	eq(int(InventoryUI.arranged(bag, "all", "tier")[0].uid), 3, "highest tier")
+	eq(int(InventoryUI.arranged(bag, "all", "rarity").back().uid), 1, "plainest last")
+	eq(int(bag[0].uid), 1, "the bag itself is untouched")
+
+
+func test_a_rough_upgrade_hint_goes_by_tier_then_rarity() -> void:
+	var a := {"tier": 2, "rarity": "common", "level": 1}
+	var b := {"tier": 1, "rarity": "legendary", "level": 9}
+	check(InventoryUI.looks_better(a, b), "tier first")
+	check(not InventoryUI.looks_better(b, a), "and not the other way")
+	check(InventoryUI.looks_better(a, {}), "anything beats an empty slot")
+
+
+# --- old hands, the deep, bots ---------------------------------------------------------
+
+func test_mastery_notices_wait_for_a_seasoned_kindled() -> void:
+	Profile.data = Profile.fresh()
+	for k in 40:
+		Profile.data.contracts = {"offer": [], "taken": [], "done": k}
+		for id in Contracts.offers():
+			check(not Contracts.def_of(String(id)).get("mastery", false), "not for a beginner")
+	Profile.data.stats["victories"] = 1
+	var seen := false
+	for k in 40:
+		Profile.data.contracts = {"offer": [], "taken": [], "done": k}
+		for id in Contracts.offers():
+			seen = seen or Contracts.def_of(String(id)).get("mastery", false)
+	check(seen, "up once a guardian has fallen")
+
+
+func test_a_floor_left_unhurt_and_quickly_counts_and_a_hurt_one_does_not() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.stats["victories"] = 1
+	Profile.data.contracts = {"offer": ["untouched", "quick"], "taken": [], "done": 0}
+	Contracts.take("untouched")
+	Contracts.take("quick")
+	var d := _floor(7)
+	d.run.rooms_cleared += 1
+	d.floor_left()
+	eq(Contracts.taken().filter(func(t): return Contracts.finished(t)).size(), 2, "both")
+	d.queue_free()
+	Profile.data.contracts = {"offer": ["untouched"], "taken": [], "done": 0}
+	Contracts.take("untouched")
+	var e := _floor(7)
+	e.run.rooms_cleared += 1
+	e.run.note_blow(1.0, "Husk", 12.0)
+	e.floor_left()
+	check(not Contracts.finished(Contracts.taken()[0]), "a blow landed")
+	e.queue_free()
+
+
+func test_the_deep_has_moods_three_depths_at_a_time() -> void:
+	eq(Delve.band(3), {}, "not in the regions")
+	eq(String(Delve.band(4).id), "whisper", "the first")
+	eq(String(Delve.band(6).id), "whisper", "three depths of it")
+	eq(String(Delve.band(7).id), "thin", "then the next")
+	eq(String(Delve.band(16).id), "whisper", "and round again")
+	eq(DungeonGen.plan_of(5, 13, false) in ["wing", "ring"], true, "the Old Roads run in rings and wings")
+
+
+func test_a_bot_reads_the_warning_shapes_a_player_sees() -> void:
+	check(Bot.inside(Vector2(1, 0), Vector2.ZERO, {"kind": Fx.Shape.DISC, "size": Vector2(4, 4)}), "in a disc")
+	check(not Bot.inside(Vector2(5, 0), Vector2.ZERO, {"kind": Fx.Shape.DISC, "size": Vector2(4, 4)}), "outside it")
+	var line := {"kind": Fx.Shape.RECT, "dir": Vector2.RIGHT, "size": Vector2(8, 1)}
+	check(Bot.inside(Vector2(4, 0.2), Vector2.ZERO, line), "on a line")
+	check(not Bot.inside(Vector2(4, 2.0), Vector2.ZERO, line), "beside it")
+	var cone := {"kind": Fx.Shape.CONE, "dir": Vector2.RIGHT, "size": Vector2(6, 6), "half": 0.6}
+	check(Bot.inside(Vector2(2, 0.2), Vector2.ZERO, cone), "in a cone")
+	check(not Bot.inside(Vector2(-2, 0), Vector2.ZERO, cone), "behind it")
+
+
+# --- what a run keeps ------------------------------------------------------------------
+
+func test_a_run_remembers_who_hurt_you_and_keeps_only_the_last_few_blows() -> void:
+	var r := RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""])
+	for k in 9:
+		r.note_blow(float(k), "Husk" if k < 8 else "Archer", 10.0)
+	eq(r.blows.size(), RunState.BLOWS_KEPT, "the last few")
+	eq(String(r.blows.back()[1]), "Archer", "in order")
+	eq(float(r.taken["Husk"]), 80.0, "the whole account")
+	var back := RunState.from_dict(r.to_dict())
+	eq(float(back.taken["Archer"]), 10.0, "it reaches a guest's machine")
+
+
+func test_a_blow_on_a_kindled_is_counted_under_its_name() -> void:
+	Profile.data = Profile.fresh()
+	var d := _floor(7)
+	d.player.run = RunState.create(1, "ossuary", "sword", 0, ["flare", "", ""])
+	var e := _foe(d, d.player.pos + Vector2(1, 0))
+	var h := Hit.make(e, 20.0, ["melee"])
+	h.can_crit = false
+	d.player.take_enemy_hit(h, e)
+	check(d.player.run.taken.has(e.display_name), "by name")
+	d.queue_free()
+
+
+func test_the_top_of_a_ledger_is_named_with_its_share() -> void:
+	eq(Screens.top_source({}), [], "nothing")
+	var t := Screens.top_source({"Husk": 75.0, "Archer": 25.0})
+	eq(String(t[0]), "Husk", "the most")
+	eq(float(t[1]), 0.75, "and how much")
+
+
+func test_the_hud_only_comes_in_on_very_wide_screens() -> void:
+	eq(HUD.side_inset(Vector2(960, 540), "centered"), 0.0, "16:9 is left alone")
+	eq(HUD.side_inset(Vector2(640, 360), "centered"), 0.0, "at any scale")
+	check(HUD.side_inset(Vector2(1720, 720), "centered") > 100.0, "21:9 comes in")
+	eq(HUD.side_inset(Vector2(1720, 720), "full"), 0.0, "and the setting keeps it out")

@@ -213,6 +213,8 @@ func descend(route := "") -> void:
 		return
 	transitioning = true
 	_take_route(route)
+	if stage is Dungeon and not stage.replica:
+		(stage as Dungeon).floor_left()
 	if Net.is_host():
 		for pl in stage.players:
 			if pl != stage.player and pl.run:
@@ -577,6 +579,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
 		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp, "grudges_grew": grew,
 		"delve": run.delve, "delve_best": delve_best, "woke": woke, "contracts": paid,
+		"taken": run.taken.duplicate(), "dealt": run.dealt.duplicate(), "blows": run.blows.duplicate(),
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

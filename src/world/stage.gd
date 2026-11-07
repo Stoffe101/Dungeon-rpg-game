@@ -136,6 +136,14 @@ func look_toward(p: Vector2, seconds: float) -> void:
 
 
 ## Runs `fn` after `seconds` of simulation time (respects hitstop/slow-mo).
+var dangers: Array = []     # blows being wound up: [where, until when] (HUD: off-screen chevrons)
+
+
+func note_danger(at: Vector2, seconds: float, shape := {}) -> void:
+	dangers = dangers.filter(func(d): return float(d[1]) >= elapsed)
+	dangers.append([at, elapsed + seconds, elapsed, shape])
+
+
 func after(seconds: float, fn: Callable) -> void:
 	_timers.append([seconds, fn])
 
