@@ -202,3 +202,78 @@ func test_the_tree_lends_a_technique_to_another_weapon() -> void:
 		check(not n.is_empty() and String(n.desc) != "", "%s is on the tree and says what it does" % id)
 		check(not SkillDB.neighbours(id).is_empty(), "%s can be reached" % id)
 	st.queue_free()
+
+
+# --- specialisation keystones ------------------------------------------------------------
+
+func test_perfect_cadence_crits_in_time_and_costs_out_of_time() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "hearthblade", ["perfect_cadence"])
+	var e := _dummy(st, Vector2(12, 9.5))
+	pl.weapon.cadenced = true
+	var h := Hit.make(pl, 100.0, ["melee"])
+	pl.weapon._technique(e, h)
+	check(h.forced_crit and is_equal_approx(h.amount, 125.0), "in time: critical and harder")
+	pl.weapon.cadenced = false
+	var h2 := Hit.make(pl, 100.0, ["melee"])
+	pl.weapon._technique(e, h2)
+	check(not h2.forced_crit and is_equal_approx(h2.amount, 80.0), "out of time: weaker")
+	st.queue_free()
+
+
+func test_the_lanterns_edge_strikes_inside_the_light_and_gives_no_kindle_for_hits() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "hearthblade", ["lantern_edge"])
+	pl._update_lantern(0.02)
+	var near := _dummy(st, pl.pos + Vector2(1.0, 0.0))
+	var far := _dummy(st, pl.pos + Vector2(pl.light_reach() + 3.0, 0.0))
+	pl.kindle = pl.kindle_max()
+	var k0 := pl.kindle
+	var a := Hit.make(pl, 40.0, ["melee"])
+	a.can_crit = false
+	var r1 := pl.deal_hit(near, a)
+	var b := Hit.make(pl, 40.0, ["melee"])
+	b.can_crit = false
+	var r2 := pl.deal_hit(far, b)
+	check(r1.amount > r2.amount * 1.2, "inside the light it bites (%.1f against %.1f)" % [r1.amount, r2.amount])
+	pl.kindle = 10.0
+	var c := Hit.make(pl, 10.0, ["melee"])
+	c.can_crit = false
+	pl.deal_hit(near, c)
+	eq(pl.kindle, 10.0, "weapon hits give no Kindle")
+	check(k0 > 0.0, "(it started full)")
+	st.queue_free()
+
+
+func test_vanguards_weight_punishes_the_staggered_and_carries_the_shock() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "cinderhammer", ["vanguard"])
+	var a := _dummy(st, Vector2(11.6, 9.5))
+	var far := _dummy(st, Vector2(15.4, 9.5))
+	a.poise = 1.0
+	pl.weapon.arc_hit(pl.pos, Vector2.RIGHT, 1.5, 0.6, 30.0, ["melee"], 0.0, 50.0)
+	check(far.hp < 5000.0, "the shock carries further")
+	var h := Hit.make(pl, 40.0, ["melee"])
+	h.can_crit = false
+	var hp := a.hp
+	pl.deal_hit(a, h)
+	check(hp - a.hp > 40.0 * 1.3, "a staggered foe takes more")
+	st.queue_free()
+
+
+func test_unblinking_holds_five_and_loses_one_at_a_time() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "hearthbow", ["unblinking"])
+	var w := pl.weapon
+	var none := w.damage_scale()
+	for k in 8:
+		w.add_focus()
+	eq(w.focus, 5, "up to five")
+	w.on_hurt()
+	eq(w.focus, 4, "a blow costs one")
+	w.focus = 0
+	var bare := w.damage_scale()
+	check(is_equal_approx(bare, none), "(the same with none)")
+	pl.stats.flags.erase("unblinking")
+	check(w.damage_scale() > bare, "without Unblinking nothing is lost for having none")
+	st.queue_free()

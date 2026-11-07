@@ -98,7 +98,13 @@ func damage_scale() -> float:
 		k *= OVERCHARGE_MULT
 	if focus > 0 and has_technique("focus"):
 		k *= 1.0 + FOCUS_STEP * focus
+	elif player and player.stats and player.stats.has("unblinking"):
+		k *= 0.85     # (Unblinking: nothing without Focus)
 	return k
+
+
+func focus_max() -> int:
+	return 5 if player and player.stats and player.stats.has("unblinking") else FOCUS_MAX
 
 
 # --- techniques ---------------------------------------------------------------
@@ -144,6 +150,10 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 		h.amount *= CADENCE_MULT
 		if cadence_run >= 3:
 			h.poise *= 1.6     # the third in time lands like a finisher
+		if player.stats.has("perfect_cadence"):
+			h.forced_crit = true
+	elif player.stats.has("perfect_cadence") and h.has_tag("melee"):
+		h.amount *= 0.8
 	if along >= POINT_FROM and has_technique("point"):
 		h.amount *= POINT_MULT
 		h.knockback *= 1.5
@@ -162,13 +172,15 @@ func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
 		return
 	_breaking = true
+	var heavy := player.stats.has("vanguard")
+	var reach := 5.2 if heavy else 2.6
 	player.cosmetic(func() -> void:
 		player.stage.fx.ring(a.pos, 2.6, Color(1.0, 0.75, 0.4), 0.3, 0.3)
 		Audio.play("slam", -6.0, 1.3))
 	for b in player.stage.hostiles(player.team):
-		if b == a or not b.alive or b.pos.distance_to(a.pos) > 2.6:
+		if b == a or not b.alive or b.pos.distance_to(a.pos) > reach:
 			continue
-		var s := Hit.make(player, h.amount * 0.3, ["melee"])
+		var s := Hit.make(player, h.amount * (0.6 if heavy else 0.3), ["melee"])
 		s.can_crit = false
 		s.proc = false
 		s.poise = h.poise * 0.6
@@ -204,17 +216,17 @@ func _begin_cadenced() -> void:
 func add_focus() -> void:
 	if not has_technique("focus"):
 		return
-	focus = mini(FOCUS_MAX, focus + 1)
-	player.form_meter = float(focus) / FOCUS_MAX if form == "" else player.form_meter
+	focus = mini(focus_max(), focus + 1)
+	player.form_meter = float(focus) / focus_max() if form == "" else player.form_meter
 	player.cosmetic(func() -> void:
 		player.stage.fx.number(player.pos, 2.4, "FOCUS %d" % focus, Color(1.0, 0.9, 0.55)))
 
 
 func on_hurt() -> void:
 	if focus > 0:
-		focus = 0
+		focus = focus - 1 if player.stats.has("unblinking") else 0
 		if form == "":
-			player.form_meter = 0.0
+			player.form_meter = float(focus) / focus_max()
 		player.cosmetic(func() -> void:
 			player.stage.fx.number(player.pos, 2.4, "FOCUS LOST", Color(0.75, 0.7, 0.65)))
 

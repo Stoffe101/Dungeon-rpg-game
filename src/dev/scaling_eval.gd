@@ -64,7 +64,7 @@ func _go() -> void:
 		route = String(way)
 		for comp_id in comps:
 			for n in sizes:
-				var builds: Array = (COMPS[comp_id] as Array).slice(0, n)
+				var builds: Array = (COMPS.get(comp_id, [comp_id, comp_id, comp_id, comp_id]) as Array).slice(0, n)     # (a preset alone: four of it)
 				var agg := {}
 				for s in seeds:
 					var r := _run_one(builds, 1000 + s * 17 + n)

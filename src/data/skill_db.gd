@@ -234,6 +234,16 @@ const NODES := [
 		"desc": "Any charged attack can be held past full: after a breath more it is Overcharged, and its release costs 15 Kindle and hits 45% harder."},
 	{"id": "t_focus", "name": "Steady Eye", "branch": "pyre", "kind": "notable", "at": [2.8, 1.9], "links": ["p2r"], "flags": {"tech_focus": 1},
 		"desc": "Any weapon builds Focus: a charged blow that lands adds one (up to three, +12% damage each); any blow that lands on you loses it all."},
+	# specialisation keystones that turn a technique into a way of fighting, with a price
+	{"id": "s_cadence", "name": "Perfect Cadence", "branch": "blade", "kind": "keystone", "at": [5.4, -2.4], "links": ["t_cadence"], "flags": {"perfect_cadence": 1},
+		"desc": "Every strike in time is critical. Strikes out of time deal 20% less. (Cadence: press again just as a swing settles.)"},
+	{"id": "s_lantern", "name": "The Lantern's Edge", "branch": "kindle", "kind": "keystone", "at": [5.6, -3.4], "links": ["k_lw"], "flags": {"lantern_edge": 1},
+		"desc": "Your light is a weapon: it reaches 30% further, and foes inside it take up to 25% more from you, the fuller your Kindle. Weapon hits no longer give Kindle."},
+	{"id": "s_vanguard", "name": "Vanguard's Weight", "branch": "bulwark", "kind": "keystone", "at": [5.2, -2.4], "links": ["t_breaker"], "flags": {"vanguard": 1},
+		"mods": [["attack_speed", "more", -0.1]],
+		"desc": "Staggered foes take 35% more from you, and a Breaking Blow's shock carries twice as far and hits twice as hard. You attack 10% slower."},
+	{"id": "s_unblinking", "name": "Unblinking", "branch": "pyre", "kind": "keystone", "at": [6.4, 2.6], "links": ["p_pour", "t_focus"], "flags": {"unblinking": 1},
+		"desc": "Focus gathers up to five, and a blow that lands on you costs one instead of all. Without Focus your blows deal 15% less. (Focus: Steady Eye, or a bow's true shots.)"},
 	# weapon masteries: one notable per kind of weapon, each changing how its
 	# forms fight (read by the weapon scripts), on the branch whose spirit it shares
 	{"id": "m_sword", "name": "Sunder and Answer", "branch": "blade", "kind": "notable", "at": [4.8, -3.1], "links": ["b4l"], "flags": {"mastery_sword": 1},

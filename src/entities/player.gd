@@ -1318,6 +1318,11 @@ func _blow_name(attacker: Node, h: Hit) -> String:
 	return "Burning" if h.has_tag("fire") else ("The room" if h.has_tag("hazard") else "The Undervault")
 
 
+## How far the lantern's light reaches, in tiles (The Lantern's Edge strikes inside it).
+func light_reach() -> float:
+	return (lantern.omni_range if lantern else 10.0) * 0.5
+
+
 ## The lantern burns low for a while (every machine sees its own Kindled's).
 func snuff(seconds: float) -> void:
 	snuffed_t = seconds
@@ -1388,6 +1393,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if stats.has("grudgebearer"):
 		mult *= 1.0 + minf(0.2, 0.04 * Profile.active_grudges().size())
 	if stats.has("glass_lantern") and t.pos.distance_to(pos) < 4.0:
+		mult *= 1.35
+	if stats.has("lantern_edge") and t.pos.distance_to(pos) <= light_reach():
+		mult *= 1.0 + 0.25 * clampf(kindle / maxf(1.0, kindle_max()), 0.0, 1.0)
+	if stats.has("vanguard") and t.status.is_staggered():
 		mult *= 1.35
 	if stats.has("stillness") and still_t >= 0.6:
 		mult *= 1.4
@@ -1504,7 +1513,7 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	Events.damage_dealt.emit(t, res.amount, res.crit)
 	if res.crit and stats.has("pyre_brand") and t.alive:
 		t.status.apply_burn(3, 3.0 * (1.0 + stats.v("burn_damage")), int(stats.v("burn_stacks")), self)
-	if h.proc and direct:
+	if h.proc and direct and not stats.has("lantern_edge"):
 		var g := 4.0 if h.has_tag("melee") else 1.2
 		if stats.has("ember_edge") and h.has_tag("melee"):
 			g *= 1.5
@@ -2380,6 +2389,8 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("glass_lantern"):
 		rng *= 1.4
 		en *= 1.15
+	if stats.has("lantern_edge"):
+		rng *= 1.3
 	if stage is Dungeon and (stage as Dungeon).rule_here() == "unlit":
 		rng *= 0.5
 		en *= 0.75

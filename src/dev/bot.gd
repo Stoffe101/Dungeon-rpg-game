@@ -48,7 +48,8 @@ var _attacks := 0
 ## How well it plays (`botskill=novice|fair|sharp`): how long a warning takes to
 ## register, and how many it never notices. It reads the warning drawn on the floor,
 ## as a person does, not the foe's internal state.
-const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4}, "sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5}}
+const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25, "tech": 0.1}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4, "tech": 0.45},
+	"sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5, "tech": 0.85}}
 var skill: Dictionary = SKILLS.fair
 var _missed := {}
 
@@ -59,6 +60,43 @@ func _ready() -> void:
 	for a in Dev.args():
 		if a.begins_with("botskill="):
 			skill = SKILLS.get(a.substr(9), SKILLS.fair)
+
+
+## A player who knows their weapon's technique uses it, as well as their skill lets
+## them: a press in time with the swing, a true shot held to the peak of the draw.
+## True: this frame's attack was handled here.
+var _cad_roll := -1
+var _cad_go := false
+
+
+func _techniques(delta: float) -> bool:
+	var w := pl.weapon
+	if w == null:
+		return false
+	var good := float(skill.get("tech", 0.45))
+	if w.id == "bow" and w.form == "":
+		# a true shot: draw, hold to the peak, let go
+		if randf() > good:
+			return false
+		pl.press("attack")
+		pl._attack_down = true
+		_hold_t = w.charge_time / w.speed() + 0.04
+		return true
+	if not w.has_technique("cadence"):
+		return false
+	if w.phase == Weapon.Phase.RECOVER:
+		var key := int(w.phase_len * 1000.0) + w.combo
+		if _cad_roll != key:
+			_cad_roll = key
+			_cad_go = randf() < good
+		if _cad_go:
+			if w.phase_t >= w.phase_len * 0.55:
+				pl.press("attack")
+				pl._release_pending = true
+			return true     # (waits for the swing to settle)
+	elif w.phase == Weapon.Phase.WINDUP or w.phase == Weapon.Phase.ACTIVE:
+		return _cad_go     # a patient player does not mash through the swing
+	return false
 
 
 ## The warning this Kindled stands in and has noticed, or [] for none.
@@ -187,6 +225,8 @@ func _fight(t: Actor, delta: float) -> void:
 	pl.aim = (t.pos - pl.pos).normalized()
 	var ranged := pl.weapon and ["staff", "bow", "tome"].has(pl.weapon.id)
 	var want := 6.0 if ranged else 1.4
+	if pl.weapon and pl.weapon.has_technique("point"):
+		want = 2.1     # the tip of the reach, not the shaft
 	var to := (t.pos - pl.pos).normalized()
 	# a person keeps a flame that is dying fed: back to the lantern, foes or no
 	var dg := st as Dungeon
@@ -209,6 +249,8 @@ func _fight(t: Actor, delta: float) -> void:
 		if _hold_t < 0.0:
 			pl._attack_down = false
 			pl._release_pending = true
+	elif d < want + 0.6 and _techniques(delta):
+		pass     # (a technique decided this press)
 	elif d < want + 0.6:
 		_attacks += 1
 		pl.press("attack")

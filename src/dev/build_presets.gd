@@ -30,6 +30,19 @@ const PRESETS := {
 		"nodes": ["b_form", "b_rush", "p3"], "slots": ["hearthfire", "rush", "flare"]},
 	"shadow": {"desc": "Gloam cutter: lodged knives torn open by the Gloam Kris's marks", "weapon": "daggers", "item": "gloam_kris", "level": 12,
 		"nodes": ["gk", "g_fan", "g4r"], "slots": ["knives", "gloamstep", "flare"]},
+	# builds of the deepening pass: a technique made into a way of fighting
+	"cadence": {"desc": "Swordsman in time: Cadence, Perfect Cadence, Riposte", "weapon": "sword", "level": 14,
+		"nodes": ["s_cadence", "b3", "b_rush"], "slots": ["rush", "flare", ""]},
+	"vanguard": {"desc": "Hammer of the line: Breaking Blow, Vanguard's Weight, Unbreakable", "weapon": "hammer", "level": 14,
+		"nodes": ["s_vanguard", "w6", "w3"], "slots": ["aegis", "flare", ""]},
+	"lanternedge": {"desc": "Lantern adept: The Lantern's Edge, Overcharge, Hearth Lantern", "weapon": "staff", "level": 14,
+		"nodes": ["s_lantern", "t_overcharge", "k_lan"], "slots": ["lantern", "flare", ""]},
+	"unblinking": {"desc": "Marksman: Steady Eye, Unblinking, Splintering Flame", "weapon": "bow", "level": 14,
+		"nodes": ["s_unblinking", "p_fork", "p3l"], "slots": ["cinder_lance", "flare", ""]},
+	"backstab": {"desc": "Knife in the dark: daggers, Ambush, Gloamstep, Phantom", "weapon": "daggers", "level": 14,
+		"nodes": ["t_behind", "g5", "g4r"], "slots": ["gloamstep", "flare", ""]},
+	"point": {"desc": "Spear at arm's length: The Point, Rimewall, Glacial Ward", "weapon": "spear", "level": 14,
+		"nodes": ["t_point", "r_wall", "r5"], "slots": ["rimewall", "flare", ""]},
 }
 
 
