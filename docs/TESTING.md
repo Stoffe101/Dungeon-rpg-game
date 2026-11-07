@@ -200,6 +200,51 @@ generate the same floor).
   corpse, a fall for every guardian, wind-ups that change the silhouette, spoils
   and titles, the three new foes' behaviour.
 
+### Tools of the great evolution pass
+
+- `scenario=ways` (run with `XARGS=plan=wing`, DEVNET=1): the floor's plan and bars match
+  on every machine; a guest is refused at the plate without the key, takes the key and opens
+  the vault with real key presses; every map shows the vault, every grid opens; a felled column
+  lies down on every screen; a Snuffer dims the guest's own lantern and its death restores it;
+  a Gravehook's chain drags the guest's own Kindled.
+- `warp=boss bossquit autopilot botskill=sharp form=<id>|none`: a guardian fought to its end by
+  the bot's real hits, timed (`[dungeon] guardian felled: ...`). Run it from a copy of the project
+  (`cp -r .godot addons assets src tests tools project.godot ...` to a scratch folder) so long
+  runs never read half-edited scripts.
+- `plan=`, `warp=lock|key|rule`, `sitefind` (rule rooms too), `open=noticeboard`, `maren`.
+- `stallog`: every slow frame taken apart (process, draw, present, what changed, what the game was
+  doing). Never measure with stdout piped: a print through a pipe costs tens of milliseconds.
+- `tools/dev/run_tests.sh` fails on any `SCRIPT ERROR` as well as on failures: a test that crashes
+  half way otherwise reads as passed (the runner counts checks, not crashes).
+
+## Human playtest: the great evolution pass
+
+Two PCs, one expedition or two each, about an hour. Nothing here has been played by a person yet.
+
+1. **The Keeper** (both): click the Keeper from a few steps away. Your Kindled should walk over and
+   talk, never swing. Press a movement key on the way: the walk stops.
+2. **Floor shapes**: on a floor with bars near the start (a wing), follow the toast to the key,
+   carry it back, open the vault. Does the guest see the bars lift at the same moment? Does the map
+   show the vault once the key is taken? On a floor with a lever, pull it and use the short way back.
+3. **Rooms to use**: strike a column, a jar and a vent with foes near them. Did the warning come
+   early enough? Did it ever hurt you in a way that felt unfair?
+4. **Rule rooms**: if a fight is named on entry (One Pulse, the Unlit Room, the Hungry Floor), was it
+   clear what it asked and did the chest feel worth it?
+5. **New foes**: let a Snuffer take your flame, then chase it. Let a Gravehook catch you once, then
+   dodge its chain. Were the warnings readable in a crowd and on the guest's screen?
+6. **Guardians**: a second visit to a guardian may bring its rarer form. Is the Lightless Warden's
+   dark readable? Does the Rootbound Bloom's warning show where it will rise?
+7. **The noticeboard** (beside the gate): take two notices each, play, and see if they pay on the way home
+   on both machines.
+8. **Great things**: wear a legendary or unique; its tooltip should count Resonance. After a few runs it
+   Awakens; later the Satchel offers a choice of two paths.
+9. **A death**: does "How it ended" tell you something you did not know? Is "The whole run" useful or noise?
+10. **Wide screen** (3440x1440 and 1920x1080): is the HUD close enough to the fight? Try Settings, HUD width,
+    and Accessibility, Strong warnings.
+11. **Grudges**: when one flees, note what you hit it with last. Next time it should be marked against that.
+
+Please note anything that felt slow, unclear, unfair or broken, with the time and what was on screen.
+
 ## Human playtest on two PCs
 
 Two people, each on their own PC. For a LAN game, both on the same network:

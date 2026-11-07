@@ -1043,7 +1043,7 @@ func sites() -> void:
 	await wait(1.0)
 
 
-## What the Shifting Undervault adds, in a party (run with XARGS=plan=wing): the floor is
+## What the Shifting Undervault adds, in a party (run with XARGS="plan=wing warp=lock"): the floor is
 ## the same on every machine; a guest takes the key and opens the vault with real
 ## key presses, every map and every wall agrees; then a Snuffer and a Gravehook
 ## work on the guest's own Kindled, whose prediction must go along with them.
@@ -1066,26 +1066,28 @@ func ways() -> void:
 	expect(dun().grid.at(t0.x, t0.y) == TileGrid.GATE, "barred on my machine")
 	if role == "host":
 		await wait(1.0)
-		dun()._spawn_reward(key_room)     # (its fight is not what this tests)
+		# the key's room is far: its altar is set down beside the guest (its fight is not
+		# what this tests; carrying the key and the bars are)
+		var g0: Player = _guest_kindled()
+		if g0:
+			Prop.make(dun(), "key_altar", Vector2i(dun().foe_spot(g0.pos + Vector2(2.5, 0.0), 0.6)), {})
 	await until(func() -> bool: return _prop_kind("key_altar") != null, 20.0, "the key's altar reached me")
 	var altar: Prop = _prop_kind("key_altar")
 	if role == "guest":
-		# barred first: without the key it does not move
-		dun().player.pos = plate.pos + Vector2(0.0, 1.0)
-		await wait(0.6)
+		# barred first: without the key it does not move (walked to, never teleported:
+		# the host only believes where a guest really walked)
+		expect(await walk_to(plate.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the plate")
 		tap("interact")
 		await wait(0.8)
 		expect(not dun().layout.locks[0].open, "without the key the plate does nothing")
-		dun().player.pos = altar.pos + Vector2(0.0, 1.0)
-		await wait(0.8)
+		expect(await walk_to(altar.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the key")
 		tap("interact")
 	await until(func() -> bool: return dun().has_key, 20.0, "the party carries the key on my screen")
 	expect(Minimap.known_rooms(dun()).has(lay.vault_room), "my map shows where it fits")
 	expect(String(dun().objective.get("text", "")).contains("KEY"), "my HUD says what to do with it")
 	if role == "guest":
 		Net.i.dev_shot("e2e/ways_key")
-		dun().player.pos = plate.pos + Vector2(0.0, 1.0)
-		await wait(0.8)
+		expect(await walk_to(plate.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked back to the plate")
 		tap("interact")
 	await until(func() -> bool: return dun().layout.locks[0].open, 20.0, "the vault opened on my screen")
 	expect(dun().grid.at(t0.x, t0.y) == TileGrid.FLOOR, "the way is floor on my machine")
@@ -1098,12 +1100,12 @@ func ways() -> void:
 	await wait(1.0)
 	# the rooms' own devices
 	if role == "host":
-		var c: Vector2 = dun().player.pos + Vector2(3.0, 0.0)
-		var st := Prop.make(dun(), "strut", Vector2i(c), {})
+		var c: Vector2 = dun().foe_spot(dun().player.pos + Vector2(3.0, 0.0), 0.6)
+		var st := Prop.make(dun(), "strut", Vector2i(c), {"scenario": true})
 		await wait(0.5)
 		st.on_struck(dun().player)
 	await until(func() -> bool:
-		var s: Prop = _prop_kind("strut")
+		var s: Prop = _newest("strut")
 		return s != null and String(s.sprite.anim) == "down", 15.0, "a felled column lies down on my screen")
 	# a Snuffer on the guest's own lantern
 	var mine := dun().player
@@ -1154,6 +1156,15 @@ func _prop_kind(kind: String) -> Prop:
 		if is_instance_valid(p) and p.kind == kind:
 			return p
 	return null
+
+
+## The most recently made prop of a kind (the floor may have its own already).
+func _newest(kind: String) -> Prop:
+	var best: Prop = null
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == kind and (best == null or p.net_idx > best.net_idx):
+			best = p
+	return best
 
 
 func _guest_kindled() -> Player:

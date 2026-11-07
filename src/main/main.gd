@@ -85,6 +85,8 @@ func _ready() -> void:
 			var t := clampi(int(a.substr(5)), 1, Difficulty.MAX_TIER)
 			Difficulty._d()["unlocked"] = maxi(Difficulty.unlocked(), t)
 			Difficulty.select(t)
+		elif a == "maren":
+			Chronicle.rescue("maren")     # (dev: she is already at the Hearth)
 		elif a == "rich":
 			Profile._grant_stockpile(Profile.data)
 		elif a.begins_with("omens="):
