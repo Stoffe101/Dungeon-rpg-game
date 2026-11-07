@@ -20,6 +20,26 @@ built in **Godot 4.7.2** (GDScript, Forward+). Windows PC first.
 You have broad creative freedom: invent, replace, remove and redesign when it
 makes the game better. Document significant decisions in `docs/DESIGN.md`.
 
+## Background runs only (mandatory)
+
+The owner uses this PC while you work. **Never let a Godot window, console or test take focus,
+appear on screen, make sound, or move the real mouse.** Use `tools/dev/bg.py` for everything that
+starts Godot:
+
+- `python tools/dev/bg.py test` - the headless suite (fails on failures and on any script error).
+- `python tools/dev/bg.py run NAME [--res WxH] [--timeout S] -- <game args>` - a rendered run
+  (captures work) that starts minimized and is moved off every screen and out of the taskbar
+  before it draws; no audio, below-normal priority, its own user folder (`KindledDeepBackgroundTests`).
+- `DEVNET=1 XARGS=... python tools/dev/bg.py e2e N SCENARIO [netsim...]` - separate hidden processes.
+- `python tools/dev/bg.py perf`, `python tools/dev/bg.py focuscheck` (proof), `python tools/dev/bg.py clean`
+  (stops only what the tool started; never kill every Godot: the owner may have the editor open).
+
+Every run works on a copy of the project (`%LOCALAPPDATA%/KindledDeepBG/project`, refreshed each time),
+so it never reads half-edited scripts. Logs: `captures/bg/`. Do not launch Godot directly with a window,
+and do not run `tools/dev/e2e.sh` on Windows (it opens visible windows). If something truly needs a
+visible window, leave it for a coordinated playtest and say so. Game code: `Dev.background()` is true in
+these runs; never warp the mouse, change the window or ask for focus when it is.
+
 ## Paths and commands
 
 Godot executable (the user's `godot.cmd` points to a missing 4.7.1 build; use this):
