@@ -1485,47 +1485,57 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		t = [String(EnemyDB.REGIONS.get(s.get("region", "ossuary"), {}).get("victory", t[0])), t[1]]
 	v.add_child(_title(t[0], t[1]))
 	v.add_child(UIKit.label("Depth %d   Rooms %d   Foes %d   Time %s   Tier %s" % [s.depth, s.rooms, s.kills, UIKit.fmt_time(s.time), Difficulty.roman(int(s.get("tier", 1)))], 8, UIKit.C_DIM))
+	# (a long expedition's list scrolls: the way home stays on screen at any size)
+	var body := UIKit.vbox(4)
+	var scroller := ScrollContainer.new()
+	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroller.add_child(body)
+	v.add_child(scroller)
+	var fit := func() -> void:
+		var want: Vector2 = body.get_combined_minimum_size()
+		scroller.custom_minimum_size = Vector2(want.x, minf(want.y, ui.root.get_viewport_rect().size.y - 76.0))
+	fit.call_deferred()
 	for fid in s.get("feats", []):
-		v.add_child(UIKit.label("Feat earned: %s  -  %s" % [Feats.FEATS[fid].name, Feats.describe_reward(Feats.FEATS[fid].reward)], 8, Color(1.0, 0.85, 0.45), true))
+		body.add_child(UIKit.label("Feat earned: %s  -  %s" % [Feats.FEATS[fid].name, Feats.describe_reward(Feats.FEATS[fid].reward)], 8, Color(1.0, 0.85, 0.45), true))
 	for nt in s.get("tiers", []):
-		v.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
-	v.add_child(HSeparator.new())
+		body.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
+	body.add_child(HSeparator.new())
 	var er := UIKit.hbox(4)
 	er.add_child(UIKit.icon_rect("ember"))
 	er.add_child(UIKit.label("Embers brought home: %d" % int(s.embers_kept), 8, UIKit.C_EMBER))
-	v.add_child(er)
+	body.add_child(er)
 	if int(s.bonus) > 0:
-		v.add_child(UIKit.label("  includes a victory bonus of %d" % int(s.bonus), 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("  includes a victory bonus of %d" % int(s.bonus), 8, UIKit.C_GOOD))
 	if int(s.embers_lost) > 0:
-		v.add_child(UIKit.label("Embers lost in the dark: %d" % int(s.embers_lost), 8, UIKit.C_BAD))
+		body.add_child(UIKit.label("Embers lost in the dark: %d" % int(s.embers_lost), 8, UIKit.C_BAD))
 	if int(s.sunshards) > 0:
 		var sr := UIKit.hbox(4)
 		sr.add_child(UIKit.icon_rect("sunshard"))
 		sr.add_child(UIKit.label("Sunshards: %d" % int(s.sunshards), 8, UIKit.C_GOLD))
-		v.add_child(sr)
-	v.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
+		body.add_child(sr)
+	body.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
 	if bool(s.get("delve", false)):
 		var best := int(s.get("delve_best", 0))
-		v.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
+		body.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
 	if not (s.get("omens", []) as Array).is_empty():
-		v.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
+		body.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
 	if Profile.skill_points_free() > 0:
-		v.add_child(UIKit.label("%d skill point(s) await at the Hearth." % Profile.skill_points_free(), 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("%d skill point(s) await at the Hearth." % Profile.skill_points_free(), 8, UIKit.C_GOOD))
 	var g: Dictionary = s.get("grudge", {})
 	if not g.is_empty():
-		v.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
+		body.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
 	if String(s.get("outcome", "")) == "died":
-		_how_it_ended(v, s)
+		_how_it_ended(body, s)
 	for n in s.get("settled", []):
-		v.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
 	for n in s.get("grudges_grew", []):
-		v.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
+		body.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
 	for n in s.get("contracts", []):
-		v.add_child(UIKit.label("Notice paid - %s" % n, 8, UIKit.C_GOLD))
+		body.add_child(UIKit.label("Notice paid - %s" % n, 8, UIKit.C_GOLD))
 	for n in s.get("woke", []):
-		v.add_child(UIKit.label(String(n), 8, UIKit.C_SOUL))
+		body.add_child(UIKit.label(String(n), 8, UIKit.C_SOUL))
 	if String(s.get("unlocked", "")) != "":
-		v.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
+		body.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
 	var rl: Array = s.get("relics", [])
 	if not rl.is_empty():
 		var rr := HFlowContainer.new()
@@ -1534,7 +1544,7 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 			var ic := UIKit.icon_rect(RelicDB.relic(id).get("icon", "relic"))
 			ic.tooltip_text = RelicDB.relic(id).get("name", id)
 			rr.add_child(ic)
-		v.add_child(rr)
+		body.add_child(rr)
 	var b := UIKit.button("Return to the Sanctuary", func() -> void:
 		ui.close_all()
 		ui.title_card("The Sanctuary", "The Hearth still burns.", Game.goto_hub), 140)

@@ -241,7 +241,9 @@ func _open_dev_screen(what: String) -> void:
 		"summary":
 			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
 				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": "",
-				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"]})
+				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"],
+				"blows": [[100.0, "Hollow Archer", 11.0], [101.2, "Grave Bloat", 26.0], [103.0, "Morrow the Patient", 18.0]], "taken": {"Morrow the Patient": 120.0, "Grave Bloat": 78.0, "Hollow Archer": 40.0},
+				"dealt": {"Hearthblade": 2140.0, "Cinder Lance": 880.0, "Burn and poison": 310.0}, "woke": ["Gloamfang stirs."], "contracts": ["Old Scores: 260 Embers, 100 Memories"]})
 
 
 var _frames: PackedFloat32Array = []

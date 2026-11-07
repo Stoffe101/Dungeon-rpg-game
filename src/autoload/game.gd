@@ -178,6 +178,8 @@ func _enter_depth(depth: int) -> void:
 			DungeonGen.force_plan = a.substr(5)
 		if a.begins_with("form="):
 			Guardians.force = a.substr(5)
+		if a == "maren":
+			Chronicle.rescue("maren")     # (dev: she is already at the Hearth)
 	var world := run.world
 	if run.delve and Delve.fractured(depth):
 		world = run.world.duplicate()

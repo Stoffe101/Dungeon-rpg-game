@@ -2604,6 +2604,7 @@ func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
 func note_request(key: String, amount := 1) -> void:
 	if not replica:
 		Net.rec(["note", key, amount])     # (a guest's own favours and notices count too)
+	Net.mute += 1     # each machine's own news, told only there
 	for title in Contracts.note(key, amount):
 		Events.toast.emit("Notice fulfilled: %s. It pays when you are home." % title, UIKit.C_GOLD)
 		Audio.play("relic", -6.0, 1.2)
@@ -2619,6 +2620,7 @@ func note_request(key: String, amount := 1) -> void:
 			var n := Residents.request_progress(r.id)
 			if int(req.goal) <= 5 or n == int(req.goal) / 2:
 				Events.toast.emit("%s: %d/%d" % [req.title, n, int(req.goal)], UIKit.C_DIM)
+	Net.mute -= 1
 
 
 func _on_ward() -> void:
@@ -2784,6 +2786,10 @@ var _boss_flasks := 0
 
 
 func _guardian_hoard(e: Enemy) -> void:
+	if "bossquit" in Dev.args():
+		# dev: a guardian fought to its end by real hits, timed
+		print("[dungeon] guardian felled: %s, %s left of the Kindled, %.0f s on this floor" % [e.display_name, player.hp_ratio() if player else 0.0, elapsed])
+		get_tree().quit()
 	if player and player.flask >= _boss_flasks:
 		note_request("dry_guardian")
 	if e.form != "":

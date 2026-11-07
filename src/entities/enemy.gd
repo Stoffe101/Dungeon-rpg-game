@@ -775,10 +775,11 @@ func timer(len: float) -> bool:
 # --- damage / death ---------------------------------------------------------------
 
 func block_mult(h: Hit) -> float:
+	var armoured := 1.0
 	if not grudge.is_empty():
 		for m in grudge.get("marks", []):
 			if h.has_tag(String(Profile.GRUDGE_MARKS[m].tag)):
-				h.amount *= 0.55
+				armoured *= 0.55
 	if shield > 0.0 and not h.has_tag("dot"):
 		var absorbed := minf(shield, h.amount)
 		shield -= absorbed
@@ -787,8 +788,8 @@ func block_mult(h: Hit) -> float:
 			stage.fx.number(pos, 2.6, "WARD BROKEN", Color(0.5, 0.85, 1.0))
 			stage.fx.ring(pos, 1.4, Color(0.5, 0.85, 1.0), 0.3, 0.3)
 			on_poise_break(h)
-		return clampf(1.0 - absorbed / maxf(h.amount, 0.01), 0.0, 1.0) if h.amount > 0.0 else 1.0
-	return 1.0
+		return armoured * clampf(1.0 - absorbed / maxf(h.amount, 0.01), 0.0, 1.0) if h.amount > 0.0 else armoured
+	return armoured
 
 
 func on_damaged(hit: Hit, res: Combat.Result) -> void:

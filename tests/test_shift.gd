@@ -688,12 +688,15 @@ func test_what_drove_a_grudge_off_marks_it_and_something_else_still_works() -> v
 	var e := _foe(d, Vector2(_spot(d)) + Vector2(2.5, 0.5))
 	e.make_grudge(Profile.data.grudges[0])
 	check(e.display_name.contains("Flamescarred"), "named for it")
+	e.hp = e.max_hp
 	var fire := Hit.make(d.player, 100.0, ["fire"])
-	e.block_mult(fire)
-	check(fire.amount < 60.0, "fire does little")
+	fire.can_crit = false
+	var res := e.take_hit(fire)
+	check(res.amount < 70.0, "fire does little (%.0f)" % res.amount)
 	var steel := Hit.make(d.player, 100.0, ["melee"])
-	e.block_mult(steel)
-	eq(steel.amount, 100.0, "anything else bites as ever")
+	steel.can_crit = false
+	var res2 := e.take_hit(steel)
+	check(res2.amount > res.amount * 1.5, "anything else bites as ever (%.0f)" % res2.amount)
 	d.queue_free()
 
 

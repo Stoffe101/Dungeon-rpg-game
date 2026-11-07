@@ -1156,6 +1156,80 @@ not have: the HUD's task line outliving the room it belonged to.
 - **Permanent regional corruption**: a meter that only worsens punishes
   experimenting; altars that can always be re-answered do the same work.
 
+## The Great Evolution pass
+
+Branch `feature/great-evolution`. What changed and why; measurements are in STATUS.
+
+**Floors with a plan.** A floor is now one of four shapes, chosen by the seed alone
+(`DungeonGen.PLANS`, `plan_of`): *plain* (as before), *direct* (short, two side rooms),
+*wing* (a barred vault near the start, its key behind a guarded passage late in the
+floor) and *ring* (a lever late on opens a short way back). The way down never
+needs a key, so a wing is always a choice: you see the door early and decide later if the
+walk back is worth it. A Silent Passage never gets a wing, because a key room is an elite.
+Rejected: keys that block progress, and locks that need the whole party at once.
+
+**Rooms you can use.** Struts fall the way they were struck, kindle jars set each
+other off, rime vents freeze foes and spare Kindled. All three answer any blow from any
+weapon or spell (`strike_props*`), so no build is required and every one shows its
+danger before it lands. Guardians are too great for them. Rejected: hazards that only a
+fire build can use.
+
+**The world keeps a mark.** An altar's answer now changes the stone of its region: lamps
+and warm scars, rubble and cracks, or pale growth and a door paid for in blood. A cold
+lantern lies on the depth you last fell on; lighting it gives your light back and, if
+your Grudge is near, shows its trail. All of it is read from the run's world snapshot, so
+every machine builds the same floor.
+
+**Rare finds.** One floor in four below the first holds a fight with a rule of its own (One
+Pulse, the Unlit Room, the Hungry Floor): named when it starts, on the HUD while it
+lasts, marked on the stone beforehand, and paid with a chest. Maren the Chartwright is found
+once; she draws the floor, moves to the sanctuary with a request of her own and sells a
+chart of the next descent. A travelling grindstone whets each Kindled once.
+
+**Foes that go after what you rely on.** The roster already answered melee and range. Two
+things a Kindled leans on had no answer: the lantern and distance. The Snuffer steals a
+third of the Kindle, dims the lantern and runs with the flame lit in its hands; bring it
+down and the flame comes home with interest. The Gravehook throws a chain along a long,
+straight warning and hauls you to a reaping blow. Both are answered by a step aside, a dodge
+or a Ward. Guards now step between a Kindled and the room's shooters. Rejected: a second
+shield-giving support (the Lampwight already does that; another would be a wall).
+
+**Guardians come back different.** Never at first meeting. After that, 30-60% of the time
+by seed: the Lightless Warden (the arena is dark, it steps through the dark behind you,
+four braziers sear it at any health), the Rootbound Bloom (it rises at another of its roots;
+burned roots pin it), the Eclipsed King (the Eclipse from the first blow, then the Long
+Night). Health barely changes: the fight's shape does. The richer hoard is the reward.
+Not built: guardian hunts across floors. Forms cover variants, phases and rare versions;
+a hunt needs a chase through a floor, which this pass did not reach.
+
+**Great things grow.** Legendaries and uniques gather Resonance from use (kills, guardians,
+settled Grudges; half on a death). At 150 they Awaken (+15% to their own powers); at 500 they
+ask once, for good, which of two paths to take. A weapon's paths give it the power of
+another great thing, so one item does what two never could. Everything else great has three
+common paths. It all lives on the item dictionary and reads with defaults, so an old
+item is simply asleep and nothing needs migrating. Rejected: hidden conditions, and paths
+that are plain numbers on weapons.
+
+**The noticeboard.** Three notices up, two carried, nothing expires, nothing is lost by
+ignoring it: daily chores were rejected outright. They suggest a way to play the next
+expedition (let the room do it, take back a stolen flame) and pay on the way home. After the
+first guardian, three old hands' notices join (a floor unhurt, a guardian without
+drinking, a floor inside two and a half minutes). Each Kindled carries their own.
+
+**Rivals that end.** What drove a Grudge off marks it: Flamescarred, Rimebound or Hardened.
+It armours against that alone, the banner says so and the Shrine lists it, so the answer
+is to change how you fight it. From level 4 it makes one last stand. At its greatest it no
+longer runs, and finishing it is kept for good.
+
+**The HUD on wide screens.** Past 1.9:1 the corners come in toward the fight (Settings:
+HUD width), and 16:9 is untouched. Status effects are words, never only a tint. A blow wound up
+off-screen shows as a chevron on the edge it comes from. Strong warnings give telegraphs a pale
+hard edge that does not rely on red.
+
+**How it ended.** Every run keeps who hurt you and what you dealt it with. A death shows the
+last blows and, if one foe did most of it, says so; everything else is one button away and
+never in the way of going home.
+
 ## Foes and guardians pass: a roster that reads, guardians with an ending
 
 The Living Undervault pass spent its art budget on the stone. This one looked at

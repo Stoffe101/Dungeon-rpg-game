@@ -61,6 +61,8 @@ func _run() -> void:
 			await stairs_only()
 		"sites":
 			await sites()
+		"ways":
+			await ways()
 		"guardian":
 			await guardian()
 		"bestiary":
@@ -1039,6 +1041,135 @@ func sites() -> void:
 				return false
 		return true, 10.0, "the other answers are spent on my screen")
 	await wait(1.0)
+
+
+## What the Shifting Undervault adds, in a party (run with XARGS=plan=wing): the floor is
+## the same on every machine; a guest takes the key and opens the vault with real
+## key presses, every map and every wall agrees; then a Snuffer and a Gravehook
+## work on the guest's own Kindled, whose prediction must go along with them.
+func ways() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	await wait(2.0)
+	var lay: DungeonGen.Layout = dun().layout
+	expect(lay.plan == "wing" and not lay.locks.is_empty(), "a barred wing on my floor")
+	if lay.locks.is_empty():
+		return
+	var key_room: Room = lay.room(lay.key_room)
+	var bars: Array = lay.locks[0].tiles
+	var plate: Prop = null
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == "lock_plate":
+			plate = p
+	expect(plate != null, "the plate beside the bars is on my screen")
+	var t0: Vector2i = bars[0]
+	expect(dun().grid.at(t0.x, t0.y) == TileGrid.GATE, "barred on my machine")
+	if role == "host":
+		await wait(1.0)
+		dun()._spawn_reward(key_room)     # (its fight is not what this tests)
+	await until(func() -> bool: return _prop_kind("key_altar") != null, 20.0, "the key's altar reached me")
+	var altar: Prop = _prop_kind("key_altar")
+	if role == "guest":
+		# barred first: without the key it does not move
+		dun().player.pos = plate.pos + Vector2(0.0, 1.0)
+		await wait(0.6)
+		tap("interact")
+		await wait(0.8)
+		expect(not dun().layout.locks[0].open, "without the key the plate does nothing")
+		dun().player.pos = altar.pos + Vector2(0.0, 1.0)
+		await wait(0.8)
+		tap("interact")
+	await until(func() -> bool: return dun().has_key, 20.0, "the party carries the key on my screen")
+	expect(Minimap.known_rooms(dun()).has(lay.vault_room), "my map shows where it fits")
+	expect(String(dun().objective.get("text", "")).contains("KEY"), "my HUD says what to do with it")
+	if role == "guest":
+		Net.i.dev_shot("e2e/ways_key")
+		dun().player.pos = plate.pos + Vector2(0.0, 1.0)
+		await wait(0.8)
+		tap("interact")
+	await until(func() -> bool: return dun().layout.locks[0].open, 20.0, "the vault opened on my screen")
+	expect(dun().grid.at(t0.x, t0.y) == TileGrid.FLOOR, "the way is floor on my machine")
+	expect(not dun().astar.is_point_solid(t0), "and walkable")
+	expect(not dun().has_key, "the key is spent on my machine")
+	if role == "guest":
+		var v: Vector2 = lay.room(lay.vault_room).center()
+		expect(await walk_to(dun().player.pos.lerp(v, 0.5), 1.0, 8.0), "I can walk toward it through the open bars")
+		Net.i.dev_shot("e2e/ways_open")
+	await wait(1.0)
+	# the rooms' own devices
+	if role == "host":
+		var c: Vector2 = dun().player.pos + Vector2(3.0, 0.0)
+		var st := Prop.make(dun(), "strut", Vector2i(c), {})
+		await wait(0.5)
+		st.on_struck(dun().player)
+	await until(func() -> bool:
+		var s: Prop = _prop_kind("strut")
+		return s != null and String(s.sprite.anim) == "down", 15.0, "a felled column lies down on my screen")
+	# a Snuffer on the guest's own lantern
+	var mine := dun().player
+	var before: float = mine.kindle
+	if role == "host":
+		var g: Player = _guest_kindled()
+		if g:
+			g.kindle = g.kindle_max()
+			var e := _spawn_near("snuffer", g)
+			await wait(1.0)
+			e.state = "spent"
+			e.landed_on(g)
+			await wait(2.0)
+			Net.i.dev_shot("e2e/ways_snuffed")
+			e.hp = 0.0
+			e.die(dun().player)
+	else:
+		await wait(0.2)
+		mine.kindle = mine.kindle_max()
+		await until(func() -> bool: return mine.snuffed_t > 0.0, 15.0, "my lantern burns low")
+		await until(func() -> bool: return mine.snuffed_t <= 0.0, 15.0, "and burns as it did once the thief falls")
+	# a Gravehook's chain on the guest's own feet
+	if role == "host":
+		await wait(1.0)
+		var g2: Player = _guest_kindled()
+		if g2:
+			var h := _spawn_near("gravehook", g2, 6.0)
+			await wait(1.0)
+			h.aim_dir = (g2.pos - h.pos).normalized()
+			h.state = "thrown"
+			h.landed_on(g2)
+			await wait(2.0)
+			h.hp = 0.0
+			h.die(dun().player)
+	else:
+		var from: Vector2 = mine.pos
+		var moved := 0.0
+		var end := now() + 8.0
+		while now() < end:
+			moved = maxf(moved, mine.pos.distance_to(from))
+			await wait(0.05)
+		expect(moved > 2.0, "the chain dragged my own Kindled (%.1f tiles)" % moved)
+	await wait(1.0)
+
+
+func _prop_kind(kind: String) -> Prop:
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == kind:
+			return p
+	return null
+
+
+func _guest_kindled() -> Player:
+	for pl in dun().players:
+		if pl != dun().player:
+			return pl
+	return null
+
+
+func _spawn_near(id: String, p: Player, dist := 3.0) -> Enemy:
+	var e: Enemy = dun()._make_enemy(id)
+	e.pos = dun().foe_spot(p.pos + Vector2(dist, 0.0), 0.5)
+	dun().add_actor(e)
+	dun().register_enemy(e)
+	e.spawn_t = 0.01
+	return e
 
 
 ## A party's guardian: the stairs to depth 3, its arrival, the fight turning and

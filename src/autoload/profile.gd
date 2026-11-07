@@ -344,7 +344,7 @@ func refund(id: String) -> bool:
 
 
 func respec_cost() -> int:
-	return 0 if int(data.get("respecs", 0)) == 0 else 40 + 40 * int(data.respecs)
+	return 0 if int(data.get("respecs", 0)) == 0 else mini(200, 40 + 40 * int(data.respecs))     # (changing your mind stays affordable)
 
 
 func respec() -> bool:
