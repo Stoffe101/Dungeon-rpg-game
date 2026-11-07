@@ -1,0 +1,62 @@
+{
+	"anims": {
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 7
+		},
+		"haul": {
+			"fps": 7.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 6
+		},
+		"idle": {
+			"fps": 3.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"reap": {
+			"fps": 10.0,
+			"frames": 2,
+			"loop": false,
+			"row": 5
+		},
+		"throw": {
+			"fps": 9.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 6,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 5.0,
+			"frames": 3,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		56,
+		36
+	],
+	"origin": [
+		28,
+		34
+	],
+	"self_light": 0.22
+}

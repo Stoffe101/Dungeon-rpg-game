@@ -647,6 +647,12 @@ func _tell() -> void:
 		sprite.highlight = Color(1.0, 0.25, 0.3, 0.08 + 0.32 * k * k)
 
 
+## One of this foe's blows really landed on a Kindled (not dodged, not Warded; a
+## lagging guest's blow arrives here when it is settled).
+func landed_on(_p: Player) -> void:
+	pass
+
+
 func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
 	var h := Hit.make(self, amount, ["melee"])
 	h.can_crit = false

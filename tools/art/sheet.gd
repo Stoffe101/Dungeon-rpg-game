@@ -27,7 +27,7 @@ func add(anim: String, frames: Array, fps: float, loop := true) -> void:
 ## fold up, soft and growing things slump and melt into the floor.
 const FALL_STYLE := {
 	"husk": "crumble", "ash_seal": "crumble", "bonecaller": "crumble", "lampwight": "crumble", "wraith": "crumble", "sunwatcher": "crumble",
-	"tollkeeper": "topple", "herald": "topple", "guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
+	"gravehook": "topple", "snuffer": "crumble", "tollkeeper": "topple", "herald": "topple", "guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
 	"skitter": "curl", "spider": "curl", "moth": "curl", "hound": "curl", "thornback": "curl",
 	"lurecap": "melt", "bloat": "melt", "sporeling": "melt", "toad": "melt", "bramblewright": "melt", "rootweaver": "melt", "spore_mortar": "melt",
 }
@@ -44,7 +44,7 @@ const BOSS_FALL := {"warden": ["topple", "stagger"], "ashen_king": ["crumble", "
 ## of the Undervault, never the Kindled's ember), and a little of its own colour
 ## survives any light (`self_light`, the sidecar tells the sprite's material).
 const RIM := {
-	"tollkeeper": "soul", "husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
+	"gravehook": "soul", "snuffer": "soul", "tollkeeper": "soul", "husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
 	"spider": "soul", "gravemole": "soul", "lampwight": "soul", "warden": "soul",
 	"lurecap": "moss", "sporeling": "moss", "thornback": "moss", "moth": "moss", "rootweaver": "moss", "toad": "moss",
 	"spore_mortar": "moss", "bramblewright": "moss", "bloom": "moss",

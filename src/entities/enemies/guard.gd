@@ -20,6 +20,26 @@ func block_mult(h: Hit) -> float:
 	return base
 
 
+## A shield is for someone: a Kindled closing on the room's shooters finds a Guard
+## stepping into the way instead of walking at them.
+func _stand(t: Player) -> Vector2:
+	if not stage is Dungeon or (t.pos - pos).length() < 2.5:
+		return t.pos
+	var best: Enemy = null
+	var bd := 6.0
+	for e in (stage as Dungeon).room_enemies:
+		if not is_instance_valid(e) or not e.alive or e == self:
+			continue
+		if String(e.def.get("role", "")) in ["ranged", "artillery", "beam", "summoner", "support"] and e.pos.distance_to(pos) < 9.0:
+			var d: float = e.pos.distance_to(t.pos)
+			if d < bd:
+				bd = d
+				best = e
+	if best == null:
+		return t.pos
+	return best.pos + (t.pos - best.pos).normalized() * 1.8
+
+
 func _turn_to(d: Vector2, dt: float) -> void:
 	var a := facing.angle()
 	var b := d.angle()
@@ -38,7 +58,7 @@ func behave(dt: float) -> void:
 			if t == null:
 				vel = Vector2.ZERO
 				return
-			move_toward_point(t.pos, speed, dt)
+			move_toward_point(_stand(t), speed, dt)
 			_turn_to(dir_to_player(), dt)
 			sprite.play("walk")
 			var d := dist_to_player()

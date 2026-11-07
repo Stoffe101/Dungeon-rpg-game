@@ -797,6 +797,10 @@ func apply_events(evs: Array) -> void:
 			"own":
 				if int(ev[1]) == Net.my_id():
 					apply_events([ev[2]])
+			"snuff":
+				stage.player.snuff(float(ev[1]))
+			"haul":
+				stage.player.hauled(ev[1])
 			"actor+":
 				_spawn_replica(int(ev[1]), ev[2])
 			"die":

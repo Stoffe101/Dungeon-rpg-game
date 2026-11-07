@@ -112,6 +112,7 @@ var hearthfire_power := 1.0
 var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
 var marked_t := 0.0           # an Ash Herald's decree: every foe strikes harder
+var snuffed_t := 0.0          # a Snuffer took the flame: the lantern burns low
 var furnace := 0.0            # Furnace Heart: Kindle spent, banked for the next blow
 var answer_ready := false     # Perfect Answer: the next blow is a sure critical
 var mirror_t := 0.0           # Mirror of the Deep: until it answers again
@@ -1295,6 +1296,21 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	return res
 
 
+## The lantern burns low for a while (every machine sees its own Kindled's).
+func snuff(seconds: float) -> void:
+	snuffed_t = seconds
+	if controller == Ctrl.REMOTE:
+		Net.rec(["own", peer_id, ["snuff", seconds]])
+
+
+## Dragged somewhere by force: over a push, so the walls still have a say and the
+## guest's own prediction takes the same path as the host's.
+func hauled(to: Vector2) -> void:
+	push = (to - pos) * 9.0
+	if controller == Ctrl.REMOTE:
+		Net.rec(["own", peer_id, ["haul", to]])
+
+
 var _pulsing := false
 
 
@@ -1903,6 +1919,8 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if res.amount > 0.0:
 		hurt_t = 0.25
 		invuln_t = maxf(invuln_t, 0.5)
+		if attacker is Enemy and is_instance_valid(attacker):
+			(attacker as Enemy).landed_on(self)
 		stage.hitstop(0.07)
 		stage.fx.shake(0.4)
 		stage.fx.kick(h.from_dir, 3.0)
@@ -2337,6 +2355,10 @@ func _update_lantern(dt: float) -> void:
 	if stage is Dungeon and (stage as Dungeon).rule_here() == "unlit":
 		rng *= 0.5
 		en *= 0.75
+	if snuffed_t > 0.0:
+		snuffed_t -= dt
+		rng *= 0.5
+		en *= 0.55
 	gloom_t -= dt
 	# a faint drift of light in the colour of each great thing worn
 	if not aura_cols.is_empty() and hearthcall_t < 0.0:

@@ -21,7 +21,7 @@ signal camp_changed
 const PORT := 24565
 const MAX_PLAYERS := 4
 ## Bumped whenever a message changes shape: peers that differ cannot play together.
-const PROTOCOL := 13
+const PROTOCOL := 14
 ## How long a seat waits for a Kindled that lost the link, and how long that
 ## Kindled keeps trying to reach the host again (seconds).
 const SEAT_WAIT := 60.0

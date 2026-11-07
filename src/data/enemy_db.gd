@@ -12,6 +12,20 @@ const ENEMIES := {
 		"no_affix": ["hasted", "warded", "volatile", "vampiric", "phasing", "frenzied", "shepherd", "splitting", "molten", "gloom"],
 		"lore": "Old ward-stones, chained so they cannot fall. Whatever they guard, they keep from harm.",
 	},
+	"snuffer": {
+		"voice": "bat", "voice_pitch": 0.9, "role": "thief",
+		"name": "Snuffer", "script": "res://src/entities/enemies/snuffer.gd", "sheet": "snuffer",
+		"hp": 30.0, "speed": 4.4, "radius": 0.32, "poise": 10.0, "damage": 6.0,
+		"xp": 10, "embers": 6, "cost": 4, "min_depth": 2,
+		"lore": "It does not eat. It does not hate you. It only wants the lights out, and it remembers what the dark was like before.",
+	},
+	"gravehook": {
+		"voice": "zombie", "voice_pitch": 0.7, "role": "puller",
+		"name": "Gravehook", "script": "res://src/entities/enemies/gravehook.gd", "sheet": "gravehook",
+		"hp": 78.0, "speed": 1.9, "radius": 0.46, "poise": 40.0, "damage": 18.0,
+		"xp": 13, "embers": 8, "cost": 5, "min_depth": 2,
+		"lore": "Gaolers of a prison the Undervault swallowed whole. Nobody told them the sentences ended.",
+	},
 	"husk": {
 		"voice": "zombie", "voice_pitch": 1.0, "role": "brute",
 		"name": "Husk", "script": "res://src/entities/enemies/husk.gd", "sheet": "husk",
@@ -273,7 +287,7 @@ const REGIONS := {
 		"name": "The Hollow Ossuary",
 		"theme": "crypt",
 		"depths": 3,
-		"pool": ["husk", "skitter", "archer", "guard", "bonecaller", "bloat", "spider", "gravemole", "lampwight", "tollkeeper"],
+		"pool": ["husk", "skitter", "archer", "guard", "bonecaller", "bloat", "spider", "gravemole", "lampwight", "tollkeeper", "snuffer", "gravehook"],
 		"boss": "warden",
 		# each depth's own name and mood (ambient tint): deeper is colder
 		"floors": [["The Upper Crypts", Color(0.42, 0.36, 0.5)], ["The Charnel Galleries", Color(0.3, 0.3, 0.6)],
@@ -290,7 +304,7 @@ const REGIONS := {
 		"name": "The Rootmire",
 		"theme": "root",
 		"depths": 3,
-		"pool": ["sporeling", "thornback", "moth", "rootweaver", "toad", "husk", "archer", "spore_mortar", "bramblewright", "lurecap"],
+		"pool": ["sporeling", "thornback", "moth", "rootweaver", "toad", "husk", "archer", "spore_mortar", "bramblewright", "lurecap", "snuffer"],
 		"boss": "bloom",
 		"floors": [["The Root Hollows", Color(0.34, 0.44, 0.32)], ["The Sporefields", Color(0.4, 0.5, 0.3)],
 			["The Bloom's Heart", Color(0.5, 0.32, 0.36)]],
@@ -311,7 +325,7 @@ const REGIONS := {
 		"name": "The Sunken Throne",
 		"theme": "throne",
 		"depths": 3,
-		"pool": ["sentinel", "hound", "acolyte", "wraith", "duelist", "sunwatcher", "herald"],
+		"pool": ["sentinel", "hound", "acolyte", "wraith", "duelist", "sunwatcher", "herald", "snuffer", "gravehook"],
 		"boss": "ashen_king",
 		"floors": [["The Drowned Halls", Color(0.38, 0.4, 0.5)], ["The Court of Ash", Color(0.5, 0.38, 0.34)],
 			["The Last Sun's Seat", Color(0.6, 0.42, 0.3)]],
@@ -363,10 +377,12 @@ const SQUADS := {
 	"court": [["summoner"], ["brute", "tank", "duelist", "swarm"]],
 	"snare": [["controller", "terrain"], ["ranged", "artillery", "beam", "harrier"]],
 	"ambush": [["ambush"], ["ranged", "swarm", "exploder"]],
+	"dragnet": [["puller"], ["brute", "swarm", "exploder", "charger"]],
+	"thieves": [["thief"], ["tank", "brute", "duelist"], ["ranged", "beam"]],
 }
 ## How many of a role one fight may hold: two Lampwights shielding each other,
 ## or three Mortars, are not puzzles, just walls.
-const ROLE_CAP := {"support": 1, "summoner": 1, "terrain": 1, "artillery": 2, "beam": 2, "ambush": 2}
+const ROLE_CAP := {"support": 1, "summoner": 1, "terrain": 1, "artillery": 2, "beam": 2, "ambush": 2, "thief": 1, "puller": 1}
 
 
 ## Foes a bigger party meets beside a room's own: chosen for what they add -

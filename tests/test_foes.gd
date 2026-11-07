@@ -347,3 +347,130 @@ func test_a_ring_or_a_slash_reaches_guests_once() -> void:
 	sync.free()
 	net.queue_free()
 	st.queue_free()
+
+
+func test_a_snuffer_steals_a_third_of_the_flame_and_killing_it_brings_it_home() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(10.5, 9.5))
+	var e := _foe(st, "snuffer", Vector2(9.0, 9.5))
+	var full := p.kindle_max()
+	p.kindle = full
+	e.landed_on(p)
+	eq(p.kindle, full, "a stray blow steals nothing")
+	e.state = "spent"
+	e.landed_on(p)
+	check(p.kindle < full * 0.7, "the flame is gone (%.0f of %.0f)" % [p.kindle, full])
+	check(p.snuffed_t > 0.0, "the lantern burns low")
+	eq(e.state, "flee", "it runs")
+	p._update_lantern(0.02)
+	var dim := p.lantern.omni_range
+	e.die(p)
+	check(p.kindle > full * 0.85, "it comes home with interest (%.0f)" % p.kindle)
+	eq(p.snuffed_t, 0.0, "and the lantern burns as it did")
+	p._update_lantern(0.02)
+	check(dim < p.lantern.omni_range, "brighter again")
+	st.queue_free()
+
+
+func test_a_snuffer_left_alone_keeps_the_flame_and_stays_bounded() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(10.5, 9.5))
+	var e := _foe(st, "snuffer", Vector2(9.0, 9.5))
+	e.state = "spent"
+	p.kindle = p.kindle_max()
+	e.landed_on(p)
+	var after := p.kindle
+	e.hp = e.max_hp * 0.5
+	var fast: float = e.speed
+	e._swallow()
+	eq(e.stolen, 0.0, "swallowed")
+	check(e.hp > e.max_hp * 0.7, "it heals")
+	check(e.speed > fast, "it is quicker")
+	e.die(p)
+	eq(p.kindle, after, "and that flame is gone")
+	st.queue_free()
+
+
+func test_a_dodge_goes_through_a_snuffer() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(10.5, 9.5))
+	var e := _foe(st, "snuffer", Vector2(10.0, 9.5))
+	p.kindle = p.kindle_max()
+	p.dodge_t = 0.3
+	e.state = "lunge"
+	e._touch()
+	eq(p.kindle, p.kindle_max(), "nothing taken")
+	eq(e.state, "spent", "and it has missed")
+	st.queue_free()
+
+
+func test_a_ward_stops_a_snuffer() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(10.5, 9.5))
+	var e := _foe(st, "snuffer", Vector2(10.0, 9.5))
+	p.kindle = p.kindle_max()
+	p.ward_t = 0.3
+	e.state = "lunge"
+	e._touch()
+	eq(e.stolen, 0.0, "a Ward keeps the flame")
+	st.queue_free()
+
+
+func test_a_gravehook_drags_what_it_catches_and_a_dodge_leaves_it_nothing() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "gravehook", Vector2(10.5, 9.5))
+	e.aim_dir = Vector2.RIGHT
+	p.dodge_t = 0.3
+	e._throw()
+	check(e.caught == null, "a dodge goes through the chain")
+	eq(p.push, Vector2.ZERO, "and drags nothing")
+	p.dodge_t = 0.0
+	p.invuln_t = 0.0
+	e._throw()
+	check(e.caught == p, "caught")
+	check(p.push.x < -10.0, "dragged toward it (%.0f)" % p.push.x)
+	# the drag ends at its feet, not through them
+	var d: float = p.push.length() / 9.0
+	check(absf(d - (p.pos.distance_to(e.pos) - 1.6)) < 0.2, "at arm's length")
+	st.queue_free()
+
+
+func test_a_chain_does_not_pass_through_a_wall() -> void:
+	Profile.data = Profile.fresh()
+	var st := _arena()
+	var p := _kindled(st, Vector2(16.5, 9.5))
+	var e := _foe(st, "gravehook", Vector2(10.5, 9.5))
+	st.grid.put(13, 9, TileGrid.WALL)
+	e.aim_dir = Vector2.RIGHT
+	e._throw()
+	check(e.caught == null, "stone stops it")
+	st.queue_free()
+
+
+func test_a_guard_steps_between_a_kindled_and_the_rooms_shooter() -> void:
+	Profile.data = Profile.fresh()
+	var lay := DungeonGen.generate(7, 2, "ossuary", false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]), null)
+	var c: Vector2 = d.layout.room(d.layout.start_id).center()
+	var g: Enemy = d._make_enemy("guard")
+	g.pos = c + Vector2(-4, 0)
+	d.add_actor(g)
+	var a: Enemy = d._make_enemy("archer")
+	a.pos = c
+	d.add_actor(a)
+	d.room_enemies = [g, a]
+	d.player.pos = c + Vector2(4, 0)
+	var at: Vector2 = g._stand(d.player)
+	check(at.x > c.x and at.x < d.player.pos.x, "between them (%.1f)" % at.x)
+	d.room_enemies = [g]
+	eq(g._stand(d.player), d.player.pos, "with nobody to guard it just comes for you")
+	d.queue_free()

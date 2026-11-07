@@ -8,6 +8,7 @@ const GenPlayer = preload("res://tools/art/gen_player.gd")
 const GenEnemies = preload("res://tools/art/gen_enemies.gd")
 const GenBoss = preload("res://tools/art/gen_boss.gd")
 const GenWave3 = preload("res://tools/art/gen_wave3.gd")
+const GenWave4 = preload("res://tools/art/gen_wave4.gd")
 const GenShift = preload("res://tools/art/gen_shift.gd")
 const GenProps = preload("res://tools/art/gen_props.gd")
 const GenHub = preload("res://tools/art/gen_hub.gd")
@@ -61,6 +62,7 @@ func _init() -> void:
 		"dressing": func(): GenDressing.build("res://assets/sprites"),
 		"wave2": func(): GenWave2.build("res://assets/sprites"),
 		"wave3": func(): GenWave3.build("res://assets/sprites"),
+		"wave4": func(): GenWave4.build("res://assets/sprites"),
 		"shift": func(): GenShift.build("res://assets/sprites"),
 		"gear": func(): GenGear.build("res://assets/sprites"),
 		"builds": func(): GenBuilds.build("res://assets/sprites"),
