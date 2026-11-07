@@ -106,7 +106,7 @@ func _threat() -> Array:
 	var best: Array = []
 	for d in st.dangers:
 		var until := float(d[1])
-		if until < now or now - float(d[2]) < float(skill.react) or d[3].is_empty():
+		if until < now or now - float(d[2]) < float(skill.react) or d[3].is_empty() or (d[3] as Dictionary).has("wave"):
 			continue
 		var key := int(float(d[2]) * 100.0)
 		if not _missed.has(key):
@@ -116,6 +116,12 @@ func _threat() -> Array:
 		if best.is_empty() or until < float(best[1]):
 			best = d
 	return best
+
+
+## An expanding ring (a guardian's shockwave): how far it has spread `age` seconds in.
+static func wave_radius(s: Dictionary, age: float) -> float:
+	var w: Array = s.get("wave", [1.0, 10.0, 1.0])
+	return lerpf(float(w[0]), float(w[1]), clampf(age / float(w[2]), 0.0, 1.0)) * 0.93
 
 
 static func inside(p: Vector2, at: Vector2, s: Dictionary) -> bool:
@@ -259,6 +265,18 @@ func _fight(t: Actor, delta: float) -> void:
 			_hold_t = 1.35
 		else:
 			pl._release_pending = true
+	# a shockwave rolling out: no walking out of it, dodge through as it arrives
+	if _dodge_cd <= 0.0 and pl.dodge_charges >= 1.0:
+		for wv in st.dangers:
+			if not (wv[3] as Dictionary).has("wave") or st.elapsed - float(wv[2]) < float(skill.react) * 0.5:
+				continue
+			var rr := Bot.wave_radius(wv[3], st.elapsed - float(wv[2]))
+			var dd: float = pl.pos.distance_to(wv[0])
+			if dd > rr and dd - rr < 1.6 and (not _missed.has(int(float(wv[2]) * 100.0)) or not _missed[int(float(wv[2]) * 100.0)]):
+				pl.move_in = (wv[0] - pl.pos).normalized()     # into it, through it
+				pl.press("dodge")
+				_dodge_cd = 0.7
+				break
 	# a warning on the floor under its feet: walk out if there is time, dodge if not
 	var th := _threat()
 	if not th.is_empty():

@@ -275,6 +275,7 @@ func _slam() -> void:
 func _shockwave(center: Vector2, wave_dmg: float) -> void:
 	var st := stage
 	var hit_done: Array = []
+	st.note_danger(center, 0.95, {"kind": -1, "wave": [1.0, 10.0, 0.95]})     # (an expanding ring: dodge through it)
 	var ring := st.fx.shape(Fx.Shape.RING, center, Vector2.RIGHT, Vector2(2, 2), Color(1.0, 0.75, 0.35, 0.8), Color(1.0, 0.92, 0.7, 1.0), 1.0, {"inner": 0.86, "glow": 1.6})
 	var data: Dictionary = st.fx._shapes[st.fx._shapes.size() - 1]
 	var base_t := ring.transform
