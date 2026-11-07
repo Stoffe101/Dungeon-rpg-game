@@ -568,6 +568,33 @@ func _take_key(prop: Prop) -> void:
 	carry_key(true)
 
 
+## The Broken altar's rubble: dig, and the stone gives something back (Embers, sometimes
+## more). Every Kindled sees the same pile go.
+func _dig(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.visible = false
+	set_tile_solid(prop.tile, false)
+	fx.burst(prop.pos, 0.4, Color(0.6, 0.55, 0.5), 18, 3.0, 0.5, 8.0)
+	Audio.play_at("crumble", prop.pos, -4.0, 1.1)
+	for i in 3:
+		Pickup.spawn(self, "ember", prop.pos, 2 + layout.depth)
+	if rng.randf() < 0.3:
+		var mats: Array = ["bone_dust", "grave_iron", "soul_glass"]
+		Pickup.spawn(self, "material", prop.pos, 1, {"id": mats[rng.randi_range(0, mats.size() - 1)]})
+
+
+## The Kindled altar's lamps: the order keeps them lit, and a Kindled may take a flame
+## from each once (Kindle and a little health).
+func _take_flame(prop: Prop, who: Player) -> void:
+	prop.used = true
+	if prop.light:
+		prop.light.light_energy *= 0.35
+	who.gain_kindle(30.0 / maxf(who.stats.v("kindle_gain"), 0.01))
+	who.heal(who.max_hp * 0.05)
+	fx.motes(prop.pos, 1.2, Color(1.0, 0.7, 0.4), 10, 1.4, 0.8, 0.3)
+	Audio.play_at("hearth_feed", prop.pos, -6.0, 1.3)
+
+
 ## Where you fell. The lantern is cold; lighting it is not much, and it is yours.
 func _relight(prop: Prop, who: Player) -> void:
 	prop.used = true
@@ -1084,6 +1111,12 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 		Events.banner.emit(String(ru.name), String(ru.line))
 		_set_objective(String(ru.name).to_upper(), -1.0, ru.col)
 		Chronicle.mark("rules_met")
+	if Chronicle.site_of(run.world, layout.region) == "broken" and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("restless", false):
+		# the Broken altar let the dead loose: one more in every fight here
+		r.set_meta("restless", true)
+		r.encounter = r.encounter.duplicate(true)
+		if not r.encounter.is_empty():
+			(r.encounter[0] as Array).append(EnemyDB._filler(layout.region))
 	if r.harbinger and hunted():
 		after(0.6, func() -> void:
 			var g := EnemyDB.get_def(String(region.boss))
@@ -2907,6 +2940,10 @@ func request(what: String, prop: Prop) -> void:
 			_take_key(prop)
 		"cold_lantern":
 			_relight(prop, who)
+		"rubble":
+			_dig(prop)
+		"lamp":
+			_take_flame(prop, who)
 		"site":
 			DeepEvents.interact(self, who, prop)
 		"stairs":

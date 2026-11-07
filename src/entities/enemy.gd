@@ -716,6 +716,7 @@ func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
 ## where it lands.
 func strike_circle(center: Vector2, r: float, amount: float, kb := 5.0) -> bool:
 	_strike_flash(Fx.Shape.DISC, center, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), {})
+	_strike_devices(center, r)
 	var any := false
 	for t in stage.active_players():
 		if t.pos.distance_to(center) <= r + t.radius:
@@ -747,6 +748,19 @@ func strike_line(origin: Vector2, dir: Vector2, length: float, width: float, amo
 			t.take_enemy_hit(_hit_on(t, amount, origin, kb), self)
 			any = true
 	return any
+
+
+## A foe's own blow sets off what stands in the room as surely as a Kindled's does: a
+## column falls, jars go up, a vent breathes. The danger is shown first either way.
+func _strike_devices(at: Vector2, r: float) -> void:
+	if not stage is Dungeon:
+		return
+	for pr in stage.props:
+		if is_instance_valid(pr) and pr.kind in DEVICES and pr.breakable and not pr.used and pr.pos.distance_to(at) <= r + pr.strike_radius:
+			pr.on_struck(self)
+
+
+const DEVICES := ["strut", "kindle_jar", "rime_vent"]
 
 
 ## The blow on one Kindled: knocked away from where it came from.

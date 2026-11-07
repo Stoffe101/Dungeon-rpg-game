@@ -469,3 +469,94 @@ func test_a_sign_is_read_once_and_counts() -> void:
 	eq(d.run.hunt_signs, 1, "read")
 	check(not sign.interactable(), "once")
 	d.queue_free()
+
+
+# --- the Undervault's own rooms and what the altars change ----------------------------------
+
+func test_authored_device_rooms_place_their_devices_on_open_floor() -> void:
+	var found := {}
+	for region in ["ossuary", "rootmire", "throne"]:
+		for s in range(1, 120):
+			var lay := DungeonGen.generate(s, 2, region, false)
+			for r in lay.rooms:
+				if DungeonGen.AUTHORED.has(r.authored) and ["ossuary_leaning", "root_cellar", "throne_ember_aisle", "ossuary_cold_crypt"].has(r.authored):
+					var devs: Array = r.props.filter(func(p): return p.kind in ["strut", "kindle_jar", "rime_vent"])
+					check(not devs.is_empty(), "%s has its devices" % r.authored)
+					for p in devs:
+						check(lay.grid.at(p.tile.x, p.tile.y) == TileGrid.FLOOR, "on floor")
+						check(r.rect.has_point(p.tile), "inside the room")
+					found[r.authored] = true
+	check(found.size() >= 3, "the new rooms turn up (%s)" % str(found.keys()))
+
+
+func test_a_broken_altar_makes_every_fight_restless_and_its_rubble_can_be_dug() -> void:
+	Profile.data = Profile.fresh()
+	var world := {"sites": {"ossuary": "broken"}}
+	var lay := DungeonGen.generate(5, 2, "ossuary", false, "", world)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	var run := RunState.create(5, "ossuary", "sword", 0, ["flare", "", ""])
+	run.depth = 2
+	run.world = world
+	d.build(lay, run, null)
+	var rubble: Prop = null
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "rubble":
+			rubble = p
+	check(rubble != null and rubble.interactable(), "rubble to dig")
+	var before := d.props.size()
+	rubble.interact(d.player)
+	check(rubble.used and not d.astar.is_point_solid(rubble.tile), "dug away, the way is open")
+	var fight: Room = null
+	for r in d.layout.rooms:
+		if r.type == Room.Type.COMBAT and not r.encounter.is_empty():
+			fight = r
+			break
+	var n := (fight.encounter[0] as Array).size()
+	d._start_encounter(fight, d.player)
+	eq((fight.encounter[0] as Array).size(), n + 1, "one more foe")
+	check(before > 0, "(props)")
+	d.queue_free()
+
+
+func test_a_kindled_altar_lamp_gives_its_flame_once() -> void:
+	Profile.data = Profile.fresh()
+	var world := {"sites": {"ossuary": "kindled"}}
+	var lay := DungeonGen.generate(5, 2, "ossuary", false, "", world)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	var run := RunState.create(5, "ossuary", "sword", 0, ["flare", "", ""])
+	run.depth = 2
+	run.world = world
+	d.build(lay, run, null)
+	var lamp: Prop = null
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "lamp":
+			lamp = p
+	check(lamp != null and lamp.interactable(), "a lamp to take a flame from")
+	d.player.kindle = 0.0
+	lamp.interact(d.player)
+	check(d.player.kindle >= 25.0, "Kindle from it")
+	check(not lamp.interactable(), "once")
+	d.queue_free()
+
+
+func test_a_foes_own_blow_sets_off_a_jar() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "hearthblade")
+	st.queue_free()
+	Profile.data = Profile.fresh()
+	var lay := DungeonGen.generate(7, 2, "ossuary", false)
+	var d := Dungeon.new()
+	d.process_mode = Node.PROCESS_MODE_DISABLED
+	tree_root.add_child(d)
+	d.build(lay, RunState.create(7, "ossuary", "sword", 0, ["flare", "", ""]), null)
+	var c := Vector2i(d.layout.room(d.layout.start_id).center())
+	var jar := Prop.make(d, "kindle_jar", c, {})
+	var e := _dummy(d, Vector2(c) + Vector2(1.5, 0.5))
+	e.strike_circle(Vector2(c) + Vector2(0.5, 0.5), 1.2, 5.0)
+	check(jar.used, "the jar goes up")
+	check(pl != null, "(a Kindled existed)")
+	d.queue_free()
