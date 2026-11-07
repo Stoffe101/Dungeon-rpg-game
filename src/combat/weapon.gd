@@ -64,6 +64,14 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 			visual.set_instance_shader_parameter("tint", b.tint)
 		glow = maxf(glow, float(b.get("glow", 1.0)))
 		form = String(b.get("form", ""))
+		# a great weapon that has grown looks it: brighter awake, its path's colour once chosen
+		if Evolutions.can_evolve(it):
+			match Evolutions.stage(it):
+				1:
+					glow *= 1.3
+				2:
+					glow *= 1.6
+					visual.set_instance_shader_parameter("tint", Evolutions.path_color(it).lerp(Color(1, 1, 1), 0.35))
 	_base_glow = glow
 	visual.set_instance_shader_parameter("glow_mult", glow)
 
@@ -190,12 +198,18 @@ func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 	_breaking = false
 
 
+## The Overflowing Censer: a full lantern pays for it.
+func _free_overcharge() -> bool:
+	return player.stats.has("censer") and player.kindle >= player.kindle_max() - 0.01
+
+
 ## A press now: is it in time with the swing settling? (swords, or the tree's Cadence)
 func _note_cadence() -> void:
 	if not has_technique("cadence"):
 		_cadence_next = false
 		return
-	_cadence_next = phase == Phase.RECOVER and phase_t >= phase_len * CADENCE_FROM
+	var from := 0.25 if player.stats.has("metronome") else CADENCE_FROM
+	_cadence_next = phase == Phase.RECOVER and phase_t >= phase_len * from
 
 
 ## A strike begins: in time or not.
@@ -207,6 +221,8 @@ func _begin_cadenced() -> void:
 		return
 	cadence_run += 1
 	phase_len *= CADENCE_QUICK
+	if player.stats.has("metronome"):
+		player.gain_kindle(2.0 / maxf(player.stats.v("kindle_gain"), 0.01))
 	player.cosmetic(func() -> void:
 		player.stage.fx.burst(player.pos + aim_dir * 0.6, 0.8, Color(1.0, 0.95, 0.8), 4 + 2 * mini(cadence_run, 3), 3.0, 0.12, 0.0, aim_dir, 0.6)
 		Audio.play("cadence", -7.0, 1.0 + 0.06 * mini(cadence_run, 3)))
@@ -312,8 +328,9 @@ func _fire_charge() -> void:
 	if predicting:
 		predict_charge()
 		return
-	if overcharged_ready and player.kindle >= OVERCHARGE_COST:
-		player.kindle -= OVERCHARGE_COST
+	if overcharged_ready and (player.kindle >= OVERCHARGE_COST or _free_overcharge()):
+		if not _free_overcharge():
+			player.kindle -= OVERCHARGE_COST
 		_over_t = 0.9
 		player.cosmetic(func() -> void:
 			player.stage.fx.ring(player.pos, 1.6, Color(1.0, 0.95, 0.7), 0.25, 0.3)
@@ -424,7 +441,7 @@ func update(dt: float) -> void:
 				charged = true
 				player.on_weapon_charged()
 			elif charged and not overcharged_ready and has_technique("overcharge") and phase_t >= charge_time / speed() + OVERCHARGE_AFTER \
-					and player.kindle >= OVERCHARGE_COST:
+					and (player.kindle >= OVERCHARGE_COST or _free_overcharge()):
 				overcharged_ready = true
 				player.cosmetic(func() -> void:
 					Audio.play("charged", -2.0, 1.4)

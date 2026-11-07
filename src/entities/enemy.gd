@@ -504,6 +504,9 @@ func think(dt: float) -> void:
 	if not grudge.is_empty():
 		_grudge_tick(dt)
 	behave(dt)
+	if _turned_t > 0.0:
+		_turned_t -= dt
+		facing = _turned_dir     # (it keeps looking where it was made to)
 	if _flinch_t > 0.0:
 		_flinch_t -= dt
 		if state in FLINCH_STATES:
@@ -678,6 +681,17 @@ func take_form(id: String) -> void:
 ## What is different from the first blow (host, once the arena is known).
 func begin_form() -> void:
 	pass
+
+
+var _turned_t := 0.0
+var _turned_dir := Vector2.ZERO
+
+
+## Made to look a way for a while, whatever it was doing (the Turncloak Ring).
+func turn_away(dir: Vector2, seconds: float) -> void:
+	_turned_dir = dir.normalized()
+	_turned_t = seconds
+	facing = _turned_dir
 
 
 ## One of this foe's blows really landed on a Kindled (not dodged, not Warded; a

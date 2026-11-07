@@ -616,6 +616,12 @@ func _sfx() -> void:
 	fx("ping", 0.5, func(s):
 		s.bell(0.0, 0.4, midi(88), 0.22, [[1.0, 1.0, 5.0], [2.0, 0.3, 8.0]])
 		s.bell(0.1, 0.38, midi(95), 0.16, [[1.0, 1.0, 6.0], [2.0, 0.25, 9.0]]))
+	# a great thing choosing its path: a low swell and a rising chord
+	fx("evolve", 1.6, func(s):
+		s.pad(0.0, 1.5, [midi(45), midi(52), midi(57)], 0.3, 1200.0, 0.25, 0.8)
+		for k in 4:
+			s.bell(0.35 + k * 0.16, 1.1, midi([69, 73, 76, 81][k]), 0.18)
+		s.noise(0.0, 1.0, 0.12, 2000.0, 6000.0, 600.0, 0.3, 2.0))
 	# a blade in time: a short bright ring over a soft tick
 	fx("cadence", 0.35, func(s):
 		s.noise(0.0, 0.03, 0.4, 7000.0, 4000.0, 1500.0, 0.001, 9.0)

@@ -277,3 +277,93 @@ func test_unblinking_holds_five_and_loses_one_at_a_time() -> void:
 	pl.stats.flags.erase("unblinking")
 	check(w.damage_scale() > bare, "without Unblinking nothing is lost for having none")
 	st.queue_free()
+
+
+# --- great things: no runaway combinations -----------------------------------------------
+
+func test_every_evolution_power_at_once_stays_bounded() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "twin_fangs")
+	var flags := {}
+	for base in Evolutions.PATHS:
+		for p in Evolutions.PATHS[base]:
+			for f in p.flags:
+				flags[f] = 1
+	pl.stats.apply_flags(flags)
+	pl.stats.base["crit_chance"] = 5.0     # every blow critical: the worst case for crit-fed powers
+	var foes: Array = []
+	for k in 6:
+		var e := _dummy(st, pl.pos + Vector2.from_angle(TAU * k / 6.0) * 1.2)
+		foes.append(e)
+	var n := [0]
+	var count := func(_t: Node, _a: float, _c: bool) -> void: n[0] += 1
+	Events.damage_dealt.connect(count)
+	var worst := 0
+	for swing in 20:
+		n[0] = 0
+		var h := Hit.make(pl, 20.0, ["melee"])
+		h.from_dir = Vector2.RIGHT
+		pl.deal_hit(foes[swing % 6], h)
+		for i in 60:
+			st.simulate(1.0 / 30.0)
+		worst = maxi(worst, n[0])
+		for e in foes:
+			e.hp = e.max_hp
+	Events.damage_dealt.disconnect(count)
+	check(worst < 60, "one blow and everything it sets off stays bounded (worst %d hits)" % worst)
+	check(st.projectiles.size() < 40, "no flood of projectiles (%d)" % st.projectiles.size())
+	st.queue_free()
+
+
+# --- uniques of the techniques ---------------------------------------------------------------
+
+func test_the_metronome_widens_cadence_and_gives_kindle() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "twin_fangs", ["tech_cadence", "metronome"])
+	var w := pl.weapon
+	w.phase = Weapon.Phase.RECOVER
+	w.phase_len = 0.3
+	w.phase_t = 0.09     # too early for the plain window, inside the Metronome's
+	pl.kindle = 0.0
+	w.press()
+	w.update(0.03)     # (the press chains at a third of the recovery)
+	check(w.cadenced, "a wider window")
+	check(pl.kindle > 0.0, "and Kindle back")
+	st.queue_free()
+
+
+func test_the_censer_overcharges_free_on_a_full_lantern() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "ashwood_staff", ["censer"])
+	var w := pl.weapon
+	pl.kindle = pl.kindle_max()
+	w.overcharged_ready = true
+	w._fire_charge()
+	check(w._over_t > 0.0, "overcharged")
+	eq(pl.kindle, pl.kindle_max(), "for nothing, while full")
+	st.queue_free()
+
+
+func test_the_turncloak_ring_leaves_foes_looking_back() -> void:
+	var st := _arena()
+	var pl := _wielder(st, "hearthblade", ["tech_behind", "turncloak"])     # (as the ring gives them)
+	var e := _dummy(st, pl.pos + Vector2(1.5, 0.0))
+	e.facing = Vector2.LEFT
+	pl.move_in = Vector2.RIGHT
+	pl._start_dodge()
+	eq(e.facing, Vector2.LEFT, "it looks back where you were (the way you came from)")
+	check(e._turned_t > 0.0, "for a moment")
+	pl.pos = e.pos + Vector2(1.5, 0.0)
+	var h := Hit.make(pl, 10.0, ["melee"])
+	pl.weapon._technique(e, h)
+	check(h.forced_crit, "and you are behind it")
+	st.queue_free()
+
+
+func test_new_uniques_can_be_learned_and_crafted() -> void:
+	for id in ["metronome_hilt", "overflowing_censer", "turncloak_ring"]:
+		check(ItemDB.blueprints().has(id), "%s comes as a blueprint" % id)
+		var r: Dictionary = ItemDB.base(id).get("recipe", {})
+		check(not r.is_empty(), "%s has a recipe" % id)
+		for m in r:
+			check(m == "embers" or ItemDB.MATERIALS.has(m), "%s needs real materials (%s)" % [id, m])

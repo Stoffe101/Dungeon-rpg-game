@@ -1019,6 +1019,14 @@ func _start_dodge() -> void:
 	perfect_done = false
 	invuln_t = maxf(invuln_t, stats.v("dodge_iframes"))
 	dodge_charges -= 1.0
+	if stats.has("turncloak"):
+		# the Turncloak Ring: those you slip past keep looking back where you were
+		var end := pos + dodge_dir * dist
+		for a in stage.hostiles(team):
+			if a is Enemy and not (a as Enemy).def.get("boss", false):
+				var q := Geometry2D.get_closest_point_to_segment(a.pos, pos, end)
+				if q.distance_to(a.pos) < 1.4:
+					(a as Enemy).turn_away(-dodge_dir, 1.2)
 	if weapon:
 		weapon.cancel()
 	ward_t = 0.0
