@@ -71,8 +71,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `scaling` (party-size scaling evaluation, `src/dev/scaling_eval.gd`; `seeds= secs= tier= depth= comps=`),
   `legendlab` (signature weapon moments per minute, `src/dev/legend_lab.gd`; `secs= forms=`), `open=map|minimap explored`,
   `open=spellpick`, `open=inventory saveload`, `scenario=loot` (private finds, live Satchel, equal XP on real machines).
-  (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args and the testing stockpile work in debug
-  builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
+  (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args work in debug builds only (the testing stockpile in the editor only): read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
   steam_appid.txt in exports, dev switches gated, game code never uses tools/ tests/ docs/ captures/ - they
   are not exported; the palette lives in `src/render/pal.gd`). Builds: `tools/dev/build_windows.sh release|debug`
@@ -172,7 +171,7 @@ Key conventions:
   and rebuilt in place by `Hub.refresh_camp` (never `Game.goto_hub()` for an upgrade).
 - Tinctures: `src/data/tinctures.gd` (reagents teach and distil them; `Profile.tincture()`, `steep`);
   poured host-side in `Player._pour`. Reagents are finds of one's own (kind "reagent").
-- The Forked Descent: `DungeonGen.ROUTES` / `route_offer` (two of three ways at every stairs room below
+- The Forked Descent: `DungeonGen.ROUTES` / `route_offer` (two of three ways at about 70% of stairs rooms below
   a guardian's floor), `generate(..., route)`; room objectives (`Room.objective`: seals / flame) run in
   `Dungeon._begin_objective` / `_tend_objective`; the HUD's task line is `Dungeon.objective` ("obj" event).
 - The world shader's grammar (rims, contact shadows, quiet floors) is fed by `LevelBuilder` (UV2 bits,
@@ -224,6 +223,8 @@ real OS cursor, which scripted events do not move).
   freed when their actor leaves (`_exit_tree`).
 
 ## Workflow
+
+- History, playtest reports, preferences and what is really verified: `docs/DEVELOPMENT_HANDOFF.md`.
 
 - Branches are stacked feature branches with draft PRs (latest: `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.

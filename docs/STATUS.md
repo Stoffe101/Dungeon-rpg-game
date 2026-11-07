@@ -399,7 +399,7 @@ Last updated: 2026-11-05.
 | UI smoke test | `-- uismoke`: opens every screen and presses its buttons (sanctuary building, forge craft/temper, weapon rack, skill allocate/refund/respec, memorial, settings tabs, merchant purchases, blood pact, chest, lore, Hearthstone confirm, extraction), kindles a distant Hearthtree node (checks exactly the previewed path is bought), moves the mouse around the player (aim, facing, swing direction), equips from the satchel, forges, masterworks, tempers, salvages, buys and sells, searches and focuses branches, ranks up a mastery and reads its tooltip, plays a resident's request conversation through to the gift, then drives menus with synthetic gamepad events (B interacts/backs out, A confirms, RB switches tabs, focus follows). Found and fixed the shop/forge refresh bug, a late-descend race, and (in the input audit) a missing Interact input path: until this fix a human could not open chests, trade or take the stairs - the bot and smoke test had been calling `interact()` directly. |
 | Build coverage | Bot runs with hammer, staff, and the entire skill tree allocated (`skills=all`): no script errors after fixes (Wildfire implemented; freed-source guards). |
 | Performance | Windowed 1080p autopilot: pinned at the 165 Hz vsync cap with ~200 particles and several enemies (RTX 5070). This round's bot runs: 154-165 fps in fights with up to 10 actors and ~570 particles; single dips to 126-131 at encounter starts and one 97 at a floor load (2 actors), i.e. hitches, not load. |
-| Manual (human) play | **Not yet** - needs a human to judge feel, difficulty and controls. |
+| Manual (human) play | Owner solo (11-02, 11-03), two-PC sessions (11-03, 11-04), a further report (11-05). PRs #9-#11 have not been reported as played. See docs/DEVELOPMENT_HANDOFF.md. |
 | Audio | Generated and level-checked by script; **not listened to** by the developer (no audio inspection available). |
 
 ## Known issues / limitations
@@ -542,9 +542,6 @@ Last updated: 2026-11-05.
 0. Both passes with people: docs/TESTING.md "Human playtest: the foes and
    guardians pass" and "Human playtest: the living Undervault pass": the Forked Descent's forms, the altars, Grudges, the third
    depths' floors, the Hollow, pings.
-1. The enemy pass this one postponed: redrawn animation for the foes seen most,
-   a boss presentation pass, one or two new foes per region once the old ones
-   read well on the new floors.
 2. Grow the Chronicle only from what play shows: what people remember from it.
 
 0. Earlier: docs/TESTING.md "Human playtest: the expedition
