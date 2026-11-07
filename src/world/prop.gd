@@ -253,6 +253,52 @@ func _build() -> void:
 				for dy in [-1, 0]:
 					foot.append(tile + Vector2i(dx, dy))
 			_solid(foot)
+		"strut":
+			_sprite("strut", 0.0, 0.0, "whole")
+			_solid([tile])
+			breakable = true
+			stops_shots = true
+			strike_radius = 0.9
+		"kindle_jar":
+			_sprite("kindle_jar", 0.0)
+			breakable = true
+			strike_radius = 0.5
+			_light(Color(1.0, 0.55, 0.25), 0.4, 2.4, Vector3(0, 0.5, 0.1))
+		"rime_vent":
+			_sprite("rime_vent", 0.0, 0.0, "idle")
+			breakable = true
+			strike_radius = 0.8
+			_light(Color(0.55, 0.8, 1.0), 0.35, 2.4, Vector3(0, 0.3, 0.0))
+		"lamp":
+			_sprite("vigil_lamp", 0.0, 0.0, "lit")
+			_solid([tile])
+			_light(Color(1.0, 0.68, 0.35), 0.9, 5.5, Vector3(0, 1.6 * Iso.SQ2, 0.1))
+		"scar":
+			_flat("floor_scar", String(data.get("anim", "broken")))
+		"lever":
+			_sprite("lever", 0.0, 0.0, "up")
+			_solid([tile])
+			data["prompt"] = "Pull the lever"
+			data["label"] = "A Rusted Lever"
+			interact_radius = 1.3
+		"lock_plate":
+			_sprite("lock_plate", 0.0, 0.0, String(data.get("anim", "key")))
+			_solid([tile])
+			data["prompt"] = "Pay in blood: -20% health" if data.get("anim", "key") == "pale" else "Turn the key"
+			data["label"] = "A Pale Door" if data.get("anim", "key") == "pale" else "A Barred Vault"
+			interact_radius = 1.3
+		"key_altar":
+			_sprite("key_altar", 0.0, 0.0, "idle")
+			_solid([tile])
+			data["prompt"] = "Take the key"
+			data["label"] = "The Bone Key"
+			interact_radius = 1.3
+			_light(Color(1.0, 0.8, 0.45), 1.0, 4.5, Vector3(0, 1.4 * Iso.SQ2, 0.1))
+		"cold_lantern":
+			_sprite("cold_lantern", 0.0, 0.0, "cold")
+			data["prompt"] = "Relight it"
+			data["label"] = "Your Lantern"
+			interact_radius = 1.2
 		"rug":
 			_flat("rug", String(data.get("anim", "rug0")))
 		"spikes":
@@ -466,6 +512,8 @@ func interactable() -> bool:
 
 ## The name over it in the world ("" for none): what it is, at a glance.
 func label_name() -> String:
+	if kind in ["lever", "lock_plate", "key_altar", "cold_lantern"]:
+		return "" if used else String(data.get("label", ""))
 	match kind:
 		"chest":
 			if data.get("sealed", false):
@@ -750,6 +798,11 @@ func on_struck(src: Node, fire := false) -> void:
 			used = true
 			breakable = false
 			stage.request("secret", self)
+		"strut", "kindle_jar", "rime_vent":
+			used = true
+			breakable = false
+			if stage is Dungeon:
+				(stage as Dungeon).room_device(self, src)
 
 
 ## Brambles catch fire from any fire hit, burn for a moment (scorching nearby

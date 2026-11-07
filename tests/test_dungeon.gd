@@ -66,7 +66,8 @@ func test_structure() -> void:
 			for d in r.doors:
 				for t: Vector2i in d.tiles:
 					var tt := lay.grid.at(t.x, t.y)
-					check(tt == (TileGrid.WALL if d.secret else TileGrid.FLOOR), "door tile type")
+					var barred: bool = int(d.get("lock", -1)) >= 0 and (lay.locks[int(d.lock)].tiles as Array).has(t)
+					check(tt == (TileGrid.WALL if d.secret else (TileGrid.GATE if barred else TileGrid.FLOOR)), "door tile type")
 		check(has_elite, "every floor has an elite room")
 		# outer border is never floor
 		for x in lay.grid.width:

@@ -18,6 +18,15 @@ func _ready() -> void:
 			print("[sites] fork seed=%d: %s" % [s, DungeonGen.route_offer(s, depth)])
 			break
 	var seen := {}
+	for s in range(1, 120):
+		var lay := DungeonGen.generate(s, depth, region, false)
+		for r in lay.rooms:
+			if r.rule != "" and not seen.has(r.rule):
+				seen[r.rule] = s
+				print("[sites] rule %s seed=%d" % [r.rule, s])
+			if r.event != "" and not seen.has(r.event):
+				seen[r.event] = s
+				print("[sites] event %s seed=%d" % [r.event, s])
 	for route in ["trial", "vault", "breach", "lair"]:
 		for s in range(1, 300):
 			var lay := DungeonGen.generate(s, depth, region, false, route)
@@ -25,10 +34,4 @@ func _ready() -> void:
 			if not seen.has(key):
 				seen[key] = s
 				print("[sites] %s seed=%d" % [key, s])
-	for s in range(1, 120):
-		var lay := DungeonGen.generate(s, depth, region, false)
-		for r in lay.rooms:
-			if r.event != "" and not seen.has(r.event):
-				seen[r.event] = s
-				print("[sites] event %s seed=%d" % [r.event, s])
 	get_tree().quit()

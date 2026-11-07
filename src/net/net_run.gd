@@ -489,12 +489,20 @@ func world_dump(for_peer := 0) -> Array:
 	for r in stage.layout.rooms:
 		if r.visited:
 			out.append(["room", r.id])
+	for i in stage.layout.locks.size():
+		if stage.layout.locks[i].open:
+			out.append(["unlock", i])
+	if stage.has_key:
+		out.append(["key", true])
+	if stage.charted:
+		out.append(["chart"])
 	for rid in stage.gate_nodes:
-		var nodes: Array = stage.gate_nodes[rid]
-		if not nodes.is_empty():
-			var t: Vector2i = nodes[0].get_meta("tile")
-			if stage.grid.at(t.x, t.y) == TileGrid.GATE:
-				out.append(["gate", rid, true])
+		for g in stage.gate_nodes[rid]:
+			if not stage.behind_bars(g):
+				var t: Vector2i = g.get_meta("tile")
+				if stage.grid.at(t.x, t.y) == TileGrid.GATE:
+					out.append(["gate", rid, true])
+				break
 	for a in stage.actors:
 		if is_instance_valid(a) and a.alive and a.net_id != 0 and not (a is Player):
 			out.append(["actor+", a.net_id, _describe(a)])
@@ -789,6 +797,12 @@ func apply_events(evs: Array) -> void:
 			"own":
 				if int(ev[1]) == Net.my_id():
 					apply_events([ev[2]])
+			"note":
+				stage.note_request(String(ev[1]), int(ev[2]))
+			"snuff":
+				stage.player.snuff(float(ev[1]))
+			"haul":
+				stage.player.hauled(ev[1])
 			"actor+":
 				_spawn_replica(int(ev[1]), ev[2])
 			"die":
@@ -826,6 +840,12 @@ func apply_events(evs: Array) -> void:
 				_apply_prop(int(ev[1]), ev[2])
 			"gate":
 				stage._set_gates(stage.layout.room(int(ev[1])), bool(ev[2]))
+			"unlock":
+				stage.open_lock(int(ev[1]))
+			"key":
+				stage.carry_key(bool(ev[1]))
+			"chart":
+				stage.chart_floor()
 			"room":
 				stage.visit_room(stage.layout.room(int(ev[1])))
 			"tele":
@@ -841,6 +861,8 @@ func apply_events(evs: Array) -> void:
 				Party.show_ping(stage, int(ev[1]), ev[2])
 			"wit":
 				Chronicle.mark("witnessed_" + String(ev[1]))     # a guest saw it; the world is the host's
+				if String(ev[1]).begins_with("rescued_"):
+					Chronicle.rescue(String(ev[1]).substr(8))     # ...but whoever helped them up has them at home
 			"obj":
 				if stage is Dungeon:
 					(stage as Dungeon).objective = {} if String(ev[1]) == "" else {"text": String(ev[1]), "k": float(ev[2]), "col": ev[3]}
@@ -848,6 +870,8 @@ func apply_events(evs: Array) -> void:
 				Events.toast.emit(String(ev[1]), ev[2])
 			"boss":
 				var b = replicas.get(int(ev[1]))
+				if b and ev.size() > 2 and String(ev[2]) != "":
+					b.take_form(String(ev[2]))
 				if b:
 					stage.boss = b as Enemy
 					Events.boss_started.emit(b)
@@ -946,7 +970,9 @@ func _tele(ev: Array) -> void:
 	var dur := float(ev[6])
 	var params: Dictionary = (ev[7] as Dictionary).duplicate()
 	params["progress"] = 0.0
-	var n := stage.fx.shape(int(ev[2]), ev[3], ev[4], ev[5], Enemy.TELE_COLOR, Enemy.TELE_EDGE, dur + 0.05, params)
+	stage.note_danger(ev[3], dur, {"kind": int(ev[2]), "dir": ev[4], "size": ev[5], "half": float((ev[7] as Dictionary).get("half_angle", 0.0))})
+	var strong := bool(Settings.get_value("strong_tells", false))
+	var n := stage.fx.shape(int(ev[2]), ev[3], ev[4], ev[5], Enemy.TELE_STRONG if strong else Enemy.TELE_COLOR, Enemy.TELE_STRONG_EDGE if strong else Enemy.TELE_EDGE, dur + 0.05, params)
 	teles[int(ev[1])] = n
 	if ev.size() > 8:
 		# the foe winding up glows on this screen too

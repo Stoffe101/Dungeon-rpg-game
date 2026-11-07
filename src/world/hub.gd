@@ -76,7 +76,7 @@ static func camp_of_profile() -> Dictionary:
 		"shrine": Profile.building("shrine"), "level": Profile.level(), "garden": Residents.garden_stage(),
 		"residents": Residents.count_present(), "feats": Feats.earned_count(), "trophies": trophies,
 		"cat": int(Profile.data.stats.get("runs", 0)) > 0, "forged": forged, "host": String(Settings.get_value("player_name", "Kindled")),
-		"sites": (Chronicle.snapshot().sites as Dictionary).duplicate()}
+		"sites": (Chronicle.snapshot().sites as Dictionary).duplicate(), "rescued": (Chronicle.snapshot().rescued as Array).duplicate()}
 
 
 ## The camp to build: the host's while this machine is a guest in a party.
@@ -199,6 +199,10 @@ func _place() -> void:
 	Prop.make(self, "keeper", Vector2i(24, 13), {"sheet": "keeper", "anim": "idle", "prompt": "Speak with the Keeper", "radius": 1.2,
 		"light": [Color(1.0, 0.8, 0.5), 0.6, 3.0], "light_h": 1.2})
 	_group("hearth", _place_posts)
+	Prop.make(self, "noticeboard", Vector2i(16, 5), {"sheet": "noticeboard", "anim": "idle", "prompt": "Read the noticeboard", "radius": 1.8, "solid": true})
+	if (camp.get("rescued", []) as Array).has("maren"):
+		Prop.make(self, "chart_table", Vector2i(27, 6), {"sheet": "chart_table", "anim": "idle", "prompt": "Consult Maren's chart table", "radius": 1.8, "solid": true,
+			"light": [Color(1.0, 0.75, 0.45), 0.5, 2.5], "light_h": 0.9})
 	# torches along the north wall
 	for x in [7, 13, 29, 35]:
 		Prop.make(self, "torch", Vector2i(x, 3), {"flame": Color(1.0, 0.6, 0.3)})
@@ -529,6 +533,9 @@ func _spawn_residents() -> void:
 	var n := int(camp.residents)
 	for i in n:
 		residents.append(Wanderer.spawn(self, Residents.LIST[i], spots, rng))
+	for r in Residents.RESCUED:
+		if (camp.get("rescued", []) as Array).has(r.id):
+			residents.append(Wanderer.spawn(self, r, spots, rng))
 	if not own_camp():
 		return
 	# newcomers are announced once
@@ -916,9 +923,31 @@ func request(what: String, prop: Prop) -> void:
 			Game.ui.dialogue(String(prop.data.prompt), prop.data.get("lines", []))
 		"wardrobe":
 			Game.ui.wardrobe()
+		"chart_table":
+			_chart_table()
+		"noticeboard":
+			Game.ui.noticeboard()
 		"cat":
 			(prop as CampCat).pet()
 	prop.set_meta("last_used", elapsed)
+
+
+const CHART_COST := 120
+
+
+## Maren's table: a chart of the next descent, for whoever buys it.
+func _chart_table() -> void:
+	if bool(Profile.data.flags.get("chart_ready", false)):
+		Game.ui.dialogue("Maren, the Chartwright", ["Your chart is rolled and waiting by the gate. It is good for one descent.", "After that the walls will have moved. They always do."])
+		return
+	Game.ui.confirm("A Chart of the Next Descent", "Every room of every floor on your map, vaults and hidden chambers too, for one expedition. %d Embers." % CHART_COST, func() -> void:
+		if not Profile.pay({"embers": CHART_COST}):
+			Game.ui.toast("You do not have the Embers.", UIKit.C_DIM)
+			return
+		Profile.data.flags["chart_ready"] = true
+		Audio.play("skill_unlock", -8.0, 1.2)
+		Game.ui.toast("Maren rolls up a chart. It is good for one descent.", UIKit.C_GOLD)
+		Profile.save_profile())
 
 
 ## The camp cat: wanders between warm places, naps by the Hearth, and does

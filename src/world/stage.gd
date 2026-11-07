@@ -102,9 +102,13 @@ func _process(delta: float) -> void:
 		dt *= _slow_scale
 	if paused_sim:
 		dt = 0.0
+	var t_sim := Dev.tick()
 	if dt > 0.0:
 		simulate(dt)
+	Dev.lap("simulate", t_sim)
+	var t_fx := Dev.tick()
 	fx.step(real if not paused_sim else 0.0)
+	Dev.lap("fx", t_fx)
 	if view and player and is_instance_valid(player):
 		var target := Iso.to_world(player.pos + player.draw_off + player.aim_offset(), 0.0)
 		if _look_t > 0.0:
@@ -132,6 +136,14 @@ func look_toward(p: Vector2, seconds: float) -> void:
 
 
 ## Runs `fn` after `seconds` of simulation time (respects hitstop/slow-mo).
+var dangers: Array = []     # blows being wound up: [where, until when] (HUD: off-screen chevrons)
+
+
+func note_danger(at: Vector2, seconds: float, shape := {}) -> void:
+	dangers = dangers.filter(func(d): return float(d[1]) >= elapsed)
+	dangers.append([at, elapsed + seconds, elapsed, shape])
+
+
 func after(seconds: float, fn: Callable) -> void:
 	_timers.append([seconds, fn])
 

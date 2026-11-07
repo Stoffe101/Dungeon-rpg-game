@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"broken": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"broken2": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"kindled": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		},
+		"pale": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		48,
+		32
+	],
+	"origin": [
+		24,
+		16
+	]
+}

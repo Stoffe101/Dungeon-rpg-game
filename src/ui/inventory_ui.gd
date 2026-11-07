@@ -97,6 +97,11 @@ func rebuild() -> void:
 	body.add_child(_wardrobe_panel() if wardrobe_open else _bag_panel())
 	if stats_open:
 		body.add_child(GearUI.stats_panel(140, "SatchelPocket"))
+	var eq := Profile.equipped()
+	for slot in eq:
+		var it: Variant = eq[slot]
+		if it is Dictionary and not (it as Dictionary).is_empty() and Evolutions.ready(it):
+			outer.add_child(UIKit.button("%s is ready to choose a path" % ItemDB.item_name(it), func() -> void: _choose_path(it), 200))
 	outer.add_child(_loadout_strip())
 	var hint := UIKit.label("", 8, Color(0.85, 0.74, 0.6), true)
 	hint.text = "A equip / take off   X salvage   B close" if Settings.using_pad else "Click: equip / take off    Right-click: salvage    %s: close" % Settings.describe_action("inventory")
@@ -567,12 +572,78 @@ func _materials(v: VBoxContainer) -> void:
 	v.add_child(mg)
 
 
+const FILTERS := [["all", "All"], ["weapon", "Arms"], ["armour", "Worn"], ["jewel", "Rings"]]
+const ORDERS := ["new", "rarity", "tier"]
+const ORDER_NAMES := {"new": "Newest", "rarity": "Rarest", "tier": "Tier"}
+const RARITY_RANK := {"common": 0, "uncommon": 1, "rare": 2, "epic": 3, "set": 3, "legendary": 4}
+static var bag_filter := "all"
+static var bag_order := "new"
+
+
+## The bag as this view shows it: never changes the bag itself.
+static func arranged(bag: Array, filter: String, order: String) -> Array:
+	var out: Array = bag.filter(func(it):
+		var slot := String(ItemDB.base(String(it.base)).get("slot", ""))
+		match filter:
+			"weapon":
+				return slot == "weapon"
+			"jewel":
+				return slot in ["ring", "charm"]
+			"armour":
+				return not slot in ["weapon", "ring", "charm"]
+		return true)
+	out.reverse()     # (newest first: finds are added at the end)
+	match order:
+		"rarity":
+			out.sort_custom(func(a, b): return int(RARITY_RANK.get(a.rarity, 0)) * 100 + int(a.tier) > int(RARITY_RANK.get(b.rarity, 0)) * 100 + int(b.tier))
+		"tier":
+			out.sort_custom(func(a, b): return int(a.tier) * 100 + int(RARITY_RANK.get(a.rarity, 0)) > int(b.tier) * 100 + int(RARITY_RANK.get(b.rarity, 0)))
+	return out
+
+
+## A rough word only (higher tier, then rarity, then level): the tooltip's comparison
+## is the real answer, and a build may want the lesser thing.
+static func looks_better(it: Dictionary, worn: Dictionary) -> bool:
+	if worn.is_empty():
+		return true
+	var score := func(x: Dictionary) -> int: return int(x.get("tier", 1)) * 10000 + int(RARITY_RANK.get(x.get("rarity", "common"), 0)) * 100 + int(x.get("level", 1))
+	return int(score.call(it)) > int(score.call(worn))
+
+
+## Once, for good: the great thing grows one way. Both ways are read out first.
+func _choose_path(it: Dictionary) -> void:
+	var lines: Array = []
+	var choices: Array = []
+	for p in Evolutions.paths_of(it):
+		lines.append("%s: %s" % [String(p.name), String(p.desc)])
+		choices.append([String(p.name), func() -> void:
+			if Evolutions.choose(it, String(p.id)):
+				Audio.play("relic", 0.0, 0.9)
+				Game.ui.toast("%s has chosen." % ItemDB.item_name(it), UIKit.C_GOLD)
+				Profile.changed.emit()
+				Profile.save_profile()
+				rebuild()])
+	choices.append(["Not yet", Callable()])
+	Game.ui.dialogue(ItemDB.item_name(it), lines, Callable(), choices)
+
+
 func _bag_panel() -> PanelContainer:
 	var p := UIKit.panel("SatchelLining")
 	var v := UIKit.vbox(3)
 	p.add_child(v)
-	var bag := Profile.bag()
-	v.add_child(UIKit.label("GEAR  %d" % bag.size(), 8, UIKit.C_GOLD, true))
+	var bag := InventoryUI.arranged(Profile.bag(), bag_filter, bag_order)
+	v.add_child(UIKit.label("GEAR  %d" % Profile.bag().size(), 8, UIKit.C_GOLD, true))
+	var fr := UIKit.hbox(1)
+	for f in FILTERS:
+		var fb := UIKit.button(String(f[1]), func() -> void:
+			bag_filter = String(f[0])
+			rebuild(), 30)
+		fb.modulate = Color(1, 1, 1) if bag_filter == f[0] else Color(0.65, 0.62, 0.6)
+		fr.add_child(fb)
+	fr.add_child(UIKit.button(String(ORDER_NAMES[bag_order]), func() -> void:
+		bag_order = ORDERS[(ORDERS.find(bag_order) + 1) % ORDERS.size()]
+		rebuild(), 44))
+	v.add_child(fr)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size = Vector2(BAG_COLS * 25 + 8, 5 * 25)
@@ -604,6 +675,16 @@ func _bag_panel() -> PanelContainer:
 		var u := int(it.uid)
 		var slot := String(ItemDB.base(String(it.base)).slot)
 		var worn: Dictionary = eq.get(slot, {}) if eq.get(slot) is Dictionary else {}
+		if InventoryUI.looks_better(it, worn):
+			# a small pale arrow, a shape and not only a colour; the tooltip compares it
+			var up := Label.new()
+			up.text = "^"
+			up.add_theme_font_override("font", UIKit.FONT_OUTLINE)
+			up.add_theme_font_size_override("font_size", 8)
+			up.add_theme_color_override("font_color", UIKit.C_GOOD)
+			up.position = Vector2(1, -2)
+			up.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			b.add_child(up)
 		b.pressed.connect(func() -> void: _equip(u))
 		b.gui_input.connect(func(ev: InputEvent) -> void:
 			if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_RIGHT:
@@ -669,6 +750,14 @@ func _tip_on(b: Control, make: Callable) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventJoypadButton and event.pressed and event.button_index in [JOY_BUTTON_LEFT_SHOULDER, JOY_BUTTON_RIGHT_SHOULDER]:
+		# pad: the shoulders walk the bag's filters
+		var ids: Array = FILTERS.map(func(f): return f[0])
+		var d := -1 if event.button_index == JOY_BUTTON_LEFT_SHOULDER else 1
+		bag_filter = String(ids[posmod(ids.find(bag_filter) + d, ids.size())])
+		rebuild()
+		get_viewport().set_input_as_handled()
+		return
 	# pad: X salvages the focused bag item
 	if event.is_action_pressed("ability_1") and Settings.using_pad:
 		var f := get_viewport().gui_get_focus_owner()

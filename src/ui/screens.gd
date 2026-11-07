@@ -636,7 +636,7 @@ static func pause(ui: UIRoot) -> Control:
 	var v := UIKit.vbox(5)
 	row.add_child(v)
 	# residents' requests: what they asked for and how far along it is
-	var journal := Residents.journal()
+	var journal := Contracts.journal() + Residents.journal()
 	if not journal.is_empty():
 		var jv := UIKit.vbox(3)
 		jv.add_child(UIKit.label("REQUESTS", 8, UIKit.C_GOLD, true))
@@ -916,6 +916,9 @@ static func memorial(ui: UIRoot) -> Control:
 		if not g.get("settled", false):
 			var lesson := "closes on those who keep away" if String(g.get("learned", "ward")) == "closer" else "wards against those who stand and swing"
 			v.add_child(UIKit.label("    killed you %d time%s, scarred %d, %s" % [int(g.get("slew", 1)), "" if int(g.get("slew", 1)) == 1 else "s", int(g.get("scars", 0)), lesson], 8, UIKit.C_DIM))
+		for m in g.get("marks", []):
+			if not g.get("settled", false):
+				v.add_child(UIKit.label("    %s: %s" % [Profile.GRUDGE_MARKS[m].name, Profile.GRUDGE_MARKS[m].text], 8, Profile.GRUDGE_MARKS[m].col))
 		var traits: Array = g.get("traits", [])
 		if not g.get("settled", false) and not traits.is_empty():
 			v.add_child(UIKit.label("    has grown: " + ", ".join(PackedStringArray(traits.map(func(x): return String(Profile.GRUDGE_TRAIT_TEXT.get(x, x))))), 8, Color(1.0, 0.55, 0.45)))
@@ -925,12 +928,63 @@ static func memorial(ui: UIRoot) -> Control:
 	var st: Dictionary = Profile.data.stats
 	v.add_child(UIKit.label("Expeditions %d   Deaths %d   Returns %d   Victories %d" % [int(st.get("runs", 0)), int(st.get("deaths", 0)), int(st.get("extractions", 0)), int(st.get("victories", 0))], 8))
 	v.add_child(UIKit.label("Foes slain %d   Embers gathered %d   Warden felled %d" % [int(st.get("kills", 0)), int(st.get("embers_earned", 0)), int(Profile.data.world.get("warden_kills", 0))], 8))
+	for nm in Profile.data.world.get("nemeses", []):
+		v.add_child(UIKit.label("Finished for good: %s" % nm, 8, UIKit.C_GOOD))
 	v.add_child(UIKit.label("Undervault Memory: %d" % int(Profile.data.world.get("memory", 0)), 8, UIKit.C_SOUL))
 	var row := UIKit.hbox(6)
 	row.add_child(UIKit.button("Read the Chronicle", func() -> void: ui.open(chronicle(ui)), 110))
 	row.add_child(UIKit.button("Close", func() -> void: ui.close_top(), 70))
 	v.add_child(row)
 	return _center(p)
+
+
+## The noticeboard by the gate: three notices up, two in hand.
+static func noticeboard(ui: UIRoot) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("The Noticeboard", UIKit.C_GOLD))
+	v.add_child(UIKit.para("Nothing here expires, and nobody minds if you ignore it. It pays when you come home.", 280, UIKit.C_DIM))
+	var body := UIKit.vbox(4)
+	v.add_child(body)
+	var ctx := {}
+	ctx["fill"] = func() -> void:
+		for c in body.get_children():
+			c.queue_free()
+		var carried := Contracts.taken()
+		body.add_child(UIKit.label("CARRYING  %d/%d" % [carried.size(), Contracts.CARRY], 8, UIKit.C_GOLD, true))
+		for t in carried:
+			var c := Contracts.def_of(String(t.id))
+			body.add_child(_notice(c, "%d/%d" % [int(t.n), int(c.goal)], "Put back", func() -> void:
+				Contracts.drop(String(t.id))
+				Profile.save_profile()
+				ctx.fill.call()))
+		body.add_child(UIKit.label("ON THE BOARD", 8, UIKit.C_GOLD, true))
+		for id in Contracts.offers():
+			var c := Contracts.def_of(String(id))
+			var full := carried.size() >= Contracts.CARRY
+			var row := _notice(c, "", "Hands full" if full else "Take", func() -> void:
+				if Contracts.take(String(id)):
+					Audio.play("skill_unlock", -8.0, 1.3)
+					Profile.save_profile()
+					ctx.fill.call())
+			body.add_child(row)
+	ctx.fill.call()
+	var close := UIKit.button("Close", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
+
+
+static func _notice(c: Dictionary, state: String, act: String, cb: Callable) -> Control:
+	var row := UIKit.hbox(6)
+	var t := UIKit.vbox(1)
+	t.add_child(UIKit.label(String(c.title) + ("   " + state if state != "" else ""), 8, UIKit.C_TEXT, true))
+	t.add_child(UIKit.para(String(c.line), 210, UIKit.C_TEXT))
+	t.add_child(UIKit.para("Pays " + Contracts.pay_text(c.pay), 210, UIKit.C_GOLD))
+	row.add_child(t)
+	row.add_child(UIKit.button(act, cb, 60))
+	return row
 
 
 ## What the Undervault remembers of you: the altars and how they stand (each
@@ -1431,41 +1485,57 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 		t = [String(EnemyDB.REGIONS.get(s.get("region", "ossuary"), {}).get("victory", t[0])), t[1]]
 	v.add_child(_title(t[0], t[1]))
 	v.add_child(UIKit.label("Depth %d   Rooms %d   Foes %d   Time %s   Tier %s" % [s.depth, s.rooms, s.kills, UIKit.fmt_time(s.time), Difficulty.roman(int(s.get("tier", 1)))], 8, UIKit.C_DIM))
+	# (a long expedition's list scrolls: the way home stays on screen at any size)
+	var body := UIKit.vbox(4)
+	var scroller := ScrollContainer.new()
+	scroller.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroller.add_child(body)
+	v.add_child(scroller)
+	var fit := func() -> void:
+		var want: Vector2 = body.get_combined_minimum_size()
+		scroller.custom_minimum_size = Vector2(want.x, minf(want.y, ui.root.get_viewport_rect().size.y - 76.0))
+	fit.call_deferred()
 	for fid in s.get("feats", []):
-		v.add_child(UIKit.label("Feat earned: %s  -  %s" % [Feats.FEATS[fid].name, Feats.describe_reward(Feats.FEATS[fid].reward)], 8, Color(1.0, 0.85, 0.45), true))
+		body.add_child(UIKit.label("Feat earned: %s  -  %s" % [Feats.FEATS[fid].name, Feats.describe_reward(Feats.FEATS[fid].reward)], 8, Color(1.0, 0.85, 0.45), true))
 	for nt in s.get("tiers", []):
-		v.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
-	v.add_child(HSeparator.new())
+		body.add_child(UIKit.label("New difficulty unlocked: Tier %s, %s" % [Difficulty.roman(int(nt)), Difficulty.tier_name(int(nt))], 8, Difficulty.tier_color(int(nt)), true))
+	body.add_child(HSeparator.new())
 	var er := UIKit.hbox(4)
 	er.add_child(UIKit.icon_rect("ember"))
 	er.add_child(UIKit.label("Embers brought home: %d" % int(s.embers_kept), 8, UIKit.C_EMBER))
-	v.add_child(er)
+	body.add_child(er)
 	if int(s.bonus) > 0:
-		v.add_child(UIKit.label("  includes a victory bonus of %d" % int(s.bonus), 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("  includes a victory bonus of %d" % int(s.bonus), 8, UIKit.C_GOOD))
 	if int(s.embers_lost) > 0:
-		v.add_child(UIKit.label("Embers lost in the dark: %d" % int(s.embers_lost), 8, UIKit.C_BAD))
+		body.add_child(UIKit.label("Embers lost in the dark: %d" % int(s.embers_lost), 8, UIKit.C_BAD))
 	if int(s.sunshards) > 0:
 		var sr := UIKit.hbox(4)
 		sr.add_child(UIKit.icon_rect("sunshard"))
 		sr.add_child(UIKit.label("Sunshards: %d" % int(s.sunshards), 8, UIKit.C_GOLD))
-		v.add_child(sr)
-	v.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
+		body.add_child(sr)
+	body.add_child(UIKit.label("Memories (XP) gathered: %d   Level %d" % [int(s.xp), Profile.level()], 8, UIKit.C_SOUL))
 	if bool(s.get("delve", false)):
 		var best := int(s.get("delve_best", 0))
-		v.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
+		body.add_child(UIKit.label("The Hollow Below: depth %d%s" % [int(s.depth), ("   - a new deepest!" if int(s.depth) > best else "   (deepest %d)" % best)], 8, UIKit.C_SOUL, true))
 	if not (s.get("omens", []) as Array).is_empty():
-		v.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
+		body.add_child(UIKit.label("Omens read: %s   (+%d Embers, +%d XP)" % [Omens.names(s.omens), int(s.get("omen_embers", 0)), int(s.get("omen_xp", 0))], 8, Omens.COLOR))
 	if Profile.skill_points_free() > 0:
-		v.add_child(UIKit.label("%d skill point(s) await at the Hearth." % Profile.skill_points_free(), 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("%d skill point(s) await at the Hearth." % Profile.skill_points_free(), 8, UIKit.C_GOOD))
 	var g: Dictionary = s.get("grudge", {})
 	if not g.is_empty():
-		v.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
+		body.add_child(UIKit.para("%s now carries %d of your Embers. The Undervault will send it after you." % [g.name, int(g.embers)], 240, Color(1.0, 0.55, 0.45)))
+	if String(s.get("outcome", "")) == "died":
+		_how_it_ended(body, s)
 	for n in s.get("settled", []):
-		v.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
+		body.add_child(UIKit.label("Grudge settled: %s" % n, 8, UIKit.C_GOOD))
 	for n in s.get("grudges_grew", []):
-		v.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
+		body.add_child(UIKit.label("%s grew stronger in the dark." % n, 8, Color(1.0, 0.55, 0.45)))
+	for n in s.get("contracts", []):
+		body.add_child(UIKit.label("Notice paid - %s" % n, 8, UIKit.C_GOLD))
+	for n in s.get("woke", []):
+		body.add_child(UIKit.label(String(n), 8, UIKit.C_SOUL))
 	if String(s.get("unlocked", "")) != "":
-		v.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
+		body.add_child(UIKit.label("Unlocked: %s" % s.unlocked, 8, UIKit.C_GOLD))
 	var rl: Array = s.get("relics", [])
 	if not rl.is_empty():
 		var rr := HFlowContainer.new()
@@ -1474,15 +1544,83 @@ static func summary(ui: UIRoot, s: Dictionary) -> Control:
 			var ic := UIKit.icon_rect(RelicDB.relic(id).get("icon", "relic"))
 			ic.tooltip_text = RelicDB.relic(id).get("name", id)
 			rr.add_child(ic)
-		v.add_child(rr)
+		body.add_child(rr)
 	var b := UIKit.button("Return to the Sanctuary", func() -> void:
 		ui.close_all()
 		ui.title_card("The Sanctuary", "The Hearth still burns.", Game.goto_hub), 140)
-	var cc := CenterContainer.new()
+	var cc := UIKit.hbox(6)
+	cc.alignment = BoxContainer.ALIGNMENT_CENTER
 	cc.add_child(b)
+	if not (s.get("dealt", {}) as Dictionary).is_empty() or not (s.get("taken", {}) as Dictionary).is_empty():
+		cc.add_child(UIKit.button("The whole run", func() -> void: ui.open(run_analysis(ui, s)), 90))
 	v.add_child(cc)
 	b.call_deferred("grab_focus")
 	return _center(p)
+
+
+## The end, in a line or two: what landed last, and what did most of the damage.
+static func _how_it_ended(v: VBoxContainer, s: Dictionary) -> void:
+	var blows: Array = s.get("blows", [])
+	if blows.is_empty():
+		return
+	v.add_child(UIKit.label("HOW IT ENDED", 8, UIKit.C_BAD, true))
+	var last: Array = blows.back()
+	var shown: Array = blows.slice(maxi(0, blows.size() - 3))
+	for b in shown:
+		v.add_child(UIKit.label("  %.1f s before the end: %s, %d" % [float(last[0]) - float(b[0]), String(b[1]), int(round(float(b[2])))], 8, UIKit.C_TEXT))
+	var top := top_source(s.get("taken", {}))
+	if not top.is_empty() and float(top[1]) >= 0.35:
+		v.add_child(UIKit.para("%s dealt %d%% of all you took this expedition. The Bestiary at the Shrine says how it fights." % [top[0], int(round(float(top[1]) * 100.0))], 280, UIKit.C_DIM))
+
+
+## [name, share of the total] of the biggest entry ([] for none).
+static func top_source(by: Dictionary) -> Array:
+	var total := 0.0
+	var best := ""
+	for k in by:
+		total += float(by[k])
+		if best == "" or float(by[k]) > float(by[best]):
+			best = String(k)
+	return [] if best == "" or total <= 0.0 else [best, float(by[best]) / total]
+
+
+## Everything the run kept, for whoever wants it: never in the way of going home.
+static func run_analysis(ui: UIRoot, s: Dictionary) -> Control:
+	var p := UIKit.panel()
+	var v := UIKit.vbox(4)
+	p.add_child(v)
+	v.add_child(_title("The Whole Run"))
+	v.add_child(UIKit.label("%d foes felled in %d rooms, %d:%02d" % [int(s.get("kills", 0)), int(s.get("rooms", 0)), int(s.get("time", 0.0)) / 60, int(s.get("time", 0.0)) % 60], 8, UIKit.C_DIM))
+	var row := UIKit.hbox(14)
+	row.add_child(_shares("WHAT YOU DEALT IT WITH", s.get("dealt", {}), Color(1.0, 0.72, 0.35)))
+	row.add_child(_shares("WHAT HURT YOU", s.get("taken", {}), Color(0.85, 0.3, 0.32)))
+	v.add_child(row)
+	var close := UIKit.button("Back", func() -> void: ui.close_top(), 70)
+	v.add_child(close)
+	close.call_deferred("grab_focus")
+	return _center(p)
+
+
+static func _shares(title: String, by: Dictionary, col: Color) -> Control:
+	var v := UIKit.vbox(2)
+	v.custom_minimum_size = Vector2(170, 0)
+	v.add_child(UIKit.label(title, 8, UIKit.C_GOLD, true))
+	var total := 0.0
+	var keys: Array = by.keys()
+	for k in keys:
+		total += float(by[k])
+	keys.sort_custom(func(a, b): return float(by[a]) > float(by[b]))
+	if keys.is_empty():
+		v.add_child(UIKit.label("Nothing at all.", 8, UIKit.C_DIM))
+	for k in keys.slice(0, 7):
+		var share := float(by[k]) / maxf(total, 1.0)
+		v.add_child(UIKit.label("%s  %d  (%d%%)" % [String(k), int(round(float(by[k]))), int(round(share * 100.0))], 8, UIKit.C_TEXT))
+		var bar := ColorRect.new()
+		bar.color = col
+		bar.custom_minimum_size = Vector2(maxf(2.0, 160.0 * share), 2)
+		bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		v.add_child(bar)
+	return v
 
 
 # --- developer tools ------------------------------------------------------------------------------

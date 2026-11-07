@@ -42,6 +42,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		_wall_lab(lay)
 	setup(lay.grid, v)
 	rng.seed = lay.seed * 31 + lay.depth
+	_warm_up()
 	_environment()
 	if not replica:
 		_pick_grudge_room()
@@ -52,6 +53,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if run.has_omen("lightless"):
 		_snuff_lights()
 	_place_gates()
+	_place_locks()
 	_place_door_frames()
 	_place_door_icons()
 	if grudge_room >= 0:
@@ -89,6 +91,26 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 			if rm.type == Room.Type.EVENT:
 				player.pos = rm.center() + Vector2(0, 3)
 				start = rm
+	if "warp=rule" in Dev.args():
+		for rm in layout.rooms:
+			if rm.rule != "":
+				for other in layout.rooms:
+					if other != rm and other.type != Room.Type.BOSS:
+						other.visited = true
+						other.cleared = true
+				player.pos = _open_spot(rm.center() + Vector2(0, 2.5))
+				start = rm
+	if "warp=lock" in Dev.args() or "warp=key" in Dev.args():
+		# dev: beside the floor's barred way, or at the room that holds its key
+		for rm in layout.rooms:
+			var hit: bool = rm.id == layout.key_room if "warp=key" in Dev.args() else (not layout.locks.is_empty() and rm.id == int(layout.locks[0].a))
+			if hit:
+				for other in layout.rooms:
+					if other != rm and other.type != Room.Type.BOSS:
+						other.visited = true
+						other.cleared = true
+				player.pos = _open_spot(rm.center() + Vector2(0, 2.5))
+				start = rm
 	if "warp=stairs" in Dev.args() or "warp=objective" in Dev.args() or "warp=altar" in Dev.args():
 		# dev: at the fork (the stairs room), inside the route's own room, or at the altar
 		for rm in layout.rooms:
@@ -102,6 +124,13 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				start = rm
 	if view:
 		view.focus = Iso.to_world(player.pos)
+	for pr in _party_runs():
+		for k in pr.taken:
+			_taken_before += float(pr.taken[k])
+	_rooms_before = run.rooms_cleared
+	if layout.depth > 3 and not Delve.band(layout.depth).is_empty():
+		var b := Delve.band(layout.depth)
+		after(3.0, func() -> void: Events.toast.emit("%s: %s." % [b.name, b.line], Color(0.72, 0.62, 1.0)))
 	_enter_room(start)
 	if "hitlab" in Dev.args() and not replica:
 		# dev: enemies right beside the player, to look at hit feedback up close
@@ -320,6 +349,9 @@ func _place_props() -> void:
 			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
 				if pd.has(k):
 					extra[k] = pd[k]
+			for more in ["anim", "tier"]:
+				if pd.has(more):
+					extra[more] = pd[more]
 			if pd.kind == "site":
 				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
@@ -361,6 +393,285 @@ func _place_props() -> void:
 				cw.room_id = r.id
 
 
+# --- barred ways: a vault's doors, a way back, a pale door ---------------------------
+
+var lock_bars: Dictionary = {}     # lock index -> its bars
+var has_key := false               # the party carries the vault's key
+
+
+func _place_locks() -> void:
+	for i in layout.locks.size():
+		var lk: Dictionary = layout.locks[i]
+		var bars: Array = []
+		for t: Vector2i in lk.tiles:
+			var s := PixelSprite.new()
+			add_child(s)
+			s.setup("pale_bars" if lk.kind == "pale" else "lock_bars", "shut")
+			s.position = Iso.to_world(Vector2(t) + Vector2(0.5, 0.75), 0.0)
+			set_tile_solid(t, true)
+			bars.append(s)
+		lock_bars[i] = bars
+		# what opens it stands on the side you meet it from
+		var here: Room = layout.room(int(lk.b if lk.kind == "pale" else lk.a))
+		var other := int(lk.a if lk.kind == "pale" else lk.b)
+		var d := here.door_to(other)
+		if d.is_empty():
+			continue
+		var mid := Vector2.ZERO
+		for t: Vector2i in d.tiles:
+			mid += Vector2(t) + Vector2(0.5, 0.5)
+		mid /= (d.tiles as Array).size()
+		var inward := -Vector2(d.dir)
+		var at := mid + inward * 2.0 + Vector2(inward.y, inward.x) * 3.0
+		var kind := "lever" if lk.kind == "lever" else "lock_plate"
+		var p := Prop.make(self, kind, Vector2i(_open_spot(at)), {"lock": i, "anim": "pale" if lk.kind == "pale" else ("key" if lk.kind == "key" else "up")})
+		p.room_id = here.id
+
+
+## A barred way opens, on every machine.
+var charted := false
+
+
+func open_lock(i: int) -> void:
+	if i < 0 or i >= layout.locks.size() or layout.locks[i].open:
+		return
+	Net.rec(["unlock", i])
+	var lk: Dictionary = layout.locks[i]
+	lk.open = true
+	for t: Vector2i in lk.tiles:
+		grid.put(t.x, t.y, TileGrid.FLOOR)
+		set_tile_solid(t, false)
+	var col := Color(0.72, 0.62, 1.0) if lk.kind == "pale" else Color(1.0, 0.8, 0.45)
+	for s in lock_bars.get(i, []):
+		var bar: PixelSprite = s
+		bar.play("open", true)
+		bar.animation_finished.connect(func(_a): if is_instance_valid(bar): bar.visible = false, CONNECT_ONE_SHOT)
+	var mid: Vector2 = Vector2(lk.tiles[(lk.tiles as Array).size() / 2]) + Vector2(0.5, 0.5)
+	fx.burst(mid, 1.2, col, 22, 3.0, 0.7, 4.0)
+	Audio.play_at("gate_open", mid, -2.0, 0.7)
+	Audio.play_at("crumble", mid, -6.0, 1.3)
+	minimap_changed.emit()
+
+
+func _use_lock(prop: Prop, who: Player) -> void:
+	var i := int(prop.data.get("lock", -1))
+	match String(layout.locks[i].kind):
+		"key":
+			if not has_key:
+				Audio.play("deny", -2.0)
+				Events.toast.emit("Barred. Its key lies elsewhere on this floor, deep in.", Color(1.0, 0.8, 0.5))
+				return
+			carry_key(false)
+			prop.used = true
+			prop.sprite.play("open")
+			_set_objective("", -1.0, SEAL_COL)
+			open_lock(i)
+			Events.banner.emit("The Vault Opens", "Whoever sealed this meant it to stay sealed")
+			Chronicle.mark("vaults_opened")
+			note_request("vault")
+		"pale":
+			prop.used = true
+			who.hp = maxf(1.0, who.hp - who.max_hp * 0.2)
+			fx.motes(who.pos, 0.6, Color(0.72, 0.62, 1.0), 16, 1.6, 0.9, 0.4)
+			Audio.play("blood_pact", -4.0)
+			open_lock(i)
+			Events.toast.emit("It opens. It remembers the taste.", Color(0.72, 0.62, 1.0))
+
+
+func _pull_lever(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.play("down")
+	Audio.play_at("gate_close", prop.pos, -4.0, 1.4)
+	open_lock(int(prop.data.get("lock", -1)))
+	Events.toast.emit("Somewhere near the way you came, bars slide up. A short way back.", Color(1.0, 0.8, 0.5))
+	Chronicle.mark("ways_back")
+
+
+## The rule of the fight this machine stands in, while it lasts (the objective
+## line is what every machine shares, and it goes out with the fight).
+func rule_here() -> String:
+	if current_room and current_room.rule != "" and not objective.is_empty() and not current_room.cleared:
+		return current_room.rule
+	return ""
+
+
+## A floor someone has drawn: every room of it on every map.
+func chart_floor() -> void:
+	charted = true
+	Net.rec(["chart"])
+	minimap_changed.emit()
+
+
+## A grown Grudge, half gone: it will not simply fall. It wards, heals a little
+## and calls what it has gathered, once, and the words are its own history.
+func grudge_reckoning(e: Enemy) -> void:
+	var g: Dictionary = e.grudge
+	var h: Array = g.get("history", [])
+	Events.banner.emit("%s Will Not Fall" % e.display_name, String(h.back()) if not h.is_empty() else "It remembers you")
+	e.hp = minf(e.max_hp, e.hp + e.max_hp * 0.15)
+	e.grudge_ward_t = 3.0
+	e.invuln_t = 1.2
+	fx.ring(e.pos, 5.0, GRUDGE_RED, 0.7, 0.3)
+	fx.shake(0.5)
+	Audio.play_at("boss_roar", e.pos, -5.0, 1.1)
+	var r: Room = layout.room(e.room_id)
+	for k in 3:
+		var kin := _make_enemy(EnemyDB._filler(layout.region))
+		kin.pos = foe_spot(e.pos + Vector2.from_angle(TAU * k / 3.0) * 2.0, 0.6)
+		_scale(kin, layout.depth, int(Profile.data.world.get("memory", 0)))
+		kin.room_id = r.id
+		kin.spawn_t = 1.0
+		kin.xp = 1
+		kin.embers = 0
+		add_actor(kin)
+		register_enemy(kin)
+
+
+## The party has the key: every map shows where it fits.
+func carry_key(on: bool) -> void:
+	has_key = on
+	Net.rec(["key", on])
+	if on and layout.vault_room >= 0:
+		pings.append({"pos": layout.room(layout.vault_room).center(), "col": Color(1.0, 0.8, 0.45), "t": 10.0})
+	minimap_changed.emit()
+
+
+func _take_key(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.play("taken")
+	if prop.light:
+		prop.light.visible = false
+	fx.burst(prop.pos, 1.6, Color(1.0, 0.85, 0.45), 24, 3.0, 0.7, 2.0, Vector2.UP, 1.2)
+	Audio.play("relic", -3.0)
+	Events.banner.emit("The Bone Key", "The barred vault lies back toward the start of the floor")
+	_set_objective("CARRY THE KEY TO THE VAULT", -1.0, Color(1.0, 0.8, 0.45))
+	carry_key(true)
+
+
+## Where you fell. The lantern is cold; lighting it is not much, and it is yours.
+func _relight(prop: Prop, who: Player) -> void:
+	prop.used = true
+	prop.sprite.play("lit")
+	if not prop.light:
+		prop._light(Color(1.0, 0.65, 0.35), 0.9, 4.5, Vector3(0, 0.6, 0.1))
+	var fall: Dictionary = (run.world.get("falls", {}) as Dictionary).get(layout.region, {})
+	var by := String(fall.get("by", "the dark"))
+	who.kindle = who.kindle_max()
+	who.heal(who.max_hp * 0.2)
+	Party.award_xp(self, 15 + 10 * layout.depth, "lantern")
+	Chronicle.clear_fall(layout.region)
+	Chronicle.note("A cold lantern lit again, where %s had won." % by)
+	note_request("lantern")
+	fx.motes(prop.pos, 0.4, Color(1.0, 0.7, 0.4), 22, 1.8, 1.0, 0.4)
+	Audio.play("hearth_feed", -3.0, 1.2)
+	Events.banner.emit("You Fell Here", "To %s. The light is yours again." % by)
+	if grudge_room >= 0:
+		# it has not gone far: the lantern's light shows which way
+		pings.append({"pos": layout.room(grudge_room).center(), "col": GRUDGE_RED, "t": 12.0})
+		Events.toast.emit("Something passed this way. Its trail still burns on your map.", GRUDGE_RED)
+
+
+# --- what is in a room to use ---------------------------------------------------------
+
+## Whoever is there, on either side. Foes take a share of their health, so a falling
+## column means the same at every tier; guardians are too great to be moved by it.
+func _blast(at: Vector2, covers: Callable, foe_share: float, pal_share: float, by: Node, col: Color, burn := 0) -> void:
+	var src: Player = by if by is Player else nearest_player(at)
+	if src:
+		for a in hostiles(Actor.Team.PLAYER):
+			if a is Enemy and not (a as Enemy).def.get("boss", false) and covers.call(a):
+				var e := a as Enemy
+				var h := Hit.make(src, e.max_hp * foe_share * (0.5 if e.elite else 1.0), ["ability"])
+				h.can_crit = false
+				h.proc = false
+				h.poise = 60.0
+				h.burn = burn
+				src.deal_hit(e, h)
+				if not e.alive:
+					note_request("room_kill")
+	for p in active_players():
+		if covers.call(p):
+			var h := Hit.make(null, p.max_hp * pal_share, ["hazard"])
+			h.can_crit = false
+			h.burn = burn
+			p.take_enemy_hit(h, null)
+	fx.flash_light(at, 1.0, col, 3.0, 6.0, 0.3)
+
+
+func room_device(p: Prop, by: Node) -> void:
+	match p.kind:
+		"strut":
+			_fell_strut(p, by)
+		"kindle_jar":
+			_burst_jar(p, by)
+		"rime_vent":
+			_open_vent(p)
+
+
+## A blow brings it down the way it was struck. Marked first: it falls on anyone.
+func _fell_strut(p: Prop, by: Node) -> void:
+	var from: Vector2 = (by as Actor).pos if by is Actor else p.pos + Vector2(0, -1)
+	var dir := (p.pos - from).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.DOWN
+	var col := Color(1.0, 0.5, 0.22)
+	var fall_t := 0.8
+	p.sprite.play("shake")
+	Audio.play_at("crumble", p.pos, -5.0, 0.7)
+	fx.shape(Fx.Shape.RECT, p.pos, dir, Vector2(5.4, 2.6), Color(col.r, col.g, col.b, 0.3), col, fall_t + 0.05, {})
+	after(fall_t, func() -> void:
+		if not is_inside_tree() or not is_instance_valid(p):
+			return
+		p.sprite.play("down")
+		p.stops_shots = false
+		var covers := func(a: Actor) -> bool:
+			var v: Vector2 = a.pos - p.pos
+			var along := v.dot(dir)
+			return along > -0.6 and along < 5.8 and absf(v.dot(dir.orthogonal())) < 1.5
+		_blast(p.pos + dir * 2.7, covers, 0.55, 0.22, by, col)
+		for k in 5:
+			fx.burst(p.pos + dir * (0.8 + k * 1.1), 0.4, Color(0.6, 0.58, 0.55), 10, 3.5, 0.6, 9.0)
+		fx.shake(0.5)
+		Audio.play_at("crumble", p.pos + dir * 2.5, 2.0, 0.6))
+
+
+## Ember in a jar: a short fuse, a hot breath, and whatever else nearby can burn.
+func _burst_jar(p: Prop, by: Node) -> void:
+	var col := Color(1.0, 0.5, 0.2)
+	var r := 2.3
+	var at := p.pos
+	fx.shape(Fx.Shape.DISC, at, Vector2.RIGHT, Vector2(r * 2.0, r * 2.0), Color(col.r, col.g, col.b, 0.25), col, 0.45, {})
+	Audio.play_at("ignite", at, -6.0, 1.3)
+	after(0.4, func() -> void:
+		if not is_inside_tree():
+			return
+		if is_instance_valid(p) and p.sprite:
+			p.sprite.visible = false
+			if p.light:
+				p.light.visible = false
+		var covers := func(a: Actor) -> bool:
+			return a.pos.distance_to(at) <= r + a.radius
+		_blast(at, covers, 0.3, 0.12, by, col, 2)
+		fx.burst(at, 0.6, col, 34, 6.0, 0.6, 3.0)
+		fx.ring(at, r, col, 0.3, 0.3)
+		fx.shake(0.25)
+		Audio.play_at("bloat", at, -3.0, 1.1)
+		strike_props_circle(at, r, by, true))     # the next jar, the brambles, the roots
+
+
+## A vent let go: cold spreads over the floor and takes the foes standing on it,
+## fast enough that a frozen foe is a shattered one.
+func _open_vent(p: Prop) -> void:
+	p.sprite.play("spent")
+	if p.light:
+		p.light.visible = false
+	var col := Color(0.55, 0.85, 1.0)
+	Audio.play_at("gate_close", p.pos, -8.0, 1.8)
+	Hazard.spawn(self, p.pos, 2.7, 3.2, Actor.Team.PLAYER, col, func(_h: Hazard, a: Actor) -> void:
+		if a is Enemy and not (a as Enemy).def.get("boss", false):
+			a.status.apply_chill(0.34))
+
+
 func _place_gates() -> void:
 	for r in layout.rooms:
 		if not r.is_combat() and not (r.event in ["trial", "procession"]):
@@ -373,6 +684,7 @@ func _place_gates() -> void:
 				var g := PixelSprite.new()
 				add_child(g)
 				g.setup(String(region.get("gate", "gate")), "closed")
+				g.set_meta("lock", int(d.get("lock", -1)))
 				g.position = Iso.to_world(Vector2(t) + Vector2(0.5, 0.5 if d.dir.y == 0 else (0.95 if d.dir.y < 0 else 0.15)), 0.0)
 				g.visible = false
 				g.set_meta("tile", t)
@@ -703,7 +1015,7 @@ func _enter_room(r: Room, mine := true) -> void:
 				var ld := DungeonGen.landmark_def(r.landmark)
 				Events.banner.emit(String(ld.get("name", "")), String(ld.get("line", "")))
 		if r.type == Room.Type.EVENT:
-			var msg := {"well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
+			var msg := {"survivor": "Someone is breathing in here.", "artisan": "A grindstone, still turning. Nobody near it.", "well": "An Ember Well glows with molten sunlight.", "trial": "A trial altar thrums. It wants a challenger.", "echo": "Someone is already here. Someone who was you, once.",
 				"vault": "A sealed reliquary, and cold sconces around it. Light them together.", "camp": "A camp. Its fire went out long ago."}
 			Events.toast.emit(msg.get(r.event, ""), Color(1.0, 0.8, 0.55))
 	if not r.is_combat():
@@ -747,6 +1059,15 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 	active_room = r
 	wave = 0
 	_fight_began = elapsed
+	if r.rule != "":
+		var ru: Dictionary = DeepEvents.RULES[r.rule]
+		Events.banner.emit(String(ru.name), String(ru.line))
+		_set_objective(String(ru.name).to_upper(), -1.0, ru.col)
+		Chronicle.mark("rules_met")
+	if String(Delve.band(layout.depth).get("id", "")) == "crowded" and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("crowded", false):
+		r.set_meta("crowded", true)
+		r.encounter = r.encounter.duplicate()
+		r.encounter.append(EnemyDB.party_extras(rng, layout.region, layout.depth, [], 2))
 	# three or four Kindled: the room calls one more, smaller wave of flankers
 	# and marksmen when its own are done
 	if players.size() >= 3 and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("party_wave", false):
@@ -898,11 +1219,41 @@ func _second_affix(first: String, id := "") -> String:
 	return EnemyDB.roll_affix(rng, id, first)
 
 
+## What this floor can show, loaded now. A foe or a find seen for the first time
+## used to load in the frame it appeared, up to 60 ms in the middle of a fight;
+## this is the floor's own loading moment, when nobody is fighting.
+static var _kept: Dictionary = {}
+
+
+func _warm_up() -> void:
+	var t := Dev.tick()
+	var ids: Array = (region.pool as Array).duplicate()
+	ids.append(String(region.boss))
+	for id in ids:
+		var def := EnemyDB.get_def(String(id))
+		if def.is_empty() or _kept.has(id):
+			continue
+		_kept[id] = load(String(def.script))     # (held: an unreferenced script is dropped)
+		SpriteLib.get_sheet(String(def.sheet))
+	for sheet in Pickup.SHEETS.values():
+		SpriteLib.get_sheet(String(sheet))
+	Dev.lap("warm up", t, 0.0)
+
+
+## The Hungry Floor: what comes here is quicker, and worth more.
+func _hungry(e: Enemy) -> void:
+	if active_room and active_room.rule == "hungry":
+		e.speed *= 1.25
+		e.embers *= 2
+
+
 func _make_enemy(id: String) -> Enemy:
+	var t := Dev.tick()
 	var def := EnemyDB.get_def(id)
 	var scr: GDScript = load(def.script)
 	var e: Enemy = scr.new()
 	e.configure(id)
+	Dev.lap("foe " + id, t, 1.0)
 	return e
 
 
@@ -914,6 +1265,7 @@ func register_enemy(e: Enemy) -> void:
 	e.room_id = active_room.id
 	if not room_enemies.has(e):
 		room_enemies.append(e)
+		_hungry(e)
 
 
 func _spawn_grudge(r: Room) -> void:
@@ -953,7 +1305,10 @@ func _spawn_grudge(r: Room) -> void:
 	var count := {1: "It killed you once", 2: "It killed you twice"}.get(slew, "It has killed you %d times" % slew) as String
 	var owner_id := int(g.get("owner", 0))
 	var whose := "%s's Grudge. " % Net.name_of(owner_id) if owner_id != 0 and Net.active() and Net.party_size() > 1 else ""
-	var lesson := "It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else "It has learned to ward your blows."
+	var marks := ""
+	for m in g.get("marks", []):
+		marks += " " + String(Profile.GRUDGE_MARKS[m].banner)
+	var lesson := marks + " It has learned to close the distance." if String(g.get("learned", "ward")) == "closer" else marks + " It has learned to ward your blows."
 	Events.banner.emit(String(g.name), "%s%s. %s It carries %d Embers." % [whose, count, lesson, int(g.embers)])
 	fx.ring(e.pos, 3.0, GRUDGE_RED, 1.2, 0.3)
 	fx.shake(0.3)
@@ -1158,6 +1513,8 @@ func _room_cleared() -> void:
 		print("[dungeon] room %d cleared" % r.id)
 	active_room = null
 	r.cleared = true
+	if r.rule != "" and r.type != Room.Type.BOSS:
+		note_request("rule")
 	if not objective.is_empty():
 		_set_objective("", -1.0, SEAL_COL)     # (its task is done, whatever it was)
 	run.rooms_cleared += 1
@@ -1205,6 +1562,13 @@ func _finish_clear() -> void:
 func _spawn_reward(r: Room) -> void:
 	var c := _open_spot(r.center())
 	match r.reward:
+		"rule":
+			Prop.make(self, "chest", Vector2i(c), {"tier": 2})
+		"key":
+			Prop.make(self, "key_altar", Vector2i(c), {})
+			for i in 6:
+				Pickup.spawn(self, "ember", c + Vector2(1.0, 1.0), 3)
+			Events.banner.emit("It Was Guarding Something", "A key lies here. Far from any door you have seen")
 		"relic":
 			Prop.make(self, "relic_altar", Vector2i(c), {"tier": 1})
 		"embers":
@@ -1279,6 +1643,12 @@ func _open_spot(p: Vector2) -> Vector2:
 
 ## Seals (closed) or releases a room's doors. The grid, the nav grid and the
 ## seal sprites always change together, so what you see is what blocks.
+## This gate stands in a way that is still barred.
+func behind_bars(g: Node) -> bool:
+	var li := int(g.get_meta("lock", -1))
+	return li >= 0 and not layout.locks[li].open
+
+
 func _set_gates(r: Room, closed: bool) -> void:
 	Net.rec(["gate", r.id, closed])
 	Net.mute += 1
@@ -1289,6 +1659,8 @@ func _set_gates(r: Room, closed: bool) -> void:
 func _seal(r: Room, closed: bool) -> void:
 	var soul := Color(0.45, 1.0, 0.9)
 	for g in gate_nodes.get(r.id, []):
+		if behind_bars(g):
+			continue     # a room's seal never touches a barred way
 		var t: Vector2i = g.get_meta("tile")
 		var c := Vector2(t) + Vector2(0.5, 0.5)
 		grid.put(t.x, t.y, TileGrid.GATE if closed else TileGrid.FLOOR)
@@ -1534,6 +1906,7 @@ func _floor_inside(r: Room, p: Vector2) -> Vector2:
 # --- boss ----------------------------------------------------------------------------
 
 func _start_boss(r: Room) -> void:
+	_boss_flasks = player.flask if player else 0
 	Audio.stop_music(1.0)
 	var c := r.center()
 	var at := c + Vector2(0, -3)
@@ -1557,6 +1930,7 @@ func _start_boss(r: Room) -> void:
 		add_actor(e)
 		register_enemy(e)
 		boss = e
+		var form := "" if run.delve else Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
 		for a in Dev.args():
 			if a.begins_with("bossat="):
 				e.hp = e.max_hp * float(a.substr(7))     # dev: its later moments, sooner
@@ -1575,11 +1949,20 @@ func _start_boss(r: Room) -> void:
 				p.data["boss"] = e
 				bz.append(p)
 		w.set("braziers", bz)
-		Net.rec(["boss", e.net_id])
+		var sub_line := String(e.def.get("epithet", ""))
+		if form != "":
+			var fd := Guardians.def_of(form)
+			e.max_hp *= float(fd.hp)
+			e.hp = e.max_hp
+			e.take_form(form)
+			e.begin_form()
+			sub_line = String(fd.sub)
+			Chronicle.mark("form_met_" + form)
+		Net.rec(["boss", e.net_id, form])
 		if players.size() > 1:
 			after(10.0, _guardian_call)
 		Events.boss_started.emit(e)
-		Events.banner.emit(e.display_name, String(e.def.get("epithet", "")))
+		Events.banner.emit(e.display_name, sub_line)
 		Audio.play_music(String(region.get("boss_music", "boss")), 0.5)
 		# it is here: a blow on the floor, a burst of its light, a held breath
 		var col: Color = region.flame
@@ -2084,6 +2467,16 @@ func _grudge_trophy(e: Enemy) -> void:
 	var nm := e.display_name
 	Chronicle.mark("grudges_settled")
 	Chronicle.note("%s is settled." % nm)
+	note_request("grudge")
+	if int(e.get_meta("grudge_level", 1)) >= Profile.GRUDGE_MAX_LEVEL:
+		# the last of it: a line in the story for good
+		Chronicle.mark("nemeses")
+		Chronicle.note("%s, who would not stay dead, is finished. It took the whole Undervault's patience." % nm)
+		var ns: Array = Profile.data.world.get("nemeses", [])
+		if not ns.has(nm):
+			ns.append(nm)
+		Profile.data.world["nemeses"] = ns
+		Events.banner.emit("The Reckoning Is Over", "%s will not be coming back" % nm)
 	if int(e.get_meta("grudge_level", 1)) < 3:
 		return
 	var it := ItemDB.make_item("rival_fang", "epic", 1, rng, run.tier)
@@ -2105,12 +2498,16 @@ func grudge_flees(e: Enemy) -> bool:
 	var owner := int(e.get_meta("grudge_owner", Net.my_id()))
 	var hoard := int(e.get_meta("grudge_embers", 0))
 	var share := hoard / 3
+	# what drove it off marks it: it comes back armoured against that, and only that
+	var kind := "flamescarred" if e.last_hit_tags.has("fire") else ("rimebound" if e.last_hit_tags.has("frost") else "hardened")
 	if owner == Net.my_id():
 		run.scars.append(gid)
+		run.scar_marks[gid] = kind
 	else:
 		for pl in players:
 			if pl.peer_id == owner and pl.run:
 				pl.run.scars.append(gid)
+				pl.run.scar_marks[gid] = kind
 	for i in 6:
 		Pickup.spawn(self, "ember", e.pos, maxi(1, share / 6), {"src": "grudge"})
 	e.set_meta("grudge_embers", hoard - share)
@@ -2162,6 +2559,10 @@ func on_seal_broken() -> void:
 
 
 func _set_objective(text: String, k: float, col: Color) -> void:
+	if text == "" and has_key:
+		text = "CARRY THE KEY TO THE VAULT"     # (it outlives the room's own task)
+		k = -1.0
+		col = Color(1.0, 0.8, 0.45)
 	objective = {} if text == "" else {"text": text, "k": k, "col": col}
 	if Net.recording:
 		Net.rec(["obj", text, snappedf(k, 0.01), col])
@@ -2201,18 +2602,25 @@ func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
 
 ## Counts progress on residents' requests and tells the player when one is done.
 func note_request(key: String, amount := 1) -> void:
+	if not replica:
+		Net.rec(["note", key, amount])     # (a guest's own favours and notices count too)
+	Net.mute += 1     # each machine's own news, told only there
+	for title in Contracts.note(key, amount):
+		Events.toast.emit("Notice fulfilled: %s. It pays when you are home." % title, UIKit.C_GOLD)
+		Audio.play("relic", -6.0, 1.2)
 	var done := Residents.note(key, amount)
 	if OS.is_debug_build() and not Residents.journal().is_empty():
 		print("[request] %s x%d -> %s" % [key, amount, Residents.journal()])
 	for name in done:
 		Events.toast.emit("Request complete - return to %s at the Hearth." % name, UIKit.C_GOLD)
 		Audio.play("relic", -4.0)
-	for r in Residents.LIST:
+	for r in Residents.everyone():
 		var req: Dictionary = r.request
 		if req.key == key and Residents.request_state(r.id) == "active":
 			var n := Residents.request_progress(r.id)
 			if int(req.goal) <= 5 or n == int(req.goal) / 2:
 				Events.toast.emit("%s: %d/%d" % [req.title, n, int(req.goal)], UIKit.C_DIM)
+	Net.mute -= 1
 
 
 func _on_ward() -> void:
@@ -2360,7 +2768,38 @@ func _boss_defeated(e: Enemy) -> void:
 
 
 ## A guardian's own hoard, on top of what any foe leaves.
+## Leaving a floor: the old hands' notices look at how it went.
+func floor_left() -> void:
+	var taken := 0.0
+	for r in _party_runs():
+		for k in r.taken:
+			taken += float(r.taken[k])
+	if is_equal_approx(taken, _taken_before) and run.rooms_cleared > _rooms_before:
+		note_request("clean_floor")
+	if elapsed < 150.0 and run.rooms_cleared > _rooms_before:
+		note_request("quick_floor")
+
+
+var _taken_before := 0.0
+var _rooms_before := 0
+var _boss_flasks := 0
+
+
 func _guardian_hoard(e: Enemy) -> void:
+	if "bossquit" in Dev.args():
+		# dev: a guardian fought to its end by real hits, timed
+		print("[dungeon] guardian felled: %s, %s left of the Kindled, %.0f s on this floor" % [e.display_name, player.hp_ratio() if player else 0.0, elapsed])
+		get_tree().quit()
+	if player and player.flask >= _boss_flasks:
+		note_request("dry_guardian")
+	if e.form != "":
+		# a rarer form guards more, and is worth a line in the story
+		Pickup.spawn(self, "sunshard", e.pos, 2)
+		for k in 2:
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.random_drop(layout.region, layout.depth + 2, rng, 0.45, run.tier, _favour))
+		Chronicle.mark("form_felled_" + e.form)
+		note_request("form")
+		Chronicle.note("%s fell, and the Undervault marked it." % e.display_name)
 	for i in 2:
 		Pickup.spawn(self, "sunshard", e.pos, 1)
 	for i in 16:
@@ -2403,6 +2842,14 @@ func request(what: String, prop: Prop) -> void:
 	if Party.serve(self, who, what, prop):
 		return
 	match what:
+		"lock_plate":
+			_use_lock(prop, who)
+		"lever":
+			_pull_lever(prop)
+		"key_altar":
+			_take_key(prop)
+		"cold_lantern":
+			_relight(prop, who)
 		"site":
 			DeepEvents.interact(self, who, prop)
 		"stairs":

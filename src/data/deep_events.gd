@@ -12,7 +12,48 @@ extends RefCounted
 const EVENTS := {
 	"last_stand": {"regions": [], "min_depth": 1, "weight": 3},
 	"procession": {"regions": ["ossuary", "throne"], "min_depth": 2, "weight": 2},
+	"survivor": {"regions": [], "min_depth": 2, "weight": 5, "once": "maren"},
+	"artisan": {"regions": [], "min_depth": 2, "weight": 1},
 }
+
+## A fight that plays by a rule of its own: rare, named as it starts, on the
+## HUD while it lasts, and paid for with a chest when it is won. Everything about
+## one is in the layout, so every machine knows it.
+const RULES := {
+	"one_pulse": {"name": "One Pulse", "line": "These foes share a heart: a blow to one is felt by all",
+		"col": Color(1.0, 0.45, 0.42), "scar": "broken"},
+	"unlit": {"name": "The Unlit Room", "line": "Your lantern shrinks here. Every kill feeds it",
+		"col": Color(0.72, 0.62, 1.0), "scar": "pale"},
+	"hungry": {"name": "The Hungry Floor", "line": "Swift foes, and each of them pays double",
+		"col": Color(1.0, 0.62, 0.3), "scar": "kindled"},
+}
+const RULE_CHANCE := 24      # floors in a hundred, below the first
+
+
+## Now and then one fight of a floor keeps a rule. An rng of its own: the rest
+## of a seed's floor is the same with or without it.
+static func rule_room(lay, seed_v: int) -> void:
+	if lay.depth < 2 or lay.boss_depth:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_v, lay.depth, "rule"])
+	var odds := RULE_CHANCE * (3 if String(Delve.band(lay.depth).get("id", "")) == "whisper" else 1)
+	if rng.randi_range(0, 99) >= odds:
+		return
+	var cands: Array = []
+	for r in lay.rooms:
+		if r.type == Room.Type.COMBAT and r.objective == "" and r.landmark == "" and r.authored == "" and not r.grudge:
+			cands.append(r)
+	if cands.is_empty():
+		return
+	var r: Room = cands[rng.randi_range(0, cands.size() - 1)]
+	r.rule = String(RULES.keys()[rng.randi_range(0, RULES.size() - 1)])
+	r.reward = "rule"
+	# the stone says so before the door does
+	for k in 4:
+		var t := DungeonGen._clear_tile(lay, r, rng, false)
+		if t.x >= 0:
+			r.props.append({"kind": "scar", "tile": t, "anim": String(RULES[r.rule].scar)})
 
 ## site choices: label over it, what it asks, its sheet and frame.
 const COFFERS := {
@@ -35,6 +76,8 @@ static func pick(lay, rng: RandomNumberGenerator) -> String:
 	for id in EVENTS:
 		var d: Dictionary = EVENTS[id]
 		var regs: Array = d.regions
+		if (lay.world.get("rescued", []) as Array).has(d.get("once", "")):
+			continue     # a person is only lost once
 		if lay.depth >= int(d.min_depth) and (regs.is_empty() or regs.has(lay.region)):
 			pool.append([String(id), int(d.weight)])
 	var total := 0
@@ -90,6 +133,19 @@ static func build(lay, r: Room, rng: RandomNumberGenerator) -> void:
 				var t: Vector2i = at.call(c + Vector2i(roundi(cos(a) * 5.0), roundi(sin(a) * 3.0)))
 				r.props.append({"kind": "dressing", "tile": t, "sheet": "pallbearer_bones", "low": true, "scene": true})
 			r.props.append({"kind": "lore", "tile": at.call(c + Vector2i(5, -3))})
+		"survivor":
+			# a camp made in a corner by someone who stopped expecting anyone
+			r.props.append({"kind": "site", "tile": at.call(c), "event": "survivor"})
+			for k in 5:
+				var t: Vector2i = at.call(c + Vector2i(-5 + k * 2 + rng.randi_range(0, 1), 2 + (k % 2)))
+				var one: Array[Vector2i] = [t]
+				if DungeonGen._floor_whole(lay, r, one):
+					r.props.append({"kind": "dressing", "tile": t, "sheet": "rubble", "anim": "a" if k % 2 == 0 else "b", "scene": true})
+			r.props.append({"kind": "candles", "tile": at.call(c + Vector2i(-2, -1))})
+		"artisan":
+			r.props.append({"kind": "site", "tile": at.call(c), "event": "artisan"})
+			r.props.append({"kind": "candles", "tile": at.call(c + Vector2i(3, 0))})
+			r.props.append({"kind": "lore", "tile": at.call(c + Vector2i(-4, 2))})
 
 
 ## A `site` prop's look and words (Dungeon._place_props).
@@ -107,6 +163,12 @@ static func site_data(pd: Dictionary, region: String, world: Dictionary) -> Dict
 			var s: Dictionary = Chronicle.STATES[choice]
 			return {"sheet": "altar_offering", "anim": choice, "label": String(s.verb), "prompt": "Choose this", "radius": 1.5, "col": s.color,
 				"solid": true, "light": [s.color, 0.8, 3.0], "light_h": 0.8}
+		"survivor":
+			return {"sheet": "resident_maren", "anim": "sit", "label": "Someone Alive", "prompt": "Help them up", "radius": 1.6,
+				"col": Color(0.65, 0.85, 1.0), "solid": true, "light": [Color(1.0, 0.7, 0.4), 0.7, 3.5], "light_h": 0.6}
+		"artisan":
+			return {"sheet": "whetstone", "anim": "idle", "label": "A Travelling Grindstone", "prompt": "Whet your weapon", "radius": 1.5,
+				"col": Color(1.0, 0.82, 0.5), "solid": true, "light": [Color(1.0, 0.7, 0.4), 0.9, 3.5], "light_h": 0.8}
 		"dead_brazier":
 			return {"sheet": "dead_brazier", "anim": "dead", "label": "A Cold Brazier", "prompt": "Rekindle it", "radius": 1.5, "col": Color(1.0, 0.7, 0.4), "solid": true}
 		"bowl":
@@ -167,6 +229,10 @@ static func resolve(d: Dungeon, prop: Prop, who: Player) -> void:
 			_bowl(d, prop, who)
 		"coffer":
 			_coffer(d, prop, choice)
+		"survivor":
+			_survivor(d, prop)
+		"artisan":
+			_artisan(d, prop, who)
 
 
 static func _altar(d: Dungeon, prop: Prop, state: String) -> void:
@@ -232,6 +298,38 @@ static func _bowl(d: Dungeon, prop: Prop, who: Player) -> void:
 	Pickup.spawn(d, "reagent", prop.pos + Vector2(0.8, 0.8), 1, {"id": id}, 0 if solo else who.peer_id)
 	d.fx.motes(who.pos, 0.6, Color(0.72, 0.62, 1.0), 16, 1.6, 0.9, 0.4)
 	Audio.play("blood_pact", -4.0)
+
+
+## Maren: she has mapped this floor by hand for longer than she will say. She
+## goes up with the next who climbs, and a chart table comes with her.
+static func _survivor(d: Dungeon, prop: Prop) -> void:
+	prop.used = true
+	if prop.sprite:
+		prop.sprite.play("idle")
+	d.fx.unmark(prop)
+	d.fx.burst(prop.pos, 0.8, Color(0.65, 0.85, 1.0), 20, 2.5, 0.7, 2.0, Vector2.UP, 1.2)
+	Audio.play("relic", -4.0, 1.2)
+	d.chart_floor()
+	Chronicle.rescue("maren")
+	Chronicle.mark("rescued")
+	Chronicle.note("Maren, who drew the Undervault by hand, was found alive.")
+	Events.banner.emit("Maren the Chartwright", "\"Take this floor, I drew it. Tell me there is still a Hearth up there\"")
+	Net.rec(["wit", "rescued_maren"])
+
+
+## A grindstone someone left turning: one edge each, for this expedition.
+static func _artisan(d: Dungeon, prop: Prop, who: Player) -> void:
+	var taken: Array = prop.data.get("taken", [])
+	if taken.has(who.peer_id):
+		Events.toast.emit("Your edge is as good as this stone can make it.", Color(1.0, 0.82, 0.5))
+		return
+	taken.append(who.peer_id)
+	prop.data["taken"] = taken
+	Game.grant_relic_to(who, "whetted")
+	d.fx.burst(prop.pos, 0.6, Color(1.0, 0.75, 0.4), 18, 3.0, 0.4, 8.0)
+	Audio.play("forge_upgrade", -8.0, 1.4)
+	Events.toast.emit("Whetted: +12% weapon damage this expedition.", Color(1.0, 0.82, 0.5))
+	Chronicle.mark("whetted")
 
 
 ## A treasury: the party chooses one, the others seal.

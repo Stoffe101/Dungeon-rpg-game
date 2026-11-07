@@ -18,6 +18,9 @@ func _ready() -> void:
 	add_child(Capture.from_args())
 	if "perflog" in Dev.args():
 		get_tree().process_frame.connect(_perf_tick)
+	for a in Dev.args():
+		if a == "stallog" or a.begins_with("stallog="):
+			add_child(StallProbe.new())     # dev: takes slow frames apart
 	fps_label = UIKit.label("", 8, UIKit.C_DIM, true)
 	fps_label.position = Vector2(4, 0)
 	ui.root.add_child(fps_label)
@@ -82,6 +85,8 @@ func _ready() -> void:
 			var t := clampi(int(a.substr(5)), 1, Difficulty.MAX_TIER)
 			Difficulty._d()["unlocked"] = maxi(Difficulty.unlocked(), t)
 			Difficulty.select(t)
+		elif a == "maren":
+			Chronicle.rescue("maren")     # (dev: she is already at the Hearth)
 		elif a == "rich":
 			Profile._grant_stockpile(Profile.data)
 		elif a.begins_with("omens="):
@@ -142,6 +147,8 @@ func _ready() -> void:
 
 func _open_dev_screen(what: String) -> void:
 	match what:
+		"noticeboard":
+			Game.ui.noticeboard()
 		"skilltree":
 			ui.skill_tree()
 			for a in Dev.args():
@@ -236,7 +243,9 @@ func _open_dev_screen(what: String) -> void:
 		"summary":
 			ui.show_summary({"outcome": "died", "depth": 2, "kills": 37, "rooms": 11, "time": 612.0, "xp": 240, "relics": ["tinderbox", "echo_mask", "coal_heart"],
 				"embers_kept": 84, "embers_lost": 85, "bonus": 0, "sunshards": 1, "grudge": {"name": "Morrow the Patient", "embers": 85}, "settled": [], "unlocked": "",
-				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"]})
+				"omens": ["lightless", "restless"], "omen_embers": 19, "omen_xp": 55, "grudges_grew": ["Vesk the Hungry"],
+				"blows": [[100.0, "Hollow Archer", 11.0], [101.2, "Grave Bloat", 26.0], [103.0, "Morrow the Patient", 18.0]], "taken": {"Morrow the Patient": 120.0, "Grave Bloat": 78.0, "Hollow Archer": 40.0},
+				"dealt": {"Hearthblade": 2140.0, "Cinder Lance": 880.0, "Burn and poison": 310.0}, "woke": ["Gloamfang stirs."], "contracts": ["Old Scores: 260 Embers, 100 Memories"]})
 
 
 var _frames: PackedFloat32Array = []

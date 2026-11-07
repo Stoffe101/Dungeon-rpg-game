@@ -42,6 +42,10 @@ var routes: Array = []         # every way taken this expedition, in order
 var pale := 0                  # times this Kindled fed the Pale Bowl (its Grudges grow for it)
 var wounded: Dictionary = {}   # Grudges that fled this expedition: id -> health left (0..1)
 var scars: Array = []          # this Kindled's own Grudges scarred on this run (ids)
+var scar_marks: Dictionary = {}   # ...and what each was marked by (Profile.GRUDGE_MARKS)
+var taken: Dictionary = {}     # damage this Kindled took, by who dealt it
+var dealt: Dictionary = {}     # damage this Kindled dealt, by what with
+var blows: Array = []          # the last few that landed: [when, who, how much]
 var loot := {"materials": {}, "gear": [], "blueprints": [], "runes": [], "reagents": []}
 ## Everything of one's own found this expedition: [{kind, what, drop}] (the
 ## summary's list; each was banked the moment it was taken).
@@ -81,7 +85,7 @@ func to_dict() -> Dictionary:
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
 		"loot": loot.duplicate(true), "found": found.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
 		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate(),
-		"route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "wounded": wounded.duplicate(), "scars": scars.duplicate()}
+		"route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "scar_marks": scar_marks.duplicate(), "taken": taken.duplicate(), "dealt": dealt.duplicate(), "blows": blows.duplicate(), "wounded": wounded.duplicate(), "scars": scars.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -105,6 +109,10 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.pale = int(d.get("pale", 0))
 	r.wounded = (d.get("wounded", {}) as Dictionary).duplicate()
 	r.scars = (d.get("scars", []) as Array).duplicate()
+	r.scar_marks = (d.get("scar_marks", {}) as Dictionary).duplicate()
+	r.taken = (d.get("taken", {}) as Dictionary).duplicate()
+	r.dealt = (d.get("dealt", {}) as Dictionary).duplicate()
+	r.blows = (d.get("blows", []) as Array).duplicate()
 	r.route = String(d.get("route", ""))
 	r.routes = (d.get("routes", []) as Array).duplicate()
 	r.run_id = String(d.get("run_id", ""))
@@ -112,6 +120,21 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.bosses = (d.get("bosses", []) as Array).duplicate()
 	r.grudges_won = (d.get("grudges_won", []) as Array).duplicate()
 	return r
+
+
+## A blow that landed on this Kindled.
+func note_blow(when: float, who: String, amount: float) -> void:
+	taken[who] = float(taken.get(who, 0.0)) + amount
+	blows.append([when, who, amount])
+	while blows.size() > BLOWS_KEPT:
+		blows.pop_front()
+
+
+func note_dealt(what: String, amount: float) -> void:
+	dealt[what] = float(dealt.get(what, 0.0)) + amount
+
+
+const BLOWS_KEPT := 6
 
 
 func add_relic(id: String) -> void:

@@ -35,6 +35,11 @@ var _bar := Rect2()        # the hotbar plate (drawn under the slots)
 var _cd_was: Array = [0.0, 0.0, 0.0]
 
 
+## The widest the HUD spreads: a little past 16:9.
+const WIDEST := 1.9
+var inset := 0.0
+
+
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -402,13 +407,15 @@ func _process(_delta: float) -> void:
 	var vp := get_viewport_rect().size
 	var st: Stage = Game.stage
 	var pl: Player = st.player if st else null
+	inset = HUD.side_inset(vp, String(Settings.get_value("hud_width", "centered")))
+	Game.ui.toast_box.offset_left = 10.0 + inset
 	# layout (anchors handle most; keep explicit offsets crisp)
-	minimap.position = Vector2(vp.x - minimap.size.x - 8, 8)
+	minimap.position = Vector2(vp.x - minimap.size.x - 8 - inset, 8)
 	var cur: Control = get_node("Currency")
 	# as wide as its longest line (the run clock, the Omens), right-aligned
 	var cw := maxf(70.0, cur.get_combined_minimum_size().x)
 	cur.size.x = cw
-	cur.position = Vector2(vp.x - cw - 8, (minimap.size.y + 12) if in_dungeon else 8)
+	cur.position = Vector2(vp.x - cw - 8 - inset, (minimap.size.y + 12) if in_dungeon else 8)
 	big_map.position = Vector2.ZERO
 	big_map.size = vp
 	# hotbar: three spells, a hearth notch, the flask, on one plate
@@ -420,11 +427,15 @@ func _process(_delta: float) -> void:
 	_bar = Rect2(bx - 5, slot_y - 6, 134, 36)
 	prompt_lbl.position = Vector2(vp.x * 0.5 - 100, slot_y - 22)
 	prompt_lbl.size.x = 200
-	relic_row.position = Vector2(8, vp.y - 26)
+	relic_row.position = Vector2(8 + inset, vp.y - 26)
+	var toast_y := vp.y * 0.45
 	if controls_card.visible:
 		controls_card.reset_size()
-		controls_card.position = Vector2(8, vp.y - 40 - controls_card.size.y)
-	level_lbl.position = Vector2(8, vp.y - 12)
+		controls_card.position = Vector2(8 + inset, vp.y - 40 - controls_card.size.y)
+		# notices sit above the controls card, never over it (at a large interface size they met)
+		toast_y = minf(toast_y, controls_card.position.y - Game.ui.toast_box.size.y - 6.0)
+	Game.ui.toast_box.position.y = maxf(40.0, toast_y)
+	level_lbl.position = Vector2(8 + inset, vp.y - 12)
 	boss_name.position = Vector2(vp.x * 0.5 - 150, 14)
 	boss_name.size.x = 300
 	if party == null and Net.i:
@@ -432,7 +443,7 @@ func _process(_delta: float) -> void:
 		party.name = "Party"
 		add_child(party)
 	if party:
-		party.position = Vector2(8, 32)
+		party.position = Vector2(8 + inset, 42)
 	if pl == null:
 		queue_redraw()
 		return
@@ -469,7 +480,7 @@ func _process(_delta: float) -> void:
 		_update_spell_slot(pl, i)
 	_update_flask_slot(pl)
 	# combo counter fades out once the chain breaks
-	combo_box.position = Vector2(vp.x - 70, vp.y * 0.5 - 20)
+	combo_box.position = Vector2(vp.x - 70 - inset, vp.y * 0.5 - 20)
 	combo_box.size.x = 62
 	if _combo_t > 0.0:
 		_combo_t -= get_process_delta_time()
@@ -539,7 +550,7 @@ func _draw() -> void:
 		var glow := 0.6 + 0.4 * (pl.kindle / maxf(1.0, pl.kindle_max()))
 		draw_colored_polygon(PackedVector2Array([Vector2(nx + 0.5, ny - 3), Vector2(nx + 3.5, ny), Vector2(nx + 0.5, ny + 3), Vector2(nx - 2.5, ny)]), Color(0.03, 0.02, 0.05))
 		draw_colored_polygon(PackedVector2Array([Vector2(nx + 0.5, ny - 2), Vector2(nx + 2.5, ny), Vector2(nx + 0.5, ny + 2), Vector2(nx - 1.5, ny)]), Color(1.0, 0.6, 0.25) * glow)
-	var x0 := 8.0
+	var x0 := 8.0 + inset
 	var y0 := 8.0
 	# --- health ---
 	var w := 120.0
@@ -588,6 +599,8 @@ func _draw() -> void:
 		var filled := pl.dodge_charges >= i + 1
 		var partial := clampf(pl.dodge_charges - i, 0.0, 1.0)
 		_diamond(Vector2(px + 2, ky + 3), filled, partial)
+	_draw_status(pl, x0, ky + (14.0 if FORM_GAUGES.has(form) else 8.0))
+	_draw_dangers(st)
 	# (flasks have their own slot beside the abilities)
 	# (the party has its own cards: PartyFrames)
 	# --- xp bar along the bottom ---
@@ -608,6 +621,78 @@ func _draw() -> void:
 		draw_rect(Rect2(bx + roundf(bw * 0.2), 25, 1, 6), Color(1, 1, 1, 0.5))
 		var pr := 1.0 - _boss.poise / maxf(_boss.max_poise, 1.0)
 		draw_rect(Rect2(bx, 32, roundf(bw * pr), 1), Color(1.0, 0.85, 0.45))
+
+
+## On a screen much wider than 16:9 the corners are far from the fight: how far in
+## to bring them. 0 at 16:9 and narrower.
+static func side_inset(vp: Vector2, mode: String) -> float:
+	if mode == "full":
+		return 0.0
+	return roundf(maxf(0.0, (vp.x - vp.y * WIDEST) * 0.5))
+
+
+## What is on the Kindled right now, in words: never only a colour on a sprite.
+func _draw_status(pl: Player, x: float, y: float) -> void:
+	var tags: Array = []
+	if pl.status.burning():
+		tags.append(["BURNING", Color(1.0, 0.55, 0.25)])
+	if pl.status.is_frozen():
+		tags.append(["FROZEN", Color(0.65, 0.88, 1.0)])
+	elif pl.status.chill > 0.0:
+		tags.append(["CHILLED", Color(0.65, 0.88, 1.0)])
+	if pl.status.snare_t > 0.0:
+		tags.append(["SNARED", Color(0.7, 0.85, 0.5)])
+	if pl.marked_t > 0.0:
+		tags.append(["MARKED %d" % ceili(pl.marked_t), Color(1.0, 0.78, 0.35)])
+	if pl.snuffed_t > 0.0:
+		tags.append(["LANTERN LOW %d" % ceili(pl.snuffed_t), Color(1.0, 0.62, 0.3)])
+	if pl.gloom_t > 0.0:
+		tags.append(["GLOOM %d" % ceili(pl.gloom_t), Color(0.72, 0.5, 1.0)])
+	for t in tags:
+		var s: String = t[0]
+		draw_string(UIKit.FONT_OUTLINE, Vector2(x, y + 8.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, t[1])
+		x += UIKit.FONT.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x + 8.0
+
+
+## A blow being wound up out of sight: a chevron on the edge it will come from, in
+## the same place on every screen, and a mark that is a shape as well as a colour.
+func _draw_dangers(st: Stage) -> void:
+	if st.view == null:
+		return
+	var vp := get_viewport_rect().size
+	var area := Rect2(Vector2.ZERO, vp).grow(-14.0)
+	var mid := vp * 0.5
+	var col := Color(1.0, 0.36, 0.4) if not bool(Settings.get_value("strong_tells", false)) else Color(1.0, 1.0, 0.9)
+	var now := st.elapsed
+	for d in st.dangers:
+		if float(d[1]) < now:
+			continue
+		var p := _screen_of(st, d[0])
+		if area.has_point(p):
+			continue
+		var to := (p - mid).normalized()
+		var edge := _edge_point(mid, to, area)
+		var a := to.angle()
+		var pulse := 0.65 + 0.35 * sin(Time.get_ticks_msec() * 0.018)
+		var c := Color(col.r, col.g, col.b, pulse)
+		var tip := edge + to * 7.0
+		var pts := PackedVector2Array([tip, edge + Vector2.from_angle(a + 2.4) * 8.0, edge, edge + Vector2.from_angle(a - 2.4) * 8.0])
+		draw_colored_polygon(pts, c)
+		pts.append(pts[0])
+		draw_polyline(pts, Color(0.05, 0.02, 0.04, 0.9), 1.0)
+
+
+func _screen_of(st: Stage, at: Vector2) -> Vector2:
+	return st.view.internal_to_screen(st.view.world_to_internal(Iso.to_world(at)))
+
+
+static func _edge_point(mid: Vector2, to: Vector2, area: Rect2) -> Vector2:
+	var k := INF
+	if absf(to.x) > 0.001:
+		k = minf(k, ((area.end.x if to.x > 0.0 else area.position.x) - mid.x) / to.x)
+	if absf(to.y) > 0.001:
+		k = minf(k, ((area.end.y if to.y > 0.0 else area.position.y) - mid.y) / to.y)
+	return mid + to * k
 
 
 func _frame(r: Rect2) -> void:

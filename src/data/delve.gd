@@ -24,6 +24,20 @@ const MILESTONES := {
 }
 
 
+## Past the first regions the deep has moods, three depths at a time, in turn:
+## something to name and to plan for rather than one more number.
+const BANDS := [
+	{"id": "whisper", "name": "The Whispering Halls", "line": "more fights keep rules of their own"},
+	{"id": "thin", "name": "The Thin Light", "line": "lanterns reach less far"},
+	{"id": "crowded", "name": "The Crowded Dark", "line": "every fight calls one more wave"},
+	{"id": "roads", "name": "The Old Roads", "line": "the floors run in rings and wings"},
+]
+
+
+static func band(depth: int) -> Dictionary:
+	return {} if depth < 4 else BANDS[int((depth - 4) / 3) % BANDS.size()]
+
+
 static func unlocked() -> bool:
 	return int(Profile.data.world.get("ashen_king_kills", 0)) >= 1
 

@@ -111,6 +111,13 @@ static func new_run_id() -> String:
 
 
 var world_override := {}       # (begin_descent: the snapshot just sent to the party)
+var chart_run := false         # this machine's maps show every room (Maren's chart)
+
+
+## A chart bought at the table is spent on the next descent, by whoever bought it.
+func _take_chart() -> void:
+	chart_run = bool(Profile.data.flags.get("chart_ready", false))
+	Profile.data.flags.erase("chart_ready")
 
 
 func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omens: Variant = null) -> void:
@@ -125,6 +132,7 @@ func start_run(region := "ossuary", seed_v := -1, run_id := "", tier := -1, omen
 		run.omens = (Profile.data.descent.get("omens", []) as Array).filter(func(o): return Omens.unlocked(String(o)))
 	run.world = world_override.duplicate(true) if not world_override.is_empty() else Chronicle.snapshot()
 	world_override = {}
+	_take_chart()
 	coop_runs.clear()
 	if Net.is_host():
 		# every other Kindled gets a run of their own (settled on their machine)
@@ -165,6 +173,11 @@ func _enter_depth(depth: int) -> void:
 	var region: Dictionary = EnemyDB.REGIONS[run.region]
 	var boss_depth := Delve.is_boss_depth(depth) if run.delve else depth >= int(region.depths)
 	DungeonGen.force_landmark = "landmark" in Dev.args()
+	for a in Dev.args():
+		if a.begins_with("plan="):
+			DungeonGen.force_plan = a.substr(5)
+		if a.begins_with("form="):
+			Guardians.force = a.substr(5)
 	var world := run.world
 	if run.delve and Delve.fractured(depth):
 		world = run.world.duplicate()
@@ -200,6 +213,8 @@ func descend(route := "") -> void:
 		return
 	transitioning = true
 	_take_route(route)
+	if stage is Dungeon and not stage.replica:
+		(stage as Dungeon).floor_left()
 	if Net.is_host():
 		for pl in stage.players:
 			if pl != stage.player and pl.run:
@@ -321,6 +336,7 @@ func begin_coop_client(params: Dictionary) -> void:
 			run.tier = int(params.tier)
 			run.omens = omens.duplicate()
 			run.world = (params.get("world", {}) as Dictionary).duplicate(true)     # the host's world, not this save's
+			_take_chart()
 			Profile.stat_add("runs")
 			_enter_depth(1), ("Omens: " + Omens.names(omens)) if not omens.is_empty() else ""))
 
@@ -504,7 +520,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 		Profile.add_currency("sunshards", int(s.sunshards))
 	# Grudges not settled this time grow in the dark (before a new one is made)
 	for gid in run.scars:
-		Profile.scar_grudge(String(gid))
+		Profile.scar_grudge(String(gid), String(run.scar_marks.get(gid, "")))
 	for k in run.pale:
 		Profile.age_grudges(run.rng, 3)     # the Bowl feeds them
 	var grew := Profile.age_grudges(run.rng)
@@ -514,6 +530,12 @@ func end_run(outcome: String, killer_id := "") -> void:
 			if killer_id != "" and int(s.embers_lost) > 0:
 				var g := Profile.record_grudge(killer_id, int(s.embers_lost), run.depth, run.rng, run.weapon_id, run.region)
 				s["grudge"] = g
+			# the floor keeps the lantern you dropped (the world is the host's)
+			if not run.delve and not Net.is_client():
+				var by: String = String(s.get("grudge", {}).get("name", "")) if s.get("grudge", {}) is Dictionary else ""
+				if by == "" and killer_id != "":
+					by = String(EnemyDB.get_def(killer_id).get("name", ""))
+				Chronicle.record_fall(run.region, run.depth, by if by != "" else "the dark")
 		"extracted":
 			Profile.stat_add("extractions")
 		"victory":
@@ -542,6 +564,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 		Profile.add_rune(String(r))
 	for rg in spoils.get("reagents", []):
 		Profile.add_reagent(String(rg))
+	var woke := Evolutions.feed(Profile.equipped(), Evolutions.gain_of(run, outcome))
+	var paid := Contracts.settle()
 	var feats := Feats.check()
 	Ledger.note("settled", {"xp_gained": run.xp_gained, "omen_xp": omen_xp, "embers_kept": int(s.embers_kept)})
 	Ledger.finish(outcome)
@@ -554,7 +578,8 @@ func end_run(outcome: String, killer_id := "") -> void:
 		"sunshards": s.sunshards, "grudge": s.get("grudge", {}), "settled": run.grudges_settled,
 		"unlocked": s.get("unlocked", ""), "tier": run.tier, "tiers": s.get("tiers", []), "region": run.region,
 		"feats": feats, "omens": run.omens.duplicate(), "omen_embers": omen_embers, "omen_xp": omen_xp, "grudges_grew": grew,
-		"delve": run.delve, "delve_best": delve_best,
+		"delve": run.delve, "delve_best": delve_best, "woke": woke, "contracts": paid,
+		"taken": run.taken.duplicate(), "dealt": run.dealt.duplicate(), "blows": run.blows.duplicate(),
 	}
 	Events.run_ended.emit(summary)
 	print("[game] run ended: ", JSON.stringify(summary))

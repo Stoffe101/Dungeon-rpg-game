@@ -23,15 +23,19 @@ remembers who hurts it.
 
 ## Features
 
-- Skill-based combat: five distinct weapons (blade, hammer, staff, twin daggers,
-  glaive) with combos and charged attacks, forged up to +10 with Masterwork and
-  Ascended upgrades,
-  dodge with perfect-dodge slow motion, Ward (parry and reflect), Kindle-fuelled
-  abilities, status effects and elemental reactions.
+- Skill-based combat: seven weapon archetypes and fourteen forms (blade, hammer, staff,
+  twin daggers, glaive, Hearthbow, tome), forged up to +10, dodge with perfect-dodge slow motion,
+  Ward (parry and reflect), Kindle-fuelled spells in three slots, status effects and elemental reactions.
+- Floors with a shape of their own: barred vaults and the keys that open them, levers and short
+  ways back, columns that fall where they are struck, jars that chain, vents that freeze; rare
+  fights that keep a rule of their own; altars whose answer marks the stone for good.
+- Guardians that come back in a rarer form: the Lightless Warden, the Rootbound Bloom, the Eclipsed King.
+- Legendaries that grow with use and, once, choose a path; a noticeboard of optional notices that never expire.
 - Procedural floors with branching routes, reward previews on doors, secret
   rooms, merchants, shrines of pacts, traps and extraction points.
 - Room seals of woven soul-light, region by region.
-- Twenty-two creatures with roles and readable telegraphs - burrowing
+- Twenty-seven creatures with roles and readable telegraphs (among them the Snuffer, who steals
+  your lantern's flame, and the Gravehook, whose chain drags you in) - burrowing
   Gravemoles, shield-binding Lampwights, Spore Mortars, wall-growing
   Bramblewrights, riposting Duelists, beam-sweeping Sunwatchers and more - built
   into fights by role pairings; elites with behaviour-changing affixes (Molten,

@@ -7,6 +7,8 @@ signal died_enemy(e: Enemy)
 
 const TELE_COLOR := Color(1.0, 0.2, 0.35, 0.55)
 const TELE_EDGE := Color(1.0, 0.45, 0.5, 1.0)
+const TELE_STRONG := Color(1.0, 0.75, 0.25, 0.72)     # (Settings: strong_tells)
+const TELE_STRONG_EDGE := Color(1.0, 1.0, 0.92, 1.0)
 
 var id := ""
 var def: Dictionary = {}
@@ -153,6 +155,9 @@ func make_grudge(g: Dictionary) -> void:
 		damage *= 1.0 + minf(0.5, 0.05 * floorf(int(g.get("embers", 0)) / 50.0))
 	display_name = String(g.get("name", display_name))
 	_grudge_cd = 4.0
+	var marks: Array = g.get("marks", [])
+	if not marks.is_empty():
+		display_name += ", " + String(Profile.GRUDGE_MARKS[marks[0]].name)
 
 
 # --- a Grudge is not an elite with a name: it remembers how you fought ------------
@@ -160,6 +165,7 @@ func make_grudge(g: Dictionary) -> void:
 var grudge_ward_t := 0.0     # its red ward is up: your blows land at less than half
 var _grudge_cd := 4.0
 var _spoor_t := 0.0
+var _reckoned := false
 var _wound_checked := false
 const GRUDGE_RED := Color(1.0, 0.32, 0.25)
 
@@ -180,10 +186,19 @@ func _grudge_tick(dt: float) -> void:
 	if _spoor_t <= 0.0:
 		_spoor_t = 0.22
 		stage.fx.motes(pos, 0.5, GRUDGE_RED, 1, 0.4, 0.9, 0.2)
+		for m in grudge.get("marks", []):
+			stage.fx.motes(pos, 0.9, Profile.GRUDGE_MARKS[m].col, 1, 0.5, 0.7, 0.3)     # the scar shows
 	if state == "spawn" or not alive:
 		return
+	var lv := int(grudge.get("level", 1))
+	# grown enough, it has a last stand in it, once
+	if lv >= 4 and not _reckoned and hp < max_hp * 0.5 and stage is Dungeon:
+		_reckoned = true
+		(stage as Dungeon).grudge_reckoning(self)
+		return
 	# hurt badly and grown enough to know when to run: it flees, once an expedition
-	if int(grudge.get("level", 1)) >= 2 and hp < max_hp * 0.3 and stage is Dungeon and not _wound_checked:
+	# (at its greatest it has stopped running: this is the end, one way or the other)
+	if lv >= 2 and lv < Profile.GRUDGE_MAX_LEVEL and hp < max_hp * 0.3 and stage is Dungeon and not _wound_checked:
 		_wound_checked = true
 		if (stage as Dungeon).grudge_flees(self):
 			return
@@ -564,8 +579,10 @@ func telegraph(kind: int, center: Vector2, dir: Vector2, size: Vector2, duration
 		voice("attack", -7.0)
 	var p := params.duplicate()
 	p["progress"] = 0.0
+	stage.note_danger(center, duration, {"kind": kind, "dir": dir, "size": size, "half": float(params.get("half_angle", 0.0))})
+	var strong := bool(Settings.get_value("strong_tells", false))
 	Net.mute += 1
-	tele = stage.fx.shape(kind, center, dir, size, TELE_COLOR, TELE_EDGE, duration + 0.05, p)
+	tele = stage.fx.shape(kind, center, dir, size, TELE_STRONG if strong else TELE_COLOR, TELE_STRONG_EDGE if strong else TELE_EDGE, duration + 0.05, p)
 	Net.mute -= 1
 	if Net.recording:
 		var tid := Net.i.run_sync.next_proj_id()
@@ -645,6 +662,28 @@ func _tell() -> void:
 		sprite.highlight = Color(1.0, 0.55, 0.5, 0.45 + 0.2 * sin(t * 60.0))
 	else:
 		sprite.highlight = Color(1.0, 0.25, 0.3, 0.08 + 0.32 * k * k)
+
+
+var form := ""     # a guardian's rarer form (Guardians.FORMS), else ""
+
+
+## Who it is in this form, on every machine.
+func take_form(id: String) -> void:
+	form = id
+	var f := Guardians.def_of(id)
+	display_name = String(f.name)
+	sprite.set_tint(f.tint)
+
+
+## What is different from the first blow (host, once the arena is known).
+func begin_form() -> void:
+	pass
+
+
+## One of this foe's blows really landed on a Kindled (not dodged, not Warded; a
+## lagging guest's blow arrives here when it is settled).
+func landed_on(_p: Player) -> void:
+	pass
 
 
 func make_hit(amount: float, from: Vector2, kb := 5.0) -> Hit:
@@ -736,6 +775,11 @@ func timer(len: float) -> bool:
 # --- damage / death ---------------------------------------------------------------
 
 func block_mult(h: Hit) -> float:
+	var armoured := 1.0
+	if not grudge.is_empty():
+		for m in grudge.get("marks", []):
+			if h.has_tag(String(Profile.GRUDGE_MARKS[m].tag)):
+				armoured *= 0.55
 	if shield > 0.0 and not h.has_tag("dot"):
 		var absorbed := minf(shield, h.amount)
 		shield -= absorbed
@@ -744,8 +788,8 @@ func block_mult(h: Hit) -> float:
 			stage.fx.number(pos, 2.6, "WARD BROKEN", Color(0.5, 0.85, 1.0))
 			stage.fx.ring(pos, 1.4, Color(0.5, 0.85, 1.0), 0.3, 0.3)
 			on_poise_break(h)
-		return clampf(1.0 - absorbed / maxf(h.amount, 0.01), 0.0, 1.0) if h.amount > 0.0 else 1.0
-	return 1.0
+		return armoured * clampf(1.0 - absorbed / maxf(h.amount, 0.01), 0.0, 1.0) if h.amount > 0.0 else armoured
+	return armoured
 
 
 func on_damaged(hit: Hit, res: Combat.Result) -> void:

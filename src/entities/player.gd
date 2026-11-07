@@ -112,6 +112,7 @@ var hearthfire_power := 1.0
 var hearthfire_bonus := 0.0   # Hearthforged: seconds the form has gained from kills
 var haste_t := 0.0            # Rekindle's quickening
 var marked_t := 0.0           # an Ash Herald's decree: every foe strikes harder
+var snuffed_t := 0.0          # a Snuffer took the flame: the lantern burns low
 var furnace := 0.0            # Furnace Heart: Kindle spent, banked for the next blow
 var answer_ready := false     # Perfect Answer: the next blow is a sure critical
 var mirror_t := 0.0           # Mirror of the Deep: until it answers again
@@ -219,6 +220,9 @@ func rebuild_stats() -> void:
 			aura_cols.append(ItemDB.color(it))
 		elif ItemDB.is_unique(String(it.get("base", ""))):
 			aura_cols.append(Color(1.0, 0.82, 0.45))
+		if Evolutions.can_evolve(it) and Evolutions.stage(it) >= 1:
+			# grown things burn a little brighter, and another colour once they have chosen
+			aura_cols.append(Color(0.55, 1.0, 0.9) if Evolutions.stage(it) >= 2 else Color(1.0, 0.82, 0.45))
 	apply_look()
 	refresh_paperdoll()
 	if run:
@@ -450,6 +454,8 @@ func _process(delta: float) -> void:
 			_release_pending = true
 		return
 	move_in = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if _approach:
+		_tend_approach(delta)
 	var stick := Input.get_vector("aim_left", "aim_right", "aim_up", "aim_down")
 	# the mouse wins as soon as it is used (Settings sees every input event;
 	# this node lives in the world SubViewport, which receives none)
@@ -490,10 +496,15 @@ func _process(delta: float) -> void:
 		Party.ping(stage, self, aim_point)
 	# in the sanctuary a click on someone (or something) within reach talks to them
 	var clicked: Prop = null
+	var walking_over := false
 	if Input.is_action_just_pressed("attack") and not _pad_aim and stage is Hub:
 		clicked = stage.interactable_at(aim_point, pos)
+		if clicked == null:
+			walking_over = approach(stage.interactable_at(aim_point, pos, APPROACH_REACH))
 	if clicked:
 		_use(clicked)
+	elif walking_over:
+		pass
 	elif Input.is_action_just_pressed("attack"):
 		press("attack")
 		_attack_down = true
@@ -545,6 +556,41 @@ func press(k: String) -> void:
 
 
 ## Uses the nearest interactable prop (chest, merchant, stairs...). Returns it, or null.
+## A click on someone out of reach: the Kindled walks over and talks. (It used to
+## swing a sword at them instead, with no word of why: in a crowd round the Keeper,
+## being eased a step aside was enough to make a click do nothing it seemed to mean.)
+const APPROACH_REACH := 14.0
+var _approach: Prop = null
+var _approach_t := 0.0
+
+
+func approach(p: Prop) -> bool:
+	if p == null:
+		return false
+	_approach = p
+	_approach_t = 5.0
+	return true
+
+
+## Keys take over at once; someone unreachable is given up on out loud.
+func _tend_approach(delta: float) -> void:
+	_approach_t -= delta
+	if move_in.length() > 0.1 or not is_instance_valid(_approach) or not _approach.interactable():
+		_approach = null
+		return
+	if stage.interactable_at(_approach.pos, pos) == _approach:
+		var p := _approach
+		_approach = null
+		move_in = Vector2.ZERO
+		_use(p)
+		return
+	if _approach_t <= 0.0:
+		_approach = null
+		Events.toast.emit("You cannot reach them from here.", Color(0.8, 0.75, 0.7))
+		return
+	move_in = (stage.path_step(pos, _approach.pos) - pos).normalized()
+
+
 func try_interact() -> Prop:
 	if stage == null or not alive or downed:
 		return null
@@ -1253,6 +1299,63 @@ func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	return res
 
 
+## What a blow is counted under in the run analysis.
+func _hit_name(h: Hit, ab: String) -> String:
+	if ab != "":
+		return String(GearDB.ability(ab).get("name", ab.capitalize()))
+	if h.has_tag("dot"):
+		return "Burn and poison"
+	return String(GearDB.weapon(weapon.id if weapon else "").get("name", "Weapon"))
+
+
+## Who to blame, in a word a player would use.
+func _blow_name(attacker: Node, h: Hit) -> String:
+	var src: Node = attacker if attacker != null else h.source
+	if src is Enemy and is_instance_valid(src):
+		return (src as Enemy).display_name
+	return "Burning" if h.has_tag("fire") else ("The room" if h.has_tag("hazard") else "The Undervault")
+
+
+## The lantern burns low for a while (every machine sees its own Kindled's).
+func snuff(seconds: float) -> void:
+	snuffed_t = seconds
+	if controller == Ctrl.REMOTE:
+		Net.rec(["own", peer_id, ["snuff", seconds]])
+
+
+## Dragged somewhere by force: over a push, so the walls still have a say and the
+## guest's own prediction takes the same path as the host's.
+func hauled(to: Vector2) -> void:
+	push = (to - pos) * 9.0
+	if controller == Ctrl.REMOTE:
+		Net.rec(["own", peer_id, ["haul", to]])
+
+
+var _pulsing := false
+
+
+## A fight with a rule of its own (DeepEvents.RULES) answers the blows in it.
+func _room_rule(t: Actor, res: Combat.Result, dot: bool) -> void:
+	match (stage as Dungeon).rule_here():
+		"unlit":
+			if not t.alive:
+				gain_kindle(kindle_max() * 0.2)
+		"one_pulse":
+			if dot or _pulsing:
+				return
+			_pulsing = true
+			for a in stage.hostiles(Actor.Team.PLAYER):
+				if a != t and a is Enemy and a.alive and (stage as Dungeon).room_enemies.has(a):
+					var e := Hit.make(self, res.amount * 0.3, ["ability"])
+					e.can_crit = false
+					e.proc = false
+					e.silent = true
+					e.poise = 0.0
+					deal_hit(a, e)
+					stage.fx.burst(a.pos, 0.7, Color(1.0, 0.45, 0.42), 3, 2.0, 0.3, 4.0)
+			_pulsing = false
+
+
 func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var dot := h.has_tag("dot")
 	var direct := (h.has_tag("melee") or h.has_tag("ranged")) and not dot
@@ -1387,6 +1490,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	var res := t.take_hit(h)
 	if res.amount <= 0.0:
 		return res
+	if run:
+		run.note_dealt(_hit_name(h, ab), res.amount)
+	if stage is Dungeon:
+		_room_rule(t, res, dot)
 	if not runes.is_empty() and h.proc:
 		_rune_on_hit(t, h, res, runes)
 	if stats.has("ashbringer") and h.has_tag("ability") and h.has_tag("fire") and float(t.get_meta("ash_cd", -1.0)) < stage.elapsed:
@@ -1832,8 +1939,12 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 		last_attacker_id = (h.source as Enemy).id
 	var res := take_hit(h)
 	if res.amount > 0.0:
+		if run:
+			run.note_blow(stage.elapsed, _blow_name(attacker, h), res.amount)
 		hurt_t = 0.25
 		invuln_t = maxf(invuln_t, 0.5)
+		if attacker is Enemy and is_instance_valid(attacker):
+			(attacker as Enemy).landed_on(self)
 		stage.hitstop(0.07)
 		stage.fx.shake(0.4)
 		stage.fx.kick(h.from_dir, 3.0)
@@ -2265,6 +2376,15 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("glass_lantern"):
 		rng *= 1.4
 		en *= 1.15
+	if stage is Dungeon and (stage as Dungeon).rule_here() == "unlit":
+		rng *= 0.5
+		en *= 0.75
+	if snuffed_t > 0.0:
+		snuffed_t -= dt
+		rng *= 0.5
+		en *= 0.55
+	if stage is Dungeon and String(Delve.band((stage as Dungeon).layout.depth).get("id", "")) == "thin":
+		rng *= 0.8
 	gloom_t -= dt
 	# a faint drift of light in the colour of each great thing worn
 	if not aura_cols.is_empty() and hearthcall_t < 0.0:

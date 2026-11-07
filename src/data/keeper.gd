@@ -18,6 +18,16 @@ static func lines() -> Array:
 	if not Profile.active_grudges().is_empty():
 		var g: Dictionary = Profile.active_grudges()[0]
 		out.append("%s still wanders the Ossuary with your embers. The Undervault remembers - so should you." % g.name)
+	for it in Profile.equipped().values():
+		if it is Dictionary and not (it as Dictionary).is_empty() and Evolutions.ready(it):
+			out.append("%s is asking you something. Open your Satchel and answer it." % ItemDB.item_name(it))
+			break
+	var falls: Dictionary = Chronicle.snapshot().falls
+	if not falls.is_empty():
+		var region: String = falls.keys()[0]
+		out.append("Your lantern still lies cold in %s, depth %d. Light it again. It remembers you." % [EnemyDB.REGIONS.get(region, {}).get("name", region), int(falls[region].depth)])
+	if Chronicle.rescued("maren"):
+		out.append("Maren draws faster than the walls move, she says. Buy a chart before you go down and see if she is right.")
 	var sites: Array = []
 	for r in Chronicle.ALTARS:
 		if Chronicle.site(r) != "":

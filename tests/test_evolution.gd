@@ -162,7 +162,8 @@ func test_the_kindleds_two_passes_agree_on_their_instance_slots() -> void:
 
 # --- what you see is what stops you: the floor stays one walkable piece ---------------
 
-const SOLID_PROPS := ["shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar"]
+const SOLID_PROPS := ["shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar",
+	"strut", "lamp", "lock_plate", "lever", "key_altar"]
 const REACH_PROPS := ["chest", "ember_pile", "relic_altar", "spring", "fountain", "ember_well", "trial_altar", "lost_camp", "shrine", "merchant",
 	"stairs", "hearthstone", "lore", "echo"]
 

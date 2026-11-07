@@ -61,6 +61,8 @@ func _run() -> void:
 			await stairs_only()
 		"sites":
 			await sites()
+		"ways":
+			await ways()
 		"guardian":
 			await guardian()
 		"bestiary":
@@ -1039,6 +1041,155 @@ func sites() -> void:
 				return false
 		return true, 10.0, "the other answers are spent on my screen")
 	await wait(1.0)
+
+
+## What the Shifting Undervault adds, in a party (run with XARGS="plan=wing warp=lock"): the floor is
+## the same on every machine; a guest takes the key and opens the vault with real
+## key presses, every map and every wall agrees; then a Snuffer and a Gravehook
+## work on the guest's own Kindled, whose prediction must go along with them.
+func ways() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	await wait(2.0)
+	var lay: DungeonGen.Layout = dun().layout
+	expect(lay.plan == "wing" and not lay.locks.is_empty(), "a barred wing on my floor")
+	if lay.locks.is_empty():
+		return
+	var key_room: Room = lay.room(lay.key_room)
+	var bars: Array = lay.locks[0].tiles
+	var plate: Prop = null
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == "lock_plate":
+			plate = p
+	expect(plate != null, "the plate beside the bars is on my screen")
+	var t0: Vector2i = bars[0]
+	expect(dun().grid.at(t0.x, t0.y) == TileGrid.GATE, "barred on my machine")
+	if role == "host":
+		await wait(1.0)
+		# the key's room is far: its altar is set down beside the guest (its fight is not
+		# what this tests; carrying the key and the bars are)
+		var g0: Player = _guest_kindled()
+		if g0:
+			Prop.make(dun(), "key_altar", Vector2i(dun().foe_spot(g0.pos + Vector2(2.5, 0.0), 0.6)), {})
+	await until(func() -> bool: return _prop_kind("key_altar") != null, 20.0, "the key's altar reached me")
+	var altar: Prop = _prop_kind("key_altar")
+	if role == "guest":
+		# barred first: without the key it does not move (walked to, never teleported:
+		# the host only believes where a guest really walked)
+		expect(await walk_to(plate.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the plate")
+		tap("interact")
+		await wait(0.8)
+		expect(not dun().layout.locks[0].open, "without the key the plate does nothing")
+		expect(await walk_to(altar.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the key")
+		tap("interact")
+	await until(func() -> bool: return dun().has_key, 20.0, "the party carries the key on my screen")
+	expect(Minimap.known_rooms(dun()).has(lay.vault_room), "my map shows where it fits")
+	expect(String(dun().objective.get("text", "")).contains("KEY"), "my HUD says what to do with it")
+	if role == "guest":
+		Net.i.dev_shot("e2e/ways_key")
+		expect(await walk_to(plate.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked back to the plate")
+		tap("interact")
+	await until(func() -> bool: return dun().layout.locks[0].open, 20.0, "the vault opened on my screen")
+	expect(dun().grid.at(t0.x, t0.y) == TileGrid.FLOOR, "the way is floor on my machine")
+	expect(not dun().astar.is_point_solid(t0), "and walkable")
+	expect(not dun().has_key, "the key is spent on my machine")
+	if role == "guest":
+		var v: Vector2 = lay.room(lay.vault_room).center()
+		expect(await walk_to(dun().player.pos.lerp(v, 0.5), 1.0, 8.0), "I can walk toward it through the open bars")
+		Net.i.dev_shot("e2e/ways_open")
+	await wait(1.0)
+	# the rooms' own devices
+	if role == "host":
+		var c: Vector2 = dun().foe_spot(dun().player.pos + Vector2(3.0, 0.0), 0.6)
+		var st := Prop.make(dun(), "strut", Vector2i(c), {"scenario": true})
+		await wait(0.5)
+		st.on_struck(dun().player)
+	await until(func() -> bool:
+		var s: Prop = _newest("strut")
+		return s != null and String(s.sprite.anim) == "down", 15.0, "a felled column lies down on my screen")
+	# a Snuffer on the guest's own lantern
+	var mine := dun().player
+	var before: float = mine.kindle
+	if role == "host":
+		# every guest's own lantern, at once
+		var thieves: Array = []
+		for g in _guests():
+			g.kindle = g.kindle_max()
+			thieves.append([_spawn_near("snuffer", g), g])
+		await wait(1.0)
+		for pair in thieves:
+			pair[0].state = "spent"
+			pair[0].landed_on(pair[1])
+		await wait(2.0)
+		Net.i.dev_shot("e2e/ways_snuffed")
+		for pair in thieves:
+			pair[0].hp = 0.0
+			pair[0].die(dun().player)
+	else:
+		await wait(0.2)
+		mine.kindle = mine.kindle_max()
+		await until(func() -> bool: return mine.snuffed_t > 0.0, 15.0, "my lantern burns low")
+		await until(func() -> bool: return mine.snuffed_t <= 0.0, 15.0, "and burns as it did once the thief falls")
+	# a Gravehook's chain on the guest's own feet
+	if role == "host":
+		await wait(1.0)
+		var hooks: Array = []
+		for g2 in _guests():
+			hooks.append([_spawn_near("gravehook", g2, 6.0), g2])
+		await wait(1.0)
+		for pair in hooks:
+			pair[0].aim_dir = (pair[1].pos - pair[0].pos).normalized()
+			pair[0].state = "thrown"
+			pair[0].landed_on(pair[1])
+		await wait(2.0)
+		for pair in hooks:
+			pair[0].hp = 0.0
+			pair[0].die(dun().player)
+	else:
+		var from: Vector2 = mine.pos
+		var moved := 0.0
+		var end := now() + 8.0
+		while now() < end:
+			moved = maxf(moved, mine.pos.distance_to(from))
+			await wait(0.05)
+		expect(moved > 2.0, "the chain dragged my own Kindled (%.1f tiles)" % moved)
+	await wait(1.0)
+
+
+func _prop_kind(kind: String) -> Prop:
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == kind:
+			return p
+	return null
+
+
+## The most recently made prop of a kind (the floor may have its own already).
+func _newest(kind: String) -> Prop:
+	var best: Prop = null
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == kind and (best == null or p.net_idx > best.net_idx):
+			best = p
+	return best
+
+
+func _guests() -> Array:
+	return dun().players.filter(func(pl): return pl != dun().player)
+
+
+func _guest_kindled() -> Player:
+	for pl in dun().players:
+		if pl != dun().player:
+			return pl
+	return null
+
+
+func _spawn_near(id: String, p: Player, dist := 3.0) -> Enemy:
+	var e: Enemy = dun()._make_enemy(id)
+	e.pos = dun().foe_spot(p.pos + Vector2(dist, 0.0), 0.5)
+	dun().add_actor(e)
+	dun().register_enemy(e)
+	e.spawn_t = 0.01
+	return e
 
 
 ## A party's guardian: the stairs to depth 3, its arrival, the fight turning and

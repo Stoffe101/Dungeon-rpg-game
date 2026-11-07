@@ -542,6 +542,8 @@ static func mods_of(item: Dictionary) -> Array:
 	var kw := lvl_k * (1.0 + 0.05 * (int(item.get("tier", 1)) - 1))
 	var is_weapon: bool = b.get("slot", "") == "weapon"
 	var rar_k := float(RARITY.get(item.get("rarity", "common"), RARITY.common).mult)
+	if Evolutions.can_evolve(item) and Evolutions.stage(item) >= 1:
+		rar_k *= Evolutions.AWAKE_MULT
 	var out: Array = []
 	for m in b.mods:
 		var v := float(m[2])
@@ -553,6 +555,7 @@ static func mods_of(item: Dictionary) -> Array:
 	for a in item.get("affixes", []):
 		var av := float(a[2])
 		out.append([a[0], a[1], av if a[0] in INTEGRAL else av * (kw if a[0] == "weapon_damage" else k)])
+	out.append_array(Evolutions.path_mods(item))
 	# tier might: gear from harder tiers hits harder, so damage keeps pace
 	# with the health of what lives there (always the last entry)
 	if tier_might(item) > 0.0:
@@ -574,6 +577,7 @@ static func apply_equipped(equipped: Dictionary, stats: Stats) -> void:
 		if it is Dictionary and not (it as Dictionary).is_empty():
 			stats.apply_mods(mods_of(it))
 			stats.apply_flags(base(String(it.base)).get("flags", {}))
+			stats.apply_flags(Evolutions.path_flags(it))
 	var counts := set_counts(equipped)
 	for s in counts:
 		for n in [2, 4]:
@@ -614,7 +618,7 @@ static func gear_look(equipped: Dictionary) -> String:
 
 
 static func item_name(item: Dictionary) -> String:
-	var n := String(item.get("title", base(String(item.get("base", ""))).get("name", "?")))
+	var n := Evolutions.named(item, String(item.get("title", base(String(item.get("base", ""))).get("name", "?"))))
 	var lvl := int(item.get("level", 1))
 	return n if lvl <= 1 else "%s +%d" % [n, lvl - 1]
 

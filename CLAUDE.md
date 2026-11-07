@@ -62,7 +62,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `coopdive`, `region=delve`, `depth=N`, `open=coop|runes`, `weapon=bow|tome|...`, `netsim=`, `netlog=`,
   `netdiag`, `steam_appid=480` (local Steam experiments), `steamtest` (Steam self-test: private lobby + host
   peer), `net=steamhost`, `net=steamjoin:<steam id>`, `localid`,
-  `scenario=journey|bestiary|stairs|sites|guardian|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
+  `scenario=journey|bestiary|stairs|sites|ways|guardian|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
   (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
@@ -70,9 +70,11 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `cast=1,3` (with `hitlab`: cast those spell slots at the nearest foe, full Kindle), `forge=0..3` (workshop level),
   `scaling` (party-size scaling evaluation, `src/dev/scaling_eval.gd`; `seeds= secs= tier= depth= comps=`),
   `legendlab` (signature weapon moments per minute, `src/dev/legend_lab.gd`; `secs= forms=`), `open=map|minimap explored`,
-  `open=spellpick`, `open=inventory saveload`, `scenario=loot` (private finds, live Satchel, equal XP on real machines).
-  (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args and the testing stockpile work in debug
-  builds only: read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
+  `open=spellpick`, `open=inventory saveload`, `scenario=loot` (private finds, live Satchel, equal XP on real machines),
+  `plan=plain|direct|wing|ring` (every floor takes this plan), `warp=lock|key|rule`, `form=lightless|rootbound|eclipsed|none`,
+  `bossquit` (with `warp=boss`: quit and say so when the guardian falls to real hits), `botskill=novice|fair|sharp`, `maren`,
+  `open=noticeboard`, `stallog[=ms]`, `stalls=<file>` (frame stages and what happened in each slow frame), `sitefind region= depth=` (also prints rule rooms).
+  (`coop=<n>`: the host proposes the expedition once n are in the sanctuary.) Dev args work in debug builds only (the testing stockpile in the editor only): read them through `Dev.args()`, never `OS.get_cmdline_user_args()`.
 - Release safety: `python tools/dev/release_check.py` (no Spacewar App ID, no licensed audio or
   steam_appid.txt in exports, dev switches gated, game code never uses tools/ tests/ docs/ captures/ - they
   are not exported; the palette lives in `src/render/pal.gd`). Builds: `tools/dev/build_windows.sh release|debug`
@@ -149,6 +151,15 @@ Key conventions:
   through `Player.take_enemy_hit` (dodge/ward/aegis/barrier logic lives there).
 - Generation must be deterministic per seed: never use `Array.shuffle()` or global
   `randf()` in `DungeonGen` (use the passed rng / `_shuffle`).
+- Floors have a plan (`DungeonGen.PLANS`, `plan_of`): barred ways are `lay.locks` (GATE tiles; a door names its lock), opened by `Dungeon.open_lock` on every
+  machine; a room's seal never touches a way still barred (`behind_bars`). The way down never needs a key. Room devices (`strut`, `kindle_jar`, `rime_vent`) answer `Prop.on_struck` -> `Dungeon.room_device`.
+- Rule rooms (`DeepEvents.RULES`, `Room.rule`, on their own rng): `Dungeon.rule_here()` is what every machine asks; it goes out with the objective line.
+- Rescued residents: `Residents.RESCUED`, `Chronicle.rescue`; use `Residents.everyone()` rather than `LIST` when counting requests.
+- Contracts: `src/data/contracts.gd`, counted through `Dungeon.note_request` (which reaches guests), paid in `Game.end_run`. Add a notice by adding an entry and noting its key.
+- Evolving items: `src/data/evolutions.gd`; `res` and `path` live on the item dictionary, read with defaults. Add a path by naming a flag the game already reads.
+- Guardian forms: `src/data/guardians.gd`; `Enemy.take_form` on every machine, `begin_form` on the host.
+- A foe that must know a blow really landed uses `Enemy.landed_on` (dodges, Wards and a guest's lag grace are settled by then), and moves a guest's Kindled with `Player.hauled` / `snuff` (run on the guest too).
+- Runs keep `taken`, `dealt`, `blows` (`RunState`); guests receive theirs with `_run_end`. HUD corners use `HUD.side_inset`; a telegraph is also `Stage.note_danger` (off-screen chevrons, the bot's eyes).
 - Saves: `Profile` writes JSON atomically with `.bak`; bump `VERSION` and extend
   `Profile.migrate()` for any schema change. Never break old saves. (v4 added `requests`.)
 - Hearthtree mastery ranks are repeated ids in `Profile.data.skills`: use `SkillDB.rank()` /
@@ -156,7 +167,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`, `ApothecaryUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v15 (v15: `chronicle`, Grudge `learned/slew/scars/history`; v14: `alchemy` - the steeped tincture and reagents found; v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v16 (v16: `contracts`, Grudge `marks`; v15: `chronicle`, Grudge `learned/slew/scars/history`; v14: `alchemy` - the steeped tincture and reagents found; v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
@@ -172,7 +183,7 @@ Key conventions:
   and rebuilt in place by `Hub.refresh_camp` (never `Game.goto_hub()` for an upgrade).
 - Tinctures: `src/data/tinctures.gd` (reagents teach and distil them; `Profile.tincture()`, `steep`);
   poured host-side in `Player._pour`. Reagents are finds of one's own (kind "reagent").
-- The Forked Descent: `DungeonGen.ROUTES` / `route_offer` (two of three ways at every stairs room below
+- The Forked Descent: `DungeonGen.ROUTES` / `route_offer` (two of three ways at about 70% of stairs rooms below
   a guardian's floor), `generate(..., route)`; room objectives (`Room.objective`: seals / flame) run in
   `Dungeon._begin_objective` / `_tend_objective`; the HUD's task line is `Dungeon.objective` ("obj" event).
 - The world shader's grammar (rims, contact shadows, quiet floors) is fed by `LevelBuilder` (UV2 bits,
@@ -224,6 +235,8 @@ real OS cursor, which scripted events do not move).
   freed when their actor leaves (`_exit_tree`).
 
 ## Workflow
+
+- History, playtest reports, preferences and what is really verified: `docs/DEVELOPMENT_HANDOFF.md`.
 
 - Branches are stacked feature branches with draft PRs (latest: `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
