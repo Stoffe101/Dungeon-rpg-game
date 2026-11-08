@@ -173,7 +173,18 @@ func _ready() -> void:
 
 func _open_dev_screen(what: String) -> void:
 	match what:
+		"talk":
+			# dev: what a resident says to you now (their reaction first, if they have one)
+			for a in Dev.args():
+				if a.begins_with("to="):
+					Game.ui.dialogue(a.substr(3).capitalize(), Residents.talk(a.substr(3)), func() -> void: pass)
 		"noticeboard":
+			for a in Dev.args():
+				if a.begins_with("carry="):
+					# dev: these notices already taken (an errand shows its stage)
+					for id: String in a.substr(6).split(","):
+						Profile.data.contracts["offer"] = (Profile.data.contracts.get("offer", []) as Array) + [id]
+						Contracts.take(id)
 			Game.ui.noticeboard()
 		"skilltree":
 			ui.skill_tree()

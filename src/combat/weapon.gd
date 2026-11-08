@@ -315,6 +315,9 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 ## After a blow: a hammer's break spreads to those standing beside the one it broke.
 func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 	_evo_mark(a)
+	if player.stats.has("shatterpoint") and not predicting and is_instance_valid(a) and not was_staggered and a.status.is_staggered() and a.status.chill > 0.0:
+		if a.status.apply_chill(1.0):
+			a.on_frozen()
 	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
 		return
 	_breaking = true

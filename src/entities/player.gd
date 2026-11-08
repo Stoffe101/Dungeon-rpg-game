@@ -894,6 +894,8 @@ var momentum_t := 0.0
 var mountain_store := 0.0
 ## Counterpoise: until the counter is struck, what lands is halved.
 var counter_guard_t := 0.0
+## Slipstream: a perfect dodge paid for the next spell.
+var free_spell := false
 ## Whetstone of Habit: payoffs banked, each 8% off the next spell.
 var habit := 0
 
@@ -1194,6 +1196,8 @@ func _try_ability(slot: int) -> void:
 		cost *= 0.6
 	if stats.has("habit") and habit > 0:
 		cost *= 1.0 - 0.08 * habit
+	if free_spell:
+		cost = 0.0
 	var pay_hp := 0.0
 	if kindle < cost:
 		if stats.has("bonfire_soul"):
@@ -1237,6 +1241,7 @@ func _try_ability(slot: int) -> void:
 	if stats.has("weave") and last_spell != "" and last_spell != id:
 		gain_kindle(12.0 / maxf(stats.v("kindle_gain"), 0.01))
 	habit = 0
+	free_spell = false
 	last_spell = id
 	if stats.has("furnace_heart"):
 		furnace = minf(60.0, furnace + cost)
@@ -1342,6 +1347,9 @@ func gain_kindle(amount: float) -> void:
 	var before := kindle
 	if gloom_t > 0.0 and amount > 0.0:
 		amount *= 0.5
+	var overflow := before + amount * stats.v("kindle_gain") - mx
+	if overflow > 0.0 and stats.has("overflow") and not predicting:
+		heal(overflow * 0.25)
 	kindle = minf(mx, kindle + amount * stats.v("kindle_gain"))
 	if before < mx and kindle >= mx:
 		stage.fx.ring(pos, 1.2, Color(1.0, 0.8, 0.35), 0.3, 0.2)
@@ -2205,6 +2213,8 @@ func _moth(dt: float) -> void:
 
 func _perfect_dodge() -> void:
 	perfect_done = true
+	if stats.has("slipstream"):
+		free_spell = true
 	if weapon:
 		weapon.on_evade()
 	stage.slow_motion(0.3, 0.35)

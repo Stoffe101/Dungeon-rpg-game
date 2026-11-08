@@ -58,7 +58,7 @@ func behave(dt: float) -> void:
 			_scrape_t -= dt
 			if _scrape_t <= 0.0:
 				_scrape_t = 0.34
-				Audio.play_at("crumble", pos, -14.0, 1.8)
+				Audio.play_at("penitent_scrape", pos, -9.0, randf_range(0.9, 1.15))
 			if dist_to_player() < REACH and _strike_cd <= 0.0 and may_strike():
 				aim_dir = dir_to_player()
 				facing = aim_dir

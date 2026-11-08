@@ -81,3 +81,8 @@ static func look_around(st: Stage, pl: Player) -> void:
 					give("fork")
 	if pl.weapon and pl.weapon.id == "bow":
 		give("bow")
+	for slot in Profile.equipped():
+		var it: Variant = Profile.equipped()[slot]
+		if it is Dictionary and Evolutions.can_evolve(it):
+			give("evolve")
+			break

@@ -106,6 +106,7 @@ func _begin_harvest() -> void:
 	harvest_out = 3
 	stage.fx.number(pos, 4.0, "THE HARVEST", Color(0.5, 1.0, 0.92), true)
 	Audio.play("chant", -2.0, 1.2)
+	Audio.play("soul_rise", -3.0)
 	var a := randf() * TAU
 	for k in harvest_out:
 		var p := stage.foe_spot(arena_center + Vector2.from_angle(a + k * TAU / harvest_out) * 8.5, 2.0, room_id)
@@ -307,7 +308,7 @@ func behave(dt: float) -> void:
 				_reap_fx = 0.0
 				set_state("reap")
 				sprite.play("sweep")
-				Audio.play("rush", 0.0, 0.7)
+				Audio.play("reap_turn", 0.0)
 		"reap":
 			_reap_tick(dt)
 		"rush_windup":

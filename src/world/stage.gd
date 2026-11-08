@@ -123,7 +123,9 @@ func _foes_behind_stone() -> void:
 			var t := grid.at(x, y + k)
 			if t == TileGrid.PILLAR or (t == TileGrid.WALL and grid.wall_height(x, y + k) >= 1.0):
 				hidden = true
-		(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
+		if (a as Enemy).behind_stone != hidden:
+			(a as Enemy).behind_stone = hidden
+			(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
 
 
 func set_tile_solid(t: Vector2i, solid: bool) -> void:

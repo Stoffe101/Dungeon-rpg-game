@@ -636,7 +636,7 @@ func test_a_save_with_everything_new_survives_many_load_and_save_cycles() -> voi
 	Profile.data.world["warden_kills"] = 2
 	Profile.data.contracts = {"offer": [], "taken": [{"id": "hunt_ossuary", "n": 0}, {"id": "t_cadence", "n": 7}], "done": 3}
 	var it := Profile.add_item(ItemDB.make_item("gloamfang", "legendary", 3, RandomNumberGenerator.new(), 2))
-	it["res"] = 640
+	it["res"] = Evolutions.ASCEND + 140
 	Evolutions.choose(it, "storm")
 	Profile.equip(int(it.uid))
 	Profile.data.grudges = [{"id": "g1", "enemy": "husk", "name": "Oth", "level": 3, "embers": 50, "settled": false, "marks": ["hardened"], "history": ["x"]}]
@@ -656,7 +656,7 @@ func test_a_save_with_everything_new_survives_many_load_and_save_cycles() -> voi
 		var worn: Variant = back.inventory.equipped
 		w = worn.get("weapon", {}) if worn is Dictionary else {}
 	eq(String(w.get("path", "")), "storm", "the weapon has still chosen")
-	eq(int(w.get("res", 0)), 640, "with its Resonance")
+	eq(int(w.get("res", 0)), Evolutions.ASCEND + 140, "with its Resonance")
 	eq((back.contracts.taken as Array).size(), 2, "the notices carried")
 	eq(int(back.contracts.taken[1].n), 7, "and their progress")
 	eq(back.grudges[0].marks, ["hardened"], "a Grudge's mark")

@@ -35,7 +35,7 @@ starts Godot:
   (stops only what the tool started, batches included; never kill every Godot: the owner may have the editor open).
 - `python tools/dev/bg.py batch FILE`: several co-op runs as one stoppable process (`name | ENV=val | n scenario netsims`).
   Only one co-op run can hold the port at a time (a lock; a second waits). `BG_COPY=<name>` runs from its own frozen copy,
-  so a long bench or batch keeps the code it started with while work goes on. Journey and partystart join through the
+  so a long bench or batch keeps the code it started with while work goes on (with `BG_FROZEN=1` the copy is not refreshed once it exists, across many separate runs; `TEST_ONLY=<part of a file name>` runs only those test files). Never run `bg.py clean` while a background job of yours is meant to keep going. Journey and partystart join through the
   menu: no `DEVNET=1` for those; `ways` needs `XARGS=plan=wing`.
 
 Every run works on a copy of the project (`%LOCALAPPDATA%/KindledDeepBG/project`, refreshed each time),
@@ -89,6 +89,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `scenario=journey|bestiary|stairs|sites|ways|guardian|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
   (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
+  `craftlab concept=<id>` (start in a room RoomCraft built as that), `authored=<id>` (every plain fight in that hand-made room), `occlab` (with `walllab`: foes standing behind stone), `strong` (Strong warnings on), `econreport` (what everything costs), `econrun` (with `autopilot godmode`: one `[econ]` line of what the expedition paid, then quit),
   `worldlab` (everything a region's floor is made of, in the start room), `huntstyle=trail|scouts|marked`, `wfocus=<n>` (Focus held from the start), `nooutline`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
   `botcharge` (the bot holds every third attack), `economy` (exact co-op reward audit, `src/dev/economy_audit.gd`),
@@ -116,6 +117,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
 - Spike traps: `Prop.spike_state` / `spike_bites`, `Stage.hazard_time` (host clock on every machine); art in
   `tools/art/gen_hazards.gd` per region. Grown weapons: `tools/art/gen_grown.gd` (job `grown`, after `uniques`).
 - A prop's solidity travels with its state (`NetRun._capture_props`): use `unsolid()` when something stops being an obstacle.
+- Rooms: `src/world/room_craft.gd` (concepts, `Stand`/`inlay`, sills and jambs, the Hollow's standing things, how an altar shows). A monument's `span` is how many tiles it blocks. Armour weight and pairs: `ItemDB.WEIGHTS`, `PAIRS`. Refining, attuning: `ItemDB.REFINES`, `ATTUNE_*`. Once-only hints: `src/data/hints.gd`.
 - Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
   Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled
   with `EnemyDB.roll_affix` so they only land where they work (`affix_ok`, `"no_affix"`).
@@ -199,7 +201,7 @@ Key conventions:
 - Gear: `src/data/item_db.gd` (bases, materials, affixes, drops), `Profile` inventory API
   (bag/equipped/materials, `pay` for mixed costs, equip/unequip/salvage), loot carried in
   `RunState.loot` and banked in `Game.end_run`. Screens: `InventoryUI`, `SmithyUI`, `PeddlerUI`, `ApothecaryUI`
-  (`src/ui/gear_ui.gd` has the shared widgets). Save v16 (v16: `contracts`, Grudge `marks`; v15: `chronicle`, Grudge `learned/slew/scars/history`; v14: `alchemy` - the steeped tincture and reagents found; v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
+  (`src/ui/gear_ui.gd` has the shared widgets). Save v17 (v17: Resonance thresholds rose, `res` scaled; v16: `contracts`, Grudge `marks`; v15: `chronicle`, Grudge `learned/slew/scars/history`; v14: `alchemy` - the steeped tincture and reagents found; v6: blueprints, looks, tiers; v7: level cap, Renown, skill pages, feats; v8: `descent` = last region + Omens; v9: `runes` and per-slot `inventory.shown`; v10: `settled_runs` (co-op settlements banked once) and `identity`; v11: three spell slots, the weapon gear slot; v12: three loadouts; v13: `delivered` drop ids and `last_run` - finds are banked as they are taken). `Profile.TEST_STOCKPILE` grants a
   testing stockpile once - switch it off before release. Dev: `open=inventory|smithy|peddler`, `rich`.
 - Player code lives in the world SubViewport, which receives no input: read the mouse via
   `stage.view.get_global_mouse_position()` and device changes via `Settings.using_pad`.
@@ -270,7 +272,7 @@ real OS cursor, which scripted events do not move).
 
 - History, playtest reports, preferences and what is really verified: `docs/DEVELOPMENT_HANDOFF.md`.
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/world-of-depth` -> `feature/combat-progression-deepening` -> `feature/great-evolution` -> `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/gameplay-world-evolution` -> `feature/world-of-depth` -> `feature/combat-progression-deepening` -> `feature/great-evolution` -> `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,

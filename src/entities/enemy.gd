@@ -248,6 +248,10 @@ func _ready() -> void:
 
 ## A foe behind a pillar or a wall still shows as a thin outline of cold light (a
 ## Kindled's own is warm: Player). What is hunting you should not be able to hide.
+## Is stone between this foe and the camera? (Stage._foes_behind_stone)
+var behind_stone := false
+
+
 func _cold_outline() -> void:
 	if "nooutline" in Dev.args():
 		return

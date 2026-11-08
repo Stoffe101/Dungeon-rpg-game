@@ -142,7 +142,7 @@ func test_encounters_have_shape() -> void:
 func test_event_rooms() -> void:
 	# events appear, their centrepieces stand on open floor, and trials have three waves
 	var seen := {}
-	for s in range(1, 41):
+	for s in range(1, 71):
 		for region in ["ossuary", "rootmire"]:
 			var lay := DungeonGen.generate(s, 1 + s % 2, region, false)
 			for r in lay.rooms:

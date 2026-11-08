@@ -225,6 +225,22 @@ func _sfx() -> void:
 		for k in 6:
 			s.noise(k * 0.075, 0.018, 0.75, 4200.0, 2200.0, 1400.0, 0.001, 8.0)
 			s.bell(k * 0.075, 0.05, 1500.0 + k * 90.0, 0.12, [[1.0, 1.0, 18.0]]))
+	# the Harvest: thin rising glass, one note for each soul
+	fx("soul_rise", 0.9, func(s):
+		for k in 3:
+			s.bell(k * 0.14, 0.6, 1200.0 + k * 300.0, 0.16, [[1.0, 1.0, 4.0], [2.76, 0.3, 7.0]]))
+	# the Reaping: air torn by something very long, turning
+	fx("reap_turn", 1.4, func(s):
+		s.noise(0.0, 1.35, 0.7, 2400.0, 900.0, 500.0, 0.25, 1.4)
+		s.tone(0.0, 1.3, 320.0, 620.0, "saw", 0.08, 0.2, 1.6))
+	# the Court Falls: a groan overhead before the stone lets go
+	fx("court_falls", 1.2, func(s):
+		s.tone(0.0, 1.1, 180.0, 90.0, "saw", 0.28, 0.4, 1.2)
+		s.noise(0.5, 0.6, 0.5, 1800.0, 500.0, 300.0, 0.3, 2.0)
+		s.bell(0.0, 0.3, 1100.0, 0.08, [[1.0, 1.0, 9.0]]))
+	# a Penitent moving: stone on stone, only when nobody is looking
+	fx("penitent_scrape", 0.24, func(s):
+		s.noise(0.0, 0.22, 0.6, 2600.0, 1400.0, 900.0, 0.02, 3.0))
 	fx("claw", 0.16, func(s): s.noise(0.0, 0.14, 0.6, 3000.0, 1200.0, 600.0, 0.01, 4.0))
 	fx("skitter", 0.3, func(s):
 		for k in 7:

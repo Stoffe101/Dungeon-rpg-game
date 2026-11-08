@@ -514,6 +514,12 @@ func _keepsakes() -> void:
 	if int(camp.get("deepest", 0)) >= 10:
 		Prop.make(self, "stand", Vector2i(27, 8), {"sheet": "hollow_riftstone", "solid": true, "prompt": "A stone from a long way down",
 			"lines": ["It should not have come up. It hums at night. The cat sleeps beside it."], "radius": 1.3, "light": [Color(0.5, 1.0, 0.9), 0.5, 3.0], "light_h": 1.2})
+	if own_camp() and not menu_mode:
+		after(1.5, func() -> void:
+			if Profile.skill_points_free() > 0:
+				Hints.give("tree")
+			elif int(Profile.data.stats.get("runs", 0)) > 0:
+				Hints.give("notice"))
 	# feat lanterns along the south wall
 	var xs := [5, 7, 9, 11, 13, 15, 27, 29, 32, 34, 36]
 	var lit := int(ceil(int(camp.feats) * xs.size() / float(Feats.FEATS.size())))

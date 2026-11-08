@@ -805,7 +805,7 @@ func test_attuning_brings_a_great_thing_on_and_costs_what_it_says() -> void:
 	Profile.add_currency("embers", 1000)
 	check(Profile.attune(id), "with it")
 	eq(int(Profile.find_item(id).res), ItemDB.ATTUNE_RES, "it gathered")
-	eq(Profile.currency("sunshards"), 3, "and it cost")
+	eq(Profile.currency("sunshards"), 5 - int(ItemDB.ATTUNE_COST.sunshards), "and it cost")
 	Profile.data = Profile.fresh()
 
 
@@ -830,3 +830,47 @@ func test_an_old_save_keeps_what_its_great_things_had_become() -> void:
 	eq(int(d.version), Profile.VERSION, "up to date")
 	check(int(d.inventory.bag[0].res) >= Evolutions.ASCEND, "ready to choose stays ready")
 	check(int(d.inventory.equipped.ring.res) >= Evolutions.AWAKE, "awake stays awake")
+
+
+func test_slipstream_pays_for_the_next_spell_once() -> void:
+	var a := _weaponed({"slipstream": 1})
+	var pl: Player = a[1]
+	pl._perfect_dodge()
+	check(pl.free_spell, "the dodge paid")
+	a[0].queue_free()
+
+
+func test_overflowing_light_turns_spare_kindle_into_health() -> void:
+	var a := _weaponed({"overflow": 1})
+	var pl: Player = a[1]
+	pl.max_hp = 500.0
+	pl.hp = 100.0
+	pl.kindle = pl.kindle_max()
+	pl.gain_kindle(40.0)
+	check(pl.hp > 100.0, "the spare light healed (%.1f)" % pl.hp)
+	a[0].queue_free()
+
+
+func test_shatterpoint_freezes_what_it_breaks_only_if_it_was_cold() -> void:
+	var a := _weaponed({"shatterpoint": 1})
+	var pl: Player = a[1]
+	var e: Enemy = a[2]
+	e.status.chill = 0.4
+	e.status.stagger_t = 2.0
+	pl.weapon._after_blow(e, Hit.make(pl, 10.0, ["melee"]), false)
+	check(e.status.is_frozen(), "the cold one froze")
+	var b := _weaponed({"shatterpoint": 1})
+	var f: Enemy = b[2]
+	f.status.stagger_t = 2.0
+	b[1].weapon._after_blow(f, Hit.make(b[1], 10.0, ["melee"]), false)
+	check(not f.status.is_frozen(), "a warm one did not")
+	a[0].queue_free()
+	b[0].queue_free()
+
+
+func test_the_wide_wick_is_on_the_tree_and_every_new_node_says_what_it_does() -> void:
+	for id in ["w_kb", "w_gw", "w_wk", "w_rg"]:
+		var n: Dictionary = SkillDB.node(id)
+		check(not n.is_empty(), id + " is on the tree")
+		check(String(n.desc).length() > 20, id + " says what it does")
+		check(not (n.flags as Dictionary).is_empty(), id + " changes a rule")

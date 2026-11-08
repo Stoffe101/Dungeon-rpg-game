@@ -47,7 +47,7 @@ func _begin_lanes() -> void:
 	lane_cd = 15.0 if phase == 1 else 11.0
 	set_state("lanes")
 	sprite.play("cast")
-	Audio.play("chant", 0.0, 0.5)
+	Audio.play("court_falls", 2.0)
 	stage.fx.number(pos, 4.5, "THE COURT FALLS", Color(1.0, 0.72, 0.35), true)
 	var along := Vector2.RIGHT if randf() < 0.5 else Vector2(0, 1)
 	var side := along.orthogonal()
