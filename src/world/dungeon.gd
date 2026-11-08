@@ -2895,6 +2895,7 @@ func _guardian_hoard(e: Enemy) -> void:
 		Chronicle.note("%s was hunted down through its own halls." % e.display_name)
 		Events.banner.emit("The Hunt Is Over", "Its weapon is yours, and everything great you carry remembers this")
 	if "bossquit" in Dev.args():
+		print("[bench] dealt: %s  use: %s  drawn %.0f%% of the time" % [str(run.dealt), str(player.weapon.tally if player and player.weapon else {}), Bot.drawn_share * 100.0])
 		# dev: a guardian fought to its end by real hits, timed
 		print("[dungeon] guardian felled: %s, %s left of the Kindled, %.0f s on this floor" % [e.display_name, player.hp_ratio() if player else 0.0, elapsed])
 		get_tree().quit()
@@ -2927,6 +2928,7 @@ func _party_runs() -> Array:
 
 func _on_player_died() -> void:
 	if "bossquit" in Dev.args() and player:
+		print("[bench] dealt: %s  use: %s  drawn %.0f%% of the time" % [str(run.dealt), str(player.weapon.tally if player and player.weapon else {}), Bot.drawn_share * 100.0])
 		# dev: a guardian fight to the end by real hits, told honestly when it is lost
 		var last: Array = []
 		for b in (run.blows as Array).slice(maxi(0, run.blows.size() - 3)):

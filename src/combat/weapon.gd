@@ -38,6 +38,13 @@ var predicting := false
 var form := ""
 
 
+## Seconds this weapon takes to come to a full charge now.
+func draw_time() -> float:
+	return charge_time / speed()
+
+
+## How this weapon was really used (read by the bench).
+var tally := {}
 ## A grown weapon's path (its id and colour), set in setup.
 var evo_path := ""
 var evo_col := Color.WHITE
@@ -92,6 +99,9 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 						visual.set_instance_shader_parameter("tint", Evolutions.path_color(it).lerp(Color(1, 1, 1), 0.35))
 	_base_glow = glow
 	visual.set_instance_shader_parameter("glow_mult", glow)
+	for a in Dev.args():
+		if a.begins_with("focus="):
+			focus = int(a.substr(6))     # dev: to look at the HUD with Focus held
 
 
 ## The colour of a swing, once the weapon has chosen a path.

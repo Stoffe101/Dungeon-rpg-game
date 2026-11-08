@@ -70,6 +70,8 @@ func _ready() -> void:
 			Profile.data.world["%s_kills" % EnemyDB.REGIONS[reg].boss] = maxi(1, int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[reg].boss, 0)))
 			Profile.data["contracts"] = {"offer": ["hunt_" + reg], "taken": [], "done": 0}
 			Contracts.take("hunt_" + reg)
+		elif a.begins_with("focus="):
+			pass      # (Weapon.setup reads it)
 		elif a.begins_with("evolve="):
 			# dev: the worn weapon (a great one) has grown and chosen this path
 			var wi: Variant = Profile.equipped().get("weapon")

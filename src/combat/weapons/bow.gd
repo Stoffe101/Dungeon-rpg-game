@@ -31,6 +31,22 @@ func max_combo() -> int:
 	return 1
 
 
+## A dodge costs a draw, but it does not cost the rhythm: the next draw, begun within
+## QUICK_WINDOW of the dodge's end, comes up twice as fast. Roll, then shoot.
+const QUICK_WINDOW := 0.55
+var _quick_t := 0.0
+var _quick_now := false
+
+
+func on_evade() -> void:
+	super.on_evade()
+	_quick_t = QUICK_WINDOW
+
+
+func draw_time() -> float:
+	return charge_time / speed()
+
+
 func move_mult() -> float:
 	if phase == Phase.CHARGE:
 		return 0.4
@@ -41,6 +57,10 @@ func move_mult() -> float:
 
 func update(dt: float) -> void:
 	_cool = maxf(0.0, _cool - dt)
+	_quick_t = maxf(0.0, _quick_t - dt)
+	if phase == Phase.IDLE:
+		_quick_now = false
+		charge_time = 0.6
 	super.update(dt)
 	# drawn: the string glows brighter the closer to the perfect moment
 	if phase == Phase.CHARGE and charged and visual:
@@ -71,6 +91,14 @@ func press() -> void:
 	if phase == Phase.IDLE and _cool <= 0.0:
 		aim_dir = player.aim
 		charged = false
+		_quick_now = _quick_t > 0.0
+		if _quick_now:
+			# (the base class times the draw from charge_time)
+			charge_time = 0.3
+			_quick_t = 0.0
+			player.cosmetic(func() -> void:
+				player.stage.fx.motes(player.pos + player.aim * 0.5, 0.8, Color(1.0, 0.95, 0.7), 3, 0.5, 0.2, 0.1)
+				Audio.play("nock", -6.0, 1.3))
 		_set_phase(Phase.CHARGE, 0.0)
 	else:
 		buffered = true
@@ -105,6 +133,7 @@ func start_strike(_i: int) -> void:
 
 func on_active() -> void:
 	_cool = 0.3 / speed()
+	tally["quick"] = int(tally.get("quick", 0)) + 1
 	_arrow(player.aim.rotated(deg_to_rad(randf_range(-2.5, 2.5))), def.damage[0] * damage_scale(), 1 if tempered() else 0, false)
 	Audio.play("bow", -3.0, randf_range(1.05, 1.2))
 	player.on_weapon_strike(0, false)
@@ -124,8 +153,10 @@ func predict_charge() -> void:
 func release_charge() -> void:
 	var nocked := mini(nock_max(), 1 + int(phase_t * speed() / NOCK_EVERY))
 	var over := phase_t - charge_time / speed()
-	var perfect := over <= PERFECT
+	var perfect := over <= PERFECT * (1.3 if _quick_now else 1.0)
 	var tired := over > TIRE
+	var kind := "true" if perfect else ("tired" if tired else "late")
+	tally[kind] = int(tally.get(kind, 0)) + 1
 	charged = false
 	aim_dir = player.aim
 	strike = {"recover": 0.32}
