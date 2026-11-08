@@ -217,6 +217,18 @@ generate the same floor).
 - `tools/dev/run_tests.sh` fails on any `SCRIPT ERROR` as well as on failures: a test that crashes
   half way otherwise reads as passed (the runner counts checks, not crashes).
 
+### Tools of the world of depth
+
+- `-- worldlab region=rootmire|ossuary|throne [showcol]`: everything a floor is made of in the start room.
+- `-- showcol`: walls, pits, solid props, what breaks, walkable decoration, hazard areas, use ranges, doors,
+  floor nobody can reach, and every actor's box, with a legend.
+- `tests/test_world_depth.gd`: every prop kind against `Physical.OF`, foot widths measured from the sheets,
+  ground cover height and thinness, the real collision box flooded across floors of every region, every
+  usable thing reachable, trap states and damage windows, hybrids, the hall, errands.
+- `python tools/dev/bossbench.py`: now reports how each weapon was used (`[bench] dealt: ... use: ...`).
+- `scenario=depthworld` (DEVNET=1): one trap clock across machines, a thorn that stops a guest for real,
+  teeth that bite a guest on the plate, a thorn cut on every machine.
+
 ### Tools of the deepening pass
 
 Everything below runs through `tools/dev/bg.py`, so nothing appears on screen or takes focus
@@ -235,6 +247,30 @@ Everything below runs through `tools/dev/bg.py`, so nothing appears on screen or
   guest's grown weapon applied on the host. `HXARGS`/`GXARGS` add switches to the host or the
   guests alone.
 - Dev switches: `hunt=<region>`, `evolve=<path id>`, `botskill=`, `bossquit` (also on a death).
+
+## Human playtest: the world of depth
+
+Nothing here has been played by a person. Half an hour in the Rootmire is the most useful thing.
+
+1. **Can you tell what is solid without walking into it?** Grass and ferns against thickets, thorns,
+   great caps, trees, rocks, logs. Name anything that surprised you.
+2. **Does anything stop you too early or too late?** Walk straight into a chest, a thicket, a statue and
+   a back wall. Your feet should nearly touch them.
+3. **Can you always find yourself?** Walk behind a tree and a statue, and fight with foes among the
+   thickets. Do canopies thin at the right moments, or does the flicker annoy?
+4. **Is the Rootmire beautiful, or just busy?** Ground cover density, the thin path down the middle.
+5. **Spike traps.** Do you know one when you see one, before it moves? Is 0.75 s of warning enough? Does
+   it ever hit you when it looks like it should not? In a party, compare with a friend on the same trap.
+6. **Grown weapons.** Pick up a legendary, Awaken it and choose a path. Can you see the difference in
+   your hand and in the swing?
+7. **The bow.** Dodge and draw at once: does the fast draw feel like something to play around?
+8. **New hybrids.** Try Turned Aside, Rime Knife or Banked Strikes. Do they change how you fight?
+9. **A great hall**, a thorn court, a grove, a Hollow floor of the Toothed Galleries.
+10. **A hunt**, more than once. Did the scouts or the marked thorns feel different from the trail?
+11. **Coming home.** After a guardian, a hunt or a grown weapon: talk to Teodric, Wren, Ama and Bram.
+12. **Listening** (only measured): spike_warn (mechanism before the trap), the path sounds on hit, and the
+    eighteen bass-heavy sounds given upper harmonics: slam, crumble, explode, heartbeat, seal_close,
+    seal_open, deny, sweep, swing_heavy, player_death on laptop speakers. Did the harmonics make any harsh?
 
 ## Human playtest: the deepening pass
 

@@ -32,7 +32,11 @@ starts Godot:
   before it draws; no audio, below-normal priority, its own user folder (`KindledDeepBackgroundTests`).
 - `DEVNET=1 XARGS=... python tools/dev/bg.py e2e N SCENARIO [netsim...]` - separate hidden processes.
 - `python tools/dev/bg.py perf`, `python tools/dev/bg.py focuscheck` (proof), `python tools/dev/bg.py clean`
-  (stops only what the tool started; never kill every Godot: the owner may have the editor open).
+  (stops only what the tool started, batches included; never kill every Godot: the owner may have the editor open).
+- `python tools/dev/bg.py batch FILE`: several co-op runs as one stoppable process (`name | ENV=val | n scenario netsims`).
+  Only one co-op run can hold the port at a time (a lock; a second waits). `BG_COPY=<name>` runs from its own frozen copy,
+  so a long bench or batch keeps the code it started with while work goes on. Journey and partystart join through the
+  menu: no `DEVNET=1` for those; `ways` needs `XARGS=plan=wing`.
 
 Every run works on a copy of the project (`%LOCALAPPDATA%/KindledDeepBG/project`, refreshed each time),
 so it never reads half-edited scripts. Logs: `captures/bg/`. Do not launch Godot directly with a window,
@@ -104,6 +108,13 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   SHA-256 checked), then `--import`. Steam code reaches it only through `SteamLink` (dynamic calls); the
   game must keep working without it. Close a SteamMultiplayerPeer before `steamShutdown` (it crashed on quit). `warp=event` + the seed list printed
   as `[dungeon] event room N: <kind>` finds a seed for a given event.
+- What things are made of: `Physical.OF` (`src/data/physical.gd`): a new prop kind goes in that table, and in
+  `SOLID_KINDS` in `DungeonGen` if it stops people (`_floor_whole` needs to know). Its foot must fill its tile
+  (`Physical.art_of`; tests measure the sheet). `-- worldlab region=<r> [showcol]` lays out everything a region has;
+  `showcol` draws real collision, hazards, use ranges and unreachable floor. Ground cover is `Room.flora` (`FloraField`).
+- Spike traps: `Prop.spike_state` / `spike_bites`, `Stage.hazard_time` (host clock on every machine); art in
+  `tools/art/gen_hazards.gd` per region. Grown weapons: `tools/art/gen_grown.gd` (job `grown`, after `uniques`).
+- A prop's solidity travels with its state (`NetRun._capture_props`): use `unsolid()` when something stops being an obstacle.
 - Enemies: stats, `role`, voice and pools in `EnemyDB`; behaviour in `src/entities/enemies/<id>.gd`.
   Encounters are built from `EnemyDB.SQUADS` (role pairings) under `ROLE_CAP`; affixes are rolled
   with `EnemyDB.roll_affix` so they only land where they work (`affix_ok`, `"no_affix"`).

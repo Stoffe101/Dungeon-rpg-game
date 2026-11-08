@@ -219,6 +219,9 @@ someone's screen, which is why `docs/TESTING.md` exists.
 
 ### Found by real windows and processes
 
+- **A thorn cut on the host stayed solid on the guest's machine.** Prop state travelled without solidity, so
+  an obstacle could be open on one machine and shut on another. Found only by `scenario=depthworld`.
+
 - Foes' bars and nameplates lingering on guests' screens after they fell.
 - A party starting a floor behind a pillar.
 - A rejoined guest had no checkpoint if the host then left.
@@ -249,6 +252,8 @@ someone's screen, which is why `docs/TESTING.md` exists.
 - **The Gravecleaver** staggered whole packs every swing and took a twentieth of the damage
   other swords took (`-- weaponlab`); its cleaves' poise came down. **Unblinking** made the
   slowest build of eleven; its penalty halved.
+- **The bow "weak against guardians" (2026-11-08)** was the bot: `use: quick 215, drawn 0%` for one build,
+  draws let go during recovery for another. Read what a build actually did before tuning it.
 - **`kit=`** equipped a random kind of weapon, so a bench "with gear" once fought with the wrong
   weapon. It now keeps the build's weapon.
 
