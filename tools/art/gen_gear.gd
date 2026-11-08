@@ -74,6 +74,13 @@ static func geo(dir: String, p: Dictionary) -> Dictionary:
 	g.hy = 10.5 + g.oy
 	g.face = Vector2(19.5 + lean, 11.5 + g.oy) if g.side else Vector2(16.0, 11.8 + g.oy)
 	g.face_r = Vector2(2.8, 3.0) if g.side else Vector2(3.4, 3.0)
+	# falling: the body sinks and its head rolls with it (GenPlayer._death)
+	if g.kneel == 1 or g.kneel == 2:
+		g.oy = 3 if g.kneel == 1 else 6
+		g.hx = 16.0 + g.kneel
+		g.hy = 10.5 + g.oy
+		g.face = Vector2(16.0 + g.kneel, 12.5 + g.oy)
+		g.face_r = Vector2(3.4, 2.4)
 	return g
 
 
@@ -131,8 +138,9 @@ static func legs(g: Dictionary) -> Array:
 static func piece(style: String, m: Array, a: Array, variant: String, dir: String, p: Dictionary) -> Px:
 	var c := Px.new(32, 32)
 	var g := geo(dir, p)
-	if g.kneel > 0:
-		return c    # the fallen are drawn bare
+	if g.kneel >= 3:
+		_fallen(c, g, style, m, a)
+		return c
 	var body := GenPlayer.frame(dir, p)
 	match style:
 		"hood": _hood(c, g, m, a, variant)
@@ -147,19 +155,51 @@ static func piece(style: String, m: Array, a: Array, variant: String, dir: Strin
 		"cloak": _cloak(c, g, m, a, variant, body)
 		"coat": _coat(c, g, m, a)
 		"gauntlets", "gloves", "wraps", "bracers":
-			_hands(c, g, m, a, style, variant)
+			if g.kneel == 0:
+				_hands(c, g, m, a, style, variant)
 			return c
 		"boots", "greaves", "treads", "sandals", "waders", "clogs":
-			_feet(c, g, m, a, style, variant)
+			if g.kneel == 0:
+				_feet(c, g, m, a, style, variant)
 			return c
 	c.outline(Pal.INK)
-	# the lantern and its arm stay in front of whatever is worn
+	# the lantern and its arm stay in front of whatever is worn (shoulders stay over the arm)
 	var arm := arm_mask(c, g)
+	if style in ["mail", "plate"]:
+		arm.rect(0, 0, 32, 20 + g.oy, false)
 	for y in 32:
 		for x in 32:
 			if arm.has(x, y):
 				c.put(x, y, Pal.CLEAR)
 	return c
+
+
+## Fallen flat: what was worn stays on the heap (GenPlayer._death), a helm rolled clear of it.
+static func _fallen(c: Px, g: Dictionary, style: String, m: Array, a: Array) -> void:
+	var flat: int = 1 if g.kneel == 3 else 0
+	var last: bool = g.kneel == 5
+	match style:
+		"hood", "helm", "cap", "mask", "circlet", "crown":
+			var head := c.mask()
+			if last:
+				head.ellipse(23.0, 26.0, 3.2, 2.2)
+			else:
+				head.ellipse(21.0, 24.5 - flat, 4.5, 3.0 + flat)
+			c.paint(head, m, 2, true)
+			c.outline(Pal.INK)
+		"robe", "mail", "plate", "cloak", "coat":
+			var body := c.mask()
+			if last:
+				body.ellipse(14.0, 27.0, 7.5, 2.0)
+			else:
+				body.ellipse(14.0, 26.0, 7.5, 2.8 + flat)
+			c.paint(body, m, 2, true)
+			if style in ["mail", "plate"] and not last:
+				c.paint(c.mask().ellipse(19.0, 25.0, 2.4, 1.8), m, 3, true)
+			for x in range(9, 19):
+				if body.has(x, 26):
+					c.put(x, 26, a[1])
+			c.outline(Pal.INK)
 
 
 # --- heads ------------------------------------------------------------------------------
@@ -227,7 +267,17 @@ static func _helm(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> 
 	var oy: int = g.oy
 	var hx: float = g.hx
 	var hy: float = g.hy
-	var dome := c.mask().ellipse(hx, hy - 0.4, 6.0, 5.6)
+	# a helm is wider than a head: a dome, cheek plates and a guard over the neck
+	var dome := c.mask().ellipse(hx, hy - 0.6, 6.6, 5.8)
+	if g.side:
+		dome.rect(int(hx) - 6, int(hy) + 2, 6, 3)         # the neck guard
+		dome.rect(int(hx) + 1, int(hy) + 2, 5, 3)         # the cheek
+	elif g.up:
+		dome.rect(int(hx) - 6, int(hy) + 2, 13, 3)
+	else:
+		dome.rect(int(hx) - 7, int(hy) + 1, 4, 4)
+		dome.rect(int(hx) + 4, int(hy) + 1, 4, 4)
+		dome.rect(int(hx) - 3, int(hy) + 3, 7, 2)
 	c.paint(dome, m, 2, true)
 	# the hood's point is under there: a plume grows from the crest over it
 	var plume := c.mask()
@@ -249,7 +299,7 @@ static func _helm(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> 
 			c.put(x, ey, Pal.INK)
 			c.put(x, ey + 1, m[1])
 		if not g.side:
-			for y in range(ey + 1, ey + 4):
+			for y in range(ey + 1, ey + 3):
 				c.put(15, y, m[3])
 				c.put(16, y, m[3])
 		_eyes(c, g)
@@ -366,18 +416,30 @@ static func _scarf(c: Px, g: Dictionary) -> Px.Mask:
 	return c.mask().rect(11, 15 + g.oy, 10, 3)
 
 
+## Cloth: it hangs past the cloak and flares at the hem, the widest thing at the feet.
 static func _robe(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> void:
 	var oy: int = g.oy
 	var body := c.mask().poly(cloak_poly(g))
-	body.rect(9 if not g.side else 10, 27 + oy, 14 if not g.side else 11, 1)
+	var hem: int = mini(29, 28 + oy)
+	if g.side:
+		var l: int = g.lean
+		body.poly(V([[12 + l, 22 + oy], [22 + l, 22 + oy], [23 + l, hem], [8 - g.flare, hem]]))
+	else:
+		var flare: int = 1 + g.sway / 2
+		body.poly(V([[10, 22 + oy], [22, 22 + oy], [24 + flare, hem], [8 - flare, hem]]))
+	# wide sleeves
+	if not g.side:
+		body.poly(V([[10, 17 + oy], [8, 23 + oy], [11, 23 + oy], [12, 18 + oy]]))
+		if g.up:
+			body.poly(V([[22, 17 + oy], [24, 23 + oy], [21, 23 + oy], [20, 18 + oy]]))
 	body.subtract(_scarf(c, g))
 	c.paint(body, m, 2, true)
 	if g.up:
-		for y in range(18 + oy, 27 + oy):
+		for y in range(18 + oy, hem):
 			c.put(16, y, m[1])
 		return
 	var cx: int = 16 if not g.side else 19 + g.lean
-	for y in range(18 + oy, 28 + oy):
+	for y in range(18 + oy, hem + 1):
 		if body.has(cx, y):
 			c.put(cx, y, a[3])
 	for x in range(10, 23):
@@ -399,50 +461,83 @@ static func _robe(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> 
 			c.put(cx + 2, 25 + oy, Pal.MOSS[4])
 
 
+## Mail: a shaped shirt of rings. Capped shoulders, a belt at the waist, a split skirt.
 static func _mail(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> void:
 	var oy: int = g.oy
-	var torso := c.mask().poly(cloak_poly(g))
-	var band := c.mask().rect(0, 17 + oy, 32, 8)
-	torso.intersect(band)
+	var torso := c.mask()
+	var waist: int = 23 + oy
+	var hem: int = 27 + oy
+	if g.side:
+		var l: int = g.lean
+		torso.poly(V([[13 + l, 18 + oy], [20 + l, 18 + oy], [20 + l, waist], [14 + l, waist]]))
+		torso.poly(V([[14 + l, waist], [20 + l, waist], [21 + l, hem], [12 + l, hem]]))
+	else:
+		torso.poly(V([[11, 18 + oy], [21, 18 + oy], [19, waist], [13, waist]]))
+		torso.poly(V([[13, waist], [19, waist], [21, hem], [11, hem]]))
+		if not g.up:
+			torso.rect(16, waist + 1, 1, hem - waist, false)
 	for y in 32:
 		for x in 32:
 			if not torso.has(x, y):
 				continue
-			var k := (x + y * (2 if variant == "scale" else 1)) % 2
-			c.put(x, y, m[3] if k == 0 else m[2])
+			if variant == "scale":
+				# overlapping scales: rows of little arcs
+				var k := (x + (1 if (y - oy) % 4 >= 2 else 0) * 2) % 4
+				c.put(x, y, m[1] if (y - oy) % 2 == 1 and k == 0 else (m[3] if (y - oy) % 2 == 0 else m[2]))
+			else:
+				# rings read as fine rows, not a checkerboard
+				c.put(x, y, m[3] if (y - oy) % 2 == 0 else m[2])
+	# the belt
 	for x in 32:
-		if torso.has(x, 24 + oy):
-			c.put(x, 24 + oy, a[1])
-	if not g.side:
-		for s in [11, 20]:
-			c.paint(c.mask().ellipse(s + 0.5, 17.5 + oy, 2.0, 1.4), m, 3, true)
-	else:
-		c.paint(c.mask().ellipse(16.5 + g.lean, 17.5 + oy, 2.2, 1.4), m, 3, true)
+		if torso.has(x, waist):
+			c.put(x, waist, a[1])
+	if not g.up:
+		c.put(16 if not g.side else 18 + g.lean, waist, a[3])
+	# capped shoulders, past the line of the cloak
+	var caps: Array = [[16.5 + g.lean, 2.8, 2.0]] if g.side else [[10.5, 2.6, 1.9], [21.5, 2.6, 1.9]]
+	for k: Array in caps:
+		c.paint(c.mask().ellipse(k[0], 18.0 + oy, k[1], k[2]), m, 3, true)
 	match variant:
 		"rime":
 			c.lit(14 if not g.side else 17 + g.lean, 20 + oy, Pal.FROST[5])
 			c.lit(18 if not g.side else 19 + g.lean, 22 + oy, Pal.FROST[4])
 		"thorn":
-			for p in ([[10, 16], [22, 16], [9, 19], [23, 19]] if not g.side else [[14, 15], [11, 18]]):
+			for p in ([[8, 17], [24, 17], [10, 20], [22, 20]] if not g.side else [[14, 15], [11, 18]]):
 				c.put(p[0] + (g.lean if g.side else 0), p[1] + oy, Pal.MOSS[4])
 				c.put(p[0] + (g.lean if g.side else 0) + (1 if p[0] < 16 else -1), p[1] + 1 + oy, Pal.WOOD[2])
 
 
+## Plate: the shape of someone who means to stand there. Great shoulders well past the
+## body, a breastplate with a ridge, hanging plates over the hips.
 static func _plate(c: Px, g: Dictionary, m: Array, a: Array, variant: String) -> void:
 	var oy: int = g.oy
-	var plate: Px.Mask
+	var plate := c.mask()
 	if g.side:
-		plate = c.mask().poly(V([[13 + g.lean, 17 + oy], [20 + g.lean, 17 + oy], [20 + g.lean, 25 + oy], [14 + g.lean, 25 + oy]]))
-		plate.ellipse(16.5 + g.lean, 17.0 + oy, 3.0, 2.0)
+		var l: int = g.lean
+		plate.poly(V([[13 + l, 18 + oy], [21 + l, 18 + oy], [21 + l, 24 + oy], [14 + l, 25 + oy]]))
+		plate.rect(13 + l, 25 + oy, 8, 2)
 	else:
-		plate = c.mask().poly(V([[12, 17 + oy], [20, 17 + oy], [19, 25 + oy], [13, 25 + oy]]))
-		plate.ellipse(11.0, 17.0 + oy, 2.6, 2.0)
-		plate.ellipse(21.0, 17.0 + oy, 2.6, 2.0)
+		plate.poly(V([[11, 18 + oy], [21, 18 + oy], [20, 25 + oy], [12, 25 + oy]]))
+		plate.rect(11, 25 + oy, 4, 2)
+		plate.rect(17, 25 + oy, 4, 2)
 	c.paint(plate, m, 2, true)
+	# a line where the hip plates hang from
+	for x in 32:
+		if plate.has(x, 25 + oy):
+			c.put(x, 25 + oy, m[1])
 	if not g.up:
 		var cx: int = 16 if not g.side else 18 + g.lean
-		for y in range(18 + oy, 25 + oy):
+		for y in range(19 + oy, 25 + oy):
 			c.put(cx, y, m[4] if m.size() > 4 else m[3])
+	var shoulders: Array = [[15.5 + g.lean, 3.8, 3.0]] if g.side else [[8.5, 3.6, 3.0], [23.5, 3.6, 3.0]]
+	for k: Array in shoulders:
+		var pad := c.mask().ellipse(k[0], 17.5 + oy, k[1], k[2])
+		c.paint(pad, m, 3, true)
+		# a rim of the second metal
+		var x0: int = int(float(k[0]) - float(k[1])) + 1
+		for x in range(x0, x0 + int(float(k[1]) * 2.0) - 1):
+			if pad.has(x, 19 + oy):
+				c.put(x, 19 + oy, a[2])
 	match variant:
 		"ember":
 			c.lit(14 if not g.side else 17 + g.lean, 21 + oy, Pal.EMBER[4])
@@ -463,7 +558,7 @@ static func _cloak(c: Px, g: Dictionary, m: Array, a: Array, variant: String, bo
 	if g.side:
 		cape = c.mask().poly(V([[12 + g.lean, 15 + oy], [17 + g.lean, 15 + oy], [16 + g.lean, 29], [7 - g.flare - sway, 29], [9 - g.flare, 21 + oy]]))
 	else:
-		cape = c.mask().poly(V([[10, 15 + oy], [22, 15 + oy], [25 + sway, 29], [7 - sway, 29]]))
+		cape = c.mask().poly(V([[9, 15 + oy], [23, 15 + oy], [26 + sway, 29], [6 - sway, 29]]))
 	if variant == "tattered" or variant == "moth":
 		for x in 32:
 			if (x + sway) % (3 if variant == "tattered" else 2) == 0:
@@ -499,8 +594,17 @@ static func _cloak(c: Px, g: Dictionary, m: Array, a: Array, variant: String, bo
 		if variant == "sunfall" and not g.up:
 			c.lit(16 if not g.side else 18 + g.lean, 14 + oy, Pal.GOLD[4])
 	elif not g.up:
-		c.put(12 if not g.side else 13 + g.lean, 16 + oy, a[3])
-		c.put(20 if not g.side else 19 + g.lean, 16 + oy, a[3])
+		# seen from the front a cloak is what lies over the shoulders
+		var mantle := c.mask()
+		if g.side:
+			mantle.poly(V([[12 + g.lean, 18 + oy], [17 + g.lean, 18 + oy], [16 + g.lean, 22 + oy], [11 + g.lean, 21 + oy]]))
+		else:
+			mantle.poly(V([[10, 18 + oy], [15, 18 + oy], [14, 21 + oy], [9, 22 + oy]]))
+			mantle.poly(V([[17, 18 + oy], [22, 18 + oy], [23, 22 + oy], [18, 21 + oy]]))
+		c.paint(mantle, m, 2, true)
+		c.put(14 if not g.side else 16 + g.lean, 18 + oy, a[3])
+		if not g.side:
+			c.put(18, 18 + oy, a[3])
 
 
 static func _coat(c: Px, g: Dictionary, m: Array, a: Array) -> void:
@@ -523,48 +627,54 @@ static func _coat(c: Px, g: Dictionary, m: Array, a: Array) -> void:
 		c.put(21, 16 + oy, m[3])
 
 
-# --- hands and feet (small, so drawn plainly, no outline) -----------------------------
+# --- hands and feet: small, so they are drawn bigger than life -----------------------
+
+## The forearm's top-left for each arm that can be seen: [lantern arm, the other].
+static func _arms(g: Dictionary) -> Array:
+	var oy: int = g.oy
+	var out: Array = []
+	var h: Variant = hand(g)
+	if h != null:
+		out.append(h)
+	if g.side:
+		return out
+	if g.up:
+		out.append(Vector2i(21, 20 + oy))
+	out.append(Vector2i(9, 20 + oy))
+	return out
+
 
 static func _hands(c: Px, g: Dictionary, m: Array, a: Array, style: String, variant: String) -> void:
-	var h: Variant = hand(g)
-	if h == null:
-		return
-	var p: Vector2i = h
-	match style:
-		"gauntlets":
-			c.put(p.x, p.y, m[3])
-			c.put(p.x + 1, p.y, m[4] if m.size() > 4 else m[3])
-			c.put(p.x, p.y + 1, m[2])
-			c.put(p.x + 1, p.y + 1, m[2])
-			c.put(p.x - 1, p.y - 1, m[1])
-			c.put(p.x, p.y - 1, m[2])
-			c.put(p.x + 1, p.y - 1, m[2])
-			c.put(p.x + 2, p.y - 1, m[1])
-			if variant == "glow":
-				c.lit(p.x + 1, p.y, a[4])
-		"gloves":
-			c.put(p.x, p.y, m[3])
-			c.put(p.x + 1, p.y, m[3])
-			c.put(p.x, p.y + 1, m[2])
-			c.put(p.x + 1, p.y + 1, m[2])
-			if variant == "haste":
-				c.lit(p.x + 1, p.y - 1, Pal.GOLD[4])
-		"wraps":
-			c.put(p.x, p.y, m[3])
-			c.put(p.x + 1, p.y, a[3])
-			c.put(p.x, p.y + 1, a[3])
-			c.put(p.x + 1, p.y + 1, m[3])
-			c.put(p.x, p.y - 1, m[2])
-		"bracers":
-			c.put(p.x, p.y - 1, m[3])
-			c.put(p.x + 1, p.y - 1, m[3])
-			c.put(p.x, p.y - 2, m[2])
-			c.put(p.x + 1, p.y - 2, m[2])
-			c.lit(p.x + (1 if variant != "mirror" else 0), p.y - 1, a[4] if variant != "mirror" else Pal.WHITE)
+	for arm in _arms(g):
+		var p: Vector2i = arm
+		match style:
+			"gauntlets":
+				# a heavy fist and a flared cuff
+				var fist := c.mask().rect(p.x - 1, p.y + 1, 4, 3)
+				fist.rect(p.x - 1, p.y - 1, 4, 2)
+				c.paint(fist, m, 2, true)
+				for x in range(p.x - 1, p.x + 3):
+					c.put(x, p.y, m[4] if m.size() > 4 else m[3])
+				if variant == "glow":
+					c.lit(p.x + 1, p.y + 2, a[4])
+			"gloves":
+				var g2 := c.mask().rect(p.x, p.y, 3, 3)
+				c.paint(g2, m, 2, true)
+				if variant == "haste":
+					c.lit(p.x + 1, p.y - 1, Pal.GOLD[4])
+			"wraps":
+				for y in range(p.y - 1, p.y + 3):
+					c.put(p.x, y, a[3] if y % 2 == 0 else m[3])
+					c.put(p.x + 1, y, m[3] if y % 2 == 0 else a[3])
+			"bracers":
+				var band := c.mask().rect(p.x - 1, p.y - 1, 4, 2)
+				c.paint(band, m, 3, true)
+				c.lit(p.x + (1 if variant != "mirror" else 0), p.y - 1, a[4] if variant != "mirror" else Pal.WHITE)
+	if style == "gauntlets":
+		c.outline(Pal.INK)
 
 
 static func _feet(c: Px, g: Dictionary, m: Array, a: Array, style: String, variant: String) -> void:
-	var fwd := 1
 	for lp in legs(g):
 		var p: Vector2i = lp
 		match style:
@@ -580,11 +690,13 @@ static func _feet(c: Px, g: Dictionary, m: Array, a: Array, style: String, varia
 					c.put(p.x - 1, p.y + 1, Pal.WHITE)
 					c.put(p.x - 1, p.y + 2, Pal.BONE[4])
 			"greaves":
-				for y in range(p.y, p.y + 4):
-					c.put(p.x, y, m[2])
-					c.put(p.x + 1, y, m[3] if y > p.y else (m[4] if m.size() > 4 else m[3]))
+				# plate from knee to toe, wider than the leg
+				var leg := c.mask().rect(p.x - 1, p.y, 4, 4)
 				if g.side:
-					c.put(p.x + 2, p.y + 3, m[2])
+					leg.rect(p.x + 3, p.y + 3, 1, 1)
+				c.paint(leg, m, 2, true)
+				for x in range(p.x - 1, p.x + 3):
+					c.put(x, p.y, m[4] if m.size() > 4 else m[3])
 			"treads":
 				for y in range(p.y + 1, p.y + 4):
 					c.put(p.x, y, m[2] if y % 2 == 0 else a[2])
@@ -605,7 +717,8 @@ static func _feet(c: Px, g: Dictionary, m: Array, a: Array, style: String, varia
 				c.put(p.x, p.y - 1, a[3])
 				c.put(p.x + 1, p.y - 1, a[3])
 			"clogs":
-				for x in range(p.x - (0 if g.side else 0), p.x + 3):
+				for x in range(p.x, p.x + 3):
 					c.put(x, p.y + 3, m[2])
 					c.put(x, p.y + 2, m[3])
-		fwd += 1
+	if style == "greaves":
+		c.outline(Pal.INK)
