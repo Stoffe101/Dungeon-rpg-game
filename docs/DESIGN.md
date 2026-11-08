@@ -1210,6 +1210,18 @@ end without god mode, with real builds and three bot skill levels, and names wha
 Kindled. Bots are not people: it says whether a fight can be won and what kills, not how hard
 it feels.
 
+**The Throne, re-checked.** The King was "unbeatable" for bots (0 of 40) because three of his
+warnings were invisible to anything but a human eye: the shockwave's ring, the sun-pillars and
+floor spikes noted no danger, and the bot never sheltered from the Eclipse. All of these
+are now dangers every machine knows (also the off-screen arrows on a guest's screen), and
+every death names its cause. No damage number changed: after the fixes, bots without gear win
+16 of 20 Throne fights and 19 of 20 with Tier I gear (Ossuary 15 of 20 without). The bow
+remains the slowest guardian killer (a fight of 100 s or more, 1 of 4 won without gear); left
+as it is until people play it, since the bot's kiting may be the weakness rather than the bow.
+The "melee pair wipes at the Throne" report did not reproduce: two Kindled of four melee
+builds, four seeds, Tier II depth 2: no wipes, 0 to 0.06 downs a room (sun-watchers' bolts
+the most common last blow).
+
 ## The Great Evolution pass
 
 Branch `feature/great-evolution`. What changed and why; measurements are in STATUS.

@@ -991,15 +991,24 @@ func stairs_only() -> void:
 func sites() -> void:
 	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
 	_strip_bot()
-	await wait(3.0)
-	# a ping from my own key, seen by everyone
+	# (the depth's title card holds every hand: a key pressed under it does nothing)
+	await until(func() -> bool: return not Game.ui.card_pending and not Game.ui.blocks_world(), 20.0, "the floor is mine to act on")
+	await wait(1.0)
+	# a ping from my own key, seen by everyone: each Kindled's colour on my map
+	# (the others' cards may clear a little before or after mine)
 	tap("ping")
-	var most := 0
-	var t_end := now() + 4.0
-	while now() < t_end:
-		most = maxi(most, dun().pings.size())
+	var hues := {}
+	for peer in Net.i.roster:
+		hues[Net.color_of(int(peer)).to_html()] = true
+	var seen := {}
+	var t_end := now() + 8.0
+	while now() < t_end and seen.size() < hues.size():
+		for pg in dun().pings:
+			var key: String = (pg.col as Color).to_html()
+			if hues.has(key):
+				seen[key] = true
 		await wait(0.1)
-	expect(most >= Net.party_size(), "every Kindled's ping reached my map (%d of %d)" % [most, Net.party_size()])
+	expect(seen.size() >= hues.size(), "every Kindled's ping reached my map (%d of %d)" % [seen.size(), hues.size()])
 	if role == "host":
 		Net.i.dev_shot("e2e/sites_ping")
 	# the altar waits on the first floor or the second
@@ -1067,6 +1076,14 @@ func ways() -> void:
 	var t0: Vector2i = bars[0]
 	expect(dun().grid.at(t0.x, t0.y) == TileGrid.GATE, "barred on my machine")
 	if role == "host":
+		# the floor's fights are not what this tests (a layout change once sealed the
+		# guests into one on the way to the plate): every fight is won before it starts
+		for r in lay.rooms:
+			if r.type in [Room.Type.COMBAT, Room.Type.ELITE]:
+				r.cleared = true
+		for a in dun().actors.duplicate():
+			if a is Enemy and a.alive:
+				a.die(null)
 		await wait(1.0)
 		# the key's room is far: its altar is set down beside the guest (its fight is not
 		# what this tests; carrying the key and the bars are)

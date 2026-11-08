@@ -835,7 +835,8 @@ func _settle_deferred(now_all: bool) -> void:
 	for d in due:
 		_deferred.erase(d)
 		var att: Variant = d[2]
-		if att is Object and not is_instance_valid(att):
+		# (a foe freed while its blow waited: `is` on a freed object is itself an error)
+		if typeof(att) == TYPE_OBJECT and not is_instance_valid(att):
 			att = null
 		var before := hp
 		_settling = true
