@@ -1,0 +1,32 @@
+{
+	"anims": {
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 2
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 1
+		},
+		"idle": {
+			"fps": 7.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		18,
+		22
+	],
+	"origin": [
+		9,
+		20
+	],
+	"self_light": 0.22
+}

@@ -70,6 +70,8 @@ func _ready() -> void:
 			Profile.data.world["%s_kills" % EnemyDB.REGIONS[reg].boss] = maxi(1, int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[reg].boss, 0)))
 			Profile.data["contracts"] = {"offer": ["hunt_" + reg], "taken": [], "done": 0}
 			Contracts.take("hunt_" + reg)
+		elif a.begins_with("concept="):
+			RoomCraft.force_concept = a.substr(8)
 		elif a.begins_with("huntstyle="):
 			DungeonGen.force_hunt_style = a.substr(10)
 		elif a.begins_with("evolve="):

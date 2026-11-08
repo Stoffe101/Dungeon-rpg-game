@@ -344,6 +344,14 @@ func _build() -> void:
 			interact_radius = 1.2
 		"rug":
 			_flat("rug", String(data.get("anim", "rug0")))
+		"inlay":
+			_flat(String(data.get("sheet", "inlay_ring")), String(data.get("anim", "idle")))
+			pos += Vector2(float(data.get("ox", 0.0)), float(data.get("oy", 0.0)))
+			position = Iso.to_world(pos, 0.0)
+			sprite.position.y = 0.004      # (under anything else that lies on the floor)
+		"jamb":
+			pos = Vector2(tile.x + 0.5, tile.y + 1.0)
+			_sprite("door_jamb", 0.0, 0.05, String(data.get("anim", "ossuary")))
 		"spikes":
 			var style := trap_style()
 			_flat("spike_plate_" + style, "armed")

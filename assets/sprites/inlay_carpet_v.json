@@ -1,0 +1,25 @@
+{
+	"anims": {
+		"torn": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"whole": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": false,
+	"frame": [
+		32,
+		48
+	],
+	"origin": [
+		16,
+		24
+	]
+}

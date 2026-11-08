@@ -75,6 +75,8 @@ func hazard_time() -> float:
 	return elapsed
 
 
+## Canopy Mothers in the room: foes under one can only be hurt from under it.
+var canopies: Array = []
 var occluders: Array = []         # tall things that thin when someone is under them
 var flora: FloraField = null
 var _occ_t := 0.0

@@ -1,0 +1,50 @@
+{
+	"anims": {
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 5
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 4
+		},
+		"idle": {
+			"fps": 4.0,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"pour": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": true,
+			"row": 3
+		},
+		"walk": {
+			"fps": 8.0,
+			"frames": 6,
+			"loop": true,
+			"row": 1
+		},
+		"windup": {
+			"fps": 5.0,
+			"frames": 2,
+			"loop": false,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		56,
+		40
+	],
+	"origin": [
+		28,
+		38
+	],
+	"self_light": 0.22
+}

@@ -6,6 +6,9 @@
 ## gains a gloamfire rush. Re-lighting all four braziers (strike them) sears the
 ## Warden: staggered and exposed for a punishing window.
 ## Enrage (20%): faster, sweeps come back the other way.
+## The Harvest (all phases): souls rise at the edges of the arena and drift to its cage.
+## Strike them down on the way. Every one that arrives feeds the Reaping, a turning blade
+## that passes over anyone standing close; none arriving leaves the cage empty and it reels.
 extends Enemy
 
 signal braziers_changed(lit: int)
@@ -25,6 +28,19 @@ var summon_t := 6.0
 var double_sweep := false
 var intro := true
 var _step_t := 0.0
+var harvest_t := 10.0
+var souls := 0
+var harvest_out := 0
+var harvest_fed := 0
+var reap_angle := 0.0
+var reap_turn := 1.0
+var reap_arc := 1.0
+var _reap_hit: Array = []
+var _reap_fx := 0.0
+
+const REAP_REACH := 9.0
+const REAP_INSIDE := 1.7       # the haft passes over this close
+const REAP_TIME := 2.2
 
 
 func _ready() -> void:
@@ -83,8 +99,105 @@ func _step_through() -> void:
 	Audio.play("boss_windup", -2.0)
 
 
+## Souls rise at the edges and come in; each is a small foe with one thing to do.
+func _begin_harvest() -> void:
+	harvest_t = 17.0 if phase == 1 else 14.0
+	harvest_fed = 0
+	harvest_out = 3
+	stage.fx.number(pos, 4.0, "THE HARVEST", Color(0.5, 1.0, 0.92), true)
+	Audio.play("chant", -2.0, 1.2)
+	var a := randf() * TAU
+	for k in harvest_out:
+		var p := stage.foe_spot(arena_center + Vector2.from_angle(a + k * TAU / harvest_out) * 8.5, 2.0, room_id)
+		var s: Enemy = preload("res://src/entities/enemies/soul_mote.gd").new()
+		s.configure("soul_mote")
+		s.xp = 0
+		s.embers = 0
+		s.pos = p
+		s.room_id = room_id
+		s.set("warden", self)
+		stage.add_actor(s)
+		if stage.has_method("register_enemy"):
+			stage.register_enemy(s)
+		stage.share_danger(p, 1.0, {"kind": Fx.Shape.DISC, "dir": Vector2.RIGHT, "size": Vector2(1.6, 1.6)})
+
+
+## A soul reached the cage.
+func soul_arrived() -> void:
+	harvest_fed += 1
+	souls = mini(3, souls + 1)
+	_soul_settled()
+	stage.fx.burst(pos, 3.0, Color(0.5, 1.0, 0.92), 14, 3.0, 0.5, -1.0)
+	Audio.play_at("wisp", pos, -2.0, 0.8)
+
+
+## A soul was struck down before it got there.
+func soul_lost() -> void:
+	_soul_settled()
+
+
+func _soul_settled() -> void:
+	harvest_out -= 1
+	if harvest_out > 0:
+		return
+	if harvest_fed == 0 and state in ["stalk", "recover", "idle"]:
+		# every soul stopped: the cage rings empty and it reels
+		status.stagger_t = 1.8
+		status.exposed_t = 3.5
+		if tele and is_instance_valid(tele):
+			stage.fx.release(tele)
+		set_state("recover")
+		sprite.play("stagger")
+		stage.fx.number(pos, 4.0, "THE CAGE IS EMPTY", Color(1.0, 0.8, 0.45), true)
+		Audio.play("boss_hurt", 0.0, 1.1)
+
+
+func _begin_reap() -> void:
+	reap_arc = 0.55 + 0.2 * souls
+	souls = 0
+	reap_angle = aim_dir.angle()
+	reap_turn = 1.0 if randf() < 0.5 else -1.0
+	set_state("reap_windup")
+	sprite.play("windup")
+	telegraph(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(REAP_REACH * 2.0, REAP_REACH * 2.0), 0.95 / attack_rate, {"progress": 0.2})
+	Audio.play("boss_windup", 0.0, 0.75)
+	stage.fx.number(pos, 3.6, "GET CLOSE", Color(0.75, 1.0, 0.92))
+
+
+## One turn of the blade: anyone in its path, out past the haft.
+func _reap_tick(dt: float) -> void:
+	vel = Vector2.ZERO
+	var k := clampf(state_t / (REAP_TIME * reap_arc), 0.0, 1.0)
+	var a := reap_angle + reap_turn * k * TAU * reap_arc
+	var dir := Vector2.from_angle(a)
+	facing = dir
+	_reap_fx -= dt
+	if _reap_fx <= 0.0:
+		_reap_fx = 0.09
+		stage.fx.shape(Fx.Shape.RECT, pos, dir, Vector2(REAP_REACH, 1.1), Color(0.5, 1.0, 0.9, 0.0), Color(0.7, 1.0, 0.95, 1.0), 0.12, {"progress": 1.0, "glow": 1.4})
+		stage.share_danger(pos + dir.rotated(reap_turn * 0.5) * REAP_REACH * 0.5, 0.25, {"kind": Fx.Shape.DISC, "dir": Vector2.RIGHT, "size": Vector2(REAP_REACH, REAP_REACH)})
+	for pl in stage.active_players():
+		if pl in _reap_hit or pl.height >= 0.3:
+			continue
+		var off := pl.pos - pos
+		var d := off.length()
+		if d <= REAP_INSIDE or d > REAP_REACH:
+			continue
+		if absf(angle_difference(off.angle(), a)) * d < 0.8:
+			_reap_hit.append(pl)
+			var h := make_hit(damage * 1.15, pos, 9.0)
+			pl.take_enemy_hit(h, self)
+	if k >= 1.0:
+		_reap_hit.clear()
+		stage.fx.shake(0.2)
+		set_state("recover")
+
+
 func behave(dt: float) -> void:
 	cooldown -= dt * attack_rate * tempo
+	harvest_t -= dt
+	if harvest_t <= 0.0 and state in ["stalk", "recover"]:
+		_begin_harvest()
 	if phase == 2 or form == "lightless":
 		if phase == 2:
 			summon_t -= dt
@@ -185,6 +298,16 @@ func behave(dt: float) -> void:
 			if timer(0.6):
 				_lanterns()
 				set_state("recover")
+		"reap_windup":
+			vel = Vector2.ZERO
+			if timer(0.95):
+				_reap_hit.clear()
+				_reap_fx = 0.0
+				set_state("reap")
+				sprite.play("sweep")
+				Audio.play("rush", 0.0, 0.7)
+		"reap":
+			_reap_tick(dt)
 		"rush_windup":
 			vel = Vector2.ZERO
 			if timer(0.7):
@@ -253,12 +376,16 @@ func _stalk(dt: float) -> void:
 	if opts.is_empty():
 		opts = ["quake"]
 	var pick: String = opts[randi() % opts.size()]
+	if souls > 0 and last_attack != "reap":
+		pick = "reap"       # what the cage took, it spends
 	last_attack = pick
 	aim_dir = dir_to_player()
 	facing = aim_dir
 	match pick:
 		"step":
 			_begin_step()
+		"reap":
+			_begin_reap()
 		"sweep":
 			set_state("sweep_windup")
 			sprite.play("windup")
@@ -374,7 +501,7 @@ func _begin_gloamfall() -> void:
 	Audio.play("boss_roar", 3.0, 0.8)
 	stage.fx.shake(0.8)
 	stage.fx.number(pos, 4.0, "GLOAMFALL", Color(0.75, 0.5, 0.95), true)
-	phase_moment("Gloamfall", "Relight the braziers to sear the Warden", Color(0.72, 0.48, 0.95))
+	phase_moment("Gloamfall", "Relight the braziers to sear the Warden, and strike down what comes to its cage", Color(0.72, 0.48, 0.95))
 	_snuff_all()
 	summon_t = 3.0
 

@@ -29,6 +29,7 @@ uniform int surface = 0;          // 0 floor, 1 top, 2 wall face, 3 pit
 uniform float contrast = 1.0;     // floors: eased toward their own average
 uniform vec3 mid : source_color = vec3(0.2);
 uniform float rim_strength = 1.0;
+uniform float keep_detail = 0.0;   // a capstone keeps what is carved on it
 uniform vec3 rim_color : source_color = vec3(0.5, 0.52, 0.62);   // the region's dressed stone
 uniform float contact_strength = 1.0;
 
@@ -121,7 +122,7 @@ void fragment() {
 		if (bit(ob, 7)) e = min(e, max(lt.x, lt.y));
 		// the cap is dressed stone (lifted toward the region's stone), and thick
 		// rock darkens toward its middle (COLOR.r: depth into the rock, 0..1 of 6 tiles)
-		col = mix(col, rim_color * 0.5, 0.45);
+		col = mix(col, rim_color * 0.5, 0.45 * (1.0 - keep_detail));
 		float depth = COLOR.r * 6.0;
 		// (flat on the rim tiles; dithered steps only where the rock thickens)
 		float shade = 1.0;

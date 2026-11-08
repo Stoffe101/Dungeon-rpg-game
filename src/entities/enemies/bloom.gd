@@ -8,6 +8,9 @@
 ## Phase 2 (55%): radial root eruptions and sporeling broods.
 ## Its four root nodes can be burned (or hacked apart): each one wilts the
 ## Bloom - a chunk of its life, a stagger, and an opening.
+## Choking: hurt it enough while it inhales and the maw clogs: no bite, and it gags.
+## Its living arena: from Full Bloom a lash leaves a ridge of thorn along its line, and
+## the moment it blooms hedges grow in between the roots. Thorn can be cut and it burns.
 extends Enemy
 
 var phase := 1
@@ -20,6 +23,9 @@ var brood_t := 8.0
 var volley_marks: Array = []
 var root_angle := 0.0
 var intro := true
+var _inhaled := 0.0
+const CHOKE_AT := 0.07        # of its life, in one breath
+const RIDGE_LIFE := 9.0
 
 
 func _ready() -> void:
@@ -45,6 +51,70 @@ func hit_color() -> Color:
 
 func extra_damage_taken(_h: Hit) -> float:
 	return 2.0 if state == "inhale" else 1.0
+
+
+func on_damaged(hit: Hit, res: Combat.Result) -> void:
+	super.on_damaged(hit, res)
+	if state == "inhale" and alive:
+		_inhaled += res.amount
+		if _inhaled >= max_hp * CHOKE_AT:
+			_choke()
+
+
+## It breathed in more than it could swallow.
+func _choke() -> void:
+	inhale_cd = 12.0
+	status.stagger_t = 2.5
+	status.exposed_t = 3.5
+	if tele and is_instance_valid(tele):
+		stage.fx.release(tele)
+	set_state("wilt")
+	sprite.play("wilt")
+	stage.fx.number(pos, 5.0, "CHOKED", Color(1.0, 0.75, 0.35), true)
+	stage.fx.burst(pos, 3.0, Color(0.75, 0.9, 0.5), 30, 5.0, 0.7, 2.0)
+	Audio.play("boss_hurt", 0.0, 1.5)
+
+
+## Thorn along a line from here, where it can stand; it dies back on its own.
+func _ridge(from: Vector2, dir: Vector2, start: float, length: float) -> void:
+	var st := stage
+	var r := start
+	var done := {}
+	while r < length:
+		var p := from + dir * r
+		r += 0.9
+		var ti := Vector2i(floori(p.x), floori(p.y))
+		if done.has(ti) or st.grid.at(ti.x, ti.y) != TileGrid.FLOOR:
+			continue
+		done[ti] = true
+		var c := Vector2(ti) + Vector2(0.5, 0.5)
+		var clear := true
+		for a in st.actors:
+			if a.alive and a != self and a.pos.distance_to(c) < 1.1:
+				clear = false
+		if not clear:
+			continue
+		var pr := Prop.make(st, "bramble", ti, {"grown": true})
+		pr.room_id = room_id
+		st.fx.burst(c, 0.3, Color(0.4, 0.6, 0.25), 6, 3.0, 0.4, 6.0, Vector2.ZERO, PI, 3.0)
+		var keep: WeakRef = weakref(pr)
+		st.after(RIDGE_LIFE + randf_range(0.0, 1.5), func() -> void:
+			var q = keep.get_ref()
+			if q and is_instance_valid(q) and not q.used:
+				q.unsolid()
+				st.props.erase(q)
+				st.fx.burst(q.pos, 0.4, Color(0.35, 0.3, 0.2), 6, 2.0, 0.5, 5.0)
+				q.queue_free())
+
+
+## Full Bloom: hedges between its roots: the way to each root must now be cut or gone round.
+func _grow_hedges() -> void:
+	var live: Array = braziers.filter(func(b): return is_instance_valid(b) and not b.used)
+	for b in live:
+		var c: Vector2 = (b as Prop).pos
+		_ridge(c, (arena_center - c).orthogonal().normalized(), 1.5, 5.0)
+		_ridge(c, -(arena_center - c).orthogonal().normalized(), 1.5, 5.0)
+	Audio.play_at("crumble", pos, 0.0, 0.8)
 
 
 ## The Rootbound Bloom: it is not rooted to the floor, it is rooted to its roots.
@@ -136,6 +206,8 @@ func behave(dt: float) -> void:
 					stage.fx.burst(pos + aim_dir * (i + 0.5), 0.3, Color(0.45, 0.65, 0.3), 2, 3.0, 0.35, 8.0, Vector2.ZERO, PI, 3.0)
 				stage.fx.shake(0.25)
 				Audio.play("sweep", -2.0, 1.2)
+				if phase == 2:
+					_ridge(pos, aim_dir, 3.5, 11.0)
 				set_state("recover")
 		"volley":
 			if timer(1.0):
@@ -150,15 +222,15 @@ func behave(dt: float) -> void:
 				set_state("recover")
 		"inhale":
 			sprite.play("inhale")
-			var t := target()
-			if t:
+			# (the breath takes everyone in the arena, not only the one it looks at)
+			for t: Player in stage.active_players():
 				var to := pos - t.pos
-				if to.length() > radius + t.radius + 0.4:
+				if to.length() > radius + t.radius + 0.4 and to.length() < 16.0:
 					# steady pull (~4.5 tiles/s) - you can walk against it, barely
 					t.push += to.normalized() * 40.0 * dt
-				if randf() < 0.6:
-					var off := Vector2.from_angle(randf() * TAU) * randf_range(3.0, 7.0)
-					stage.fx.burst(pos + off, 0.4, Color(0.75, 0.9, 0.6), 1, 0.2, 0.4, 0.0, -off, 0.1)
+			if randf() < 0.6:
+				var off := Vector2.from_angle(randf() * TAU) * randf_range(3.0, 7.0)
+				stage.fx.burst(pos + off, 0.4, Color(0.75, 0.9, 0.6), 1, 0.2, 0.4, 0.0, -off, 0.1)
 			if state_t > 2.4:
 				set_state("bite")
 				telegraph(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(6.0, 6.0), 0.5 / attack_rate)
@@ -221,8 +293,9 @@ func _choose() -> void:
 			Audio.play("orb", -2.0, 0.7)
 		"inhale":
 			set_state("inhale")
+			_inhaled = 0.0
 			sprite.play("open")
-			Events.toast.emit("The Bloom inhales - its maw is exposed!", Color(0.7, 1.0, 0.5))
+			Events.toast.emit("The Bloom inhales. Hurt it enough and it chokes!", Color(0.7, 1.0, 0.5))
 			Audio.play("boss_roar", -6.0, 1.8)
 		"roots":
 			set_state("roots")
@@ -251,8 +324,9 @@ func _bloom_phase() -> void:
 	Audio.play("boss_roar", 2.0, 1.1)
 	stage.fx.shake(0.6)
 	stage.fx.number(pos, 5.0, "FULL BLOOM", Color(1.0, 0.45, 0.5), true)
-	phase_moment("Full Bloom", "Burn its roots to wilt it", Color(1.0, 0.42, 0.5))
+	phase_moment("Full Bloom", "Burn its roots to wilt it. Thorn can be cut, and it burns", Color(1.0, 0.42, 0.5))
 	brood_t = 3.0
+	_grow_hedges()
 
 
 func _brood() -> void:

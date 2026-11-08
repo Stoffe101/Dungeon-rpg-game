@@ -822,6 +822,12 @@ func timer(len: float) -> bool:
 
 func block_mult(h: Hit) -> float:
 	var armoured := 1.0
+	if not stage.canopies.is_empty() and not h.has_tag("dot") and is_instance_valid(h.source) and h.source is Actor:
+		for c in stage.canopies:
+			if c.call("shelters", pos, (h.source as Actor).pos):
+				armoured *= 0.35
+				stage.fx.burst(pos, 0.9, Color(0.75, 1.0, 0.5), 3, 2.0, 0.25, 0.0)
+				break
 	if not grudge.is_empty():
 		for m in grudge.get("marks", []):
 			if h.has_tag(String(Profile.GRUDGE_MARKS[m].tag)):

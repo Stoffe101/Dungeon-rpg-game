@@ -9,6 +9,7 @@ const GenEnemies = preload("res://tools/art/gen_enemies.gd")
 const GenBoss = preload("res://tools/art/gen_boss.gd")
 const GenWave3 = preload("res://tools/art/gen_wave3.gd")
 const GenWave4 = preload("res://tools/art/gen_wave4.gd")
+const GenWave5 = preload("res://tools/art/gen_wave5.gd")
 const GenShift = preload("res://tools/art/gen_shift.gd")
 const GenProps = preload("res://tools/art/gen_props.gd")
 const GenHub = preload("res://tools/art/gen_hub.gd")
@@ -26,6 +27,7 @@ const GenCampLife = preload("res://tools/art/gen_camp_life.gd")
 const GenDressing = preload("res://tools/art/gen_dressing.gd")
 const GenWave2 = preload("res://tools/art/gen_wave2.gd")
 const GenGear = preload("res://tools/art/gen_gear.gd")
+const GenArch = preload("res://tools/art/gen_arch.gd")
 const GenBuilds = preload("res://tools/art/gen_builds.gd")
 const GenWorkshop = preload("res://tools/art/gen_workshop.gd")
 const GenDepths = preload("res://tools/art/gen_depths.gd")
@@ -71,8 +73,10 @@ func _init() -> void:
 		"wave2": func(): GenWave2.build("res://assets/sprites"),
 		"wave3": func(): GenWave3.build("res://assets/sprites"),
 		"wave4": func(): GenWave4.build("res://assets/sprites"),
+		"wave5": func(): GenWave5.build("res://assets/sprites"),
 		"shift": func(): GenShift.build("res://assets/sprites"),
 		"gear": func(): GenGear.build("res://assets/sprites"),
+		"arch": func(): GenArch.build("res://assets/sprites"),
 		"builds": func(): GenBuilds.build("res://assets/sprites"),
 		"workshop": func(): GenWorkshop.build("res://assets/sprites"),
 		"depths": func(): GenDepths.build("res://assets/textures"),

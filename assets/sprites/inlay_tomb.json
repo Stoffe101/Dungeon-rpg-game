@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"figure": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"open": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"skull": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		32,
+		18
+	],
+	"origin": [
+		16,
+		9
+	]
+}

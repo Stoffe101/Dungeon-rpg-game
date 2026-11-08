@@ -29,12 +29,17 @@ const MILESTONES := {
 ## Past the first regions the deep has moods, three depths at a time, in turn:
 ## something to name and to plan for rather than one more number.
 const BANDS := [
-	{"id": "whisper", "name": "The Whispering Halls", "line": "more fights keep rules of their own"},
-	{"id": "thin", "name": "The Thin Light", "line": "lanterns reach less far"},
-	{"id": "crowded", "name": "The Crowded Dark", "line": "every fight calls one more wave"},
-	{"id": "roads", "name": "The Old Roads", "line": "the floors run in rings and wings"},
-	{"id": "teeth", "name": "The Toothed Galleries", "line": "every hall is laid with traps"},
-	{"id": "overgrown", "name": "The Overgrown Dark", "line": "something green has got down here"},
+	{"id": "whisper", "name": "The Whispering Halls", "line": "more fights keep rules of their own", "ambient": Color(0.5, 0.72, 0.68),
+		"cover": {"kinds": [[1, 3], [4, 2]], "thick": 0.45, "tint": Color(0.72, 0.86, 0.8, 0.85)}},
+	{"id": "thin", "name": "The Thin Light", "line": "lanterns reach less far", "ambient": Color(0.3, 0.38, 0.62),
+		"cover": {"kinds": [[2, 3], [5, 2]], "thick": 0.25, "tint": Color(0.55, 0.72, 1.0, 0.95)}},
+	{"id": "crowded", "name": "The Crowded Dark", "line": "every fight calls one more wave", "ambient": Color(0.62, 0.36, 0.34),
+		"cover": {"kinds": [[0, 4], [5, 3]], "thick": 0.6, "tint": Color(0.72, 0.34, 0.3, 0.9)}},
+	{"id": "roads", "name": "The Old Roads", "line": "the floors run in rings and wings", "ambient": Color(0.66, 0.54, 0.38),
+		"cover": {"kinds": [[0, 3], [2, 2], [4, 1]], "thick": 0.4, "tint": Color(0.8, 0.68, 0.36, 0.8)}},
+	{"id": "teeth", "name": "The Toothed Galleries", "line": "every hall is laid with traps", "ambient": Color(0.5, 0.42, 0.62),
+		"cover": {"kinds": [[2, 3], [4, 3]], "thick": 0.3, "tint": Color(0.42, 0.42, 0.46, 1.0)}},
+	{"id": "overgrown", "name": "The Overgrown Dark", "line": "something green has got down here", "ambient": Color(0.42, 0.66, 0.46)},
 ]
 
 

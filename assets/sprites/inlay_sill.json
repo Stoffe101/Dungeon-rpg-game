@@ -1,0 +1,37 @@
+{
+	"anims": {
+		"hollow": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 3
+		},
+		"ossuary": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"rootmire": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"throne": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		64,
+		16
+	],
+	"origin": [
+		32,
+		8
+	]
+}

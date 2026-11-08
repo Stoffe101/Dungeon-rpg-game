@@ -12,7 +12,7 @@ extends RefCounted
 enum Cls {GROUND, SOLID, BREAK, USE, HAZARD, FIXTURE}
 
 const OF := {
-	"decal": Cls.GROUND, "scar": Cls.GROUND, "rug": Cls.GROUND, "candles": Cls.GROUND, "ember_pile": Cls.USE,
+	"decal": Cls.GROUND, "inlay": Cls.GROUND, "jamb": Cls.FIXTURE, "scar": Cls.GROUND, "rug": Cls.GROUND, "candles": Cls.GROUND, "ember_pile": Cls.USE,
 	"stairs": Cls.USE, "cold_lantern": Cls.USE, "echo": Cls.USE,
 	"torch": Cls.FIXTURE, "banner": Cls.FIXTURE,
 	"thicket": Cls.SOLID, "tree": Cls.SOLID, "glowcap": Cls.SOLID, "icewall": Cls.SOLID,
@@ -26,7 +26,7 @@ const OF := {
 
 ## Kinds that do not stop you, on purpose. An urn is the one thing here that looks solid
 ## and is not: it breaks when you walk into it.
-const WALK_THROUGH := ["decal", "scar", "rug", "candles", "ember_pile", "stairs", "cold_lantern", "echo", "torch", "banner", "spikes", "rime_vent", "urn"]
+const WALK_THROUGH := ["decal", "inlay", "jamb", "scar", "rug", "candles", "ember_pile", "stairs", "cold_lantern", "echo", "torch", "banner", "spikes", "rime_vent", "urn"]
 
 ## Above this many texels a thing standing on the floor is not ground cover.
 const GROUND_MAX_H := 13

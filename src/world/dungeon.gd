@@ -65,6 +65,12 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if "walllab" in Dev.args() and "behind" in Dev.args():
 		# dev: stand behind the lab's pillar (the silhouette shows through it)
 		player.pos = Vector2(Vector2i(start.center()) + Vector2i(3, -3)) + Vector2(0.5, 0.45)
+	if "craftlab" in Dev.args():
+		# dev: start in the first room RoomCraft built something in
+		for built in layout.rooms:
+			if built.concept != "":
+				player.pos = built.center() + Vector2(0.5, 3.5)
+				break
 	if "autopilot" in Dev.args():
 		player.add_child(Bot.new())
 	if "hearthcall" in Dev.args():
@@ -299,6 +305,9 @@ func _environment() -> void:
 	if run and run.delve:
 		# every pass through the regions, the Hollow is darker
 		env.ambient_light_energy *= Delve.gloom(layout.depth)
+		var mood := Delve.band(layout.depth)
+		if mood.has("ambient"):
+			env.ambient_light_color = env.ambient_light_color.lerp(mood.ambient, 0.55)
 		if Delve.fractured(layout.depth):
 			env.ambient_light_color = env.ambient_light_color.lerp(Color(0.5, 0.35, 0.8), 0.45)
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
@@ -358,7 +367,7 @@ func _grow_flora() -> void:
 	flora = FloraField.new()
 	flora.name = "Flora"
 	add_child(flora)
-	flora.build(self, rooms)
+	flora.build(self, rooms, Delve.band(layout.depth).get("cover", {}).get("tint", Color(0, 0, 0, 0)))
 	if Chronicle.site_of(run.world, layout.region) == "broken":
 		# the Broken altar: what grew here is burnt to stubs in long scars across the floor
 		for t: Vector2i in flora.tiles():
@@ -377,7 +386,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low", "spoor"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low", "spoor", "ox", "oy"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			for more in ["anim", "tier"]:
@@ -389,9 +398,13 @@ func _place_props() -> void:
 				extra["sheet"] = pd.sheet
 				if pd.has("anim"):
 					extra["anim"] = pd.anim
-				if pd.get("wide", false):
-					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
-					extra["ox"] = 0.5
+				var span := DungeonGen.span_of(pd)
+				if span > 1:
+					var along: Array = []
+					for n in span:
+						along.append(pd.tile + Vector2i(n, 0))
+					extra["solid_tiles"] = along
+					extra["ox"] = (span - 1) * 0.5
 				elif DungeonGen.WALKABLE_DRESSING.has(String(pd.sheet)) or pd.get("low", false):
 					extra["low"] = true      # underfoot: walked through, drawn behind whoever stands on it
 				else:
