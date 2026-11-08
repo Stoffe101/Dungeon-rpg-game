@@ -578,8 +578,11 @@ static func spike_bites(k: float) -> bool:
 
 
 func trap_style() -> String:
-	var region := String((stage as Dungeon).layout.region) if stage is Dungeon else "ossuary"
-	return {"rootmire": "rootmire", "throne": "throne", "delve": "hollow"}.get(region, "ossuary")
+	if not stage is Dungeon:
+		return "ossuary"
+	if (stage as Dungeon).run.delve:
+		return "hollow"
+	return {"rootmire": "rootmire", "throne": "throne"}.get(String((stage as Dungeon).layout.region), "ossuary")
 
 
 func _spike_tick() -> void:

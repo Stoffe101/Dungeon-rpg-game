@@ -178,6 +178,21 @@ func lowpass(cutoff: float) -> void:
 		buf[i] = y
 
 
+## Adds upper harmonics of what is already there (saturation, high-passed), so a sound
+## that lives under 120 Hz still has something a laptop speaker can play.
+func presence(amt := 0.5, drive := 5.0, corner := 700.0) -> void:
+	var mx := 0.0001
+	for v in buf:
+		mx = maxf(mx, absf(v))
+	var a := 1.0 - exp(-TAU * corner / float(sr))
+	var low := 0.0
+	for i in buf.size():
+		var x := buf[i] / mx
+		var sat := tanh(x * drive) / tanh(drive)
+		low += a * (sat - low)
+		buf[i] += (sat - low) * amt * mx
+
+
 ## Normalises to `peak` with gentle saturation, then writes a 16-bit WAV.
 func save(path: String, peak := 0.9) -> void:
 	var mx := 0.0001

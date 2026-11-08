@@ -952,9 +952,8 @@ static func _decal_throne(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 				if k % 2 == 0:
 					c.lit(x + 1, y, Pal.EMBER[3])
 		6:
-			# a fallen gilt tile
-			c.paint(c.mask().poly(PackedVector2Array([Vector2(5, 8), Vector2(13, 6), Vector2(15, 12), Vector2(7, 14)])), Pal.GOLD, 2)
-			c.put(10, 10, Pal.INK)
+			# a scorch, not a gilt lump (the old one looked like something to pick up)
+			_blob(c, 10.0, 10.0, 5.0, 3.0, Pal.OBSIDIAN[0], 0.45, 4)
 		7:
 			_blob(c, 10.0, 10.0, 5.0, 3.0, Pal.BLOOD[0], 0.35)
 		8:

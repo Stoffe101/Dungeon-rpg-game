@@ -30,11 +30,18 @@ func _init() -> void:
 	quit()
 
 
+## Sounds that carry information and lived almost entirely below 120 Hz (measured with
+## tools/audio/analyze.py): given upper harmonics so small speakers can play them.
+const SMALL_SPEAKERS := ["heartbeat", "crumble", "slam", "seal_close", "satchel_close", "explode", "player_death", "aftershock", "swing_heavy", "seal_open", "deny", "bow_draw", "sweep", "lantern", "boss_roar", "ember_rush", "boss_arrive", "hurt"]
+
+
 func fx(name: String, dur: float, build: Callable, seed_v := 1) -> void:
 	if not just.is_empty() and not just.has(name):
 		return
 	var s := Synth.new(44100, dur, false, seed_v)
 	build.call(s)
+	if SMALL_SPEAKERS.has(name):
+		s.presence(0.9, 14.0, 320.0)
 	s.save(SFX + name + ".wav", 0.85)
 
 
