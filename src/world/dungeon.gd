@@ -47,7 +47,6 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if not replica:
 		_pick_grudge_room()
 	_place_props()
-	_grow_flora()
 	# (built after the props: the floor shades a contact shadow around every
 	# solid one - LevelBuilder)
 	add_child(_build_level())
@@ -57,6 +56,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	_place_locks()
 	_place_door_frames()
 	_place_door_icons()
+	_grow_flora()      # (last: a lock's plate or lever keeps its tile bare)
 	if grudge_room >= 0:
 		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
 	# the player (co-op: the whole party)
