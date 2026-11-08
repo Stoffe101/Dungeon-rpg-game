@@ -258,6 +258,7 @@ func _cold_outline() -> void:
 		sil.set_shader_parameter("color", Color(0.45, 0.95, 0.9))
 		sil.render_priority = 1
 		mat.next_pass = sil
+	sprite.set_instance_shader_parameter("silhouette", 0.0)      # (Stage._foes_behind_stone)
 
 
 func hit_color() -> Color:

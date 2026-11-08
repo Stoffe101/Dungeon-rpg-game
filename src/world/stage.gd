@@ -89,6 +89,7 @@ func update_occlusion(dt: float) -> void:
 	if _occ_t > 0.0 or occluders.is_empty():
 		return
 	_occ_t = 0.1
+	_foes_behind_stone()
 	for o in occluders:
 		if not is_instance_valid(o):
 			continue
@@ -104,6 +105,22 @@ func update_occlusion(dt: float) -> void:
 				under = true
 				break
 		o.set_thin(under)
+
+
+## A foe's cold outline shows only when stone stands between it and the camera (the
+## depth pass alone cannot tell stone from a Kindled standing in front of it).
+func _foes_behind_stone() -> void:
+	for a in actors:
+		if not (a is Enemy) or not is_instance_valid(a) or (a as Enemy).sprite == null:
+			continue
+		var x := floori(a.pos.x)
+		var y := floori(a.pos.y)
+		var hidden := false
+		for k in [1, 2]:
+			var t := grid.at(x, y + k)
+			if t == TileGrid.PILLAR or (t == TileGrid.WALL and grid.wall_height(x, y + k) >= 1.0):
+				hidden = true
+		(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
 
 
 func set_tile_solid(t: Vector2i, solid: bool) -> void:

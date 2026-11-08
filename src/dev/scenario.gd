@@ -1239,7 +1239,17 @@ func depthworld() -> void:
 		var g0: Player = _guest_kindled()
 		var at: Vector2i = Vector2i(dun().foe_spot(g0.pos + Vector2(2.5, 0.0), 0.6))
 		Prop.make(dun(), "spikes", at, {})
-		Prop.make(dun(), "bramble", at + Vector2i(-1, 2), {})
+		# a thorn with open floor south of it to walk up to, not on the trap
+		var thorn_at := at + Vector2i(-1, 2)
+		var found := false
+		for rad in range(0, 6):
+			for dy in range(-rad, rad + 1):
+				for dx in range(-rad, rad + 1):
+					var q := at + Vector2i(dx, dy + 2)
+					if not found and q.distance_to(at) >= 2.0 and dun().grid.at(q.x, q.y) == TileGrid.FLOOR and dun().grid.at(q.x, q.y + 1) == TileGrid.FLOOR and dun().grid.at(q.x, q.y + 2) == TileGrid.FLOOR:
+						thorn_at = q
+						found = true
+		Prop.make(dun(), "bramble", thorn_at, {})
 	await until(func() -> bool: return _prop_kind("spikes") != null and _prop_kind("bramble") != null, 20.0, "the trap and the thorn reached me")
 	var trap: Prop = _newest("spikes")
 	var thorn: Prop = _newest("bramble")
