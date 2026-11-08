@@ -227,6 +227,9 @@ func _process(delta: float) -> void:
 				_dump_area()
 		if _stuck_t > 0.8:
 			_jitter = Vector2.from_angle(randf() * TAU)
+			if _stuck_total > 2.0:
+				# caught on a corner: back off it, or it will try the same corner forever
+				_jitter = (-pl.move_in).rotated(randf_range(-1.2, 1.2)) * 1.8
 			_stuck_t = 0.0
 	else:
 		_stuck_t = 0.0
