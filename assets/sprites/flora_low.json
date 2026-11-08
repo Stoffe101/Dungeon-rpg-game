@@ -1,0 +1,49 @@
+{
+	"anims": {
+		"clover": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 5
+		},
+		"fern": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 2
+		},
+		"flowers": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 3
+		},
+		"grass": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 0
+		},
+		"pincaps": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 4
+		},
+		"sedge": {
+			"fps": 1.5,
+			"frames": 4,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		16,
+		12
+	],
+	"origin": [
+		8,
+		11
+	]
+}

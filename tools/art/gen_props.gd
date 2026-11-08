@@ -796,8 +796,9 @@ static func _decal_ossuary(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 static func _decal_rootmire(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 	match v:
 		0:
-			_blob(c, 10.0, 10.0, 7.0, 4.0, Pal.MOSS[2], 0.3, 5)
-			_blob(c, 9.0, 9.0, 4.0, 2.4, Pal.MOSS[3], 0.45, 6)
+			# a thin stain of moss: flat, dim, broken up (it used to be a bright lump
+			# drawn like a bush, on a floor where bushes are solid)
+			_blob(c, 10.0, 10.0, 7.0, 3.5, Pal.MOSS[1], 0.6, 5)
 		1:
 			# a root crossing the floor
 			var y := rng.randi_range(6, 12)
@@ -827,10 +828,12 @@ static func _decal_rootmire(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 				c.put(x, y, Pal.MOSS[3] if k % 2 == 0 else Pal.EARTH[2])
 				c.put(x + 1, y, Pal.MOSS[2])
 		5:
-			# a ring of spores
-			for k in 10:
-				var a := k * TAU / 10.0
-				c.lit(int(10 + cos(a) * 6.0), int(10 + sin(a) * 3.5), Pal.MOSS[5])
+			# fallen leaves (it was a ring of bright spores: it read as a marker)
+			for k in 6:
+				var x := rng.randi_range(3, 16)
+				var y := rng.randi_range(4, 15)
+				c.put(x, y, Pal.EARTH[2])
+				c.put(x + 1, y, Pal.EARTH[1])
 		6:
 			_bones(c, rng, 2, Pal.BONE)
 			_blob(c, 10.0, 11.0, 5.0, 2.5, Pal.MOSS[2], 0.55)
@@ -839,10 +842,11 @@ static func _decal_rootmire(c: Px, v: int, rng: RandomNumberGenerator) -> void:
 			_blob(c, 8.0, 10.0, 3.0, 2.0, Pal.MOSS[3], 0.5)
 		8:
 			# a fern
+			# (lies flat: the ferns that stand up are ground cover, FloraField)
 			for k in 5:
 				var a := -PI * 0.5 + (k - 2) * 0.45
-				var e := Vector2(10, 15) + Vector2(cos(a), sin(a)) * 7.0
-				c.line(10, 15, int(e.x), int(e.y), Pal.MOSS[3])
+				var e := Vector2(10, 15) + Vector2(cos(a), sin(a) * 0.5) * 6.0
+				c.line(10, 15, int(e.x), int(e.y), Pal.MOSS[1])
 		_:
 			for k in 6:
 				c.lit(3 + k * 2, 10 + (k % 2), Pal.SOUL[3])

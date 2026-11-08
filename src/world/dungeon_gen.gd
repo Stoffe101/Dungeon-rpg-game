@@ -19,7 +19,7 @@ const MARGIN := 3
 const DOOR_COLS := [9, 12]
 const DOOR_ROWS := [4, 7]
 ## Set dressing drawn about two tiles wide (centred between two tiles, both solid).
-const WIDE_DRESSING := ["sarcophagus", "stump", "column_fallen"]
+const WIDE_DRESSING := ["sarcophagus", "stump", "column_fallen", "mire_log"]
 ## ...and dressing low enough to walk through (bones underfoot).
 const WALKABLE_DRESSING := ["bone_heap"]
 const GW := 7
@@ -390,6 +390,9 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 			_landmark(lay, seed_v)
 			DeepEvents.rule_room(lay, seed_v)
 			_hunt_signs(lay, seed_v)
+			if lay.region == "rootmire":
+				for r in lay.rooms:
+					_ground_cover(lay, r)     # (last: it grows around whatever else was placed)
 			_route = ""
 			return lay
 	push_error("DungeonGen: failed to generate a layout")
@@ -1383,7 +1386,7 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 			"rich": rich, "urnling": urnling})
 	# set dressing that gives each region its silhouette, against the walls
 	if r.type in [Room.Type.COMBAT, Room.Type.ELITE, Room.Type.TREASURE] and floor_tiles.size() > 60:
-		var pieces: Array = {"rootmire": ["stump"], "throne": ["statue", "statue", "column_fallen"]}.get(lay.region, ["sarcophagus", "bone_heap"])
+		var pieces: Array = {"rootmire": ["stump", "mire_log", "mire_rock"], "throne": ["statue", "statue", "column_fallen"]}.get(lay.region, ["sarcophagus", "bone_heap"])
 		for i in 1 + int(floor_tiles.size() > 140):
 			if wall_adj.is_empty():
 				break
@@ -1418,8 +1421,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 				break
 			var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
 			var one: Array[Vector2i] = [t]
-			if lamp == "brazier" and not _floor_whole(lay, r, one):
-				continue      # (a brazier stands solid: never across a corner)
+			if lamp != "candles" and not _floor_whole(lay, r, one):
+				continue      # (a brazier or a great cap stands solid: never across a corner)
 			r.props.append({"kind": lamp, "tile": t})
 	var c := Vector2i(r.center())
 	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
@@ -1660,7 +1663,10 @@ static func _root_decor(lay: Layout, r: Room, rng: RandomNumberGenerator, floor_
 		if wall_adj.is_empty():
 			break
 		var t: Vector2i = wall_adj.pop_at(rng.randi_range(0, wall_adj.size() - 1))
-		r.props.append({"kind": "glowcap", "tile": t})
+		var one: Array[Vector2i] = [t]
+		if _floor_whole(lay, r, one):
+			r.props.append({"kind": "glowcap", "tile": t})
+	_root_groves(lay, r, floor_tiles)
 	if r.type == Room.Type.BOSS or r.type == Room.Type.START or floor_tiles.is_empty():
 		return
 	var g := lay.grid
@@ -1695,6 +1701,112 @@ static func _root_decor(lay: Layout, r: Room, rng: RandomNumberGenerator, floor_
 				solid.append(t)
 				r.props.append({"kind": "bramble", "tile": t})
 			break
+
+
+## Rootmire rooms' permanent growth, on its own rng (the rest of the floor is unchanged):
+## a tree against the back wall of a big room, a hedge of thicket in the corners of the
+## floor. Everything here stops you and looks like it; the middle stays open to fight in.
+static func _root_groves(lay: Layout, r: Room, floor_tiles: Array[Vector2i]) -> void:
+	if r.type == Room.Type.BOSS or r.type == Room.Type.START or floor_tiles.size() < 60:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([lay.seed, r.id, "groves"])
+	var g := lay.grid
+	var taken := {}
+	for p in r.props:
+		taken[p.tile] = true
+	var near_door := func(t: Vector2i) -> bool:
+		for d in r.doors:
+			for dt: Vector2i in d.tiles:
+				if absi(dt.x - t.x) + absi(dt.y - t.y) < 4:
+					return true
+		return false
+	# a tree: its trunk two tiles off the back wall, so its canopy hangs over the wall
+	if floor_tiles.size() >= 90 and rng.randf() < 0.75:
+		var y := r.rect.position.y + 1
+		for attempt in 8:
+			var t := Vector2i(rng.randi_range(r.rect.position.x + 3, r.rect.end.x - 4), y)
+			var one: Array[Vector2i] = [t]
+			if g.at(t.x, t.y) == TileGrid.FLOOR and not taken.has(t) and not near_door.call(t) and _floor_whole(lay, r, one):
+				r.props.append({"kind": "tree", "tile": t, "anim": "a" if rng.randf() < 0.5 else "b"})
+				taken[t] = true
+				break
+	# hedges: short rows of thicket out from a wall, never through the middle
+	for hedge in rng.randi_range(1, 2 if floor_tiles.size() > 120 else 1):
+		for attempt in 10:
+			var t := floor_tiles[rng.randi_range(0, floor_tiles.size() - 1)]
+			var c := Vector2(r.rect.get_center())
+			if absf(float(t.x) - c.x) < float(r.rect.size.x) * 0.26 and absf(float(t.y) - c.y) < float(r.rect.size.y) * 0.26:
+				continue
+			var row: Array[Vector2i] = []
+			for k in rng.randi_range(2, 3):
+				row.append(t + Vector2i(k, 0))     # (side by side: stacked crowns read as a totem)
+			var ok := true
+			for q in row:
+				if g.at(q.x, q.y) != TileGrid.FLOOR or taken.has(q) or near_door.call(q) or not r.rect.grow(-1).has_point(q):
+					ok = false
+			if ok and _floor_whole(lay, r, row) and _doors_connected(lay, r, row):
+				for q in row:
+					r.props.append({"kind": "thicket", "tile": q, "anim": ["a", "b", "c"][rng.randi_range(0, 2)]})
+					taken[q] = true
+				break
+
+
+## What you walk through: patches of low growth, thick along the walls and around what
+## stands in the room, thin down the middle, so the way across is plain. Own rng.
+static func _ground_cover(lay: Layout, r: Room) -> void:
+	if r.type == Room.Type.BOSS:
+		return      # (a guardian's arena stays clear to read)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([lay.seed, r.id, "cover"])
+	var g := lay.grid
+	var floor_tiles: Array[Vector2i] = []
+	for y in range(r.rect.position.y, r.rect.end.y):
+		for x in range(r.rect.position.x, r.rect.end.x):
+			if g.at(x, y) == TileGrid.FLOOR:
+				floor_tiles.append(Vector2i(x, y))
+	var taken := {}
+	for p in r.props:
+		if String(p.kind) != "decal":
+			taken[p.tile] = true
+			if p.get("wide", false):
+				taken[p.tile + Vector2i(1, 0)] = true
+	# the sporefields grow caps, the Bloom's heart little else
+	var kinds: Array = [[0, 5], [1, 2], [2, 3], [3, 2], [4, 1], [5, 2]]
+	if lay.depth == 2:
+		kinds = [[0, 3], [1, 2], [2, 3], [4, 2], [5, 3]]
+	elif lay.depth >= 3:
+		kinds = [[1, 4], [2, 4], [4, 1], [5, 2]]
+	var bag: Array = []
+	for k in kinds:
+		for n in k[1]:
+			bag.append(k[0])
+	var c := Vector2(r.rect.get_center())
+	var half := Vector2(r.rect.size) * 0.5
+	for t in floor_tiles:
+		if taken.has(t):
+			continue
+		var edge: float = maxf(absf(float(t.x) + 0.5 - c.x) / maxf(half.x, 1.0), absf(float(t.y) + 0.5 - c.y) / maxf(half.y, 1.0))
+		var patch: float = _patchy(t.x, t.y, lay.seed)
+		var chance := 0.05 + 0.5 * pow(edge, 3.0) + (0.3 if patch > 0.62 else 0.0)
+		if rng.randf() > chance:
+			continue
+		var row: int = bag[int(_patchy(t.x * 3, t.y * 3, r.id) * 0.999 * float(bag.size()))] if patch > 0.5 else bag[rng.randi_range(0, bag.size() - 1)]
+		for n in rng.randi_range(1, 2):
+			r.flora.append({"pos": Vector2(t) + Vector2(rng.randf_range(0.14, 0.86), rng.randf_range(0.2, 0.9)), "row": row, "seed": rng.randf(), "flip": rng.randf() < 0.5})
+
+
+## Soft world-locked patches for the ground cover (deterministic, no rng).
+static func _patchy(x: int, y: int, s: int) -> float:
+	var fx := float(x) * 0.28
+	var fy := float(y) * 0.28
+	var ix := floori(fx)
+	var iy := floori(fy)
+	var u := fx - ix
+	var v := fy - iy
+	var h := func(a: int, b: int) -> float:
+		return fposmod(sin(float(a) * 127.1 + float(b) * 311.7 + float(s) * 74.7) * 43758.5453, 1.0)
+	return lerpf(lerpf(h.call(ix, iy), h.call(ix + 1, iy), u), lerpf(h.call(ix, iy + 1), h.call(ix + 1, iy + 1), u), v)
 
 
 static func _doors_connected(lay: Layout, r: Room, blocked: Array[Vector2i]) -> bool:
@@ -1758,7 +1870,7 @@ static func _objectives(lay: Layout, rng: RandomNumberGenerator) -> void:
 
 
 ## Prop kinds that stand on their tile and stop whoever walks into it.
-const SOLID_KINDS := ["strut", "lamp", "lock_plate", "lever", "key_altar", "shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar", "bramble", "root_node"]
+const SOLID_KINDS := ["glowcap", "chest", "relic_altar", "spring", "kindle_jar", "thicket", "tree", "bramble", "strut", "lamp", "lock_plate", "lever", "key_altar", "shrine", "merchant", "fountain", "hearthstone", "lore", "brazier", "boss_brazier", "sconce", "ember_well", "trial_altar", "bramble", "root_node"]
 
 
 ## The tiles a room's props already make solid (as Dungeon places them).

@@ -80,6 +80,12 @@ func finalize_walls() -> void:
 	cells = out
 
 
+## A near wall's height. It was half a tile: the camera looks over it, so its cap covered
+## the last half tile of floor and you were stopped half a tile past where it seemed to
+## begin, your feet behind it.
+const LOW_WALL := 0.25
+
+
 ## Wall height in tiles. Near (south) walls are short ledges so they never hide
 ## the floor behind them; everything else is a full two-tile wall. A wall
 ## standing inside a room (a central block, a broken wall) is a waist-high
@@ -96,7 +102,7 @@ func wall_height(x: int, y: int) -> float:
 	for k in [1, 2]:
 		var n := at(x, y - k)
 		if n == FLOOR or n == PIT or n == GATE or n == PROP:
-			return 0.5
+			return LOW_WALL
 	return 2.0
 
 
@@ -117,6 +123,8 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 ## Moves a box (centre p, half-size r) by `motion`, sliding along blocking tiles.
 ## Resolves each axis separately; returns the new centre.
 func move_box(p: Vector2, r: float, motion: Vector2, can_cross_pits := false) -> Vector2:
+	if _on_prop(p, r):
+		return _walk_off(p, r, motion, can_cross_pits)
 	var out := p
 	out.x += motion.x
 	var x_blocked := false
@@ -185,6 +193,26 @@ func _box_hits(p: Vector2, r: float, can_cross_pits: bool) -> bool:
 				continue
 			return true
 	return false
+
+
+## Something solid appeared on top of this box (a chest out of a won fight, a wall of
+## ice): nobody is ever trapped in a prop. They walk off it; walls still stop them.
+func _on_prop(p: Vector2, r: float) -> bool:
+	for ty in range(floori(p.y - r), floori(p.y + r) + 1):
+		for tx in range(floori(p.x - r), floori(p.x + r) + 1):
+			if at(tx, ty) == PROP:
+				return true
+	return false
+
+
+func _walk_off(p: Vector2, r: float, motion: Vector2, cross: bool) -> Vector2:
+	var out := p + motion
+	for ty in range(floori(out.y - r), floori(out.y + r) + 1):
+		for tx in range(floori(out.x - r), floori(out.x + r) + 1):
+			var t := at(tx, ty)
+			if t != FLOOR and t != PROP and not (t == PIT and cross):
+				return p
+	return out
 
 
 func box_blocked(p: Vector2, r: float) -> bool:

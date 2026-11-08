@@ -47,6 +47,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if not replica:
 		_pick_grudge_room()
 	_place_props()
+	_grow_flora()
 	# (built after the props: the floor shades a contact shadow around every
 	# solid one - LevelBuilder)
 	add_child(_build_level())
@@ -342,7 +343,24 @@ func _wall_lab(lay: DungeonGen.Layout) -> void:
 		r.props.append({"kind": "dressing", "tile": c + Vector2i(1, -3), "sheet": "statue"})
 
 
+func _grow_flora() -> void:
+	var rooms: Array = []
+	for r in layout.rooms:
+		# (what was set down last, a landmark's foot or a site, keeps its tile bare)
+		var plants: Array = r.flora.filter(func(f): return grid.at(floori(f.pos.x), floori(f.pos.y)) == TileGrid.FLOOR)
+		if not plants.is_empty():
+			rooms.append(plants)
+	if rooms.is_empty():
+		return
+	flora = FloraField.new()
+	flora.name = "Flora"
+	add_child(flora)
+	flora.build(self, rooms)
+
+
 func _place_props() -> void:
+	if "worldlab" in Dev.args():
+		WorldLab.add(layout)
 	var flame: Color = region.flame
 	for r in layout.rooms:
 		for pd in r.props:
@@ -361,6 +379,8 @@ func _place_props() -> void:
 				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
+				if pd.has("anim"):
+					extra["anim"] = pd.anim
 				if pd.get("wide", false):
 					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
 					extra["ox"] = 0.5

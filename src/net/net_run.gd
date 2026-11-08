@@ -988,6 +988,12 @@ func _tele(ev: Array) -> void:
 		node.set_instance_shader_parameter("progress", clampf((st.elapsed - start) / maxf(dur, 0.01), 0.0, 1.0))
 
 
+## The host's clock as this machine best knows it, a little ahead for the trip a
+## guest's position takes to reach it (what it sees is what the host will judge).
+func host_seconds() -> float:
+	return (float(Time.get_ticks_msec()) + _clock) / 1000.0 + Net.rtt_s() * 0.5
+
+
 ## Keeps an estimate of the host's clock from the fastest packets, and of how
 ## much later than those the rest tend to arrive (that, plus a snapshot
 ## interval and a half, is how far in the past the floor is drawn).

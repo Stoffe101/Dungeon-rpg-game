@@ -213,6 +213,11 @@ func _sfx() -> void:
 	fx("spikes", 0.25, func(s):
 		s.noise(0.0, 0.06, 0.6, 9000.0, 4000.0, 2000.0, 0.001, 6.0)
 		s.bell(0.0, 0.2, 1900.0, 0.15, [[1.0, 1.0, 9.0], [2.3, 0.5, 12.0]]))
+	# a mechanism ratcheting under the floor: dry clicks, well up where small speakers live
+	fx("spike_warn", 0.5, func(s):
+		for k in 6:
+			s.noise(k * 0.075, 0.018, 0.75, 4200.0, 2200.0, 1400.0, 0.001, 8.0)
+			s.bell(k * 0.075, 0.05, 1500.0 + k * 90.0, 0.12, [[1.0, 1.0, 18.0]]))
 	fx("claw", 0.16, func(s): s.noise(0.0, 0.14, 0.6, 3000.0, 1200.0, 600.0, 0.01, 4.0))
 	fx("skitter", 0.3, func(s):
 		for k in 7:
