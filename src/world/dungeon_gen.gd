@@ -1893,6 +1893,9 @@ static func _ground_cover(lay: Layout, r: Room) -> void:
 		kinds = [[0, 3], [1, 2], [2, 3], [4, 2], [5, 3]]
 	elif lay.depth >= 3:
 		kinds = [[1, 4], [2, 4], [4, 1], [5, 2]]
+	# what the region's altar was answered: a Vigil kept, and flowers come back
+	if Chronicle.site_of(lay.world, lay.region) == "kindled":
+		kinds = kinds + [[3, 6]]
 	var bag: Array = []
 	for k in kinds:
 		for n in k[1]:

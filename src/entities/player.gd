@@ -203,10 +203,12 @@ func rebuild_stats() -> void:
 	var equipped: Dictionary = Profile.equipped()
 	if sheet.is_empty():
 		SkillDB.apply(Profile.skills(), stats)
+		_aura_branch = Player.aura_branch(Profile.skills())
 		Profile.apply_sanctuary(stats)
 		Profile.apply_gear(stats)
 	else:
 		SkillDB.apply(sheet.get("skills", ["hearth"]), stats)
+		_aura_branch = Player.aura_branch(sheet.get("skills", []))
 		Profile.apply_sanctuary_data(sheet.get("sanctuary", {}), sheet.get("resident_mods", []), stats)
 		equipped = sheet.get("equipped", {})
 		ItemDB.apply_equipped(equipped, stats)
@@ -849,7 +851,44 @@ func _settle_deferred(now_all: bool) -> void:
 var _moth_t := 1.0
 
 
+## A build you can see: someone deep in one branch of the Hearthtree leaves a trace of it
+## as they move (frost underfoot, embers, shadow, dust). Each machine draws its own.
+const AURA_FROM := 12
+const AURA_RISE := {"rime": 0.2, "pyre": 1.6, "gloam": -0.3, "blade": 0.7, "bulwark": 0.1, "kindle": 1.1}
+var _aura_branch := ""
+var _trace_t := 0.0
+
+
+## Which branch this Kindled has gone deepest into, if deep enough to show.
+static func aura_branch(skills: Array) -> String:
+	var counts := {}
+	for id in skills:
+		for b in String(SkillDB.node(String(id)).get("branch", "")).split("|", false):
+			counts[b] = int(counts.get(b, 0)) + 1
+	var best := ""
+	var most := AURA_FROM - 1
+	for b: String in counts:
+		if int(counts[b]) > most:
+			most = int(counts[b])
+			best = b
+	return best
+
+
+func _aura_tick(dt: float) -> void:
+	if _aura_branch == "" or stage == null or stage.fx == null or vel.length() < 1.5 or height > 0.1:
+		return
+	_trace_t -= dt
+	if _trace_t > 0.0:
+		return
+	_trace_t = 0.14
+	var col: Color = SkillDB.BRANCHES[_aura_branch].color
+	Net.mute += 1
+	stage.fx.motes(pos + Vector2(randf_range(-0.2, 0.2), randf_range(-0.1, 0.1)), 0.1, col, 1, float(AURA_RISE.get(_aura_branch, 0.5)), 0.5, 0.15)
+	Net.mute -= 1
+
+
 func _timers(dt: float) -> void:
+	_aura_tick(dt)
 	if stats.has("moth_swarm") and stage is Dungeon:
 		_moth(dt)
 	for i in ability_cd.size():
@@ -2310,6 +2349,7 @@ func set_seat(col: Color, mine := false) -> void:
 
 ## Co-op client: the picture of a Kindled the host simulates.
 func replica_present(dt: float) -> void:
+	_aura_tick(dt)
 	if can_predict():
 		_predict(dt)
 		return

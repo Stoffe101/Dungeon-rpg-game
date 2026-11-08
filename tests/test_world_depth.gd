@@ -508,3 +508,12 @@ func test_grown_sheets_exist_for_every_path_of_every_great_weapon() -> void:
 		check(ResourceLoader.exists("res://assets/sprites/%s_awake.png" % sprite), "%s awake" % base)
 		for p: Dictionary in Evolutions.PATHS[base]:
 			check(ResourceLoader.exists("res://assets/sprites/%s_%s.png" % [sprite, p.id]), "%s %s" % [base, p.id])
+
+
+func test_a_build_deep_in_one_branch_shows_and_a_shallow_one_does_not() -> void:
+	var deep: Array = ["hearth"]
+	for n in SkillDB.NODES:
+		if String(n.get("branch", "")) == "rime":
+			deep.append(String(n.id))
+	eq(Player.aura_branch(deep), "rime", "deep in Rime")
+	eq(Player.aura_branch(["hearth", "b1", "b2"]), "", "a handful of points is nobody yet")

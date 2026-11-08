@@ -463,7 +463,7 @@ def cmd_perf(args):
     sync(quiet=True)
     rows = []
     for res in ["3440x1440", "1920x1080"]:
-        for region in ["throne", "ossuary"]:
+        for region in ["throne", "ossuary", "rootmire"]:
             name = "perf_%s_%s" % (res, region)
             log = os.path.join(LOGS, name + ".log")
             p = launch(name, ["--resolution", res, "--", "scene=dungeon", "region=" + region, "depth=2", "seed=7", "autopilot", "godmode",
