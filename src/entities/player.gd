@@ -1490,6 +1490,8 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 				cc = 1.0
 			if cc > 0.0 and randf() < cc:
 				h.chill += 0.3 + stats.v("chill_power")
+			if h.has_tag("freeze_chilled") and t.status.chill > 0.0:
+				t.status.apply_chill(1.0)     # (Cold Aim at full Focus: the chilled freeze)
 			if h.has_tag("frost"):
 				h.chill += stats.v("chill_power")
 		if counter_ready:

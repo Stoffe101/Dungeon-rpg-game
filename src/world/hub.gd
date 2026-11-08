@@ -496,6 +496,12 @@ func _keepsakes() -> void:
 		if (camp.trophies as Array).has(t[0]):
 			Prop.make(self, "trophy", Vector2i(30 + i * 2, 4), {"sheet": t[1], "prompt": t[2], "radius": 1.1, "solid": true,
 				"lines": t[4], "light": [t[3], 0.7, 2.6], "light_h": 1.0})
+	# what has fallen to you, hung where everyone can see it
+	var hung := 0
+	for pair: Array in [["warden_kills", "warden"], ["bloom_kills", "bloom"], ["ashen_king_kills", "king"]]:
+		if int(Profile.data.world.get(pair[0], 0)) > 0:
+			Prop.make(self, "trophy", Vector2i(24 + hung * 2, 3), {"sheet": "guardian_trophy", "anim": pair[1], "h": 1.1, "z": 0.05})
+			hung += 1
 	# feat lanterns along the south wall
 	var xs := [5, 7, 9, 11, 13, 15, 27, 29, 32, 34, 36]
 	var lit := int(ceil(int(camp.feats) * xs.size() / float(Feats.FEATS.size())))

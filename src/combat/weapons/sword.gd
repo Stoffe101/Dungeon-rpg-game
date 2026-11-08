@@ -205,6 +205,7 @@ func _thrust() -> void:
 
 
 func on_evade() -> void:
+	super.on_evade()
 	if form == "duelist" and not riposte:
 		riposte = true
 		if visual:

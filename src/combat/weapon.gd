@@ -43,6 +43,11 @@ func draw_time() -> float:
 	return charge_time / speed()
 
 
+## Turned Aside: how long the next blow is still opened up (Weapon.on_evade).
+var _aside_t := 0.0
+const ASIDE := 1.6
+
+
 ## How this weapon was really used (read by the bench).
 var tally := {}
 ## A grown weapon's path (its id and colour), set in setup.
@@ -263,8 +268,23 @@ func _practised(key: String) -> void:
 
 ## A blow's share of the techniques: the multiplier on this one foe, and its touch.
 func _technique(a: Actor, h: Hit, along := -1.0) -> void:
+	if _aside_t > 0.0:
+		# (Turned Aside: the dodge or the Ward opened this one up)
+		_aside_t = 0.0
+		h.forced_crit = true
+		player.cosmetic(func() -> void:
+			player.stage.fx.number(a.pos, 1.9, "TURNED ASIDE", Color(0.8, 0.6, 1.0)))
 	if cadenced:
 		h.amount *= CADENCE_MULT
+		if player.stats.has("banked_strikes") and not predicting:
+			player.gain_kindle(2.5)
+			if cadence_run == 3:
+				player.cosmetic(func() -> void:
+					player.stage.fx.flash_light(player.pos, 1.0, Color(1.0, 0.7, 0.35), 2.0, 6.0, 0.35))
+		if player.stats.has("searing_time"):
+			if a.status.burning():
+				h.amount *= 1.5
+			h.burn = maxi(h.burn, 1)
 		if cadence_run >= 3:
 			h.poise *= 1.6     # the third in time lands like a finisher
 		if player.stats.has("perfect_cadence"):
@@ -282,6 +302,9 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 		if e.facing.dot((a.pos - player.pos).normalized()) > 0.35:
 			h.forced_crit = true
 			_practised("behind")
+			if player.stats.has("rime_knife") and a.status.chill > 0.0:
+				h.amount *= 1.5
+				a.status.chill = 0.0
 			player.cosmetic(func() -> void:
 				player.stage.fx.number(a.pos, 1.9, "BEHIND", Color(0.8, 0.6, 1.0)))
 
@@ -293,6 +316,9 @@ func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 		return
 	_breaking = true
 	_practised("breaker")
+	if player.stats.has("breakers_coal") and not predicting:
+		player.gain_kindle(12.0)
+		h.burn = maxi(h.burn, 1)
 	var heavy := player.stats.has("vanguard")
 	var reach := 5.2 if heavy else 2.6
 	player.cosmetic(func() -> void:
@@ -487,6 +513,8 @@ func max_combo() -> int:
 
 ## A perfect dodge or a Ward (a form may answer: the Sabre's riposte).
 func on_evade() -> void:
+	if player and player.stats and player.stats.has("turned_aside"):
+		_aside_t = ASIDE
 	pass
 
 
@@ -605,6 +633,7 @@ func hit_flash() -> void:
 
 
 func update_visual(_dt: float) -> void:
+	_aside_t = maxf(0.0, _aside_t - _dt)
 	if visual == null:
 		return
 	_evo_mark_t = maxf(0.0, _evo_mark_t - _dt)

@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"bloom": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"king": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		},
+		"warden": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		}
+	},
+	"emit": true,
+	"frame": [
+		18,
+		22
+	],
+	"origin": [
+		9,
+		21
+	]
+}

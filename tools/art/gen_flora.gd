@@ -12,6 +12,7 @@ const Pal = preload("res://src/render/pal.gd")
 
 
 static func build(dir: String) -> void:
+	_trophies(dir)
 	_ground_cover(dir)
 	_thicket(dir)
 	_bramble(dir)
@@ -19,6 +20,33 @@ static func build(dir: String) -> void:
 	_tree(dir)
 	_rock(dir)
 	_log(dir)
+
+
+## What the sanctuary hangs on its back wall for each guardian that has fallen.
+static func _trophies(dir: String) -> void:
+	var s := Sheet.new(18, 22, Vector2i(9, 21))
+	for spec in [["warden", Pal.STEEL, Pal.SOUL], ["bloom", Pal.WOOD, Pal.BLOOD], ["king", Pal.OBSIDIAN, Pal.GOLD]]:
+		var c := Px.new(18, 22)
+		var plate := c.mask().rect(2, 2, 14, 15)
+		c.paint(plate, spec[1], 2, true, true)
+		c.paint(c.mask().rect(4, 17, 10, 3), spec[1], 1, true, false)
+		match String(spec[0]):
+			"warden":
+				c.fill_lit(c.mask().ellipse(9.0, 9.0, 3.0, 4.0), spec[2][3])
+				c.line(6, 5, 12, 13, Pal.INK)
+			"bloom":
+				for a in 5:
+					var v := Vector2.from_angle(float(a) / 5.0 * TAU) * 4.0
+					c.fill(c.mask().ellipse(9.0 + v.x, 9.0 + v.y, 2.0, 2.0), spec[2][2])
+				c.fill_lit(c.mask().ellipse(9.0, 9.0, 1.6, 1.6), Pal.EMBER[4])
+			_:
+				for x in [5, 9, 13]:
+					c.line(x, 11, x, 5, spec[2][3])
+				c.line(4, 12, 14, 12, spec[2][3])
+				c.lit(9, 8, Pal.EMBER[4])
+		c.outline(Pal.INK)
+		s.add(String(spec[0]), [c], 1.0)
+	s.save(dir, "guardian_trophy")
 
 
 # --- ground cover (FloraField draws these) ------------------------------------------

@@ -25,6 +25,13 @@ const LIST := [
 	{"id": "wards", "title": "Late, Not Early", "line": "Turn aside ten blows with a clean Ward.", "key": "ward", "goal": 10, "pay": {"embers": 150, "xp": 110}},
 	{"id": "lantern", "title": "What You Dropped", "line": "Relight your own cold lantern.", "key": "lantern", "goal": 1, "pay": {"embers": 200, "sunshards": 1}},
 	{"id": "shard", "title": "Warm Stones", "line": "Bring home two Sunshards.", "key": "sunshard", "goal": 2, "pay": {"embers": 220, "material": ["sun_gold", 1]}},
+	# longer errands: one thing leads to the next
+	{"id": "c_clapper", "title": "The Bellfounder's Clapper", "line": "Teodric swears the old bell's clapper is still down there.", "key": "", "goal": 3,
+		"stages": [["chest", 3, "Open three chests for word of it."], ["vault", 1, "Open the barred vault it was kept in."], ["grudge", 1, "Whatever took it holds a Grudge: settle one."]], "pay": {"embers": 420, "sunshards": 2, "rune": true}},
+	{"id": "c_tremor", "title": "What Moves Under the Floor", "line": "The Hearth shook. Three nights, the same hour.", "key": "", "goal": 3,
+		"stages": [["elite", 2, "Bring down two champions and ask them with your blade."], ["rule", 1, "Win a fight the floor itself has rules for."], ["form", 1, "Fell a guardian in a form you have not learned."]], "pay": {"embers": 480, "material": ["ember_core", 3]}},
+	{"id": "c_seedbed", "title": "A Bed for the Seedlings", "line": "Ama wants soil from under a room that was fought over.", "key": "", "goal": 3,
+		"stages": [["bramble", 8, "Clear eight thorns: they strangle what grows."], ["room_kill", 2, "Let the room do your work twice: what falls feeds the soil."], ["chest", 2, "Bring back two caches of seed."]], "pay": {"embers": 300, "xp": 260, "material": ["rootwood", 5]}},
 	# a technique practised: these go up for whoever has the technique to practise
 	{"id": "t_cadence", "title": "In Time", "line": "Land thirty strikes in Cadence.", "key": "cadence", "goal": 30, "tech": "cadence", "pay": {"embers": 220, "xp": 150}},
 	{"id": "t_behind", "title": "From the Shadows", "line": "Strike twenty foes from behind.", "key": "behind", "goal": 20, "tech": "behind", "pay": {"embers": 220, "material": ["soul_glass", 2]}},
@@ -134,6 +141,22 @@ static func note(key: String, amount := 1) -> Array:
 	var done: Array = []
 	for t in taken():
 		var c := def_of(String(t.id))
+		if c.has("stages"):
+			# an errand: only the stage it has reached counts
+			if int(t.n) >= int(c.goal):
+				continue
+			var st: Array = c.stages[int(t.n)]
+			if String(st[0]) != key:
+				continue
+			t["s"] = int(t.get("s", 0)) + amount
+			if int(t.s) >= int(st[1]):
+				t.s = 0
+				t.n = int(t.n) + 1
+				if int(t.n) >= int(c.goal):
+					done.append(String(c.title))
+				else:
+					done.append("%s: %s" % [c.title, c.stages[int(t.n)][2]])
+			continue
 		if String(c.get("key", "")) != key or int(t.n) >= int(c.goal):
 			continue
 		t.n = mini(int(t.n) + amount, int(c.goal))
@@ -199,5 +222,9 @@ static func journal() -> Array:
 	var out: Array = []
 	for t in taken():
 		var c := def_of(String(t.id))
+		if c.has("stages") and not finished(t):
+			var st: Array = c.stages[int(t.n)]
+			out.append(["%s - %s  %d/%d" % [c.title, st[2], int(t.get("s", 0)), int(st[1])], "active"])
+			continue
 		out.append(["%s - %s  %d/%d" % [c.title, c.line, int(t.n), int(c.goal)], "complete" if finished(t) else "active"])
 	return out

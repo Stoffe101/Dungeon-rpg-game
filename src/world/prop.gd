@@ -207,6 +207,10 @@ func _build() -> void:
 			stops_shots = true
 			strike_radius = 0.55
 			data["hp"] = 3 if kind == "bramble" else 6
+			if data.get("spoor", false):
+				# (pale: the thorns the quarry marked, for those who read them)
+				sprite.set_tint(Color(0.8, 0.95, 1.0))
+				_light(Color(0.45, 0.95, 0.9), 0.7, 3.0, Vector3(0, 0.8, 0.2))
 			if kind == "root_node":
 				sprite.set_tint(Color(1.0, 0.55, 0.6))
 				_light(Color(1.0, 0.4, 0.6), 1.2, 4.0, Vector3(0, 0.8, 0.2))
@@ -999,6 +1003,8 @@ func _burn_tick(dt: float) -> void:
 
 
 func _clear_bramble(burnt: bool) -> void:
+	if data.get("spoor", false) and not used and stage is Dungeon and not Net.is_client():
+		(stage as Dungeon).hunt_sign("You cut its mark out of the thorns")
 	if not used and stage is Dungeon and kind != "root_node":
 		(stage as Dungeon).note_request("bramble")
 	used = true

@@ -211,8 +211,10 @@ func _one_arrow(d: Vector2, dmg: float, pierce: int, perfect: bool, group: Dicti
 	if ascended():
 		pr.burn = 1
 		pr.tags.append("fire")
-	if form == "glacial":
+	if form == "glacial" or (perfect and player.stats.has("cold_aim")):
 		pr.tags.append("frost")
+	if perfect and player.stats.has("cold_aim") and focus >= focus_max() and focus_max() > 0:
+		pr.tags.append("freeze_chilled")
 		pr.chill = 0.25
 		pr.trail_color = Color(0.7, 0.9, 1.0)
 	if perfect:

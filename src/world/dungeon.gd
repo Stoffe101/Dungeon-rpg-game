@@ -129,7 +129,10 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for k in pr.taken:
 			_taken_before += float(pr.taken[k])
 	_rooms_before = run.rooms_cleared
-	if hunted() and not layout.boss_depth:
+	if hunted() and not layout.boss_depth and layout.hunt_style != "trail":
+		var line := "Its scouts are ahead of it on this floor. Bring them down" if layout.hunt_style == "scouts" else "It marked the thorns in passing. Cut the pale ones"
+		after(2.5, func() -> void: Events.banner.emit("The Hunt", line))
+	elif hunted() and not layout.boss_depth:
 		after(2.5, func() -> void: Events.banner.emit("The Hunt", "Two signs of its trail lie on this floor, and its harbinger walks ahead"))
 	if layout.depth > 3 and not Delve.band(layout.depth).is_empty():
 		var b := Delve.band(layout.depth)
@@ -356,6 +359,11 @@ func _grow_flora() -> void:
 	flora.name = "Flora"
 	add_child(flora)
 	flora.build(self, rooms)
+	if Chronicle.site_of(run.world, layout.region) == "broken":
+		# the Broken altar: what grew here is burnt to stubs in long scars across the floor
+		for t: Vector2i in flora.tiles():
+			if posmod(t.x + t.y * 2, 5) < 2:
+				flora.scorch(Vector2(t) + Vector2(0.5, 0.5), 0.2)
 
 
 func _place_props() -> void:
@@ -369,7 +377,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low", "spoor"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			for more in ["anim", "tier"]:
@@ -1143,7 +1151,8 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 	if r.harbinger and hunted():
 		after(0.6, func() -> void:
 			var g := EnemyDB.get_def(String(region.boss))
-			var e := _champion("Harbinger of %s" % String(g.get("name", "the Guardian")).trim_prefix("The "), 2.2)
+			var scout := layout.hunt_style == "scouts"
+			var e := _champion(("Scout of %s" if scout else "Harbinger of %s") % String(g.get("name", "the Guardian")).trim_prefix("The "), 1.5 if scout else 2.2)
 			if e:
 				e.set_meta("harbinger", true)
 				Events.banner.emit("Its Harbinger", "It went ahead of its master. It knows the way"))
@@ -2884,12 +2893,17 @@ var _boss_flasks := 0
 
 func _guardian_hoard(e: Enemy) -> void:
 	if e.has_meta("quarry"):
-		# a hunt's end: its weapon for certain, and everything great worn remembers it
+		# a hunt's end: the first of each guardian pays its weapon for certain; later ones
+		# one time in three, or its stuff (a hunt must not be the only sensible expedition)
 		var wleg: String = ItemDB.BOSS_WEAPONS.get(layout.region, "")
-		if wleg != "":
+		var before := Chronicle.marks("hunted_" + layout.region)
+		Chronicle.mark("hunted_" + layout.region)
+		if wleg != "" and (before == 0 or rng.randf() < 0.34):
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(wleg, "legendary", 1, rng, run.tier))
+		else:
+			Pickup.spawn(self, "sunshard", e.pos, 2)
 		for pr in _party_runs():
-			pr.resonance_bonus += 100
+			pr.resonance_bonus += 100 if before == 0 else 60
 		note_request("hunt_" + layout.region)
 		Chronicle.mark("hunts")
 		Chronicle.note("%s was hunted down through its own halls." % e.display_name)

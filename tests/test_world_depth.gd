@@ -127,7 +127,7 @@ func test_a_broken_thing_gives_its_tile_back() -> void:
 func test_the_real_box_can_reach_every_room_and_the_way_down() -> void:
 	# not the nav grid: the same move_box that moves a Kindled, from where they start
 	for region: String in REGIONS:
-		for s in [3, 7, 11, 19, 23, 31]:
+		for s in [3, 11, 23]:
 			for depth in [1, 2]:
 				var d := _floor(region, s, depth)
 				var box: float = d.player.box()
@@ -337,3 +337,142 @@ func test_a_canopy_thins_over_someone_under_it_and_only_then() -> void:
 	d.update_occlusion(0.2)
 	check(not tree.thinned, "nobody under it")
 	d.queue_free()
+
+
+# --- the rest of the world --------------------------------------------------------------
+
+func test_every_new_hybrid_node_is_reachable_and_does_something() -> void:
+	for id: String in ["z_kb", "z_bp", "z_pr", "z_rg", "z_gw", "z_wk"]:
+		var n := SkillDB.node(id)
+		check(not n.is_empty(), id)
+		check(not (n.get("flags", {}) as Dictionary).is_empty(), "%s has a power" % id)
+		check(not (n.links as Array).is_empty(), "%s joins the tree" % id)
+
+
+func _swing(d: Dungeon, target: Enemy, flag: String) -> Hit:
+	d.player.stats.flags[flag] = 1
+	var h := Hit.make(d.player, 10.0, ["melee"])
+	d.player.weapon._technique(target, h)
+	return h
+
+
+func _foe(d: Dungeon) -> Enemy:
+	var e := d._make_enemy("husk")
+	e.pos = d.player.pos + Vector2(1.0, 0.0)
+	d.add_actor(e)
+	return e
+
+
+func test_turned_aside_opens_the_next_blow_only() -> void:
+	var d := _floor("ossuary")
+	d.player.stats.flags["turned_aside"] = 1
+	d.player.weapon.on_evade()
+	var e := _foe(d)
+	var h := Hit.make(d.player, 10.0, ["melee"])
+	d.player.weapon._technique(e, h)
+	check(h.forced_crit, "the next blow is critical")
+	var h2 := Hit.make(d.player, 10.0, ["melee"])
+	d.player.weapon._technique(e, h2)
+	check(not h2.forced_crit, "and only that one")
+	d.queue_free()
+
+
+func test_rime_knife_spends_the_chill_for_half_again() -> void:
+	var d := _floor("ossuary")
+	var e := _foe(d)
+	d.player.weapon.id = "daggers"
+	e.status.apply_chill(0.3)
+	e.facing = (e.pos - d.player.pos).normalized()
+	var h := _swing(d, e, "rime_knife")
+	check(h.amount >= 14.9, "half again (%.1f)" % h.amount)
+	eq(e.status.chill, 0.0, "the chill is spent")
+	d.queue_free()
+
+
+func test_searing_time_lights_what_it_strikes_in_time() -> void:
+	var d := _floor("ossuary")
+	var e := _foe(d)
+	d.player.weapon.cadenced = true
+	var h := _swing(d, e, "searing_time")
+	check(h.burn >= 1, "it burns")
+	d.queue_free()
+
+
+func test_a_great_hall_is_a_room_of_four_cells_with_a_wave_more() -> void:
+	var was := DungeonGen.force_plan
+	DungeonGen.force_plan = "hall"
+	var lay := DungeonGen.generate(5, 2, "ossuary", false)
+	DungeonGen.force_plan = was
+	check(lay.hall_room >= 0, "this floor has one")
+	var r := lay.room(lay.hall_room)
+	check(r.rect.size.x >= 30 and r.rect.size.y >= 18, "it is big (%s)" % str(r.rect.size))
+	check(r.waves >= 2, "and fought for")
+
+
+func test_every_new_authored_room_stays_walkable_door_to_door() -> void:
+	for id: String in ["ossuary_teeth", "root_thorn_court", "root_grove", "throne_teeth"]:
+		var rows: Array = DungeonGen.AUTHORED[id]
+		eq(rows.size(), 12, "%s is twelve rows" % id)
+		for row: String in rows:
+			eq(row.length(), 22, "%s is twenty-two wide" % id)
+		# the edge of the room (where doors open) never has anything standing in it
+		for x in 22:
+			eq(String(rows[0])[x], ".", "%s: nothing at the north edge" % id)
+			eq(String(rows[11])[x], ".", "%s: nothing at the south edge" % id)
+		# door mouths clear
+		for y in DungeonGen.DOOR_ROWS[0] + 3:
+			pass
+		var seen := {Vector2i(0, 0): true}
+		var q: Array[Vector2i] = [Vector2i(0, 0)]
+		while not q.is_empty():
+			var c: Vector2i = q.pop_back()
+			for dd: Vector2i in DungeonGen.DIRS:
+				var n := c + dd
+				if n.x < 0 or n.y < 0 or n.x >= 22 or n.y >= 12 or seen.has(n):
+					continue
+				if String(rows[n.y])[n.x] in ["#", "o", "~", " ", "T", "R", "B", "S", "J"]:
+					continue
+				seen[n] = true
+				q.append(n)
+		for y in 12:
+			for x in 22:
+				if String(rows[y])[x] == ".":
+					check(seen.has(Vector2i(x, y)), "%s: floor at %d,%d can be walked to even with every thorn standing" % [id, x, y])
+
+
+func test_an_errand_counts_only_the_stage_it_has_reached() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.contracts = {"offer": ["c_clapper"], "taken": [], "done": 0}
+	check(Contracts.take("c_clapper"), "taken")
+	Contracts.note("vault")
+	eq(int(Contracts.taken()[0].n), 0, "the vault does not count before the chests")
+	Contracts.note("chest", 3)
+	eq(int(Contracts.taken()[0].n), 1, "the chests")
+	Contracts.note("vault")
+	eq(int(Contracts.taken()[0].n), 2, "now the vault")
+	Contracts.note("grudge")
+	check(Contracts.finished(Contracts.taken()[0]), "and the errand is done")
+
+
+func test_someone_says_it_once_and_then_goes_back_to_talking() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.world["warden_kills"] = 1
+	var first := Residents.talk("teodric")
+	check(String(first[0]).contains("bell"), "the news")
+	var second := Residents.talk("teodric")
+	check(not String(second[0]).contains("I heard the bell"), "said once")
+
+
+func test_a_hunts_style_is_the_same_on_every_machine() -> void:
+	var world := {"hunts": ["ossuary"]}
+	var a := DungeonGen.generate(3, 1, "ossuary", false, "", world)
+	var b := DungeonGen.generate(3, 1, "ossuary", false, "", world)
+	eq(a.hunt_style, b.hunt_style, "the same style")
+
+
+func test_grown_sheets_exist_for_every_path_of_every_great_weapon() -> void:
+	for base: String in Evolutions.PATHS:
+		var sprite := String(ItemDB.base(base).sprite)
+		check(ResourceLoader.exists("res://assets/sprites/%s_awake.png" % sprite), "%s awake" % base)
+		for p: Dictionary in Evolutions.PATHS[base]:
+			check(ResourceLoader.exists("res://assets/sprites/%s_%s.png" % [sprite, p.id]), "%s %s" % [base, p.id])

@@ -29,6 +29,66 @@ const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), 
 ## . floor, # wall, o pillar, ~ pit, space void. Doors are kept clear after.
 const AUTHORED := {
 	# rooms built around the devices (S strut, J kindle jar, V rime vent: floor with a device on it)
+	# the Toothed Hall: rows of traps with waves running through them, ways between
+	"ossuary_teeth": [
+		"......................",
+		"..^^^^^^......^^^^^^..",
+		"......................",
+		"......................",
+		"....^^^...oo...^^^....",
+		"....^^^........^^^....",
+		"....^^^........^^^....",
+		"....^^^...oo...^^^....",
+		"......................",
+		"......................",
+		"..^^^^^^......^^^^^^..",
+		"......................",
+	],
+	# the Thorn Court: thorns to cut, hedges that will not be cut
+	"root_thorn_court": [
+		"......................",
+		"..TTT..BB....BB..TTT..",
+		"..T.................T.",
+		"......................",
+		"....BB..........BB....",
+		"....B............B....",
+		"....B............B....",
+		"....BB..........BB....",
+		"......................",
+		"..T.................T.",
+		"..TTT..BB....BB..TTT..",
+		"......................",
+	],
+	# a grove that grew in a hall: fight under the canopies
+	"root_grove": [
+		"......................",
+		"...R..............R...",
+		"......................",
+		"..........TT..........",
+		"......................",
+		".....T..........T.....",
+		".....T..........T.....",
+		"......................",
+		"..........TT..........",
+		"......................",
+		"......................",
+		"......................",
+	],
+	# the Burning Aisle: teeth between the columns of the court
+	"throne_teeth": [
+		"......................",
+		"...o...^^^^^^^^...o...",
+		"......................",
+		"...^^............^^...",
+		"...^^....o..o....^^...",
+		"......................",
+		"......................",
+		"...^^....o..o....^^...",
+		"...^^............^^...",
+		"......................",
+		"...o...^^^^^^^^...o...",
+		"......................",
+	],
 	# the leaning hall: two rows of cracked columns, and whatever stands under them
 	"ossuary_leaning": [
 		"......................",
@@ -249,10 +309,10 @@ const AUTHORED := {
 		"......................",
 	],
 }
-const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite", "ossuary_leaning", "ossuary_cold_crypt"],
-	"rootmire": ["root_hollow", "root_tangle", "root_court", "root_cellar"],
-	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery", "throne_ember_aisle"]}
-const AUTHORED_DEVICES := {"S": "strut", "J": "kindle_jar", "V": "rime_vent"}
+const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite", "ossuary_leaning", "ossuary_cold_crypt", "ossuary_teeth"],
+	"rootmire": ["root_hollow", "root_tangle", "root_court", "root_cellar", "root_thorn_court", "root_grove"],
+	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery", "throne_ember_aisle", "throne_teeth"]}
+const AUTHORED_DEVICES := {"S": "strut", "J": "kindle_jar", "V": "rime_vent", "^": "spikes", "B": "bramble", "T": "thicket", "R": "tree"}
 
 
 
@@ -290,7 +350,8 @@ static var _world_now: Dictionary = {}
 ##   direct: short and to the point. A breather, or a rare way's one idea.
 ##   wing: a vault near the start behind barred doors, its key far from the main way.
 ##   ring: a barred way back from late in the floor to its start, opened from the far side.
-const PLANS := {"plain": 34, "direct": 20, "wing": 30, "ring": 16}
+##   hall: a great hall on the main path, four rooms' worth, one more wave and a hoard in it.
+const PLANS := {"plain": 26, "direct": 18, "wing": 26, "ring": 16, "hall": 14}
 
 
 static func plan_of(seed_v: int, depth: int, boss_depth: bool, route := "") -> String:
@@ -337,6 +398,8 @@ static func route_def(id: String) -> Dictionary:
 
 class Layout:
 	var seed := 0
+	var hall_room := -1        # the great hall of a "hall" floor, or -1
+	var hunt_style := "trail"  # how this floor's hunt is read (_hunt_signs)
 	var depth := 1
 	var region := "ossuary"
 	var boss_depth := false
@@ -390,7 +453,7 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 			_landmark(lay, seed_v)
 			DeepEvents.rule_room(lay, seed_v)
 			_hunt_signs(lay, seed_v)
-			if lay.region == "rootmire":
+			if lay.region == "rootmire" or String(Delve.band(depth).get("id", "")) == "overgrown":
 				for r in lay.rooms:
 					_ground_cover(lay, r)     # (last: it grows around whatever else was placed)
 			_route = ""
@@ -420,17 +483,33 @@ static func _hunt_signs(lay: Layout, seed_v: int) -> void:
 	rng.seed = hash([seed_v, lay.depth, "hunt"])
 	var cands: Array = lay.rooms.filter(func(r): return r.type == Room.Type.COMBAT and r.objective == "" and r.landmark == "" and r.rule == "" and r.id != lay.start_id)
 	_shuffle(cands, rng)
+	# not every hunt reads the same: a trail, its scouts out ahead of it, or (in the
+	# Rootmire) thorns it marked in passing
+	var style: String = ["trail", "scouts", "marked"][posmod(hash([seed_v, lay.depth, "style"]), 3)]
+	if style == "marked" and lay.region != "rootmire":
+		style = "scouts"
+	if force_hunt_style != "":
+		style = force_hunt_style
+	lay.hunt_style = style
+	if style == "scouts":
+		for k in mini(3, cands.size()):
+			(cands[k] as Room).harbinger = true
+		return
 	for k in mini(2, cands.size()):
 		var r: Room = cands[k]
 		var t := _clear_tile(lay, r, rng, false)
 		if t.x >= 0:
-			r.props.append({"kind": "site", "tile": t, "event": "spoor"})
+			if style == "marked":
+				r.props.append({"kind": "bramble", "tile": t, "spoor": true})
+			else:
+				r.props.append({"kind": "site", "tile": t, "event": "spoor"})
 	if cands.size() > 2:
 		(cands[2] as Room).harbinger = true
 
 
 ## Dev (`plan=wing`): every floor takes this plan.
 static var force_plan := ""
+static var force_hunt_style := ""     # (tests)
 static var _attempt := 0
 
 
@@ -513,6 +592,32 @@ static func _try_generate(rng: RandomNumberGenerator, depth: int, region: String
 			_link(links, i - 1, i, path[i - 1], path[i])
 	types[0] = Room.Type.START
 	var last := path.size() - 1
+
+	# a great hall: one room of the path takes four cells
+	if _plan == "hall" and not boss_depth:
+		var made_hall := false
+		var picks := range(2, last)
+		_shuffle(picks, rng)
+		for i in picks:
+			var c: Vector2i = path[i]
+			for ox in [0, -1]:
+				for oy in [0, -1]:
+					var tl := c + Vector2i(ox, oy)
+					var blk: Array = [tl, tl + Vector2i(1, 0), tl + Vector2i(0, 1), tl + Vector2i(1, 1)]
+					var ok := true
+					for b: Vector2i in blk:
+						if b.x < 0 or b.y < 0 or b.x >= GW or b.y >= GH or (owner.has(b) and b != c):
+							ok = false
+							break
+					if ok and not made_hall:
+						for b: Vector2i in blk:
+							if b != c:
+								owner[b] = i
+								room_cells[i].append(b)
+						lay.hall_room = i
+						made_hall = true
+			if made_hall:
+				break
 
 	# 2. boss arena (2x2) or stairs
 	if boss_depth:
@@ -1014,7 +1119,12 @@ static func _authored_devices(r: Room, id: String, w: int, mirror: bool) -> void
 		for x in mini(w, row.length()):
 			var ch := row[(row.length() - 1 - x) if mirror else x]
 			if AUTHORED_DEVICES.has(ch):
-				r.props.append({"kind": AUTHORED_DEVICES[ch], "tile": r.rect.position + Vector2i(x, y)})
+				var pd := {"kind": AUTHORED_DEVICES[ch], "tile": r.rect.position + Vector2i(x, y)}
+				if ch == "^":
+					pd["phase"] = fposmod(float(x) * 0.22 + float(y) * 0.6, Prop.SPIKE_CYCLE)     # (a wave crossing the hall)
+				elif ch == "T" or ch == "R":
+					pd["anim"] = ["a", "b"][(x + y) % 2]
+				r.props.append(pd)
 
 
 ## A hand-made room, mirrored left-right half the time.
@@ -1024,6 +1134,8 @@ static func _stamp_authored(id: String, L: PackedByteArray, w: int, h: int, mirr
 		var row := String(rows[y])
 		for x in mini(w, row.length()):
 			var ch := row[(row.length() - 1 - x) if mirror else x]
+			if ch in ["^", "B", "T", "R"]:
+				ch = "."     # (a device stands on the floor)
 			var t: int = {".": TileGrid.FLOOR, "#": TileGrid.WALL, "o": TileGrid.PILLAR, "~": TileGrid.PIT, " ": TileGrid.VOID}.get(ch, TileGrid.FLOOR)
 			_put(L, w, h, x, y, t)
 
@@ -1314,6 +1426,9 @@ static func _populate(lay: Layout, rng: RandomNumberGenerator) -> void:
 				var b := budget if wv == 0 else int(budget * 0.75)
 				# (a Fracture's odd rooms belong to the region lying over this one)
 				r.encounter.append(EnemyDB.roll_encounter(rng, over if over != "" and r.id % 2 == 1 else lay.region, lay.depth, b))
+			if r.id == lay.hall_room:
+				r.waves += 1
+				r.encounter.append(EnemyDB.roll_encounter(rng, lay.region, lay.depth, budget))
 			if r.type == Room.Type.ELITE:
 				r.elite_affix = EnemyDB.AFFIXES.keys()[rng.randi_range(0, EnemyDB.AFFIXES.size() - 1)]
 		_decorate(lay, r, rng)
@@ -1425,7 +1540,8 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 				continue      # (a brazier or a great cap stands solid: never across a corner)
 			r.props.append({"kind": lamp, "tile": t})
 	var c := Vector2i(r.center())
-	if r.type == Room.Type.COMBAT and rng.randf() < 0.3:
+	var teeth := String(Delve.band(lay.depth).get("id", "")) == "teeth"
+	if r.type == Room.Type.COMBAT and (rng.randf() < 0.3 or teeth):
 		_trap_line(lay, r, rng)
 	if lay.region == "rootmire":
 		_root_decor(lay, r, rng, floor_tiles, wall_adj)
