@@ -143,6 +143,7 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #10 | `feature/living-undervault` | 11-05 | Redrawn stone, Chronicle, rival Grudges, Deep Events, Hollow identity, stockpile fix | "Great Underdeep" brief |
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
 | #12 | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
+| #14 (draft) | `feature/world-of-depth` | 11-08 | What stops you is what you see: a table of what things are made of, a new Rootmire, real spike traps, grown weapons drawn per path, hybrids, great halls, hunts that differ, errands, residents that notice | "The World of Depth" brief |
 | #13 (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
 
 ### Content inventory (checked against code at handoff)
@@ -219,6 +220,9 @@ someone's screen, which is why `docs/TESTING.md` exists.
 
 ### Found by real windows and processes
 
+- **A thorn cut on the host stayed solid on the guest's machine.** Prop state travelled without solidity, so
+  an obstacle could be open on one machine and shut on another. Found only by `scenario=depthworld`.
+
 - Foes' bars and nameplates lingering on guests' screens after they fell.
 - A party starting a floor behind a pillar.
 - A rejoined guest had no checkpoint if the host then left.
@@ -249,6 +253,8 @@ someone's screen, which is why `docs/TESTING.md` exists.
 - **The Gravecleaver** staggered whole packs every swing and took a twentieth of the damage
   other swords took (`-- weaponlab`); its cleaves' poise came down. **Unblinking** made the
   slowest build of eleven; its penalty halved.
+- **The bow "weak against guardians" (2026-11-08)** was the bot: `use: quick 215, drawn 0%` for one build,
+  draws let go during recovery for another. Read what a build actually did before tuning it.
 - **`kit=`** equipped a random kind of weapon, so a bench "with gear" once fought with the wrong
   weapon. It now keeps the build's weapon.
 
@@ -351,6 +357,7 @@ Use this rather than assuming. "None reported" means the owner has not said.
 | Foes, guardians, new foes (PR #11) | **None reported** | No | Yes (`guardian`, `bestiary`) | Yes | Yes |
 | Great Evolution pass (keys, devices, rule rooms, new foes, forms, evolutions, notices, HUD) | **None** | No | `ways` (2 and 4 players, netsim), regressions | Yes | Most |
 | Deepening pass (techniques, keystones, hunts, device rooms, altar consequences, notices) | **None** | No | `deep` (3 and 4 players, moderate and stress links), regressions | Yes | Most; Focus and a held grown weapon not clearly seen |
+| World of depth (collision language, Rootmire, traps, grown weapons, halls, hunts, errands) | **None** | No | `depthworld` (2, 4 players, stress), full regression | Yes | Most (see STATUS) |
 | A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Solo bots **without god mode**, real builds, three skill levels (`bossbench.py`) | Partly |
 | Steam: one account, private lobby, hosted session | No | No | Yes, on one account | | |
 | **Steam: a second player joining** | **No** | **No** | **Impossible on one account** | | |

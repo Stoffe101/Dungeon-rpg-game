@@ -56,6 +56,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	_place_locks()
 	_place_door_frames()
 	_place_door_icons()
+	_grow_flora()      # (last: a lock's plate or lever keeps its tile bare)
 	if grudge_room >= 0:
 		after(3.5, func() -> void: Events.toast.emit("Something on this floor remembers you. Its fires burn red.", Color(1.0, 0.45, 0.4)))
 	# the player (co-op: the whole party)
@@ -128,7 +129,10 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for k in pr.taken:
 			_taken_before += float(pr.taken[k])
 	_rooms_before = run.rooms_cleared
-	if hunted() and not layout.boss_depth:
+	if hunted() and not layout.boss_depth and layout.hunt_style != "trail":
+		var line := "Its scouts are ahead of it on this floor. Bring them down" if layout.hunt_style == "scouts" else "It marked the thorns in passing. Cut the pale ones"
+		after(2.5, func() -> void: Events.banner.emit("The Hunt", line))
+	elif hunted() and not layout.boss_depth:
 		after(2.5, func() -> void: Events.banner.emit("The Hunt", "Two signs of its trail lie on this floor, and its harbinger walks ahead"))
 	if layout.depth > 3 and not Delve.band(layout.depth).is_empty():
 		var b := Delve.band(layout.depth)
@@ -342,7 +346,29 @@ func _wall_lab(lay: DungeonGen.Layout) -> void:
 		r.props.append({"kind": "dressing", "tile": c + Vector2i(1, -3), "sheet": "statue"})
 
 
+func _grow_flora() -> void:
+	var rooms: Array = []
+	for r in layout.rooms:
+		# (what was set down last, a landmark's foot or a site, keeps its tile bare)
+		var plants: Array = r.flora.filter(func(f): return grid.at(floori(f.pos.x), floori(f.pos.y)) == TileGrid.FLOOR)
+		if not plants.is_empty():
+			rooms.append(plants)
+	if rooms.is_empty():
+		return
+	flora = FloraField.new()
+	flora.name = "Flora"
+	add_child(flora)
+	flora.build(self, rooms)
+	if Chronicle.site_of(run.world, layout.region) == "broken":
+		# the Broken altar: what grew here is burnt to stubs in long scars across the floor
+		for t: Vector2i in flora.tiles():
+			if posmod(t.x + t.y * 2, 5) < 2:
+				flora.scorch(Vector2(t) + Vector2(0.5, 0.5), 0.2)
+
+
 func _place_props() -> void:
+	if "worldlab" in Dev.args():
+		WorldLab.add(layout)
 	var flame: Color = region.flame
 	for r in layout.rooms:
 		for pd in r.props:
@@ -351,7 +377,7 @@ func _place_props() -> void:
 				extra["variant"] = pd.variant
 			if pd.has("row"):
 				extra["row"] = pd.row
-			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low"]:
+			for k in ["mat", "rich", "id", "urnling", "route", "flame", "sheet", "event", "choice", "label", "ask", "vote", "low", "spoor"]:
 				if pd.has(k):
 					extra[k] = pd[k]
 			for more in ["anim", "tier"]:
@@ -361,6 +387,8 @@ func _place_props() -> void:
 				extra.merge(DeepEvents.site_data(pd, layout.region, run.world), true)
 			if pd.kind == "dressing":
 				extra["sheet"] = pd.sheet
+				if pd.has("anim"):
+					extra["anim"] = pd.anim
 				if pd.get("wide", false):
 					extra["solid_tiles"] = [pd.tile, pd.tile + Vector2i(1, 0)]
 					extra["ox"] = 0.5
@@ -674,6 +702,7 @@ func _fell_strut(p: Prop, by: Node) -> void:
 			return
 		p.sprite.play("down")
 		p.stops_shots = false
+		p.unsolid()       # (down, it is rubble underfoot: it no longer stops anyone)
 		var covers := func(a: Actor) -> bool:
 			var v: Vector2 = a.pos - p.pos
 			var along := v.dot(dir)
@@ -697,6 +726,7 @@ func _burst_jar(p: Prop, by: Node) -> void:
 			return
 		if is_instance_valid(p) and p.sprite:
 			p.sprite.visible = false
+			p.unsolid()
 			if p.light:
 				p.light.visible = false
 		var covers := func(a: Actor) -> bool:
@@ -1123,7 +1153,8 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 	if r.harbinger and hunted():
 		after(0.6, func() -> void:
 			var g := EnemyDB.get_def(String(region.boss))
-			var e := _champion("Harbinger of %s" % String(g.get("name", "the Guardian")).trim_prefix("The "), 2.2)
+			var scout := layout.hunt_style == "scouts"
+			var e := _champion(("Scout of %s" if scout else "Harbinger of %s") % String(g.get("name", "the Guardian")).trim_prefix("The "), 1.5 if scout else 2.2)
 			if e:
 				e.set_meta("harbinger", true)
 				Events.banner.emit("Its Harbinger", "It went ahead of its master. It knows the way"))
@@ -2864,17 +2895,23 @@ var _boss_flasks := 0
 
 func _guardian_hoard(e: Enemy) -> void:
 	if e.has_meta("quarry"):
-		# a hunt's end: its weapon for certain, and everything great worn remembers it
+		# a hunt's end: the first of each guardian pays its weapon for certain; later ones
+		# one time in three, or its stuff (a hunt must not be the only sensible expedition)
 		var wleg: String = ItemDB.BOSS_WEAPONS.get(layout.region, "")
-		if wleg != "":
+		var before := Chronicle.marks("hunted_" + layout.region)
+		Chronicle.mark("hunted_" + layout.region)
+		if wleg != "" and (before == 0 or rng.randf() < 0.34):
 			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(wleg, "legendary", 1, rng, run.tier))
+		else:
+			Pickup.spawn(self, "sunshard", e.pos, 2)
 		for pr in _party_runs():
-			pr.resonance_bonus += 100
+			pr.resonance_bonus += 100 if before == 0 else 60
 		note_request("hunt_" + layout.region)
 		Chronicle.mark("hunts")
 		Chronicle.note("%s was hunted down through its own halls." % e.display_name)
 		Events.banner.emit("The Hunt Is Over", "Its weapon is yours, and everything great you carry remembers this")
 	if "bossquit" in Dev.args():
+		print("[bench] dealt: %s  use: %s  drawn %.0f%% of the time" % [str(run.dealt), str(player.weapon.tally if player and player.weapon else {}), Bot.drawn_share * 100.0])
 		# dev: a guardian fought to its end by real hits, timed
 		print("[dungeon] guardian felled: %s, %s left of the Kindled, %.0f s on this floor" % [e.display_name, player.hp_ratio() if player else 0.0, elapsed])
 		get_tree().quit()
@@ -2907,6 +2944,7 @@ func _party_runs() -> Array:
 
 func _on_player_died() -> void:
 	if "bossquit" in Dev.args() and player:
+		print("[bench] dealt: %s  use: %s  drawn %.0f%% of the time" % [str(run.dealt), str(player.weapon.tally if player and player.weapon else {}), Bot.drawn_share * 100.0])
 		# dev: a guardian fight to the end by real hits, told honestly when it is lost
 		var last: Array = []
 		for b in (run.blows as Array).slice(maxi(0, run.blows.size() - 3)):

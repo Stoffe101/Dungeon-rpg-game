@@ -393,6 +393,7 @@ func test_a_hunt_goes_up_only_once_its_guardian_has_fallen_and_is_always_on_the_
 
 
 func test_a_hunted_floor_holds_two_signs_and_a_harbinger_and_others_do_not() -> void:
+	DungeonGen.force_hunt_style = "trail"
 	var world := {"hunts": ["ossuary"]}
 	var hunted := 0
 	for s in range(1, 9):
@@ -412,6 +413,31 @@ func test_a_hunted_floor_holds_two_signs_and_a_harbinger_and_others_do_not() -> 
 	check(hunted >= 6, "a harbinger on nearly every floor (%d of 8)" % hunted)
 	for r in DungeonGen.generate(3, 1, "rootmire", false, "", world).rooms:
 		check(r.props.filter(func(p): return p.get("event", "") == "spoor").is_empty(), "only the hunted region")
+	DungeonGen.force_hunt_style = ""
+
+
+func test_not_every_hunt_is_read_the_same_way() -> void:
+	var world := {"hunts": ["rootmire"]}
+	DungeonGen.force_hunt_style = "scouts"
+	var lay := DungeonGen.generate(4, 2, "rootmire", false, "", world)
+	var harb := 0
+	var signs := 0
+	for r in lay.rooms:
+		harb += 1 if r.harbinger else 0
+		signs += r.props.filter(func(p): return p.kind == "site" and p.get("event", "") == "spoor").size()
+	check(harb >= 2, "scouts on the floor (%d)" % harb)
+	eq(signs, 0, "and no trail to read")
+	DungeonGen.force_hunt_style = "marked"
+	lay = DungeonGen.generate(4, 2, "rootmire", false, "", world)
+	var marked := 0
+	for r in lay.rooms:
+		marked += r.props.filter(func(p): return p.kind == "bramble" and p.get("spoor", false)).size()
+	eq(marked, 2, "two marked thorns")
+	DungeonGen.force_hunt_style = ""
+	var styles := {}
+	for s in range(1, 30):
+		styles[DungeonGen.generate(s, 2, "rootmire", false, "", world).hunt_style] = true
+	check(styles.size() >= 3, "all three turn up (%s)" % str(styles.keys()))
 
 
 func test_reading_signs_weakens_the_quarry_and_the_hunt_ends_in_its_rarer_form() -> void:
@@ -446,6 +472,7 @@ func test_reading_signs_weakens_the_quarry_and_the_hunt_ends_in_its_rarer_form()
 
 
 func test_a_sign_is_read_once_and_counts() -> void:
+	DungeonGen.force_hunt_style = "trail"
 	_hunter()
 	Contracts.take("hunt_ossuary")
 	var world := Chronicle.snapshot()
@@ -472,6 +499,7 @@ func test_a_sign_is_read_once_and_counts() -> void:
 
 
 # --- the Undervault's own rooms and what the altars change ----------------------------------
+	DungeonGen.force_hunt_style = ""
 
 func test_authored_device_rooms_place_their_devices_on_open_floor() -> void:
 	var found := {}

@@ -9,10 +9,15 @@ draw, so they never show up or take focus; they still render, and captures work.
     python tools/dev/bg.py test                         # headless unit tests
     python tools/dev/bg.py run NAME [--res WxH] [--timeout S] -- <game args>
     python tools/dev/bg.py e2e N SCENARIO [NETSIM ...]  # DEVNET, XARGS, LIMIT as for e2e.sh
+    python tools/dev/bg.py batch FILE                   # co-op runs one after another (see cmd_batch)
     python tools/dev/bg.py perf [--secs S]              # frame times, 3440x1440 and 1920x1080
     python tools/dev/bg.py focuscheck                   # proof: a rendered run never had focus
-    python tools/dev/bg.py clean                        # stop only processes this tool started
+    python tools/dev/bg.py clean                        # stop only processes this tool started (batches too)
     python tools/dev/bg.py sync                         # refresh the copy (every command does it)
+
+BG_COPY=<name> in the environment uses its own frozen copy of the project, so a long bench
+keeps running the code it started with while the work goes on. Only one co-op run at a time
+holds the network port: a second waits for the first (BG_WAIT seconds, default 900).
 
 Logs: captures/bg/<name>.log. Captures are copied back to captures/. Windows only for
 rendered runs (on Linux use xvfb-run, see docs/DEVELOPMENT_HANDOFF.md).
@@ -20,6 +25,7 @@ rendered runs (on Linux use xvfb-run, see docs/DEVELOPMENT_HANDOFF.md).
 import ctypes
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -31,7 +37,8 @@ GODOT = os.environ.get("GODOT", r"C:/Users/Skrra/Desktop/Godot_v4.7.2-stable_win
 if GODOT.startswith("/c/"):
     GODOT = "C:/" + GODOT[3:]
 BASE = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "KindledDeepBG")
-SNAP = os.path.join(BASE, "project")
+SNAP = os.path.join(BASE, "project" + ("_" + os.environ["BG_COPY"] if os.environ.get("BG_COPY") else ""))
+E2E_LOCK = os.path.join(BASE, "e2e.lock")
 STATE = os.path.join(BASE, "pids.json")
 LOGS = os.path.join(ROOT, "captures", "bg")
 USER_DIR = "KindledDeepBackgroundTests"
@@ -280,7 +287,119 @@ def _opt(opts, key, default):
 OUTFITS = ["emberwrought", "rimeguard", "gloamweave", "verdant"]
 
 
+def _pid_alive(pid):
+    if not WIN:
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+    r = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/FO", "CSV", "/NH"], capture_output=True, text=True)
+    return ('"%d"' % pid) in r.stdout
+
+
+def _take_e2e_lock():
+    """One co-op run at a time: they all listen on the same port and share e2e_ profiles
+    (two batches once ran over each other). A second run waits; a stale lock is taken over."""
+    os.makedirs(BASE, exist_ok=True)
+    deadline = time.time() + float(os.environ.get("BG_WAIT", "900"))
+    told = False
+    while True:
+        try:
+            fd = os.open(E2E_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return True
+        except FileExistsError:
+            try:
+                holder = int(open(E2E_LOCK).read().strip() or "0")
+            except (OSError, ValueError):
+                holder = 0
+            if holder == os.getpid():
+                return True
+            if holder == 0 or not _pid_alive(holder):
+                try:
+                    os.remove(E2E_LOCK)
+                except OSError:
+                    pass
+                continue
+            if time.time() > deadline:
+                print("[bg] another co-op run (pid %d) still holds the port; giving up" % holder)
+                return False
+            if not told:
+                print("[bg] waiting for the co-op run in pid %d to finish" % holder)
+                told = True
+            time.sleep(2.0)
+
+
+def _drop_e2e_lock():
+    try:
+        if int(open(E2E_LOCK).read().strip() or "0") == os.getpid():
+            os.remove(E2E_LOCK)
+    except (OSError, ValueError):
+        pass
+
+
 def cmd_e2e(args):
+    if not _take_e2e_lock():
+        return 3
+    try:
+        return _run_e2e(args)
+    finally:
+        _drop_e2e_lock()
+
+
+def cmd_batch(args):
+    """Co-op runs one after another, as one stoppable process. Each line of FILE:
+        name | ENV=val ENV2=val | n scenario [netsim ...]
+    Values may not hold a '|'; '#' starts a comment. Results: captures/bg/batch_<stem>/ (a
+    summary and each run's logs and captures)."""
+    stem = os.path.splitext(os.path.basename(args[0]))[0]
+    out = os.path.join(LOGS, "batch_" + stem)
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(out, exist_ok=True)
+    _record(os.getpid(), "batch " + stem)
+    if not _take_e2e_lock():
+        _forget(os.getpid())
+        return 3
+    summary = open(os.path.join(out, "summary.txt"), "w", encoding="utf-8")
+    worst = 0
+    try:
+        for line in open(args[0], encoding="utf-8"):
+            line = line.split("#")[0].strip()
+            if not line:
+                continue
+            name, env_part, cmd_part = [x.strip() for x in line.split("|")]
+            for k in ["DEVNET", "XARGS", "HXARGS", "GXARGS", "LIMIT", "RES"]:
+                os.environ.pop(k, None)
+            for pair in shlex.split(env_part):
+                k, v = pair.split("=", 1)
+                os.environ[k] = v
+            log_path = os.path.join(out, name + ".out")
+            real = sys.stdout
+            with open(log_path, "w", encoding="utf-8") as f:
+                sys.stdout = f
+                try:
+                    code = _run_e2e(shlex.split(cmd_part))
+                finally:
+                    sys.stdout = real
+            shutil.rmtree(os.path.join(out, name), ignore_errors=True)
+            shutil.copytree(os.path.join(LOGS, "e2e"), os.path.join(out, name))
+            text = open(log_path, encoding="utf-8", errors="replace").read()
+            picked = [ln for ln in text.splitlines() if "RESULT" in ln or "FAIL" in ln or "script errors" in ln]
+            summary.write("=== %s: %s  (exit %d)\n%s\n" % (name, cmd_part, code, "\n".join(picked[:40])))
+            summary.flush()
+            worst = max(worst, code)
+        summary.write("=== done\n")
+    finally:
+        summary.close()
+        _drop_e2e_lock()
+        _forget(os.getpid())
+    print("[bg] batch finished, exit %d; %s" % (worst, os.path.join(out, "summary.txt")))
+    return worst
+
+
+def _run_e2e(args):
     n = int(args[0]) if args else 2
     scen = args[1] if len(args) > 1 else "journey"
     sims = args[2:]
@@ -344,7 +463,7 @@ def cmd_perf(args):
     sync(quiet=True)
     rows = []
     for res in ["3440x1440", "1920x1080"]:
-        for region in ["throne", "ossuary"]:
+        for region in ["throne", "ossuary", "rootmire"]:
             name = "perf_%s_%s" % (res, region)
             log = os.path.join(LOGS, name + ".log")
             p = launch(name, ["--resolution", res, "--", "scene=dungeon", "region=" + region, "depth=2", "seed=7", "autopilot", "godmode",
@@ -390,15 +509,23 @@ def cmd_focuscheck(_args):
 
 def cmd_clean(_args):
     data = _load()
-    for pid, info in list(data.items()):
+    # (a batch first, or it would start the next run as the last one is stopped)
+    for pid, info in sorted(data.items(), key=lambda kv: 0 if str(kv[1].get("name", "")).startswith("batch ") else 1):
         alive = False
         if WIN:
             r = subprocess.run(["tasklist", "/FI", "PID eq %s" % pid, "/FO", "CSV", "/NH"], capture_output=True, text=True)
-            alive = "Godot" in r.stdout
+            is_batch = str(info.get("name", "")).startswith("batch ")
+            alive = ("python" in r.stdout.lower()) if is_batch else ("Godot" in r.stdout)
         if alive:
             subprocess.run(["taskkill", "/PID", pid, "/T", "/F"], capture_output=True)
             print("[bg] stopped %s (%s)" % (pid, info.get("name")))
         _forget(int(pid))
+    if os.path.exists(E2E_LOCK):
+        try:
+            if not _pid_alive(int(open(E2E_LOCK).read().strip() or "0")):
+                os.remove(E2E_LOCK)
+        except (OSError, ValueError):
+            pass
     print("[bg] nothing else is touched: only processes this tool started")
     return 0
 
@@ -410,7 +537,7 @@ def cmd_sync(_args):
 
 if __name__ == "__main__":
     commands = {"test": cmd_test, "run": cmd_run, "e2e": cmd_e2e, "perf": cmd_perf, "focuscheck": cmd_focuscheck,
-                "clean": cmd_clean, "sync": cmd_sync}
+                "clean": cmd_clean, "sync": cmd_sync, "batch": cmd_batch}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         print(__doc__)
         sys.exit(2)

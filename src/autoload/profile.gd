@@ -344,7 +344,10 @@ func refund(id: String) -> bool:
 
 
 func respec_cost() -> int:
-	return 0 if int(data.get("respecs", 0)) == 0 else mini(200, 40 + 40 * int(data.respecs))     # (changing your mind stays affordable)
+	return 0
+	# (a node at a time was already free in the sanctuary: charging for the button only
+	# made trying a build feel like a mistake.) Was: 40 + 40 a time, up to 200.
+	return mini(200, 40 + 40 * int(data.respecs))     # (changing your mind stays affordable)
 
 
 func respec() -> bool:

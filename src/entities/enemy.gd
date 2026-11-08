@@ -234,6 +234,7 @@ func _grudge_tick(dt: float) -> void:
 func _ready() -> void:
 	team = Team.ENEMY
 	build_visual(def.sheet, "idle")
+	_cold_outline()
 	sprite.set_dissolve(1.0)
 	if (elite or not grudge.is_empty()) and not def.get("boss", false):
 		_make_nameplate()
@@ -243,6 +244,23 @@ func _ready() -> void:
 		visual.add_child(_gloom_light)
 	state = "spawn"
 	state_t = 0.0
+
+
+## A foe behind a pillar or a wall still shows as a thin outline of cold light (a
+## Kindled's own is warm: Player). What is hunting you should not be able to hide.
+func _cold_outline() -> void:
+	if "nooutline" in Dev.args():
+		return
+	var mat := sprite.sheet.material
+	if mat.next_pass == null:
+		var sil := ShaderMaterial.new()
+		sil.shader = preload("res://assets/shaders/silhouette.gdshader")
+		sil.set_shader_parameter("atlas", mat.get_shader_parameter("atlas"))
+		sil.set_shader_parameter("frame_uv", mat.get_shader_parameter("frame_uv"))
+		sil.set_shader_parameter("color", Color(0.45, 0.95, 0.9))
+		sil.render_priority = 1
+		mat.next_pass = sil
+	sprite.set_instance_shader_parameter("silhouette", 0.0)      # (Stage._foes_behind_stone)
 
 
 func hit_color() -> Color:

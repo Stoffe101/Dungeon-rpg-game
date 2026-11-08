@@ -122,10 +122,54 @@ static func tier() -> int:
 	return 1 if int(Profile.data.world.get("warden_kills", 0)) > 0 else 0
 
 
+## What someone has to say about something you did, the first time they see you after
+## it: [deed, how to tell it happened, resident -> lines].
+const NEWS := [
+	["warden", "w:warden_kills", {
+		"teodric": ["I heard the bell go in the deep, and then I heard it stop.", "I stood under that thing for eleven years. Sit down. I am going to pour you something."],
+		"wren": ["Teodric cried. He says he didn't. He did."]}],
+	["bloom", "w:bloom_kills", {
+		"ama": ["Something changed in the soil the night you came up. It stopped pulling.", "I think that was you."]}],
+	["king", "w:ashen_king_kills", {
+		"bram": ["They say he burned because he would not kneel to the dark.", "I light these lamps every night and I still think he had a point. Don't tell the Keeper."],
+		"wren": ["Was he really a king? Did he have a crown? Did you keep it?"]}],
+	["hunt", "m:hunts", {
+		"teodric": ["You went looking for it. On purpose.", "That is either the bravest thing I have heard or the stupidest. I taught you, so I will say brave."]}],
+	["grudge", "m:grudges_settled", {
+		"bram": ["You look lighter. Someone paid what they owed you, then."],
+		"ama": ["You got your embers back from that thing. Good. Nothing should keep what it took."]}],
+	["grown", "m:grown", {
+		"wren": ["Your sword looks different. Can it talk now? Mine can't."],
+		"teodric": ["That blade has been deciding things, and so have you. Mind which of you is doing it."]}],
+]
+
+
+static func _happened(spec: String) -> bool:
+	if spec.begins_with("w:"):
+		return int(Profile.data.world.get(spec.substr(2), 0)) > 0
+	return Chronicle.marks(spec.substr(2)) > 0
+
+
+## The first thing they have not said yet, or [].
+static func news_for(id: String) -> Array:
+	var heard: Dictionary = Profile.data.world.get("heard", {})
+	for n: Array in NEWS:
+		var lines: Dictionary = n[2]
+		var key := "%s:%s" % [id, n[0]]
+		if lines.has(id) and not heard.has(key) and _happened(String(n[1])):
+			heard[key] = true
+			Profile.data.world["heard"] = heard
+			return lines[id]
+	return []
+
+
 static func talk(id: String) -> Array:
 	var r := get_def(id)
 	if r.is_empty():
 		return ["..."]
+	var news := news_for(id)
+	if not news.is_empty():
+		return news
 	var t: Array = r.talk
 	return t[mini(tier(), t.size() - 1)]
 

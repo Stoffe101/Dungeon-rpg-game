@@ -666,6 +666,11 @@ func test_every_notice_counts_something_the_game_notes() -> void:
 		src += FileAccess.get_file_as_string(f)
 	for c in Contracts.LIST:
 		var counted: bool = src.contains('note_request("%s"' % c.key) or src.contains('_practised("%s"' % c.key) 			or (String(c.key).begins_with("hunt_") and src.contains('note_request("hunt_" + layout.region)'))
+		if c.has("stages"):
+			# an errand: every stage has to be something the game notes
+			counted = true
+			for st: Array in c.stages:
+				check(src.contains('note_request("%s"' % st[0]), "%s, stage %s is counted" % [c.id, st[0]])
 		check(counted, "%s is counted" % c.key)
 		check(Contracts.pay_text(c.pay) != "", "%s pays" % c.id)
 		if c.pay.has("material"):
@@ -837,7 +842,7 @@ func test_the_deep_has_moods_three_depths_at_a_time() -> void:
 	eq(String(Delve.band(4).id), "whisper", "the first")
 	eq(String(Delve.band(6).id), "whisper", "three depths of it")
 	eq(String(Delve.band(7).id), "thin", "then the next")
-	eq(String(Delve.band(16).id), "whisper", "and round again")
+	eq(String(Delve.band(22).id), "whisper", "and round again")
 	eq(DungeonGen.plan_of(5, 13, false) in ["wing", "ring"], true, "the Old Roads run in rings and wings")
 
 

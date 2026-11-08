@@ -1,7 +1,7 @@
 {
 	"anims": {
 		"idle": {
-			"fps": 3.0,
+			"fps": 2.0,
 			"frames": 4,
 			"loop": true,
 			"row": 0
@@ -9,11 +9,11 @@
 	},
 	"emit": true,
 	"frame": [
-		20,
-		22
+		24,
+		30
 	],
 	"origin": [
-		10,
-		21
+		12,
+		29
 	]
 }

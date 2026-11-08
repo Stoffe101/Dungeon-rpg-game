@@ -48,6 +48,10 @@ var _attacks := 0
 ## How well it plays (`botskill=novice|fair|sharp`): how long a warning takes to
 ## register, and how many it never notices. It reads the warning drawn on the floor,
 ## as a person does, not the foe's internal state.
+## How much of a fight the bot spent holding a draw (read by the bench).
+static var drawn_share := 0.0
+var _tot_t := 0.0
+var _drawn_t := 0.0
 const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25, "tech": 0.1}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4, "tech": 0.45},
 	"sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5, "tech": 0.85}}
 var skill: Dictionary = SKILLS.fair
@@ -74,13 +78,16 @@ func _techniques(delta: float) -> bool:
 	if w == null:
 		return false
 	var good := float(skill.get("tech", 0.45))
-	if w.id == "bow" and w.form == "":
-		# a true shot: draw, hold to the peak, let go
+	if w.id == "bow":
+		# a true shot: draw, hold to the peak, let go (a draw begun in the last shot's
+		# recovery would be let go before it came up: wait for the string)
+		if w.phase != Weapon.Phase.IDLE or w.get("_cool") > 0.0:
+			return true
 		if randf() > good:
 			return false
 		pl.press("attack")
 		pl._attack_down = true
-		_hold_t = w.charge_time / w.speed() + 0.04
+		_hold_t = w.draw_time() + 0.04
 		return true
 	if not w.has_technique("cadence"):
 		return false
@@ -180,6 +187,10 @@ func _process(delta: float) -> void:
 	if pl.hearthcall_t >= 0.0:
 		pl.move_in = Vector2.ZERO     # the ritual needs stillness (moving breaks it)
 		return
+	_tot_t += delta
+	if pl.weapon and pl.weapon.phase == Weapon.Phase.CHARGE:
+		_drawn_t += delta
+	Bot.drawn_share = _drawn_t / maxf(_tot_t, 0.01)
 	var target := _pick_target()
 	if _shelter():
 		return
@@ -271,6 +282,9 @@ func _fight(t: Actor, delta: float) -> void:
 		pl.move_in = to.orthogonal() * _strafe * 0.4
 		if randf() < 0.01:
 			_strafe = -_strafe
+	if _hold_t >= 0.0 and pl.weapon and pl.weapon.phase != Weapon.Phase.CHARGE and pl.weapon.phase != Weapon.Phase.IDLE:
+		_hold_t = -1.0        # (the draw is gone: a dodge took it)
+		pl._attack_down = false
 	if _hold_t >= 0.0:
 		# holding: keep aiming at it until the hold is done
 		_hold_t -= delta

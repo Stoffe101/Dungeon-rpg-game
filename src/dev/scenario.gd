@@ -65,6 +65,8 @@ func _run() -> void:
 			await ways()
 		"deep":
 			await deep()
+		"depthworld":
+			await depthworld()
 		"guardian":
 			await guardian()
 		"bestiary":
@@ -1224,6 +1226,73 @@ func deep() -> void:
 		expect(g != null and g.stats.has("storm_crit"), "the guest's grown weapon has its path's power on the host")
 		expect(g != null and g.stats.has("crit_knives"), "and its own")
 	await wait(1.5)
+
+
+## The world of depth in a party: a spike trap shows the same state on every machine at
+## the same moment and bites a guest who really walked onto it; a solid thorn stops a guest
+## and is gone for everyone once cut.
+func depthworld() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim and not Game.ui.card_pending and not Game.ui.blocks_world(), 60.0, "depth 1")
+	_strip_bot()
+	await wait(1.0)
+	if role == "host":
+		var g0: Player = _guest_kindled()
+		var at: Vector2i = Vector2i(dun().foe_spot(g0.pos + Vector2(2.5, 0.0), 0.6))
+		Prop.make(dun(), "spikes", at, {})
+		# a thorn with open floor south of it to walk up to, not on the trap
+		var thorn_at := at + Vector2i(-1, 2)
+		var found := false
+		for rad in range(0, 6):
+			for dy in range(-rad, rad + 1):
+				for dx in range(-rad, rad + 1):
+					var q := at + Vector2i(dx, dy + 2)
+					if not found and q.distance_to(at) >= 2.0 and dun().grid.at(q.x, q.y) == TileGrid.FLOOR and dun().grid.at(q.x, q.y + 1) == TileGrid.FLOOR and dun().grid.at(q.x, q.y + 2) == TileGrid.FLOOR:
+						thorn_at = q
+						found = true
+		Prop.make(dun(), "bramble", thorn_at, {})
+	await until(func() -> bool: return _prop_kind("spikes") != null and _prop_kind("bramble") != null, 20.0, "the trap and the thorn reached me")
+	var trap: Prop = _newest("spikes")
+	var thorn: Prop = _newest("bramble")
+	expect(trap != null and trap.teeth != null, "a trap with its teeth on my screen")
+	# one clock: what each machine thinks the host's time is (they share this PC's clock)
+	var mine := dun().hazard_time() - Time.get_unix_time_from_system()
+	var path := "user://e2e_clock_%s.txt" % _tag()
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(str(mine))
+	f.close()
+	await wait(1.5)
+	if role == "guest":
+		var host_off := FileAccess.get_file_as_string("user://e2e_clock_host.txt")
+		if host_off != "":
+			var diff := absf(float(host_off) - mine)
+			expect(diff < 0.35, "my trap clock agrees with the host's (%.0f ms apart)" % (diff * 1000.0))
+	if _tag() == "guest1":
+		# a solid thorn really stops me
+		var target: Vector2 = thorn.pos
+		await walk_to(target + Vector2(0.0, 1.05), 0.5, 10.0)
+		var t_end := now() + 1.2
+		while now() < t_end:
+			steer(Vector2.UP)
+			await wait(0.05)
+		steer(Vector2.ZERO)
+		expect(dun().player.pos.y > target.y + 0.35, "the thorn stopped me at its foot (%.2f past it)" % (dun().player.pos.y - target.y))
+		# I step onto the plate and stand there through its cycle
+		await walk_to(trap.pos, 0.3, 12.0)
+		var hp0: float = dun().player.hp
+		await wait(Prop.SPIKE_CYCLE + 0.8)
+		expect(dun().player.hp < hp0, "the teeth bit me on the plate (%d -> %d)" % [int(hp0), int(dun().player.hp)])
+		# cut the thorn
+		await walk_to(thorn.pos + Vector2(0.0, 1.1), 0.5, 12.0)
+		for k in 7:
+			if not is_instance_valid(thorn) or thorn.used:
+				break
+			Dev.mouse = get_viewport().get_visible_rect().size * 0.5 + Vector2(0, -120)
+			tap("attack")
+			await wait(0.55)
+	await until(func() -> bool: return not is_instance_valid(thorn) or thorn.used or dun().grid.at(thorn.tile.x, thorn.tile.y) == TileGrid.FLOOR, 30.0, "the thorn is cut on my machine")
+	expect(not is_instance_valid(thorn) or dun().grid.at(thorn.tile.x, thorn.tile.y) == TileGrid.FLOOR, "its tile is open on my machine")
+	await wait(1.5)
+	Net.i.dev_shot("e2e/depthworld")
 
 
 ## The most recently made prop of a kind (the floor may have its own already).

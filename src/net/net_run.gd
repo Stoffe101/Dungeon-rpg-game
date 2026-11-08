@@ -319,7 +319,7 @@ func _capture_props() -> void:
 		if not is_instance_valid(p):
 			continue
 		var st := [p.sprite.anim if p.sprite else "", p.sprite.visible if p.sprite else true, p.lit, p.used,
-			p.light.visible if p.light else false, p.data.get("taken", [])]
+			p.light.visible if p.light else false, p.data.get("taken", []), p._solid_tiles.is_empty()]
 		if _prop_state.get(p.net_idx) != st:
 			if _prop_state.has(p.net_idx):
 				Net.rec(["prop", p.net_idx, st])
@@ -966,6 +966,13 @@ func _apply_prop(idx: int, st: Variant) -> void:
 	if p.light:
 		p.light.visible = bool(s[4])
 	p.data["taken"] = s[5]
+	if bool(s[6]) and not p._solid_tiles.is_empty():
+		# cut, burnt or fallen on the host: the same tile is open here at the same moment
+		# (it used to stay blocked on a guest's machine, walkable on the host's)
+		p.unsolid()
+		p.breakable = false
+	if p.used and p.kind in ["bramble", "root_node"]:
+		p.show_cleared()
 
 
 func _tele(ev: Array) -> void:
@@ -986,6 +993,12 @@ func _tele(ev: Array) -> void:
 	var data: Dictionary = stage.fx._shapes[stage.fx._shapes.size() - 1]
 	data.update = func(_t: float, node: MeshInstance3D) -> void:
 		node.set_instance_shader_parameter("progress", clampf((st.elapsed - start) / maxf(dur, 0.01), 0.0, 1.0))
+
+
+## The host's clock as this machine best knows it, a little ahead for the trip a
+## guest's position takes to reach it (what it sees is what the host will judge).
+func host_seconds() -> float:
+	return (float(Time.get_ticks_msec()) + _clock) / 1000.0 + Net.rtt_s() * 0.5
 
 
 ## Keeps an estimate of the host's clock from the fastest packets, and of how

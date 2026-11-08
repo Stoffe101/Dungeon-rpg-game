@@ -38,6 +38,26 @@ var predicting := false
 var form := ""
 
 
+## Seconds this weapon takes to come to a full charge now.
+func draw_time() -> float:
+	return charge_time / speed()
+
+
+## Turned Aside: how long the next blow is still opened up (Weapon.on_evade).
+var _aside_t := 0.0
+const ASIDE := 1.6
+
+
+## How this weapon was really used (read by the bench).
+var tally := {}
+## A grown weapon's path (its id and colour), set in setup.
+var evo_path := ""
+var evo_col := Color.WHITE
+var _grown_sheet := false
+var _evo_t := 0.0
+var _evo_mark_t := 0.0
+
+
 func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	player = p
 	id = weapon_id
@@ -48,6 +68,15 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 	var it0 := p.weapon_item()
 	if ItemDB.arch_of(it0) == weapon_id and ItemDB.base(String(it0.base)).has("sprite"):
 		held = String(ItemDB.base(String(it0.base)).sprite)
+	# ...and once it has grown it is drawn as what it has become (tools/art/gen_grown.gd)
+	if ItemDB.arch_of(it0) == weapon_id and Evolutions.can_evolve(it0):
+		var grown: String = held + ("_awake" if Evolutions.stage(it0) == 1 else "_" + String(it0.get("path", "")))
+		if Evolutions.stage(it0) >= 1 and ResourceLoader.exists("res://assets/sprites/%s.png" % grown):
+			held = grown
+			_grown_sheet = true
+		if Evolutions.stage(it0) == 2:
+			evo_path = String(it0.get("path", ""))
+			evo_col = Evolutions.path_color(it0)
 	var sheet := SpriteLib.get_sheet(held)
 	visual = MeshInstance3D.new()
 	visual.mesh = sheet.mesh
@@ -71,9 +100,81 @@ func setup(p: Player, weapon_id: String, lvl: int) -> void:
 					glow *= 1.3
 				2:
 					glow *= 1.6
-					visual.set_instance_shader_parameter("tint", Evolutions.path_color(it).lerp(Color(1, 1, 1), 0.35))
+					if not _grown_sheet:
+						visual.set_instance_shader_parameter("tint", Evolutions.path_color(it).lerp(Color(1, 1, 1), 0.35))
 	_base_glow = glow
 	visual.set_instance_shader_parameter("glow_mult", glow)
+	for a in Dev.args():
+		if a.begins_with("wfocus="):
+			focus = int(a.substr(7))     # dev: to look at the HUD with Focus held
+
+
+## The colour of a swing, once the weapon has chosen a path.
+func trail(col: Color) -> Color:
+	if evo_path == "":
+		return col
+	var c := col.lerp(evo_col, 0.75)
+	c.a = col.a
+	return c
+
+
+## How a grown weapon moves through the air: a few of its own motes off the tip while it
+## swings. (Each machine draws its own: never recorded.)
+func _evo_tick(dt: float) -> void:
+	if evo_path == "" or phase != Phase.ACTIVE:
+		return
+	_evo_t -= dt
+	if _evo_t > 0.0:
+		return
+	_evo_t = 0.035
+	var a := base_angle() + swing
+	var tip := player.pos + Vector2(cos(a), -sin(a)) * 1.1
+	Net.mute += 1
+	match evo_path:
+		"storm":
+			player.stage.fx.burst(tip, 0.6, evo_col, 2, 7.0, 0.1, 0.0)
+		"frost", "steam":
+			player.stage.fx.motes(tip, 0.6, evo_col, 1, 0.3, 0.45, 0.1)
+		"wild", "pyre":
+			player.stage.fx.motes(tip, 0.6, evo_col, 2, 1.8, 0.35, 0.12)
+		"shade":
+			player.stage.fx.motes(tip, 0.45, Color(evo_col.r * 0.6, evo_col.g * 0.5, evo_col.b * 0.7), 2, -0.4, 0.6, 0.15)
+		_:
+			player.stage.fx.motes(tip, 0.6, evo_col, 1, 0.8, 0.3, 0.1)
+	Net.mute -= 1
+
+
+## A blow landed with a grown weapon: its path's own small mark on the foe.
+func _evo_mark(a: Actor) -> void:
+	if evo_path == "" or not is_instance_valid(a) or _evo_mark_t > 0.0:
+		return
+	_evo_mark_t = 0.09
+	player.cosmetic(func() -> void: _evo_fx(a))
+
+
+func _evo_fx(a: Actor) -> void:
+	var fx: Fx = player.stage.fx
+	match evo_path:
+		"storm":
+			fx.burst(a.pos, 0.9, evo_col, 6, 9.0, 0.14, 0.0)
+			Audio.play_at("sparks", a.pos, -10.0, randf_range(1.2, 1.5), 60)
+		"frost":
+			fx.burst(a.pos, 0.7, evo_col, 5, 3.5, 0.3, 8.0)
+			Audio.play_at("shatter_ice", a.pos, -13.0, randf_range(1.3, 1.6), 60)
+		"blood":
+			fx.burst(a.pos, 0.7, evo_col, 5, 2.5, 0.35, 12.0)
+		"wild", "pyre":
+			fx.burst(a.pos, 0.6, evo_col, 5, 2.5, 0.35, -2.0)
+			Audio.play_at("ignite", a.pos, -14.0, randf_range(1.2, 1.5), 60)
+		"shade":
+			fx.motes(a.pos, 0.8, evo_col, 5, 0.4, 0.6, 0.3)
+		"echo":
+			fx.ring(a.pos, 1.0, evo_col, 0.2, 0.15)
+		"chain":
+			fx.burst(a.pos, 0.7, Color(0.8, 0.85, 0.95), 4, 5.0, 0.18, 6.0)
+			Audio.play_at("chain_throw", a.pos, -15.0, randf_range(1.3, 1.6), 60)
+		_:
+			fx.burst(a.pos, 0.7, evo_col, 4, 4.0, 0.22, 4.0)
 
 
 func free_visual() -> void:
@@ -167,8 +268,23 @@ func _practised(key: String) -> void:
 
 ## A blow's share of the techniques: the multiplier on this one foe, and its touch.
 func _technique(a: Actor, h: Hit, along := -1.0) -> void:
+	if _aside_t > 0.0:
+		# (Turned Aside: the dodge or the Ward opened this one up)
+		_aside_t = 0.0
+		h.forced_crit = true
+		player.cosmetic(func() -> void:
+			player.stage.fx.number(a.pos, 1.9, "TURNED ASIDE", Color(0.8, 0.6, 1.0)))
 	if cadenced:
 		h.amount *= CADENCE_MULT
+		if player.stats.has("banked_strikes") and not predicting:
+			player.gain_kindle(2.5)
+			if cadence_run == 3:
+				player.cosmetic(func() -> void:
+					player.stage.fx.flash_light(player.pos, 1.0, Color(1.0, 0.7, 0.35), 2.0, 6.0, 0.35))
+		if player.stats.has("searing_time"):
+			if a.status.burning():
+				h.amount *= 1.5
+			h.burn = maxi(h.burn, 1)
 		if cadence_run >= 3:
 			h.poise *= 1.6     # the third in time lands like a finisher
 		if player.stats.has("perfect_cadence"):
@@ -186,16 +302,23 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 		if e.facing.dot((a.pos - player.pos).normalized()) > 0.35:
 			h.forced_crit = true
 			_practised("behind")
+			if player.stats.has("rime_knife") and a.status.chill > 0.0:
+				h.amount *= 1.5
+				a.status.chill = 0.0
 			player.cosmetic(func() -> void:
 				player.stage.fx.number(a.pos, 1.9, "BEHIND", Color(0.8, 0.6, 1.0)))
 
 
 ## After a blow: a hammer's break spreads to those standing beside the one it broke.
 func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
+	_evo_mark(a)
 	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
 		return
 	_breaking = true
 	_practised("breaker")
+	if player.stats.has("breakers_coal") and not predicting:
+		player.gain_kindle(12.0)
+		h.burn = maxi(h.burn, 1)
 	var heavy := player.stats.has("vanguard")
 	var reach := 5.2 if heavy else 2.6
 	player.cosmetic(func() -> void:
@@ -390,6 +513,8 @@ func max_combo() -> int:
 
 ## A perfect dodge or a Ward (a form may answer: the Sabre's riposte).
 func on_evade() -> void:
+	if player and player.stats and player.stats.has("turned_aside"):
+		_aside_t = ASIDE
 	pass
 
 
@@ -508,8 +633,11 @@ func hit_flash() -> void:
 
 
 func update_visual(_dt: float) -> void:
+	_aside_t = maxf(0.0, _aside_t - _dt)
 	if visual == null:
 		return
+	_evo_mark_t = maxf(0.0, _evo_mark_t - _dt)
+	_evo_tick(_dt)
 	var ang := base_angle()
 	var left := cos(ang) < 0.0
 	var off := swing

@@ -33,7 +33,7 @@ static func build(dir: String) -> void:
 	_frieze(dir.path_join("throne_wall.png"))
 	_cap(dir.path_join("crypt_top.png"), Pal.STONE, 2, 41)
 	_cap(dir.path_join("hearth_top.png"), Pal.EARTH, 2, 42)
-	_cap(dir.path_join("root_top.png"), Pal.MOSS, 1, 64)
+	_root_cap(dir.path_join("root_top.png"), 64)
 	_cap(dir.path_join("throne_top.png"), Pal.OBSIDIAN, 3, 73)
 	_column(dir.path_join("crypt_pillar.png"), Pal.STONE, 2, "skulls")
 	_column(dir.path_join("hearth_pillar.png"), Pal.WOOD, 2, "post")
@@ -258,9 +258,11 @@ static func _root_ground(path: String, seed_v: int) -> void:
 			var mid := pn(x, y, 12.0, size, seed_v + 1)
 			var fine := pn(x, y, 4.0, size, seed_v + 2)
 			var col := ramp(Pal.EARTH, 0.9 + (low - 0.5) * 0.9 + (fine - 0.5) * 0.4)
+			# damp earth; moss only in thin, dim stains. Green is for what grows, so
+			# the ground itself must not be green (it hid every plant on it)
 			var moss := low * 0.6 + mid * 0.4
-			if moss > 0.58:
-				col = ramp(Pal.MOSS, 0.7 + (moss - 0.58) * 1.6 + (fine - 0.5) * 0.3)
+			if moss > 0.66:
+				col = col.lerp(ramp(Pal.MOSS, 0.9 + (fine - 0.5) * 0.3), 0.55)
 			c.put(x, y, col)
 	for k in 150:
 		var p := Vector2i(rng.randi_range(0, size - 1), rng.randi_range(0, size - 1))
@@ -460,6 +462,32 @@ static func _cap(path: String, r: Array, base: int, seed_v: int) -> void:
 			var low := pn(x, y, 16.0, size, seed_v)
 			var fine := pn(x, y, 4.0, size, seed_v + 1)
 			c.put(x, y, ramp(r, float(base) - 0.6 + (low - 0.5) * 0.7 + (fine - 0.5) * 0.3))
+	c.save(path)
+
+
+## The top of a Rootmire wall: a mat of old roots and packed earth. It was smooth
+## moss, the same green as the floor's stains, and read as a raised lawn.
+static func _root_cap(path: String, seed_v: int) -> void:
+	var size := 64
+	var c := Px.new(size, size)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	for y in size:
+		for x in size:
+			var low := pn(x, y, 16.0, size, seed_v)
+			var fine := pn(x, y, 4.0, size, seed_v + 1)
+			c.put(x, y, ramp(Pal.WOOD, 0.45 + (low - 0.5) * 0.6 + (fine - 0.5) * 0.3))
+	for k in 16:
+		var p := Vector2(rng.randi_range(0, size - 1), rng.randi_range(0, size - 1))
+		var a := rng.randf() * TAU
+		var hi: Color = Pal.WOOD[2]
+		for s in rng.randi_range(20, 46):
+			a += rng.randf_range(-0.35, 0.35)
+			p += Vector2.from_angle(a)
+			var x := posmod(int(p.x), size)
+			var y := posmod(int(p.y), size)
+			c.put(x, y, hi)
+			c.put(posmod(x + 1, size), posmod(y + 1, size), Pal.WOOD[0])
 	c.save(path)
 
 

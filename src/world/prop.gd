@@ -23,6 +23,13 @@ var _t := 0.0
 var _base_energy := 1.0
 var _flame_col := Color(0.35, 0.95, 0.85)
 var _solid_tiles: Array[Vector2i] = []
+## A tall thing's overhead part, and how far (tiles) behind it someone counts as under it.
+var canopy: PixelSprite = null
+var occ_w := 0.0
+var occ_h := 0.0
+var thinned := false
+var teeth: PixelSprite = null      # a spike trap's upright part
+var _struck_by_teeth := {}         # who these teeth already caught, this time up
 ## Co-op guest in the host's sanctuary: the host moves this one (a resident,
 ## the cat); it walks to where the host has it and does what it does there.
 var following := false
@@ -89,15 +96,16 @@ func _build() -> void:
 			var mat := String(data.get("mat", "clay"))
 			_sprite("urn" if mat == "clay" else "urn_" + mat, 0.0, 0.0, "rich" if data.get("rich", false) else "idle")
 			breakable = true
+			ticks = true       # (it breaks when someone walks into it)
 			strike_radius = 0.45
-			ticks = data.get("urnling", false)
 		"candles":
 			_sprite("candles", 0.0)
 			_light(Color(1.0, 0.7, 0.4), 0.7, 3.2, Vector3(0, 0.5, 0.1))
 			ticks = true
 		"chest":
 			_sprite("chest", 0.0, 0.0, "closed")
-			interact_radius = 1.0
+			interact_radius = 1.35
+			_solid([tile])
 			_light(Color(1.0, 0.8, 0.4), 0.5, 2.5, Vector3(0, 0.6, 0.2))
 		"ember_pile":
 			_sprite("ember_pile", 0.0)
@@ -158,18 +166,39 @@ func _build() -> void:
 		"relic_altar":
 			_sprite("altar", 0.0, 0.0, "idle")
 			_light(Color(1.0, 0.8, 0.45), 1.2, 4.0, Vector3(0, 1.2, 0.3))
-			interact_radius = 1.1
+			interact_radius = 1.4
+			_solid([tile])
 			ticks = true
 		"spring":
 			_sprite("spring", 0.0, 0.0, "idle")
 			_light(Color(1.0, 0.55, 0.45), 1.0, 4.0, Vector3(0, 0.8, 0.3))
-			interact_radius = 1.1
+			interact_radius = 1.4
+			_solid([tile])
 			ticks = true
 		"glowcap":
 			_sprite("glowcap", 0.0, 0.0, "idle")
 			var gc := Color(0.4, 1.0, 0.9) if (tile.x + tile.y) % 2 == 0 else Color(0.9, 0.5, 1.0)
 			_light(gc, 1.1, 5.0, Vector3(0, 0.9, 0.2))
 			_flame_col = gc
+			ticks = true
+			_solid([tile])
+		"thicket":
+			_sprite("thicket", 0.0, 0.0, String(data.get("anim", "a")))
+			_solid([tile])
+			stops_shots = true
+			occ_w = 0.9
+			occ_h = 1.6
+		"tree":
+			_sprite("mire_trunk", 0.0, 0.0, "idle")
+			_solid([tile])
+			stops_shots = true
+			canopy = PixelSprite.new()
+			add_child(canopy)
+			canopy.setup("mire_canopy", String(data.get("anim", "a")))
+			canopy.position = Vector3(0.0, 2.0 * Iso.SQ2, 0.3 * Iso.SQ2)
+			occ_w = 2.3
+			occ_h = 4.2
+			_light(Color(0.4, 0.95, 0.85), 0.5, 4.0, Vector3(0, 2.6 * Iso.SQ2, 0.2))
 			ticks = true
 		"bramble", "root_node":
 			_sprite("bramble", 0.0, 0.0, "idle")
@@ -178,6 +207,10 @@ func _build() -> void:
 			stops_shots = true
 			strike_radius = 0.55
 			data["hp"] = 3 if kind == "bramble" else 6
+			if data.get("spoor", false):
+				# (pale: the thorns the quarry marked, for those who read them)
+				sprite.set_tint(Color(0.8, 0.95, 1.0))
+				_light(Color(0.45, 0.95, 0.9), 0.7, 3.0, Vector3(0, 0.8, 0.2))
 			if kind == "root_node":
 				sprite.set_tint(Color(1.0, 0.55, 0.6))
 				_light(Color(1.0, 0.4, 0.6), 1.2, 4.0, Vector3(0, 0.8, 0.2))
@@ -262,7 +295,8 @@ func _build() -> void:
 		"kindle_jar":
 			_sprite("kindle_jar", 0.0)
 			breakable = true
-			strike_radius = 0.5
+			strike_radius = 0.75
+			_solid([tile])
 			_light(Color(1.0, 0.55, 0.25), 0.4, 2.4, Vector3(0, 0.5, 0.1))
 		"rime_vent":
 			_sprite("rime_vent", 0.0, 0.0, "idle")
@@ -311,9 +345,15 @@ func _build() -> void:
 		"rug":
 			_flat("rug", String(data.get("anim", "rug0")))
 		"spikes":
-			_flat("spikes", "down")
+			var style := trap_style()
+			_flat("spike_plate_" + style, "armed")
+			teeth = PixelSprite.new()
+			add_child(teeth)
+			teeth.setup("spike_teeth_" + style, "idle")
+			teeth.playing = false
+			teeth.visible = false
+			teeth.position = Vector3(0, 0, 0.0)
 			ticks = true
-			_t = float(data.get("phase", 0.0))
 		"cracked_wall":
 			pos = Vector2(data.get("center", Vector2(tile) + Vector2(0.5, 1.0)))
 			_sprite("cracks", 0.6, 0.05)
@@ -339,6 +379,12 @@ func _build() -> void:
 				_solid([tile])
 			if data.has("solid_tiles"):
 				_solid(data.solid_tiles)     # a wide prop blocks more than its own tile
+	_settle_on_foot()
+	if occ_h > 0.0 or String(data.get("sheet", "")) == "statue":
+		if occ_h <= 0.0:
+			occ_w = 0.9
+			occ_h = 2.4
+		stage.occluders.append(self)
 	if stage is Dungeon and label_name() != "":
 		stage.fx.beacon(self, _label_height(), label_color())
 
@@ -367,7 +413,16 @@ func _flat(sheet: String, anim: String) -> void:
 	sprite.position = Vector3(0, 0.008, 0)
 
 
-const SPIKE_CYCLE := 2.6
+## A spike trap's cycle (seconds). The warning is long enough to step off on; the teeth
+## hurt only while they are visibly out.
+const SPIKE_ARMED := 1.5
+const SPIKE_WARN := 0.75
+const SPIKE_RISE := 0.1
+const SPIKE_UP := 0.6
+const SPIKE_FALL := 0.3
+const SPIKE_CYCLE := SPIKE_ARMED + SPIKE_WARN + SPIKE_RISE + SPIKE_UP + SPIKE_FALL
+## How far from the plate's centre a foot counts as on it (the plate is 16 texels square).
+const SPIKE_REACH := 0.46
 
 
 func _light(col: Color, energy: float, rng: float, at: Vector3) -> void:
@@ -396,6 +451,30 @@ func _decal(v: int) -> void:
 	mi.set_instance_shader_parameter("frame", Vector2(v % info.cols, maxi(row, 0)))
 	mi.set_instance_shader_parameter("flip", 1.0 if randf() > 0.5 else 0.0)
 	add_child(mi)
+
+
+## A solid thing's drawing stands at the front of its tile, not across the middle of it.
+## (Its foot used to sit on the tile's centre line, so everything that stops you stopped
+## you half a tile before you reached it.)
+const FOOT_FORWARD := 0.38
+
+
+func _settle_on_foot() -> void:
+	if sprite == null or _solid_tiles.is_empty() or kind in ["landmark", "icewall"]:
+		return
+	if data.has("solid_tiles") and kind != "dressing":
+		return      # (the sanctuary's wide pieces are laid out by hand)
+	sprite.position.z += FOOT_FORWARD * Iso.SQ2
+
+
+## Anyone under it? It thins (the foot stays: only what stands above the player).
+func set_thin(on: bool) -> void:
+	if on == thinned:
+		return
+	thinned = on
+	var who: PixelSprite = canopy if canopy else sprite
+	if who:
+		who.set_tint(Color(1, 1, 1, 0.42) if on else Color.WHITE)
 
 
 func _solid(tiles: Array) -> void:
@@ -450,6 +529,12 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 1.0, Color(1.0, 0.85, 0.5), 1, 0.8, 0.8, 0.25)
 	elif kind == "glowcap" and randf() < dt * 1.5:
 		stage.fx.motes(pos + Vector2(randf_range(-0.4, 0.4), 0), 0.8, _flame_col, 1, 0.5, 1.6, 0.2)
+	elif kind == "urn" and not used and not data.get("urnling", false):
+		# a pot does not stop anyone: walk into it and it breaks
+		if not Net.is_client():
+			var by: Player = stage.nearest_player(pos, 0.72)
+			if by != null:
+				on_struck(by)
 	elif kind == "urn" and data.get("urnling", false) and not used:
 		# an Urnling: now and then it trembles; come close and it bursts out
 		if sprite:
@@ -471,37 +556,96 @@ func tick(dt: float) -> void:
 		stage.fx.motes(pos, 0.9, Color(1.0, 0.6, 0.4), 1, 1.0, 0.8, 0.3)
 
 
+## Where a spike trap is in its cycle: "armed", "warn", "rise", "up", "fall". The same
+## time on every machine (Stage.hazard_time), so a guest sees what the host will judge.
+static func spike_state(k: float) -> String:
+	if k < SPIKE_ARMED:
+		return "armed"
+	if k < SPIKE_ARMED + SPIKE_WARN:
+		return "warn"
+	if k < SPIKE_ARMED + SPIKE_WARN + SPIKE_RISE:
+		return "rise"
+	if k < SPIKE_ARMED + SPIKE_WARN + SPIKE_RISE + SPIKE_UP:
+		return "up"
+	return "fall"
+
+
+## Can these teeth hurt at this moment? Only once they are visibly more than half way out,
+## and not after they have started going back in.
+static func spike_bites(k: float) -> bool:
+	var from := SPIKE_ARMED + SPIKE_WARN + SPIKE_RISE * 0.5
+	return k >= from and k < SPIKE_ARMED + SPIKE_WARN + SPIKE_RISE + SPIKE_UP
+
+
+func trap_style() -> String:
+	if not stage is Dungeon:
+		return "ossuary"
+	if (stage as Dungeon).run.delve:
+		return "hollow"
+	return {"rootmire": "rootmire", "throne": "throne"}.get(String((stage as Dungeon).layout.region), "ossuary")
+
+
 func _spike_tick() -> void:
-	var k := fmod(_t, SPIKE_CYCLE)
-	var state := "down"
-	if k > SPIKE_CYCLE - 1.0:
-		state = "up"
-	elif k > SPIKE_CYCLE - 1.6:
-		state = "warn"
-	if sprite.anim != state:
-		sprite.play(state)
-		if state == "warn" and stage.nearest_player(pos) != null and stage.nearest_player(pos).pos.distance_to(pos) < 6.0:
-			# (a quiet danger: the bot's eyes, not an off-screen chevron - the trap is in plain sight)
-			stage.note_danger(pos, SPIKE_CYCLE - k, {"kind": Fx.Shape.DISC, "size": Vector2(1.5, 1.5), "quiet": true})
-		if state == "up":
-			used = false
-			Audio.play_at("spikes", pos, -10.0, randf_range(0.9, 1.1), 120)
-	if state == "up" and not used:
-		used = true
-		# spikes don't care whose foot is on them
-		for a in stage.actors.duplicate():
-			if a.alive and not a.flying and a.height < 0.3 and absf(a.pos.x - pos.x) < 0.5 + a.radius * 0.5 and absf(a.pos.y - pos.y) < 0.5 + a.radius * 0.5:
-				var h := Hit.make(null, 14.0, ["melee", "spikes"])
-				h.can_crit = false
-				h.knockback = Vector2.ZERO
-				if a is Player:
-					if (a as Player).stats.has("featherfall"):
-						continue
-					(a as Player).take_enemy_hit(h, null)
-				else:
-					h.source = stage.player
-					a.take_hit(h)
-				stage.fx.burst(a.pos, 0.3, Color(0.85, 0.85, 0.9), 4, 2.0, 0.2, 6.0)
+	var k := fposmod(stage.hazard_time() + float(data.get("phase", 0.0)), SPIKE_CYCLE)
+	var state := spike_state(k)
+	var was := String(data.get("state", ""))
+	# the picture, from the same clock
+	var into := k - SPIKE_ARMED - SPIKE_WARN
+	match state:
+		"armed":
+			sprite.play("armed")
+			teeth.visible = false
+		"warn":
+			sprite.play("warn")
+			# the tips creep out over the last part of the warning
+			var w := (k - SPIKE_ARMED) / SPIKE_WARN
+			teeth.visible = w > 0.55
+			teeth.set_frame(0)
+		"rise":
+			sprite.play("armed")
+			teeth.visible = true
+			teeth.set_frame(1 if into < SPIKE_RISE * 0.5 else 2)
+		"up":
+			sprite.play("armed")
+			teeth.visible = true
+			teeth.set_frame(4 if fmod(into, 0.24) < 0.08 else 3)
+		"fall":
+			sprite.play("armed")
+			var f := (k - SPIKE_ARMED - SPIKE_WARN - SPIKE_RISE - SPIKE_UP) / SPIKE_FALL
+			teeth.visible = f < 0.8
+			teeth.set_frame(2 if f < 0.35 else (1 if f < 0.65 else 0))
+	if state != was:
+		data["state"] = state
+		match state:
+			"warn":
+				Audio.play_at("spike_warn", pos, -9.0, randf_range(0.95, 1.05), 110)
+				var near := stage.nearest_player(pos, 7.0)
+				if near != null:
+					# (a quiet danger: the bot's eyes, not an off-screen chevron: the trap is in plain sight)
+					stage.note_danger(pos, SPIKE_WARN + SPIKE_RISE + SPIKE_UP, {"kind": Fx.Shape.DISC, "size": Vector2(1.3, 1.3), "quiet": true})
+			"rise":
+				_struck_by_teeth.clear()
+				Audio.play_at("spikes", pos, -9.0, randf_range(0.9, 1.1), 120)
+	if Net.is_client() or not spike_bites(k):
+		return
+	# spikes don't care whose foot is on them; only a foot on the plate counts
+	for a in stage.actors.duplicate():
+		if not is_instance_valid(a) or not a.alive or a.flying or a.height >= 0.3 or _struck_by_teeth.has(a):
+			continue
+		if absf(a.pos.x - pos.x) > SPIKE_REACH or absf(a.pos.y - pos.y) > SPIKE_REACH:
+			continue
+		_struck_by_teeth[a] = true
+		var h := Hit.make(null, 14.0, ["melee", "spikes"])
+		h.can_crit = false
+		h.knockback = Vector2.ZERO
+		if a is Player:
+			if (a as Player).stats.has("featherfall"):
+				continue
+			(a as Player).take_enemy_hit(h, null)
+		else:
+			h.source = stage.player
+			a.take_hit(h)
+		stage.fx.burst(a.pos, 0.3, Color(0.85, 0.85, 0.9), 4, 2.0, 0.2, 6.0)
 
 
 # --- interaction ---------------------------------------------------------------
@@ -861,7 +1005,18 @@ func _burn_tick(dt: float) -> void:
 		_clear_bramble(true)
 
 
+## What is left of a thorn lies low and dark: plainly no longer a wall of thorns.
+func show_cleared() -> void:
+	if sprite == null:
+		return
+	sprite.play("burnt")
+	sprite.scale = Vector3(1.0, 0.45, 1.0)
+	sprite.set_tint(Color(0.55, 0.5, 0.5, 1.0))
+
+
 func _clear_bramble(burnt: bool) -> void:
+	if data.get("spoor", false) and not used and stage is Dungeon and not Net.is_client():
+		(stage as Dungeon).hunt_sign("You cut its mark out of the thorns")
 	if not used and stage is Dungeon and kind != "root_node":
 		(stage as Dungeon).note_request("bramble")
 	used = true
@@ -874,10 +1029,7 @@ func _clear_bramble(burnt: bool) -> void:
 	if kind == "bramble_wall":
 		stage.request("secret", self)
 		return
-	sprite.play("burnt" if burnt else "burnt")
-	# what is left lies low and dark: plainly no longer a wall of thorns
-	sprite.scale = Vector3(1.0, 0.45, 1.0)
-	sprite.set_tint(Color(0.55, 0.5, 0.5, 1.0))
+	show_cleared()
 	if not burnt:
 		stage.fx.burst(pos, 0.5, Color(0.45, 0.6, 0.3), 12, 4.0, 0.4, 6.0)
 	if kind == "root_node":

@@ -88,6 +88,7 @@ static func choose(item: Dictionary, id: String) -> bool:
 	for p in paths_of(item):
 		if String(p.id) == id:
 			item["path"] = id
+			Chronicle.mark("grown")
 			return true
 	return false
 

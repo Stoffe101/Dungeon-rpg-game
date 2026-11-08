@@ -88,7 +88,7 @@ func on_active() -> void:
 		var rev: bool = strike.from < 0.0
 		if cos(Iso.screen_angle(aim_dir)) < 0.0:
 			rev = not rev
-		player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 8.0), col, 0.09 / speed(), 0.42, rev)
+		player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 8.0), trail(col), 0.09 / speed(), 0.42, rev)
 	Audio.play("swing", -2.0, randf_range(0.95, 1.08))
 	var hits := arc_hit(p, aim_dir, strike.range, deg_to_rad(strike.arc), dmg, ["melee"], strike.kb, strike.poise, {"finisher": finisher})
 	if hits > 0:
@@ -108,8 +108,8 @@ func _cleave() -> void:
 	var rev: bool = strike.from < 0.0
 	if cos(Iso.screen_angle(aim_dir)) < 0.0:
 		rev = not rev
-	player.stage.fx.swipe(p, aim_dir, strike.range + 0.2, deg_to_rad(strike.arc + 10.0), Color(0.82, 0.86, 0.95, 0.95), 0.12 / speed(), 0.32, rev)
-	player.stage.fx.swipe(p, aim_dir, strike.range - 0.4, deg_to_rad(strike.arc), Color(0.55, 0.6, 0.75, 0.7), 0.14 / speed(), 0.5, rev)
+	player.stage.fx.swipe(p, aim_dir, strike.range + 0.2, deg_to_rad(strike.arc + 10.0), trail(Color(0.82, 0.86, 0.95, 0.95)), 0.12 / speed(), 0.32, rev)
+	player.stage.fx.swipe(p, aim_dir, strike.range - 0.4, deg_to_rad(strike.arc), trail(Color(0.55, 0.6, 0.75, 0.7)), 0.14 / speed(), 0.5, rev)
 	Audio.play("swing_heavy", -1.0, randf_range(0.95, 1.05))
 	var hits := arc_hit(p, aim_dir, strike.range, deg_to_rad(strike.arc), float(strike.dmg), ["melee"], strike.kb, strike.poise,
 		{"finisher": finisher, "each": _sunder})
@@ -205,6 +205,7 @@ func _thrust() -> void:
 
 
 func on_evade() -> void:
+	super.on_evade()
 	if form == "duelist" and not riposte:
 		riposte = true
 		if visual:
@@ -333,7 +334,7 @@ func release_charge() -> void:
 	charged = false
 	var p := player.pos
 	var r := 2.5 * player.stats.v("area")
-	player.stage.fx.swipe(p, aim_dir, r, PI, Color(1.0, 0.75, 0.4, 0.95), 0.18, 0.35)
+	player.stage.fx.swipe(p, aim_dir, r, PI, trail(Color(1.0, 0.75, 0.4, 0.95)), 0.18, 0.35)
 	player.stage.fx.ring(p, r, Color(1.0, 0.7, 0.35), 0.25, 0.15)
 	player.stage.fx.burst(p, 0.5, Color(1.0, 0.7, 0.3), 18, 7.0, 0.35, 2.0)
 	Audio.play("whirl", 0.0)

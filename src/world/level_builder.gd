@@ -57,9 +57,9 @@ class LevelTheme:
 				t.grime_color = Color(0.45, 0.42, 0.5)
 				t.rim = Color(0.5, 0.54, 0.66)
 			"root":
-				t.grime = 0.5
-				t.grime_color = Color(0.5, 0.6, 0.42)
-				t.rim = Color(0.44, 0.54, 0.36)
+				t.grime = 0.22
+				t.grime_color = Color(0.62, 0.66, 0.5)
+				t.rim = Color(0.52, 0.42, 0.28)     # bark, not moss: green is for what grows
 			"throne":
 				t.grime = 0.45
 				t.grime_color = Color(0.55, 0.5, 0.48)
@@ -325,7 +325,7 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 		var hh := 2.0
 		for k in range(1, MASS_MAX + 1):
 			if open(grid.at(x, y - k)):
-				hh = 0.5
+				hh = TileGrid.LOW_WALL
 				break
 		_cap(tools.rock, grid, x, y, hh, ts.top, mass)
 

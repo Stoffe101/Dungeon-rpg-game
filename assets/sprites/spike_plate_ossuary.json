@@ -1,0 +1,25 @@
+{
+	"anims": {
+		"armed": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"warn": {
+			"fps": 8.0,
+			"frames": 2,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": false,
+	"frame": [
+		16,
+		16
+	],
+	"origin": [
+		8,
+		8
+	]
+}

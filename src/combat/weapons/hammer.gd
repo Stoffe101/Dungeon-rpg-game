@@ -81,7 +81,7 @@ func on_active() -> void:
 	else:
 		Audio.play("swing_heavy", 0.0)
 		var rev := cos(Iso.screen_angle(aim_dir)) < 0.0
-		player.stage.fx.swipe(p, aim_dir, strike.range + 0.15, deg_to_rad(strike.arc + 10.0), Color(1.0, 0.75, 0.45, 0.95), 0.12, 0.3, rev)
+		player.stage.fx.swipe(p, aim_dir, strike.range + 0.15, deg_to_rad(strike.arc + 10.0), trail(Color(1.0, 0.75, 0.45, 0.95)), 0.12, 0.3, rev)
 		hits = arc_hit(p, aim_dir, strike.range, deg_to_rad(strike.arc), dmg, ["melee"], strike.kb, strike.poise, {"unblockable": true})
 		if hits > 0:
 			player.stage.hitstop(0.07)

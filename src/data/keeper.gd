@@ -38,6 +38,8 @@ static func lines() -> Array:
 		out.append("There is a paleness on you. Whatever you fed down there, it knows your name now. Mind your Grudges.")
 	elif sites.has("kindled"):
 		out.append("Someone is tending a Vigil again. I had not thought to feel that in my lifetime. Thank you.")
+	if Chronicle.marks("hunts") > 0:
+		out.append("You hunted it down through its own halls. It will not be the last thing that learns your name for that.")
 	if int(d.world.get("delve_best", 0)) >= 10:
 		out.append("You have been further down than anyone I ever sent. Tell me: does the light still look the same?")
 	if int(d.world.get("warden_kills", 0)) == 0 and int(d.world.get("deepest", 0)) >= 2:

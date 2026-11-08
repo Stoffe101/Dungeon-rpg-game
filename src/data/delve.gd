@@ -33,6 +33,8 @@ const BANDS := [
 	{"id": "thin", "name": "The Thin Light", "line": "lanterns reach less far"},
 	{"id": "crowded", "name": "The Crowded Dark", "line": "every fight calls one more wave"},
 	{"id": "roads", "name": "The Old Roads", "line": "the floors run in rings and wings"},
+	{"id": "teeth", "name": "The Toothed Galleries", "line": "every hall is laid with traps"},
+	{"id": "overgrown", "name": "The Overgrown Dark", "line": "something green has got down here"},
 ]
 
 

@@ -65,6 +65,64 @@ func rebuild_nav() -> void:
 				astar.set_point_solid(Vector2i(x, y), true)
 
 
+## The clock hazards keep (spike traps): this stage's own alone; in a party the host's,
+## so every machine's trap is at the same point of its cycle.
+func hazard_time() -> float:
+	if Net.active() and Net.i and Net.i.run_sync and Net.is_client():
+		return Net.i.run_sync.host_seconds()
+	if Net.active() and Net.is_host() and Net.i and Net.i.run_sync:
+		return float(Time.get_ticks_msec()) / 1000.0
+	return elapsed
+
+
+var occluders: Array = []         # tall things that thin when someone is under them
+var flora: FloraField = null
+var _occ_t := 0.0
+
+
+## Tall things thin when someone stands behind them (ten times a second, only near this
+## machine's Kindled): a canopy must not hide a fight.
+func update_occlusion(dt: float) -> void:
+	if flora:
+		flora.tick(dt)
+	_occ_t -= dt
+	if _occ_t > 0.0 or occluders.is_empty():
+		return
+	_occ_t = 0.1
+	_foes_behind_stone()
+	for o in occluders:
+		if not is_instance_valid(o):
+			continue
+		if player == null or o.pos.distance_squared_to(player.pos) > 400.0:
+			o.set_thin(false)
+			continue
+		var under := false
+		for a in actors:
+			if not is_instance_valid(a) or not a.alive:
+				continue
+			var behind: float = o.pos.y - a.pos.y
+			if behind > -0.1 and behind < o.occ_h and absf(a.pos.x - o.pos.x) < o.occ_w:
+				under = true
+				break
+		o.set_thin(under)
+
+
+## A foe's cold outline shows only when stone stands between it and the camera (the
+## depth pass alone cannot tell stone from a Kindled standing in front of it).
+func _foes_behind_stone() -> void:
+	for a in actors:
+		if not (a is Enemy) or not is_instance_valid(a) or (a as Enemy).sprite == null:
+			continue
+		var x := floori(a.pos.x)
+		var y := floori(a.pos.y)
+		var hidden := false
+		for k in [1, 2]:
+			var t := grid.at(x, y + k)
+			if t == TileGrid.PILLAR or (t == TileGrid.WALL and grid.wall_height(x, y + k) >= 1.0):
+				hidden = true
+		(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
+
+
 func set_tile_solid(t: Vector2i, solid: bool) -> void:
 	if astar and astar.is_in_boundsv(t):
 		astar.set_point_solid(t, solid)
@@ -176,6 +234,7 @@ func find_title(pl: Player, height: float, text: String, col: Color) -> void:
 
 
 func simulate(dt: float) -> void:
+	update_occlusion(dt)
 	if replica:
 		_replica_step(dt)
 		return
@@ -446,6 +505,8 @@ func _clear_walk(a: Vector2, b: Vector2) -> bool:
 
 ## Props that react to being struck (urns, braziers, cracked walls).
 func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, src: Node, fire := false) -> void:
+	if fire and flora:
+		flora.scorch(origin + dir * rng * 0.6, rng * 0.6)
 	for pr in props.duplicate():
 		if not is_instance_valid(pr) or not pr.breakable or pr.used:
 			continue
@@ -460,6 +521,11 @@ func strike_props(origin: Vector2, dir: Vector2, rng: float, half_angle: float, 
 
 ## Props along a line (a thrust, a rush, a beam).
 func strike_props_line(a: Vector2, b: Vector2, width: float, src: Node, fire := false) -> void:
+	if fire and flora:
+		var k := 0.0
+		while k <= 1.0:
+			flora.scorch(a.lerp(b, k), width + 0.4)
+			k += 0.25
 	var seg := b - a
 	var len2 := maxf(seg.length_squared(), 0.0001)
 	for pr in props.duplicate():
@@ -471,6 +537,8 @@ func strike_props_line(a: Vector2, b: Vector2, width: float, src: Node, fire := 
 
 
 func strike_props_circle(p: Vector2, r: float, src: Node, fire := false) -> void:
+	if fire and flora:
+		flora.scorch(p, r)
 	for pr in props.duplicate():
 		if is_instance_valid(pr) and pr.breakable and not pr.used and pr.pos.distance_to(p) <= r + pr.strike_radius:
 			pr.on_struck(src, fire)

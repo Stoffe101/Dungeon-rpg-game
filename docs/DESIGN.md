@@ -1156,6 +1156,64 @@ not have: the HUD's task line outliving the room it belonged to.
 - **Permanent regional corruption**: a meter that only worsens punishes
   experimenting; altars that can always be re-answered do the same work.
 
+## The world of depth
+
+Branch `feature/world-of-depth`. Measurements are in STATUS.
+
+**What things are made of.** `src/data/physical.gd` is one table of what every kind of thing is:
+ground cover (walk through it), solid, solid until broken, usable, hazard, wall fixture. The art
+obeys it and tests measure it from the drawings: ground cover is low, thin and has no outline;
+what stops you has a foot as wide as its tile and an outline and does not sway. Green now means
+something grows: the Rootmire's floor is earth and its wall tops are a mat of roots (they were moss
+the same green as the floor's stains, and read as a raised lawn).
+
+**The foot of a thing.** Every solid sprite stood on the centre line of its tile, so it stopped you
+half a tile short of itself. Its foot now stands at the front of the tile (`Prop.FOOT_FORWARD`).
+A near wall's cap covered half a tile of floor; it covers a quarter. Rejected: sub-tile colliders.
+The art was changed to fill the tile instead, so host, guest prediction and pathing keep one grid.
+
+**Things that lied.** Pots looked solid and were not: they now break when walked into, the one
+deliberate exception. Chests, altars, springs, jars and great caps looked solid and were walked
+through: they stop you. Flat decals drawn as bushes, rings of spores that read as markers and a gilt
+lump that read as a pickup are gone.
+
+**Ground cover.** One MultiMesh a room (`FloraField`), drawn by its own shader: it sways with no
+script per plant, parts underfoot, burns to stubs. Thick by the walls, thin down the middle, so the
+way across is plain. Presentation only: it stops nothing, and every machine grows the same field.
+
+**Thorns, thickets, trees.** Three silhouettes that cannot be confused. A thicket is a dense
+crown on woody roots and a mound. Thorns are arched canes with air between them and pale cuts of sap
+where a blade gets in. A tree's trunk is the obstacle and its canopy only hangs overhead, and thins
+when anyone stands under it. Tall things thin; foes behind stone keep a thin cold outline, as a
+Kindled keeps a warm one.
+
+**Spike traps.** A plate let into the floor and teeth that stand up out of it. One cycle (armed,
+warning, rising, up, falling) on one clock every machine shares (`Stage.hazard_time`). They hurt only
+while visibly out, only a foot on the plate, once per rise, and walking onto raised teeth hurts. A
+warning is motion and shape (the plate drops, the notches alternate, the tips creep out), so it
+needs no colour and no flash. Each region has its own make; the Hollow's are not quite straight.
+
+**Grown weapons look grown.** Every great weapon has a drawing per path, the path worked into its
+silhouette, and the same shape means the same path on every weapon. Colour alone was not enough.
+
+**The bow.** The bench said the bow was weak. It was mostly the bot: one build never drew a shot and
+draws begun during recovery were let go too soon. Told what it was doing, the bench shows a bow build
+matching melee at the Ossuary and slower at the Throne, where the King closes on anyone drawing. No
+damage was raised. What changed is the bow's rhythm: the first draw after a dodge comes up twice as
+fast with a wider window, so roll, then shoot.
+
+**Where ways of fighting meet.** Six hybrids join a technique to something else (a chill spent from
+behind, a Cadence that burns, a Ward that opens the next blow). Full respec is free: a node at a time
+already was, so charging for the button only made trying a build feel like a mistake.
+
+**More kinds of floor.** A fifth plan, the great hall. Rooms laid with waves of spikes, a court of
+thorns, a grove. Two more Hollow moods built from the same things: the Toothed Galleries, the
+Overgrown Dark. A hunt may be a trail, scouts ahead of the quarry, or thorns it marked. Only a
+guardian's first hunt pays its weapon for certain: a hunt must not be the only sensible expedition.
+
+**The sanctuary notices.** Residents say something the first time they see you after a deed, once.
+Fallen guardians hang on its wall. Errands are notices with stages, one thing leading to the next.
+
 ## The deepening pass
 
 Branch `feature/combat-progression-deepening`. Measurements are in STATUS.

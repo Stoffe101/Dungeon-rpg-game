@@ -279,6 +279,19 @@ const NODES := [
 
 	# ---------------- Hybrids (between branches) ----------------
 	# the deep hybrids: a second step between two branches, each a way of fighting
+	# where one way of fighting meets another: each joins a technique to something else
+	{"id": "z_kb", "name": "Banked Strikes", "branch": "kindle|blade", "kind": "hybrid", "ring": 6.4, "links": ["y_kb"], "flags": {"banked_strikes": 1},
+		"desc": "Strikes in Cadence give back Kindle. A run of three lights your lantern for a moment."},
+	{"id": "z_bp", "name": "Searing Time", "branch": "blade|pyre", "kind": "hybrid", "ring": 5.3, "links": ["x_bp"], "flags": {"searing_time": 1},
+		"desc": "Strikes in Cadence set foes alight. Struck in time while burning, a foe takes half again as much."},
+	{"id": "z_pr", "name": "Cold Aim", "branch": "pyre|rime", "kind": "hybrid", "ring": 5.3, "links": ["x_pr"], "flags": {"cold_aim": 1},
+		"desc": "True shots chill. At full Focus they freeze what is already chilled."},
+	{"id": "z_rg", "name": "Rime Knife", "branch": "rime|gloam", "kind": "hybrid", "ring": 6.4, "links": ["y_rg"], "flags": {"rime_knife": 1},
+		"desc": "A blow from behind on a chilled foe spends the chill and deals half again as much."},
+	{"id": "z_gw", "name": "Turned Aside", "branch": "gloam|bulwark", "kind": "hybrid", "ring": 6.4, "links": ["y_gw"], "flags": {"turned_aside": 1},
+		"desc": "After a perfect dodge or a clean Ward, your next blow lands as if from behind: it is critical, guardians included."},
+	{"id": "z_wk", "name": "Breaker's Coal", "branch": "bulwark|kindle", "kind": "hybrid", "ring": 6.4, "links": ["y_wk"], "flags": {"breakers_coal": 1},
+		"desc": "Breaking a foe's guard pours Kindle back into you, and it burns those shaken by it."},
 	{"id": "y_kb", "name": "Furnace Heart", "branch": "kindle|blade", "kind": "hybrid", "ring": 5.1, "links": ["x_kb"], "flags": {"furnace_heart": 1},
 		"desc": "Every point of Kindle you spend banks in your weapon: your next blow is 1% stronger for each, up to 60%. Cast, then strike."},
 	{"id": "y_gw", "name": "Perfect Answer", "branch": "gloam|bulwark", "kind": "hybrid", "ring": 5.1, "links": ["x_gw"], "flags": {"perfect_answer": 1},
