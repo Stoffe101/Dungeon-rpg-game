@@ -89,6 +89,7 @@ GODOT="/c/Users/Skrra/Desktop/Godot_v4.7.2-stable_win64.exe"
   `scenario=journey|bestiary|stairs|sites|ways|guardian|talk|partyesc|partyhud|facing|landmark|spells role=host|guest guests=N stay=S`
   (docs/TESTING.md; `XARGS=...` gives every e2e process the same extra switches),
   `autoaccept` (answer expedition proposals), `showcol` (collision overlay), `open=settings page=<id>`,
+  `worldlab` (everything a region's floor is made of, in the start room), `huntstyle=trail|scouts|marked`, `wfocus=<n>` (Focus held from the start), `nooutline`,
   `build=<preset>` (a whole build: starter|knives|lantern|rush|hail|bulwark|frost|beam|wall|pyreblade|shadow, `src/dev/build_presets.gd`),
   `botcharge` (the bot holds every third attack), `economy` (exact co-op reward audit, `src/dev/economy_audit.gd`),
   `cast=1,3` (with `hitlab`: cast those spell slots at the nearest foe, full Kindle), `forge=0..3` (workshop level),
@@ -269,7 +270,7 @@ real OS cursor, which scripted events do not move).
 
 - History, playtest reports, preferences and what is really verified: `docs/DEVELOPMENT_HANDOFF.md`.
 
-- Branches are stacked feature branches with draft PRs (latest: `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
+- Branches are stacked feature branches with draft PRs (latest: `feature/world-of-depth` -> `feature/combat-progression-deepening` -> `feature/great-evolution` -> `feature/enemy-presentation` -> `feature/living-undervault` -> `feature/expedition-evolution` -> `feature/playtest-foundations` -> `feature/combat-identity` -> `feature/feel-and-atmosphere` -> `feature/evolution-builds` -> `feature/coop-playtest-repair` -> `feature/steam-coop`
   -> `feature/buildcraft-coop` -> ... -> `main`). Don't merge large work to main without review.
 - Commit with descriptive messages; push when authenticated.
 - After meaningful changes: run tests, run a capture, look at the screenshot,
