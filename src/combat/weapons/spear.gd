@@ -53,7 +53,7 @@ func on_active() -> void:
 		hits = line_hit(p, tip, float(strike.width), dmg, ["melee"], strike.kb, strike.poise, o)
 	else:
 		var rev := cos(Iso.screen_angle(aim_dir)) < 0.0
-		player.stage.fx.swipe(p, aim_dir, strike.range + 0.15, deg_to_rad(strike.arc + 8.0), Color(1.0, 0.85, 0.5, 0.9), 0.12 / speed(), 0.55, rev)
+		player.stage.fx.swipe(p, aim_dir, strike.range + 0.15, deg_to_rad(strike.arc + 8.0), trail(Color(1.0, 0.85, 0.5, 0.9)), 0.12 / speed(), 0.55, rev)
 		Audio.play("swing_heavy", -2.0, 1.15)
 		var o2 := {"finisher": true}
 		if form == "root":

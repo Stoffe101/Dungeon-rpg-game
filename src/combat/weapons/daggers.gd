@@ -48,7 +48,7 @@ func on_active() -> void:
 	var rev: bool = strike.from < 0.0
 	if cos(Iso.screen_angle(aim_dir)) < 0.0:
 		rev = not rev
-	player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 6.0), Color(0.92, 0.9, 1.0, 0.85), 0.07 / speed(), 0.5, rev)
+	player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 6.0), trail(Color(0.92, 0.9, 1.0, 0.85)), 0.07 / speed(), 0.5, rev)
 	Audio.play("swing", -4.0, randf_range(1.25, 1.4))
 	var opts := {"finisher": finisher, "crit": randf() < CRIT_BONUS}
 	var struck: Array = []
@@ -64,7 +64,7 @@ func on_active() -> void:
 			_tear(a)
 	if finisher:
 		# the crossing cut: the second fang follows the first
-		player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 6.0), Color(1.0, 0.8, 0.5, 0.85), 0.09 / speed(), 0.5, not rev)
+		player.stage.fx.swipe(p, aim_dir, strike.range + 0.1, deg_to_rad(strike.arc + 6.0), trail(Color(1.0, 0.8, 0.5, 0.85)), 0.09 / speed(), 0.5, not rev)
 		hit_ids.clear()
 		var k := 0.9 if tempered() else 0.5
 		hits += arc_hit(p, aim_dir, strike.range, deg_to_rad(strike.arc), dmg * k, ["melee"], strike.kb, strike.poise, {"finisher": true, "crit": randf() < CRIT_BONUS})
