@@ -14,41 +14,41 @@ const AWAKE_MULT := 1.15     # an Awakened item's own powers
 ## Two ways for each great weapon. `flags` are the same ones the uniques use.
 const PATHS := {
 	"thousandth_cut": [
-		{"id": "echo", "name": "the Echoing Count", "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."},
-		{"id": "chain", "name": "the Kept Count", "flags": {"crit_chain": 1}, "desc": "Critical hits leap on to another foe."}],
+		{"id": "echo", "name": "the Echoing Count", "col": Color(1.0, 0.88, 0.55), "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."},
+		{"id": "chain", "name": "the Kept Count", "col": Color(1.0, 0.62, 0.3), "flags": {"crit_chain": 1}, "desc": "Critical hits leap on to another foe."}],
 	"quakeheart": [
-		{"id": "frost", "name": "the Frozen Heart", "flags": {"hoarfrost": 1}, "desc": "Whatever strikes you is chilled to the bone."},
-		{"id": "blood", "name": "the Beating Heart", "flags": {"lifesteal": 1}, "desc": "Melee blows give back a little of what they deal."}],
+		{"id": "frost", "name": "the Frozen Heart", "col": Color(0.6, 0.85, 1.0), "flags": {"hoarfrost": 1}, "desc": "Whatever strikes you is chilled to the bone."},
+		{"id": "blood", "name": "the Beating Heart", "col": Color(1.0, 0.4, 0.4), "flags": {"lifesteal": 1}, "desc": "Melee blows give back a little of what they deal."}],
 	"hundred_embers": [
-		{"id": "wild", "name": "the Wildfire Wand", "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."},
-		{"id": "steam", "name": "the Scalding Wand", "flags": {"thermal_shock": 1}, "desc": "Fire on a chilled foe, or frost on a burning one, erupts in steam."}],
+		{"id": "wild", "name": "the Wildfire Wand", "col": Color(1.0, 0.55, 0.25), "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."},
+		{"id": "steam", "name": "the Scalding Wand", "col": Color(0.85, 0.95, 1.0), "flags": {"thermal_shock": 1}, "desc": "Fire on a chilled foe, or frost on a burning one, erupts in steam."}],
 	"gloamfang": [
-		{"id": "shade", "name": "Fang of Shades", "flags": {"shadowdancer": 1}, "desc": "Every dodge leaves a shade where you stood, which bursts."},
-		{"id": "storm", "name": "Fang of Storms", "flags": {"storm_crit": 1}, "desc": "Critical hits call lightning down on the foe."}],
+		{"id": "shade", "name": "Fang of Shades", "col": Color(0.75, 0.55, 1.0), "flags": {"shadowdancer": 1}, "desc": "Every dodge leaves a shade where you stood, which bursts."},
+		{"id": "storm", "name": "Fang of Storms", "col": Color(0.6, 0.9, 1.0), "flags": {"storm_crit": 1}, "desc": "Critical hits call lightning down on the foe."}],
 	"searing_pike": [
-		{"id": "pyre", "name": "the Pyre Pike", "flags": {"combustion": 1}, "desc": "The burning burst when they fall."},
-		{"id": "knives", "name": "the Splintering Pike", "flags": {"crit_knives": 1}, "desc": "Critical hits fling a spectral knife at another foe."}],
+		{"id": "pyre", "name": "the Pyre Pike", "col": Color(1.0, 0.45, 0.25), "flags": {"combustion": 1}, "desc": "The burning burst when they fall."},
+		{"id": "knives", "name": "the Splintering Pike", "col": Color(0.8, 0.6, 1.0), "flags": {"crit_knives": 1}, "desc": "Critical hits fling a spectral knife at another foe."}],
 	"windreturn": [
-		{"id": "seek", "name": "the Homing Wind", "flags": {"seeking": 1}, "desc": "Everything you loose bends toward the nearest foe."},
-		{"id": "wild", "name": "the Wildfire Wind", "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."}],
+		{"id": "seek", "name": "the Homing Wind", "col": Color(0.85, 1.0, 0.55), "flags": {"seeking": 1}, "desc": "Everything you loose bends toward the nearest foe."},
+		{"id": "wild", "name": "the Wildfire Wind", "col": Color(1.0, 0.55, 0.25), "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."}],
 	"hollow_index": [
-		{"id": "storm", "name": "the Index of Storms", "flags": {"storm_crit": 1}, "desc": "Critical hits call lightning down on the foe."},
-		{"id": "steam", "name": "the Scalding Index", "flags": {"thermal_shock": 1}, "desc": "Fire on a chilled foe, or frost on a burning one, erupts in steam."}],
+		{"id": "storm", "name": "the Index of Storms", "col": Color(0.6, 0.9, 1.0), "flags": {"storm_crit": 1}, "desc": "Critical hits call lightning down on the foe."},
+		{"id": "steam", "name": "the Scalding Index", "col": Color(0.85, 0.95, 1.0), "flags": {"thermal_shock": 1}, "desc": "Fire on a chilled foe, or frost on a burning one, erupts in steam."}],
 	"wardenfang": [
-		{"id": "knives", "name": "the Thousand Fangs", "flags": {"crit_knives": 1}, "desc": "Critical hits fling a spectral knife at another foe."},
-		{"id": "echo", "name": "the Twice-Bitten", "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."}],
+		{"id": "knives", "name": "the Thousand Fangs", "col": Color(0.8, 0.6, 1.0), "flags": {"crit_knives": 1}, "desc": "Critical hits fling a spectral knife at another foe."},
+		{"id": "echo", "name": "the Twice-Bitten", "col": Color(1.0, 0.88, 0.55), "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."}],
 	"bloomstring": [
-		{"id": "pyre", "name": "the Funeral String", "flags": {"combustion": 1}, "desc": "The burning burst when they fall."},
-		{"id": "seek", "name": "the Hungry String", "flags": {"seeking": 1}, "desc": "Everything you loose bends toward the nearest foe."}],
+		{"id": "pyre", "name": "the Funeral String", "col": Color(1.0, 0.45, 0.25), "flags": {"combustion": 1}, "desc": "The burning burst when they fall."},
+		{"id": "seek", "name": "the Hungry String", "col": Color(0.85, 1.0, 0.55), "flags": {"seeking": 1}, "desc": "Everything you loose bends toward the nearest foe."}],
 	"sunfall_glaive": [
-		{"id": "wild", "name": "the Spreading Dawn", "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."},
-		{"id": "echo", "name": "the Second Sunset", "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."}],
+		{"id": "wild", "name": "the Spreading Dawn", "col": Color(1.0, 0.55, 0.25), "flags": {"wildfire": 1}, "desc": "Fire leaps from the burning to their neighbours."},
+		{"id": "echo", "name": "the Second Sunset", "col": Color(1.0, 0.88, 0.55), "flags": {"echo_strike": 1}, "desc": "Every fourth blow echoes a moment later."}],
 }
 ## Everything else great grows one of three ways.
 const COMMON := [
-	{"id": "hearth", "name": "Hearthbound", "mods": [["kindle_max", "add", 15.0], ["kindle_gain", "add", 0.08]], "desc": "+15 maximum Kindle, +8% Kindle gained."},
-	{"id": "deep", "name": "Deepforged", "mods": [["elite_damage", "add", 0.12], ["max_hp", "add", 10.0]], "desc": "+12% damage to champions, +10 health."},
-	{"id": "hollow", "name": "Hollowed", "mods": [["ember_gain", "add", 0.1], ["xp_gain", "add", 0.06]], "desc": "+10% Embers, +6% Memories."},
+	{"id": "hearth", "name": "Hearthbound", "col": Color(1.0, 0.8, 0.45), "mods": [["kindle_max", "add", 15.0], ["kindle_gain", "add", 0.08]], "desc": "+15 maximum Kindle, +8% Kindle gained."},
+	{"id": "deep", "name": "Deepforged", "col": Color(0.7, 0.75, 0.9), "mods": [["elite_damage", "add", 0.12], ["max_hp", "add", 10.0]], "desc": "+12% damage to champions, +10 health."},
+	{"id": "hollow", "name": "Hollowed", "col": Color(0.6, 1.0, 0.85), "mods": [["ember_gain", "add", 0.1], ["xp_gain", "add", 0.06]], "desc": "+10% Embers, +6% Memories."},
 ]
 
 
@@ -93,6 +93,11 @@ static func choose(item: Dictionary, id: String) -> bool:
 
 
 ## What its path adds to the item's powers.
+## The colour its powers take once it has chosen (its glow, its tint).
+static func path_color(item: Dictionary) -> Color:
+	return path_def(item).get("col", Color(1, 1, 1))
+
+
 static func path_mods(item: Dictionary) -> Array:
 	return path_def(item).get("mods", [])
 
@@ -131,7 +136,7 @@ static func progress(item: Dictionary) -> String:
 ## An expedition's worth of Resonance. Every Kindled's own count of what they took
 ## part in; a death pays half, because it was still used.
 static func gain_of(run: RunState, outcome: String) -> int:
-	var n: int = run.kills + 30 * (run.bosses as Array).size() + 15 * (run.grudges_won as Array).size()
+	var n: int = run.kills + 30 * (run.bosses as Array).size() + 15 * (run.grudges_won as Array).size() + run.resonance_bonus
 	return n if outcome != "died" else n / 2
 
 

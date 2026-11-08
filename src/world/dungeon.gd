@@ -128,6 +128,8 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		for k in pr.taken:
 			_taken_before += float(pr.taken[k])
 	_rooms_before = run.rooms_cleared
+	if hunted() and not layout.boss_depth:
+		after(2.5, func() -> void: Events.banner.emit("The Hunt", "Two signs of its trail lie on this floor, and its harbinger walks ahead"))
 	if layout.depth > 3 and not Delve.band(layout.depth).is_empty():
 		var b := Delve.band(layout.depth)
 		after(3.0, func() -> void: Events.toast.emit("%s: %s." % [b.name, b.line], Color(0.72, 0.62, 1.0)))
@@ -141,6 +143,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				ids = a.substr(4).split(",")
 		for k in ids.size():
 			var parts := String(ids[k]).split(":")
+			if not EnemyDB.ENEMIES.has(parts[0]):
+				print("[hitlab] no foe called '%s' (EnemyDB.ENEMIES)" % parts[0])
+				continue
 			var e := _make_enemy(parts[0])
 			if parts.size() > 1:
 				e.make_elite(parts[1])
@@ -487,6 +492,24 @@ func _pull_lever(prop: Prop) -> void:
 	Chronicle.mark("ways_back")
 
 
+## This expedition hunts this region's guardian (the world it carries says so).
+func hunted() -> bool:
+	return (run.world.get("hunts", []) as Array).has(layout.region)
+
+
+## One more thing learned about the quarry: it will be weaker for it (up to four).
+func hunt_sign(how: String) -> void:
+	run.hunt_signs += 1
+	Chronicle.mark("hunt_signs")
+	var n := mini(run.hunt_signs, HUNT_SIGNS)
+	Events.banner.emit("The Hunt  %d of %d" % [n, HUNT_SIGNS], "%s. It will be %d%% weaker for it" % [how, int(round(n * HUNT_WEAKEN * 100.0))])
+	Audio.play("ping", -2.0, 0.7)
+
+
+const HUNT_SIGNS := 4
+const HUNT_WEAKEN := 0.08
+
+
 ## The rule of the fight this machine stands in, while it lasts (the objective
 ## line is what every machine shares, and it goes out with the fight).
 func rule_here() -> String:
@@ -546,6 +569,33 @@ func _take_key(prop: Prop) -> void:
 	Events.banner.emit("The Bone Key", "The barred vault lies back toward the start of the floor")
 	_set_objective("CARRY THE KEY TO THE VAULT", -1.0, Color(1.0, 0.8, 0.45))
 	carry_key(true)
+
+
+## The Broken altar's rubble: dig, and the stone gives something back (Embers, sometimes
+## more). Every Kindled sees the same pile go.
+func _dig(prop: Prop) -> void:
+	prop.used = true
+	prop.sprite.visible = false
+	set_tile_solid(prop.tile, false)
+	fx.burst(prop.pos, 0.4, Color(0.6, 0.55, 0.5), 18, 3.0, 0.5, 8.0)
+	Audio.play_at("crumble", prop.pos, -4.0, 1.1)
+	for i in 3:
+		Pickup.spawn(self, "ember", prop.pos, 2 + layout.depth)
+	if rng.randf() < 0.3:
+		var mats: Array = ["bone_dust", "grave_iron", "soul_glass"]
+		Pickup.spawn(self, "material", prop.pos, 1, {"id": mats[rng.randi_range(0, mats.size() - 1)]})
+
+
+## The Kindled altar's lamps: the order keeps them lit, and a Kindled may take a flame
+## from each once (Kindle and a little health).
+func _take_flame(prop: Prop, who: Player) -> void:
+	prop.used = true
+	if prop.light:
+		prop.light.light_energy *= 0.35
+	who.gain_kindle(30.0 / maxf(who.stats.v("kindle_gain"), 0.01))
+	who.heal(who.max_hp * 0.05)
+	fx.motes(prop.pos, 1.2, Color(1.0, 0.7, 0.4), 10, 1.4, 0.8, 0.3)
+	Audio.play_at("hearth_feed", prop.pos, -6.0, 1.3)
 
 
 ## Where you fell. The lantern is cold; lighting it is not much, and it is yours.
@@ -1064,6 +1114,19 @@ func _start_encounter(r: Room, by: Player = null) -> void:
 		Events.banner.emit(String(ru.name), String(ru.line))
 		_set_objective(String(ru.name).to_upper(), -1.0, ru.col)
 		Chronicle.mark("rules_met")
+	if Chronicle.site_of(run.world, layout.region) == "broken" and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("restless", false):
+		# the Broken altar let the dead loose: one more in every fight here
+		r.set_meta("restless", true)
+		r.encounter = r.encounter.duplicate(true)
+		if not r.encounter.is_empty():
+			(r.encounter[0] as Array).append(EnemyDB._filler(layout.region))
+	if r.harbinger and hunted():
+		after(0.6, func() -> void:
+			var g := EnemyDB.get_def(String(region.boss))
+			var e := _champion("Harbinger of %s" % String(g.get("name", "the Guardian")).trim_prefix("The "), 2.2)
+			if e:
+				e.set_meta("harbinger", true)
+				Events.banner.emit("Its Harbinger", "It went ahead of its master. It knows the way"))
 	if String(Delve.band(layout.depth).get("id", "")) == "crowded" and r.type in [Room.Type.COMBAT, Room.Type.ELITE] and not r.get_meta("crowded", false):
 		r.set_meta("crowded", true)
 		r.encounter = r.encounter.duplicate()
@@ -1930,7 +1993,13 @@ func _start_boss(r: Room) -> void:
 		add_actor(e)
 		register_enemy(e)
 		boss = e
-		var form := "" if run.delve else Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
+		# (deep in the Hollow, from depth 12, its Echoes come in their rarer forms)
+		var form := Guardians.form_of(String(region.boss), layout.region, run.seed, layout.depth, run.world)
+		if run.delve:
+			form = String(Guardians.FORMS.get(String(region.boss), {}).get("id", "")) if layout.depth >= 12 else ""
+		if hunted():
+			# the quarry: always its rarer form, weaker for all that was learned on the way
+			form = String(Guardians.FORMS.get(String(region.boss), {}).get("id", ""))
 		for a in Dev.args():
 			if a.begins_with("bossat="):
 				e.hp = e.max_hp * float(a.substr(7))     # dev: its later moments, sooner
@@ -1957,6 +2026,12 @@ func _start_boss(r: Room) -> void:
 			e.take_form(form)
 			e.begin_form()
 			sub_line = String(fd.sub)
+			if hunted():
+				var n := mini(run.hunt_signs, HUNT_SIGNS)
+				e.max_hp *= 1.0 - HUNT_WEAKEN * n
+				e.hp = e.max_hp
+				e.set_meta("quarry", true)
+				sub_line = "The quarry. You read %d sign%s of it on the way down" % [n, "" if n == 1 else "s"]
 			Chronicle.mark("form_met_" + form)
 		Net.rec(["boss", e.net_id, form])
 		if players.size() > 1:
@@ -2601,8 +2676,8 @@ func _reagent_drop(p: Vector2, id: String, chance: float) -> void:
 
 
 ## Counts progress on residents' requests and tells the player when one is done.
-func note_request(key: String, amount := 1) -> void:
-	if not replica:
+func note_request(key: String, amount := 1, shared := true) -> void:
+	if not replica and shared:
 		Net.rec(["note", key, amount])     # (a guest's own favours and notices count too)
 	Net.mute += 1     # each machine's own news, told only there
 	for title in Contracts.note(key, amount):
@@ -2713,6 +2788,8 @@ func _spoils_of(e: Enemy) -> void:
 		Pickup.spawn(self, "heal", e.pos, 10)
 	if e == boss:
 		_guardian_hoard(e)
+	if e.has_meta("harbinger"):
+		hunt_sign("Its harbinger is down")
 
 
 ## Restless Dead: the fallen climb back up once, weaker, a moment later.
@@ -2786,6 +2863,17 @@ var _boss_flasks := 0
 
 
 func _guardian_hoard(e: Enemy) -> void:
+	if e.has_meta("quarry"):
+		# a hunt's end: its weapon for certain, and everything great worn remembers it
+		var wleg: String = ItemDB.BOSS_WEAPONS.get(layout.region, "")
+		if wleg != "":
+			_gear_drop(e.pos, func() -> Dictionary: return ItemDB.make_item(wleg, "legendary", 1, rng, run.tier))
+		for pr in _party_runs():
+			pr.resonance_bonus += 100
+		note_request("hunt_" + layout.region)
+		Chronicle.mark("hunts")
+		Chronicle.note("%s was hunted down through its own halls." % e.display_name)
+		Events.banner.emit("The Hunt Is Over", "Its weapon is yours, and everything great you carry remembers this")
 	if "bossquit" in Dev.args():
 		# dev: a guardian fought to its end by real hits, timed
 		print("[dungeon] guardian felled: %s, %s left of the Kindled, %.0f s on this floor" % [e.display_name, player.hp_ratio() if player else 0.0, elapsed])
@@ -2818,6 +2906,14 @@ func _party_runs() -> Array:
 
 
 func _on_player_died() -> void:
+	if "bossquit" in Dev.args() and player:
+		# dev: a guardian fight to the end by real hits, told honestly when it is lost
+		var last: Array = []
+		for b in (run.blows as Array).slice(maxi(0, run.blows.size() - 3)):
+			last.append("%s %d" % [b[1], int(b[2])])
+		print("[dungeon] the Kindled fell after %.0f s on this floor, the guardian at %d%%; last blows: %s" % [elapsed,
+			int(round(boss.hp_ratio() * 100.0)) if boss and is_instance_valid(boss) else -1, ", ".join(PackedStringArray(last))])
+		get_tree().quit()
 	if players.size() > 1:
 		# co-op: one light out is not the end; _coop_tick decides when it is
 		return
@@ -2850,6 +2946,10 @@ func request(what: String, prop: Prop) -> void:
 			_take_key(prop)
 		"cold_lantern":
 			_relight(prop, who)
+		"rubble":
+			_dig(prop)
+		"lamp":
+			_take_flame(prop, who)
 		"site":
 			DeepEvents.interact(self, who, prop)
 		"stairs":

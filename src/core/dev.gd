@@ -52,5 +52,10 @@ static func take_marks() -> Array:
 
 
 ## The dev arguments after `--` (none in a release build).
+## A background run (tools/dev/bg.py): never touch the window, the real cursor or focus.
+static func background() -> bool:
+	return args().has("bg")
+
+
 static func args() -> PackedStringArray:
 	return OS.get_cmdline_user_args() if enabled() else PackedStringArray()

@@ -1156,6 +1156,72 @@ not have: the HUD's task line outliving the room it belonged to.
 - **Permanent regional corruption**: a meter that only worsens punishes
   experimenting; altars that can always be re-answered do the same work.
 
+## The deepening pass
+
+Branch `feature/combat-progression-deepening`. Measurements are in STATUS.
+
+**Working without getting in the way.** Every Godot run goes through `tools/dev/bg.py`: a copy
+of the project with its own user folder and import cache, no audio, below-normal priority.
+Rendered runs start minimized and are moved off every screen and out of the taskbar before
+they draw, so captures still come from the real renderer while the owner's desktop is
+untouched. Rejected: a hidden desktop (Vulkan output there is unreliable) and minimizing
+(Godot stops drawing a minimized window).
+
+**The map marker.** The facing line is gone. A pale dot in your own diamond tells it apart in
+a party; nothing reaches past the marker.
+
+**One technique per kind of weapon.** The weapon lab showed the forms were already distinct,
+and that what the weapons lacked was something a player gets better at. Each kind now has
+one: Cadence (swords, rhythm), Breaking Blow (hammers, staggers that spread), From Behind
+(daggers, position), The Point (spears, spacing), Overcharge (staves, Kindle for power), Focus
+(bows, precision that a hit takes away). Each is readable (a glint, a word, a ring), costs
+nothing to ignore, and is lent to any weapon by a Hearthtree notable. That is the bridge
+between weapons and the tree: a build is a weapon plus the techniques it borrows. Four
+keystones then turn a technique into a way of fighting, each with a price (Perfect Cadence,
+The Lantern's Edge, Vanguard's Weight, Unblinking), and three uniques bend one (the Metronome
+Hilt, the Overflowing Censer, the Turncloak Ring). Rejected: more percentage nodes.
+
+**The weapon audit.** Measured every weapon in the same fights with the same simple player
+(`-- weaponlab`). The Gravecleaver staggered whole packs every swing and took a twentieth of
+the damage other swords took: its cleaves' poise came down. Ranged weapons alone clear packs
+slowly in the lab, but real ranged builds with spells clear rooms within about 1.5x of melee
+(the build comparison): their pack answer is their spells and charged shots, kept as is.
+
+**Great things.** A stress test fires every power a path can grant at once with every blow
+critical: one blow and all it sets off stays under 60 hits. A grown weapon now looks grown
+(brighter awake, its path's colour once chosen), both paths are shown from the moment it
+wakes, and the choice is a banner, a line in the Chronicle and a sound of its own.
+
+**Guardian hunts.** A hunt is a notice that only goes up once its guardian has fallen. Carried,
+the next expedition into that region reads its trail (two signs a floor) and meets its
+harbinger, and ends with the guardian in its rarer form, weaker for every sign read. It pays
+the guardian's weapon for certain and 100 Resonance. It is not a chore: nothing expires and
+the signs are on the way. Rejected: a separate mode with its own maps.
+
+**What the altars change in play.** Kindled: lamps that give a flame. Broken: one more foe in
+every fight and rubble to dig. Pact keeps its blood doors and Bowl. Foes' own area blows set
+off devices, so a column or a jar helps whoever uses it first.
+
+**The deep.** From depth 12 the Hollow's Echoes come in their rarer forms; milestones at 25 and
+40. The noticeboard gains practice notices for whoever has a technique to practise.
+
+**Testing guardians honestly.** `tools/dev/bossbench.py` fights every guardian and form to the
+end without god mode, with real builds and three bot skill levels, and names what killed a
+Kindled. Bots are not people: it says whether a fight can be won and what kills, not how hard
+it feels.
+
+**The Throne, re-checked.** The King was "unbeatable" for bots (0 of 40) because three of his
+warnings were invisible to anything but a human eye: the shockwave's ring, the sun-pillars and
+floor spikes noted no danger, and the bot never sheltered from the Eclipse. All of these
+are now dangers every machine knows (also the off-screen arrows on a guest's screen), and
+every death names its cause. No damage number changed: after the fixes, bots without gear win
+16 of 20 Throne fights and 19 of 20 with Tier I gear (Ossuary 15 of 20 without). The bow
+remains the slowest guardian killer (a fight of 100 s or more, 1 of 4 won without gear); left
+as it is until people play it, since the bot's kiting may be the weakness rather than the bow.
+The "melee pair wipes at the Throne" report did not reproduce: two Kindled of four melee
+builds, four seeds, Tier II depth 2: no wipes, 0 to 0.06 downs a room (sun-watchers' bolts
+the most common last blow).
+
 ## The Great Evolution pass
 
 Branch `feature/great-evolution`. What changed and why; measurements are in STATUS.

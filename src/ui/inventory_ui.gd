@@ -618,8 +618,9 @@ func _choose_path(it: Dictionary) -> void:
 		lines.append("%s: %s" % [String(p.name), String(p.desc)])
 		choices.append([String(p.name), func() -> void:
 			if Evolutions.choose(it, String(p.id)):
-				Audio.play("relic", 0.0, 0.9)
-				Game.ui.toast("%s has chosen." % ItemDB.item_name(it), UIKit.C_GOLD)
+				Audio.play("evolve", 0.0)
+				Events.banner.emit(ItemDB.item_name(it), String(p.desc))
+				Chronicle.note("%s chose its path: %s." % [ItemDB.base(String(it.base)).get("name", "It"), String(p.name)])
 				Profile.changed.emit()
 				Profile.save_profile()
 				rebuild()])

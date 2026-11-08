@@ -20,7 +20,9 @@ const MILESTONES := {
 	10: {"title": "The Light Still Holds", "line": "A blueprint, pressed into the wall by a hand like yours.", "blueprint": true},
 	15: {"title": "Where the Regions Forget", "line": "Three Sunshards, and an old road's colours to wear.", "sunshards": 3, "look": "wanderer"},
 	20: {"title": "Deeper Than the Sun Fell", "line": "A legendary piece lay here, waiting for somebody to get this far.", "legendary": true},
+	25: {"title": "Where the Echoes Change", "line": "The guardians' echoes wear their rarer faces now. A blueprint lay here.", "sunshards": 3, "blueprint": true},
 	30: {"title": "The Bottom of the Light", "line": "Whatever is below this, it has heard you.", "sunshards": 5},
+	40: {"title": "Under the Bottom", "line": "There was no bottom. There is a legendary weapon, and a note in your own hand.", "sunshards": 6, "legendary": true},
 }
 
 

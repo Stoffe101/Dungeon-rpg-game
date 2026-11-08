@@ -311,6 +311,7 @@ func _quake_land() -> void:
 	var center := pos
 	var st := stage
 	var wave_dmg := damage * 0.8
+	stage.note_danger(quake_target if quake_target != Vector2.ZERO else pos, 0.95, {"kind": -1, "wave": [1.0, 10.0, 0.95]})
 	var hit_done: Array = []
 	var ring := st.fx.shape(Fx.Shape.RING, center, Vector2.RIGHT, Vector2(2, 2), Color(0.5, 1.0, 0.9, 0.8), Color(0.85, 1.0, 0.95, 1.0), 1.0, {"inner": 0.86, "glow": 1.6})
 	var data: Dictionary = st.fx._shapes[st.fx._shapes.size() - 1]
@@ -325,7 +326,7 @@ func _quake_land() -> void:
 			var pd := pl.pos.distance_to(center)
 			if absf(pd - rr * 0.93) < 0.45:
 				hit_done.append(pl)
-				var h := Hit.make(null, wave_dmg, ["melee"])
+				var h := Hit.make(null, wave_dmg, ["melee", "shockwave"])
 				h.can_crit = false
 				h.knockback = (pl.pos - center).normalized() * 8.0
 				h.from_dir = (pl.pos - center).normalized()
@@ -349,7 +350,7 @@ func _lanterns() -> void:
 func _gloamfire(p: Vector2) -> void:
 	var hz := Hazard.spawn(stage, p, 0.9, 4.0, Team.ENEMY, Color(0.55, 0.3, 0.8), func(_h: Hazard, a: Actor) -> void:
 		if a is Player:
-			var h := Hit.make(null, 7.0, ["dot"])
+			var h := Hit.make(null, 7.0, ["dot", "gloamfire"])
 			h.can_crit = false
 			(a as Player).take_enemy_hit(h, null))
 	hz.period = 0.45

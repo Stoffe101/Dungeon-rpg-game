@@ -144,6 +144,14 @@ func note_danger(at: Vector2, seconds: float, shape := {}) -> void:
 	dangers.append([at, elapsed + seconds, elapsed, shape])
 
 
+## A warning every machine should know of (its picture is recorded on its own): the
+## bot's eyes and the off-screen chevrons on guests too.
+func share_danger(at: Vector2, seconds: float, shape: Dictionary) -> void:
+	note_danger(at, seconds, shape)
+	if Net.recording:
+		Net.rec(["danger", at, seconds, shape])
+
+
 func after(seconds: float, fn: Callable) -> void:
 	_timers.append([seconds, fn])
 

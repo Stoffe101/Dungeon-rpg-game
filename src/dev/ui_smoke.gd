@@ -462,7 +462,8 @@ func _mouse_to(p: Vector2) -> void:
 	e.global_position = p
 	e.relative = Vector2(20, 0)
 	Input.parse_input_event(e)
-	Input.warp_mouse(p * get_window().content_scale_factor)
+	if not Dev.background() and get_window().has_focus():
+		Input.warp_mouse(p * get_window().content_scale_factor)     # (never the owner's own pointer)
 	# the pointer the Kindled reads (as the scenarios do): a hand on the real
 	# mouse, or a window without focus, no longer moves the aim under the test
 	Dev.mouse = p

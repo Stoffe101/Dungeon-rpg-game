@@ -136,6 +136,10 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 	var grown := Evolutions.progress(item)
 	if grown != "":
 		v.add_child(UIKit.para(grown, width, UIKit.C_SOUL if Evolutions.stage(item) < 2 else UIKit.C_GOLD))
+		if Evolutions.stage(item) == 1:
+			# the two ways ahead, so the choice is never a surprise
+			for p in Evolutions.paths_of(item):
+				v.add_child(UIKit.para("  or %s: %s" % [String(p.name), String(p.desc)], width, Color(p.get("col", UIKit.C_DIM)).lerp(UIKit.C_DIM, 0.4)))
 	if b.has("set"):
 		v.add_child(set_info(String(b.set), width))
 	if not compare.is_empty() and int(compare.get("uid", -1)) != int(item.get("uid", -2)):

@@ -384,14 +384,11 @@ func _markers(d: Dungeon, origin: Vector2, px: float, clip: Rect2, names: bool) 
 			col = Color(1.0, 0.35, 0.3) if int(t * 3.0) % 2 == 0 else Color(0.5, 0.15, 0.15)
 		elif p.away:
 			col = Color(col, 0.45)
-		var dia := PackedVector2Array([at + Vector2(0, -r - 1), at + Vector2(r + 1, 0), at + Vector2(0, r + 1), at + Vector2(-r - 1, 0)])
-		draw_colored_polygon(dia, Color(0.02, 0.02, 0.04))
-		var inner := PackedVector2Array([at + Vector2(0, -r), at + Vector2(r, 0), at + Vector2(0, r), at + Vector2(-r, 0)])
-		draw_colored_polygon(inner, col)
-		if mine:
-			# which way you face
-			var f := p.look if p.look.length() > 0.1 else Vector2.DOWN
-			draw_line(at, at + f.normalized() * (r + 3.0), Color(1.0, 0.95, 0.8), 1.0)
+		var shape := Minimap.player_mark(at, r, mine)
+		draw_colored_polygon(shape[0], Color(0.02, 0.02, 0.04))
+		draw_colored_polygon(shape[1], col)
+		if mine and shape.size() > 2:
+			draw_colored_polygon(shape[2], Color(1.0, 0.95, 0.8))     # a pale heart: this one is you
 		if names and d.players.size() > 1:
 			var nm := Net.name_of(p.peer_id)
 			var w := UIKit.FONT_OUTLINE.get_string_size(nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
@@ -406,6 +403,19 @@ func _markers(d: Dungeon, origin: Vector2, px: float, clip: Rect2, names: bool) 
 				lr.position.y += 9.0
 			taken.append(lr)
 			draw_string(UIKit.FONT_OUTLINE, lr.position + Vector2(0, 8.0), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, col)
+
+
+## A Kindled on the map: an outlined diamond, and for your own a pale heart in it. Nothing
+## reaches past the diamond (the facing line that used to stick out of it is gone: it
+## only cluttered the map). [outline, fill, heart?]
+static func player_mark(at: Vector2, r: float, mine: bool) -> Array:
+	var out: Array = [
+		PackedVector2Array([at + Vector2(0, -r - 1), at + Vector2(r + 1, 0), at + Vector2(0, r + 1), at + Vector2(-r - 1, 0)]),
+		PackedVector2Array([at + Vector2(0, -r), at + Vector2(r, 0), at + Vector2(0, r), at + Vector2(-r, 0)]),
+	]
+	if mine:
+		out.append(PackedVector2Array([at + Vector2(0, -1), at + Vector2(1, 0), at + Vector2(0, 1), at + Vector2(-1, 0)]))
+	return out
 
 
 func _frame(r: Rect2) -> void:

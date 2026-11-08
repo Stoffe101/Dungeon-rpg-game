@@ -63,6 +63,8 @@ func _run() -> void:
 			await sites()
 		"ways":
 			await ways()
+		"deep":
+			await deep()
 		"guardian":
 			await guardian()
 		"bestiary":
@@ -989,15 +991,24 @@ func stairs_only() -> void:
 func sites() -> void:
 	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
 	_strip_bot()
-	await wait(3.0)
-	# a ping from my own key, seen by everyone
+	# (the depth's title card holds every hand: a key pressed under it does nothing)
+	await until(func() -> bool: return not Game.ui.card_pending and not Game.ui.blocks_world(), 20.0, "the floor is mine to act on")
+	await wait(1.0)
+	# a ping from my own key, seen by everyone: each Kindled's colour on my map
+	# (the others' cards may clear a little before or after mine)
 	tap("ping")
-	var most := 0
-	var t_end := now() + 4.0
-	while now() < t_end:
-		most = maxi(most, dun().pings.size())
+	var hues := {}
+	for peer in Net.i.roster:
+		hues[Net.color_of(int(peer)).to_html()] = true
+	var seen := {}
+	var t_end := now() + 8.0
+	while now() < t_end and seen.size() < hues.size():
+		for pg in dun().pings:
+			var key: String = (pg.col as Color).to_html()
+			if hues.has(key):
+				seen[key] = true
 		await wait(0.1)
-	expect(most >= Net.party_size(), "every Kindled's ping reached my map (%d of %d)" % [most, Net.party_size()])
+	expect(seen.size() >= hues.size(), "every Kindled's ping reached my map (%d of %d)" % [seen.size(), hues.size()])
 	if role == "host":
 		Net.i.dev_shot("e2e/sites_ping")
 	# the altar waits on the first floor or the second
@@ -1065,6 +1076,14 @@ func ways() -> void:
 	var t0: Vector2i = bars[0]
 	expect(dun().grid.at(t0.x, t0.y) == TileGrid.GATE, "barred on my machine")
 	if role == "host":
+		# the floor's fights are not what this tests (a layout change once sealed the
+		# guests into one on the way to the plate): every fight is won before it starts
+		for r in lay.rooms:
+			if r.type in [Room.Type.COMBAT, Room.Type.ELITE]:
+				r.cleared = true
+		for a in dun().actors.duplicate():
+			if a is Enemy and a.alive:
+				a.die(null)
 		await wait(1.0)
 		# the key's room is far: its altar is set down beside the guest (its fight is not
 		# what this tests; carrying the key and the bars are)
@@ -1161,6 +1180,50 @@ func _prop_kind(kind: String) -> Prop:
 		if is_instance_valid(p) and p.kind == kind:
 			return p
 	return null
+
+
+## The deepening pass in a party (run with HXARGS=hunt=ossuary GXARGS="wear=gloamfang evolve=storm"):
+## the host's hunt reaches every floor the same way; a guest reads a sign of the trail
+## with a real key press and the host counts it; a guest's grown weapon is a grown weapon
+## on the host too (its path's power is the host's to apply).
+func deep() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	await wait(2.0)
+	expect(dun().hunted(), "this floor is the hunt's, on my machine")
+	var signs: Array = []
+	for p in dun().props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "spoor":
+			signs.append(p)
+	expect(signs.size() == 2, "two signs of its trail on my floor (%d)" % signs.size())
+	if signs.is_empty():
+		return
+	if role == "host":
+		# the floor's own signs lie in rooms that seal for their fights: one more is set
+		# down beside the guest (the reading, by the guest's own key, is what is tested)
+		await wait(1.0)
+		var g0: Player = _guest_kindled()
+		if g0:
+			var at := Vector2i(dun().foe_spot(g0.pos + Vector2(2.0, 0.0), 0.6))
+			var pd := {"kind": "site", "tile": at, "event": "spoor"}
+			var extra := DeepEvents.site_data(pd, dun().layout.region, dun().run.world)
+			extra["event"] = "spoor"
+			Prop.make(dun(), "site", at, extra)
+	if role == "guest":
+		await until(func() -> bool:
+			var s := _newest("site")
+			return s != null and String(s.data.get("event", "")) == "spoor" and s.pos.distance_to(dun().player.pos) < 5.0, 20.0, "a sign was set down beside me")
+		var near := _newest("site")
+		expect(await walk_to(near.pos + Vector2(0.0, 1.0), 0.6, 12.0), "I walked to the sign")
+		tap("interact")
+		await until(func() -> bool: return not near.interactable(), 15.0, "the sign is read on my screen")
+		Net.i.dev_shot("e2e/deep_sign")
+	else:
+		await until(func() -> bool: return dun().run.hunt_signs >= 1, 40.0, "the host counted the guest's sign")
+		var g: Player = _guest_kindled()
+		expect(g != null and g.stats.has("storm_crit"), "the guest's grown weapon has its path's power on the host")
+		expect(g != null and g.stats.has("crit_knives"), "and its own")
+	await wait(1.5)
 
 
 ## The most recently made prop of a kind (the floor may have its own already).

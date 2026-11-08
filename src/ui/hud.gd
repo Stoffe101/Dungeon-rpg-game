@@ -648,6 +648,10 @@ func _draw_status(pl: Player, x: float, y: float) -> void:
 		tags.append(["LANTERN LOW %d" % ceili(pl.snuffed_t), Color(1.0, 0.62, 0.3)])
 	if pl.gloom_t > 0.0:
 		tags.append(["GLOOM %d" % ceili(pl.gloom_t), Color(0.72, 0.5, 1.0)])
+	if pl.weapon and pl.weapon.focus > 0:
+		tags.append(["FOCUS %d" % pl.weapon.focus, Color(1.0, 0.9, 0.55)])
+	if pl.weapon and pl.weapon.overcharged_ready:
+		tags.append(["OVERCHARGED", Color(1.0, 0.95, 0.75)])
 	for t in tags:
 		var s: String = t[0]
 		draw_string(UIKit.FONT_OUTLINE, Vector2(x, y + 8.0), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, t[1])
@@ -665,7 +669,7 @@ func _draw_dangers(st: Stage) -> void:
 	var col := Color(1.0, 0.36, 0.4) if not bool(Settings.get_value("strong_tells", false)) else Color(1.0, 1.0, 0.9)
 	var now := st.elapsed
 	for d in st.dangers:
-		if float(d[1]) < now:
+		if float(d[1]) < now or (d[3] as Dictionary).has("wave") or (d[3] as Dictionary).has("quiet"):
 			continue
 		var p := _screen_of(st, d[0])
 		if area.has_point(p):

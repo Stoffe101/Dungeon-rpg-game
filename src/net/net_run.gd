@@ -850,6 +850,8 @@ func apply_events(evs: Array) -> void:
 				stage.visit_room(stage.layout.room(int(ev[1])))
 			"tele":
 				_tele(ev)
+			"danger":
+				stage.note_danger(ev[1], float(ev[2]), ev[3])
 			"tele-":
 				var t = teles.get(int(ev[1]))
 				if is_instance_valid(t):

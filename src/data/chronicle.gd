@@ -105,7 +105,8 @@ static func snapshot() -> Dictionary:
 	for region in EnemyDB.REGIONS:
 		felled[region] = int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[region].boss, 0))
 	return {"sites": (_rec().sites as Dictionary).duplicate(), "lair": lair, "felled": felled,
-		"falls": (_rec().get("falls", {}) as Dictionary).duplicate(true), "rescued": (_rec().get("rescued", []) as Array).duplicate()}
+		"falls": (_rec().get("falls", {}) as Dictionary).duplicate(true), "rescued": (_rec().get("rescued", []) as Array).duplicate(),
+		"hunts": Contracts.hunt_regions()}
 
 
 ## Someone found alive: they live at this save's Hearth from now on.

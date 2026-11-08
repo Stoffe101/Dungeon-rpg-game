@@ -231,6 +231,7 @@ func _sunfall(n: int) -> void:
 				return
 			var at: Vector2 = k.target().pos + k.target().vel * 0.25
 			k.stage.fx.shape(Fx.Shape.DISC, at, Vector2.RIGHT, Vector2(3.0, 3.0), TELE_COLOR, TELE_EDGE, 0.9, {"progress": 0.0})
+			k.stage.share_danger(at, 0.85, {"kind": Fx.Shape.DISC, "dir": Vector2.RIGHT, "size": Vector2(3.0, 3.0)})
 			k.stage.after(0.85, func() -> void:
 				var k2 = me.get_ref()
 				if k2 and k2.alive:
@@ -275,6 +276,7 @@ func _slam() -> void:
 func _shockwave(center: Vector2, wave_dmg: float) -> void:
 	var st := stage
 	var hit_done: Array = []
+	st.note_danger(center, 0.95, {"kind": -1, "wave": [1.0, 10.0, 0.95]})     # (an expanding ring: dodge through it)
 	var ring := st.fx.shape(Fx.Shape.RING, center, Vector2.RIGHT, Vector2(2, 2), Color(1.0, 0.75, 0.35, 0.8), Color(1.0, 0.92, 0.7, 1.0), 1.0, {"inner": 0.86, "glow": 1.6})
 	var data: Dictionary = st.fx._shapes[st.fx._shapes.size() - 1]
 	var base_t := ring.transform
@@ -288,7 +290,7 @@ func _shockwave(center: Vector2, wave_dmg: float) -> void:
 			var pd := pl.pos.distance_to(center)
 			if absf(pd - rr * 0.93) < 0.45:
 				hit_done.append(pl)
-				var h := Hit.make(null, wave_dmg, ["melee"])
+				var h := Hit.make(null, wave_dmg, ["melee", "shockwave"])
 				h.can_crit = false
 				h.knockback = (pl.pos - center).normalized() * 8.0
 				h.from_dir = (pl.pos - center).normalized()

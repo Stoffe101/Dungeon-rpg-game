@@ -835,7 +835,8 @@ func _settle_deferred(now_all: bool) -> void:
 	for d in due:
 		_deferred.erase(d)
 		var att: Variant = d[2]
-		if att is Object and not is_instance_valid(att):
+		# (a foe freed while its blow waited: `is` on a freed object is itself an error)
+		if typeof(att) == TYPE_OBJECT and not is_instance_valid(att):
 			att = null
 		var before := hp
 		_settling = true
@@ -1019,6 +1020,14 @@ func _start_dodge() -> void:
 	perfect_done = false
 	invuln_t = maxf(invuln_t, stats.v("dodge_iframes"))
 	dodge_charges -= 1.0
+	if stats.has("turncloak"):
+		# the Turncloak Ring: those you slip past keep looking back where you were
+		var end := pos + dodge_dir * dist
+		for a in stage.hostiles(team):
+			if a is Enemy and not (a as Enemy).def.get("boss", false):
+				var q := Geometry2D.get_closest_point_to_segment(a.pos, pos, end)
+				if q.distance_to(a.pos) < 1.4:
+					(a as Enemy).turn_away(-dodge_dir, 1.2)
 	if weapon:
 		weapon.cancel()
 	ward_t = 0.0
@@ -1291,6 +1300,8 @@ func on_weapon_strike(_hits: int, _finisher: bool) -> void:
 func deal_hit(t: Actor, h: Hit, finisher := false) -> Combat.Result:
 	if t == null or not t.alive:
 		return Combat.Result.new()
+	if finisher and weapon and weapon.technique() != "focus" and weapon.has_technique("focus") and h.proc:
+		weapon.add_focus()     # the tree's Focus: a charged blow that lands is a true shot
 	var prev := Net.actor_peer
 	Net.actor_peer = peer_id
 	Net.actor_pos = pos
@@ -1313,7 +1324,24 @@ func _blow_name(attacker: Node, h: Hit) -> String:
 	var src: Node = attacker if attacker != null else h.source
 	if src is Enemy and is_instance_valid(src):
 		return (src as Enemy).display_name
-	return "Burning" if h.has_tag("fire") else ("The room" if h.has_tag("hazard") else "The Undervault")
+	if h.has_tag("spore"):
+		return "Spore clouds"
+	if h.has_tag("shockwave"):
+		return "A guardian's shockwave"
+	if h.has_tag("spikes"):
+		return "Floor spikes"
+	if h.has_tag("gloamfire"):
+		return "Gloamfire"
+	if h.has_tag("fire"):
+		return "Burning"
+	if h.has_tag("hazard"):
+		return "The room"
+	return "Lingering harm" if h.has_tag("dot") else "The Undervault"
+
+
+## How far the lantern's light reaches, in tiles (The Lantern's Edge strikes inside it).
+func light_reach() -> float:
+	return (lantern.omni_range if lantern else 10.0) * 0.5
 
 
 ## The lantern burns low for a while (every machine sees its own Kindled's).
@@ -1386,6 +1414,10 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	if stats.has("grudgebearer"):
 		mult *= 1.0 + minf(0.2, 0.04 * Profile.active_grudges().size())
 	if stats.has("glass_lantern") and t.pos.distance_to(pos) < 4.0:
+		mult *= 1.35
+	if stats.has("lantern_edge") and t.pos.distance_to(pos) <= light_reach():
+		mult *= 1.0 + 0.25 * clampf(kindle / maxf(1.0, kindle_max()), 0.0, 1.0)
+	if stats.has("vanguard") and t.status.is_staggered():
 		mult *= 1.35
 	if stats.has("stillness") and still_t >= 0.6:
 		mult *= 1.4
@@ -1502,7 +1534,7 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 	Events.damage_dealt.emit(t, res.amount, res.crit)
 	if res.crit and stats.has("pyre_brand") and t.alive:
 		t.status.apply_burn(3, 3.0 * (1.0 + stats.v("burn_damage")), int(stats.v("burn_stacks")), self)
-	if h.proc and direct:
+	if h.proc and direct and not stats.has("lantern_edge"):
 		var g := 4.0 if h.has_tag("melee") else 1.2
 		if stats.has("ember_edge") and h.has_tag("melee"):
 			g *= 1.5
@@ -1941,6 +1973,8 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if res.amount > 0.0:
 		if run:
 			run.note_blow(stage.elapsed, _blow_name(attacker, h), res.amount)
+		if weapon:
+			weapon.on_hurt()
 		hurt_t = 0.25
 		invuln_t = maxf(invuln_t, 0.5)
 		if attacker is Enemy and is_instance_valid(attacker):
@@ -2376,6 +2410,8 @@ func _update_lantern(dt: float) -> void:
 	if stats.has("glass_lantern"):
 		rng *= 1.4
 		en *= 1.15
+	if stats.has("lantern_edge"):
+		rng *= 1.3
 	if stage is Dungeon and (stage as Dungeon).rule_here() == "unlit":
 		rng *= 0.5
 		en *= 0.75

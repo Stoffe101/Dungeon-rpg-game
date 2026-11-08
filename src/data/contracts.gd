@@ -25,6 +25,17 @@ const LIST := [
 	{"id": "wards", "title": "Late, Not Early", "line": "Turn aside ten blows with a clean Ward.", "key": "ward", "goal": 10, "pay": {"embers": 150, "xp": 110}},
 	{"id": "lantern", "title": "What You Dropped", "line": "Relight your own cold lantern.", "key": "lantern", "goal": 1, "pay": {"embers": 200, "sunshards": 1}},
 	{"id": "shard", "title": "Warm Stones", "line": "Bring home two Sunshards.", "key": "sunshard", "goal": 2, "pay": {"embers": 220, "material": ["sun_gold", 1]}},
+	# a technique practised: these go up for whoever has the technique to practise
+	{"id": "t_cadence", "title": "In Time", "line": "Land thirty strikes in Cadence.", "key": "cadence", "goal": 30, "tech": "cadence", "pay": {"embers": 220, "xp": 150}},
+	{"id": "t_behind", "title": "From the Shadows", "line": "Strike twenty foes from behind.", "key": "behind", "goal": 20, "tech": "behind", "pay": {"embers": 220, "material": ["soul_glass", 2]}},
+	{"id": "t_point", "title": "The Sweet Spot", "line": "Strike twenty-five foes with the point of a thrust.", "key": "point", "goal": 25, "tech": "point", "pay": {"embers": 220, "material": ["grave_iron", 3]}},
+	{"id": "t_breaker", "title": "Breaking Point", "line": "Break ten foes and shake those beside them.", "key": "breaker", "goal": 10, "tech": "breaker", "pay": {"embers": 220, "material": ["ember_core", 1]}},
+	{"id": "t_overcharge", "title": "Overflowing", "line": "Loose eight Overcharged blows.", "key": "overcharge", "goal": 8, "tech": "overcharge", "pay": {"embers": 220, "xp": 150}},
+	{"id": "t_focus", "title": "Unbroken", "line": "Gather full Focus five times.", "key": "focus_full", "goal": 5, "tech": "focus", "pay": {"embers": 220, "sunshards": 1}},
+	# hunts: once a region's guardian has fallen, it can be tracked down there again
+	{"id": "hunt_ossuary", "title": "The Warden's Trail", "line": "Hunt the Gloam Warden through the Ossuary: read its trail, bring down its harbinger, fell it in its rarer form.", "key": "hunt_ossuary", "goal": 1, "hunt": "ossuary", "pay": {"sunshards": 3, "rune": true}},
+	{"id": "hunt_rootmire", "title": "The Bloom's Roots", "line": "Hunt the Hollow Bloom through the Rootmire: read its trail, bring down its harbinger, fell it in its rarer form.", "key": "hunt_rootmire", "goal": 1, "hunt": "rootmire", "pay": {"sunshards": 3, "rune": true}},
+	{"id": "hunt_throne", "title": "The Eclipse Hunt", "line": "Hunt the Ashen King through the Sunken Throne: read its trail, bring down its harbinger, fell it in its rarer form.", "key": "hunt_throne", "goal": 1, "hunt": "throne", "pay": {"sunshards": 4, "rune": true}},
 	# the old hands' notices: up once a guardian has fallen to you, for those who want them
 	{"id": "untouched", "title": "Not a Mark on You", "line": "Leave a floor without one blow landing on anybody.", "key": "clean_floor", "goal": 1, "pay": {"sunshards": 2, "xp": 200}, "mastery": true},
 	{"id": "dry", "title": "Without Drinking", "line": "Fell a guardian without touching your flask.", "key": "dry_guardian", "goal": 1, "pay": {"sunshards": 3, "rune": true}, "mastery": true},
@@ -43,6 +54,28 @@ static func def_of(id: String) -> Dictionary:
 		if String(c.id) == id:
 			return c
 	return {}
+
+
+## A hunt goes up once its guardian has fallen to this save; a technique's notice for
+## whoever wields a weapon that knows it (or has learned it on the Hearthtree).
+static func _huntable(c: Dictionary) -> bool:
+	if c.has("tech"):
+		var arch := Profile.equipped_weapon()
+		return String(Weapon.TECHNIQUES.get(arch, "")) == String(c.tech) or Profile.skills().has("t_" + String(c.tech))
+	if not c.has("hunt"):
+		return true
+	var boss: String = EnemyDB.REGIONS[String(c.hunt)].boss
+	return int(Profile.data.world.get("%s_kills" % boss, 0)) > 0
+
+
+## The regions this Kindled carries a hunt for (Chronicle.snapshot: the host's, in a party).
+static func hunt_regions() -> Array:
+	var out: Array = []
+	for t in taken():
+		var c := def_of(String(t.id))
+		if c.has("hunt") and not finished(t):
+			out.append(String(c.hunt))
+	return out
 
 
 static func taken() -> Array:
@@ -66,8 +99,16 @@ static func offers() -> Array:
 	var pool: Array = []
 	var seasoned := int(Profile.data.stats.get("victories", 0)) > 0
 	for c in LIST:
-		if not carrying(String(c.id)) and not up.has(c.id) and (seasoned or not c.get("mastery", false)):
+		if not carrying(String(c.id)) and not up.has(c.id) and (seasoned or not c.get("mastery", false)) and _huntable(c):
 			pool.append(String(c.id))
+	# a hunt that can be had is always on the board (one at a time)
+	var hunt_up := up.any(func(id): return def_of(String(id)).has("hunt"))
+	if not hunt_up and up.size() < OFFERS:
+		for id in pool:
+			if def_of(String(id)).has("hunt"):
+				up.append(id)
+				pool.erase(id)
+				break
 	while up.size() < OFFERS and not pool.is_empty():
 		up.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))
 	r.offer = up

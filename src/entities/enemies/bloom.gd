@@ -235,7 +235,7 @@ func _choose() -> void:
 
 static func _cloud_tick(_h: Hazard, a: Actor) -> void:
 	if a is Player:
-		var h := Hit.make(null, 4.0, ["dot"])
+		var h := Hit.make(null, 4.0, ["dot", "spore"])
 		h.can_crit = false
 		h.silent = true
 		(a as Player).take_enemy_hit(h, null)

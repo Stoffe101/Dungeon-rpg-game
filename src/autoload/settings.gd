@@ -169,8 +169,8 @@ func _apply(key: String) -> void:
 			if has_node("/root/Audio"):
 				get_node("/root/Audio").apply_volumes()
 		"window_mode":
-			if DisplayServer.get_name() == "headless":
-				return
+			if DisplayServer.get_name() == "headless" or Dev.background():
+				return     # (a background run's window is kept off every screen by tools/dev/bg.py)
 			match String(values.window_mode):
 				"fullscreen":
 					get_window().mode = Window.MODE_EXCLUSIVE_FULLSCREEN

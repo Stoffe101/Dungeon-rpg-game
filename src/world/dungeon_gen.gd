@@ -28,6 +28,67 @@ const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), 
 ## Hand-made rooms (22x12, a single cell), mixed into the procedural ones:
 ## . floor, # wall, o pillar, ~ pit, space void. Doors are kept clear after.
 const AUTHORED := {
+	# rooms built around the devices (S strut, J kindle jar, V rime vent: floor with a device on it)
+	# the leaning hall: two rows of cracked columns, and whatever stands under them
+	"ossuary_leaning": [
+		"......................",
+		"......................",
+		"...S....S....S....S...",
+		"......................",
+		"......................",
+		"..........oo..........",
+		"..........oo..........",
+		"......................",
+		"......................",
+		"...S....S....S....S...",
+		"......................",
+		"......................",
+	],
+	# a cellar of spore-powder jars in the corners, cold breathing up through the floor
+	"root_cellar": [
+		"......................",
+		".JJ................JJ.",
+		".J..................J.",
+		"......................",
+		"........V....V........",
+		"......................",
+		"......................",
+		"........V....V........",
+		"......................",
+		".J..................J.",
+		".JJ................JJ.",
+		"......................",
+	],
+	# an aisle of oil jars between the court's columns: light it and run
+	"throne_ember_aisle": [
+		"......................",
+		"..o.....o....o.....o..",
+		"......................",
+		"....J..J..J..J..J.....",
+		"......................",
+		"......................",
+		"......................",
+		"......................",
+		".....J..J..J..J..J....",
+		"......................",
+		"..S.....o....o.....S..",
+		"......................",
+	],
+	# a crypt kept cold: vents in a ring around a dais
+	"ossuary_cold_crypt": [
+		"......................",
+		"......................",
+		"......V.......V.......",
+		"......................",
+		"..V.......##.......V..",
+		"..........##..........",
+		"..........##..........",
+		"..V.......##.......V..",
+		"......................",
+		"......V.......V.......",
+		"......................",
+		"......................",
+	],
 	# a burial hall: rows of tomb-plinths down both sides, a clear aisle
 	"ossuary_nave": [
 		"......................",
@@ -188,9 +249,10 @@ const AUTHORED := {
 		"......................",
 	],
 }
-const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite"],
-	"rootmire": ["root_hollow", "root_tangle", "root_court"],
-	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery"]}
+const AUTHORED_BY_REGION := {"ossuary": ["ossuary_chapel", "ossuary_ossuary", "ossuary_nave", "ossuary_rite", "ossuary_leaning", "ossuary_cold_crypt"],
+	"rootmire": ["root_hollow", "root_tangle", "root_court", "root_cellar"],
+	"throne": ["throne_colonnade", "throne_court", "throne_nave", "throne_gallery", "throne_ember_aisle"]}
+const AUTHORED_DEVICES := {"S": "strut", "J": "kindle_jar", "V": "rime_vent"}
 
 
 
@@ -327,6 +389,7 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 			lay.seed = seed_v
 			_landmark(lay, seed_v)
 			DeepEvents.rule_room(lay, seed_v)
+			_hunt_signs(lay, seed_v)
 			_route = ""
 			return lay
 	push_error("DungeonGen: failed to generate a layout")
@@ -345,6 +408,24 @@ const LANDMARKS := {
 }
 ## Dev (`landmark`): every floor has one.
 static var force_landmark := false
+## A hunted region (Contracts): two signs of its guardian's trail and its harbinger on
+## every floor above it. On their own rng, so a seed's floor is otherwise the same.
+static func _hunt_signs(lay: Layout, seed_v: int) -> void:
+	if lay.boss_depth or not (lay.world.get("hunts", []) as Array).has(lay.region):
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([seed_v, lay.depth, "hunt"])
+	var cands: Array = lay.rooms.filter(func(r): return r.type == Room.Type.COMBAT and r.objective == "" and r.landmark == "" and r.rule == "" and r.id != lay.start_id)
+	_shuffle(cands, rng)
+	for k in mini(2, cands.size()):
+		var r: Room = cands[k]
+		var t := _clear_tile(lay, r, rng, false)
+		if t.x >= 0:
+			r.props.append({"kind": "site", "tile": t, "event": "spoor"})
+	if cands.size() > 2:
+		(cands[2] as Room).harbinger = true
+
+
 ## Dev (`plan=wing`): every floor takes this plan.
 static var force_plan := ""
 static var _attempt := 0
@@ -858,6 +939,7 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 	var layout := PackedByteArray()
 	var best := PackedByteArray()
 	var stamps_for := _stamp_pool(r)
+	var mirror_auth := false
 	# now and then a single-cell fight takes place in a hand-made room
 	var authored := ""
 	var made: Array = AUTHORED_BY_REGION.get(lay.region, [])
@@ -872,7 +954,8 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 		var pool := stamps_for.duplicate()
 		_shuffle(pool, rng)
 		if authored != "" and attempt == 0:
-			_stamp_authored(authored, layout, w, h, rng.randf() < 0.5)
+			mirror_auth = rng.randf() < 0.5
+			_stamp_authored(authored, layout, w, h, mirror_auth)
 			n = 0
 		for i in mini(n, pool.size()):
 			_stamp(pool[i], layout, w, h, rng)
@@ -885,6 +968,7 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 			best = layout.duplicate()
 			if authored != "" and attempt == 0:
 				r.authored = authored
+				_authored_devices(r, authored, w, mirror_auth)
 			break
 	if best.is_empty():
 		best.resize(w * h)
@@ -917,6 +1001,17 @@ static func _stamp_pool(r: Room) -> Array:
 		Room.Type.MERCHANT, Room.Type.STAIRS:
 			return ["alcoves", "corners"]
 	return ["pillars4"]
+
+
+## The devices a hand-made room was drawn with, where it drew them.
+static func _authored_devices(r: Room, id: String, w: int, mirror: bool) -> void:
+	var rows: Array = AUTHORED[id]
+	for y in rows.size():
+		var row := String(rows[y])
+		for x in mini(w, row.length()):
+			var ch := row[(row.length() - 1 - x) if mirror else x]
+			if AUTHORED_DEVICES.has(ch):
+				r.props.append({"kind": AUTHORED_DEVICES[ch], "tile": r.rect.position + Vector2i(x, y)})
 
 
 ## A hand-made room, mirrored left-right half the time.
@@ -1453,6 +1548,8 @@ static func _clear_tile(lay: Layout, r: Room, rng: RandomNumberGenerator, solid:
 static func _hazards(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 	if r.type != Room.Type.COMBAT and r.type != Room.Type.ELITE:
 		return
+	if AUTHORED.has(r.authored) and r.props.any(func(p): return p.kind in ["strut", "kindle_jar", "rime_vent"]):
+		return     # (it was built around its own)
 	if r.objective != "" or r.landmark != "" or r.rect.get_area() < 140:
 		return
 	var roll := rng.randf()
@@ -1505,7 +1602,7 @@ static func _scars(lay: Layout, rng: RandomNumberGenerator) -> void:
 				for k in rng.randi_range(1, 3):
 					var t := _clear_tile(lay, r, rng, true)
 					if t.x >= 0:
-						r.props.append({"kind": "dressing", "tile": t, "sheet": "rubble", "anim": "a" if k % 2 == 0 else "b", "scene": true})
+						r.props.append({"kind": "rubble", "tile": t, "anim": "a" if k % 2 == 0 else "b"})
 				for k in 2:
 					var w := _clear_tile(lay, r, rng, false)
 					if w.x >= 0:

@@ -1,0 +1,25 @@
+{
+	"anims": {
+		"fresh": {
+			"fps": 2.5,
+			"frames": 2,
+			"loop": true,
+			"row": 0
+		},
+		"read": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		}
+	},
+	"emit": true,
+	"frame": [
+		40,
+		24
+	],
+	"origin": [
+		20,
+		14
+	]
+}

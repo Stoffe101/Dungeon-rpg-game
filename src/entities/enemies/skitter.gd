@@ -44,9 +44,10 @@ func behave(dt: float) -> void:
 		"leap":
 			vel = aim_dir * 13.0
 			height = sin(clampf(state_t / 0.3, 0.0, 1.0) * PI) * 0.5
-			if not leap_hit and dist_to_player() < radius + target().radius + 0.15:
+			var t := target()
+			if t and not leap_hit and dist_to_player() < radius + t.radius + 0.15:
 				leap_hit = true
-				target().take_enemy_hit(make_hit(damage, pos, 4.0), self)
+				t.take_enemy_hit(make_hit(damage, pos, 4.0), self)
 			if state_t >= 0.3:
 				height = 0.0
 				vel = Vector2.ZERO

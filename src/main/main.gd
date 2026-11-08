@@ -64,6 +64,18 @@ func _ready() -> void:
 			for b in ids:
 				var it := Profile.add_item(ItemDB.make_item(b, "rare", 1, rng_w, 2))
 				Profile.equip(int(it.uid))
+		elif a.begins_with("hunt="):
+			# dev: carry the hunt notice for this region (its guardian counted as fallen)
+			var reg := a.substr(5)
+			Profile.data.world["%s_kills" % EnemyDB.REGIONS[reg].boss] = maxi(1, int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[reg].boss, 0)))
+			Profile.data["contracts"] = {"offer": ["hunt_" + reg], "taken": [], "done": 0}
+			Contracts.take("hunt_" + reg)
+		elif a.begins_with("evolve="):
+			# dev: the worn weapon (a great one) has grown and chosen this path
+			var wi: Variant = Profile.equipped().get("weapon")
+			if wi is Dictionary and Evolutions.can_evolve(wi):
+				wi["res"] = Evolutions.ASCEND
+				Evolutions.choose(wi, a.substr(7))
 		elif a.begins_with("look="):
 			Looks.unlock(a.substr(5))
 			Looks.choose(a.substr(5))
@@ -77,8 +89,10 @@ func _ready() -> void:
 			var kt := clampi(int(a.substr(4)), 1, ItemDB.MAX_TIER)
 			var krng := RandomNumberGenerator.new()
 			krng.seed = kt
+			var arch_now := Profile.equipped_weapon()
 			for slot in ItemDB.SLOTS:
-				var pool: Array = ItemDB.BASES.keys().filter(func(b): return ItemDB.base(b).slot == slot and not ItemDB.is_unique(b) and not ItemDB.base(b).has("set") and not ItemDB.base(b).get("legendary", false))
+				# (the weapon stays the kind already chosen: a build's weapon is its moveset)
+				var pool: Array = ItemDB.weapon_bases(arch_now) if slot == "weapon" else ItemDB.BASES.keys().filter(func(b): return ItemDB.base(b).slot == slot and not ItemDB.is_unique(b) and not ItemDB.base(b).has("set") and not ItemDB.base(b).get("legendary", false))
 				Profile.equipped()[slot] = ItemDB.make_item(String(pool[krng.randi_range(0, pool.size() - 1)]), "epic", 5, krng, kt)
 		elif a.begins_with("tier="):
 			# dev: open and select a difficulty tier
@@ -137,6 +151,8 @@ func _ready() -> void:
 			add_child(ScalingEval.new())     # dev: party-size scaling evaluation
 		elif a == "economy":
 			add_child(EconomyAudit.new())    # dev: what a floor pays each Kindled, by source
+		elif a == "weaponlab":
+			add_child(WeaponLab.new())       # dev: every weapon side by side, measured
 		elif a == "legendlab":
 			add_child(LegendLab.new())       # dev: how often signature weapon moments come
 		elif a == "sitefind":

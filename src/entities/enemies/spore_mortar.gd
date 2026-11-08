@@ -73,7 +73,7 @@ static func _burst(st: Stage, at: Vector2, dmg: float, me: WeakRef) -> void:
 	Audio.play_at("explode", at, -8.0, 1.5)
 	var hz := Hazard.spawn(st, at, 1.1, 2.6, Actor.Team.ENEMY, Color(0.5, 0.75, 0.3), func(_h: Hazard, a: Actor) -> void:
 		if a is Player:
-			var dh := Hit.make(null, 3.0, ["dot"])
+			var dh := Hit.make(null, 3.0, ["dot", "spore"])
 			dh.can_crit = false
 			(a as Player).take_enemy_hit(dh, null))
 	hz.period = 0.5

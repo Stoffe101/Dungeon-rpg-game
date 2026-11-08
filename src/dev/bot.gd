@@ -48,7 +48,8 @@ var _attacks := 0
 ## How well it plays (`botskill=novice|fair|sharp`): how long a warning takes to
 ## register, and how many it never notices. It reads the warning drawn on the floor,
 ## as a person does, not the foe's internal state.
-const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4}, "sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5}}
+const SKILLS := {"novice": {"react": 0.55, "miss": 0.45, "flask": 0.25, "tech": 0.1}, "fair": {"react": 0.32, "miss": 0.2, "flask": 0.4, "tech": 0.45},
+	"sharp": {"react": 0.16, "miss": 0.05, "flask": 0.5, "tech": 0.85}}
 var skill: Dictionary = SKILLS.fair
 var _missed := {}
 
@@ -61,6 +62,65 @@ func _ready() -> void:
 			skill = SKILLS.get(a.substr(9), SKILLS.fair)
 
 
+## A player who knows their weapon's technique uses it, as well as their skill lets
+## them: a press in time with the swing, a true shot held to the peak of the draw.
+## True: this frame's attack was handled here.
+var _cad_roll := -1
+var _cad_go := false
+
+
+func _techniques(delta: float) -> bool:
+	var w := pl.weapon
+	if w == null:
+		return false
+	var good := float(skill.get("tech", 0.45))
+	if w.id == "bow" and w.form == "":
+		# a true shot: draw, hold to the peak, let go
+		if randf() > good:
+			return false
+		pl.press("attack")
+		pl._attack_down = true
+		_hold_t = w.charge_time / w.speed() + 0.04
+		return true
+	if not w.has_technique("cadence"):
+		return false
+	if w.phase == Weapon.Phase.RECOVER:
+		var key := int(w.phase_len * 1000.0) + w.combo
+		if _cad_roll != key:
+			_cad_roll = key
+			_cad_go = randf() < good
+		if _cad_go:
+			if w.phase_t >= w.phase_len * 0.55:
+				pl.press("attack")
+				pl._release_pending = true
+			return true     # (waits for the swing to settle)
+	elif w.phase == Weapon.Phase.WINDUP or w.phase == Weapon.Phase.ACTIVE:
+		return _cad_go     # a patient player does not mash through the swing
+	return false
+
+
+## The Eclipse: once noticed, into the nearest lit brazier's light before the dark lands.
+func _shelter() -> bool:
+	for a in pl.stage.actors:
+		if not (a is Enemy and a.alive and a.state == "eclipse" and a.has_method("sheltered")):
+			continue
+		if a.state_t < float(skill.react) or a.sheltered(pl.pos):
+			return false
+		var best: Node = null
+		for b in a._lit():
+			if best == null or b.pos.distance_to(pl.pos) < best.pos.distance_to(pl.pos):
+				best = b
+		if best == null:
+			return false
+		_goal = best.pos
+		pl.move_in = (pl.stage.path_step(pl.pos, best.pos) - pl.pos).normalized()
+		if best.pos.distance_to(pl.pos) > 4.0 and _dodge_cd <= 0.0 and pl.dodge_charges >= 1.0:
+			pl.press("dodge")
+			_dodge_cd = 0.7
+		return true
+	return false
+
+
 ## The warning this Kindled stands in and has noticed, or [] for none.
 func _threat() -> Array:
 	var st := pl.stage
@@ -68,7 +128,7 @@ func _threat() -> Array:
 	var best: Array = []
 	for d in st.dangers:
 		var until := float(d[1])
-		if until < now or now - float(d[2]) < float(skill.react) or d[3].is_empty():
+		if until < now or now - float(d[2]) < float(skill.react) or d[3].is_empty() or (d[3] as Dictionary).has("wave"):
 			continue
 		var key := int(float(d[2]) * 100.0)
 		if not _missed.has(key):
@@ -78,6 +138,12 @@ func _threat() -> Array:
 		if best.is_empty() or until < float(best[1]):
 			best = d
 	return best
+
+
+## An expanding ring (a guardian's shockwave): how far it has spread `age` seconds in.
+static func wave_radius(s: Dictionary, age: float) -> float:
+	var w: Array = s.get("wave", [1.0, 10.0, 1.0])
+	return lerpf(float(w[0]), float(w[1]), clampf(age / float(w[2]), 0.0, 1.0)) * 0.93
 
 
 static func inside(p: Vector2, at: Vector2, s: Dictionary) -> bool:
@@ -115,6 +181,8 @@ func _process(delta: float) -> void:
 		pl.move_in = Vector2.ZERO     # the ritual needs stillness (moving breaks it)
 		return
 	var target := _pick_target()
+	if _shelter():
+		return
 	# boss phase 2: relight the braziers to sear the Warden
 	for a in pl.stage.actors:
 		var warden_window: bool = a is Enemy and a.def.get("boss", false) and a.get("phase") == 2 and a.get("seared_t") != null and a.get("seared_t") <= 0.0
@@ -187,6 +255,8 @@ func _fight(t: Actor, delta: float) -> void:
 	pl.aim = (t.pos - pl.pos).normalized()
 	var ranged := pl.weapon and ["staff", "bow", "tome"].has(pl.weapon.id)
 	var want := 6.0 if ranged else 1.4
+	if pl.weapon and pl.weapon.has_technique("point"):
+		want = 2.1     # the tip of the reach, not the shaft
 	var to := (t.pos - pl.pos).normalized()
 	# a person keeps a flame that is dying fed: back to the lantern, foes or no
 	var dg := st as Dungeon
@@ -209,6 +279,8 @@ func _fight(t: Actor, delta: float) -> void:
 		if _hold_t < 0.0:
 			pl._attack_down = false
 			pl._release_pending = true
+	elif d < want + 0.6 and _techniques(delta):
+		pass     # (a technique decided this press)
 	elif d < want + 0.6:
 		_attacks += 1
 		pl.press("attack")
@@ -217,6 +289,18 @@ func _fight(t: Actor, delta: float) -> void:
 			_hold_t = 1.35
 		else:
 			pl._release_pending = true
+	# a shockwave rolling out: no walking out of it, dodge through as it arrives
+	if _dodge_cd <= 0.0 and pl.dodge_charges >= 1.0:
+		for wv in st.dangers:
+			if not (wv[3] as Dictionary).has("wave") or st.elapsed - float(wv[2]) < float(skill.react) * 0.5:
+				continue
+			var rr := Bot.wave_radius(wv[3], st.elapsed - float(wv[2]))
+			var dd: float = pl.pos.distance_to(wv[0])
+			if dd > rr and dd - rr < 1.6 and (not _missed.has(int(float(wv[2]) * 100.0)) or not _missed[int(float(wv[2]) * 100.0)]):
+				pl.move_in = (wv[0] - pl.pos).normalized()     # into it, through it
+				pl.press("dodge")
+				_dodge_cd = 0.7
+				break
 	# a warning on the floor under its feet: walk out if there is time, dodge if not
 	var th := _threat()
 	if not th.is_empty():

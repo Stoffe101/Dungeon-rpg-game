@@ -25,6 +25,9 @@ reasons), `docs/STATUS.md` (validation per pass), `docs/ARCHITECTURE.md`,
 
 ## 0. Start here
 
+**Never let a Godot window take the owner's screen.** Every run goes through `tools/dev/bg.py`
+(CLAUDE.md, "Background runs only"). The owner works on this PC while you work.
+
 **State at handoff**
 
 | | |
@@ -139,7 +142,8 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #9 | `feature/expedition-evolution` | 11-05 | One gear path, in-place upgrades, readable walls, Apothecary, Forked Descent | **Owner's third report** |
 | #10 | `feature/living-undervault` | 11-05 | Redrawn stone, Chronicle, rival Grudges, Deep Events, Hollow identity, stockpile fix | "Great Underdeep" brief |
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
-| (draft) | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
+| #12 | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
+| #13 (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
 
 ### Content inventory (checked against code at handoff)
 
@@ -238,6 +242,15 @@ someone's screen, which is why `docs/TESTING.md` exists.
   ground through warded foes. Bot behaviour matters as much as the numbers.
 - **The Tollkeeper** was the only new foe that clearly moved difficulty. Comparing the same
   seeds with and without it stopped a false blame on the Ash Herald.
+- **The Throne King "beat every bot" (0 of 40, 2026-11-08)** because his shockwave, sun-pillars and
+  floor spikes noted no danger and the bot never sheltered from the Eclipse; deaths read "The
+  Undervault". With the warnings shared (no damage changed): 16 of 20 without gear, 19 of 20 with
+  Tier I gear (`tools/dev/bossbench.py`). Read a death's last blows before touching numbers.
+- **The Gravecleaver** staggered whole packs every swing and took a twentieth of the damage
+  other swords took (`-- weaponlab`); its cleaves' poise came down. **Unblinking** made the
+  slowest build of eleven; its penalty halved.
+- **`kit=`** equipped a random kind of weapon, so a bench "with gear" once fought with the wrong
+  weapon. It now keeps the build's weapon.
 
 ### Found by looking at captures (2026-11-05)
 
@@ -337,7 +350,8 @@ Use this rather than assuming. "None reported" means the owner has not said.
 | Chronicle, altars, rival Grudges, Deep Events, Hollow identity (PR #10) | **None reported** | No | Altars and pings only | Yes | Most; Vigil lamps never viewed |
 | Foes, guardians, new foes (PR #11) | **None reported** | No | Yes (`guardian`, `bestiary`) | Yes | Yes |
 | Great Evolution pass (keys, devices, rule rooms, new foes, forms, evolutions, notices, HUD) | **None** | No | `ways` (2 and 4 players, netsim), regressions | Yes | Most |
-| A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Solo bot, real hits, all six forms (god mode) | Partly |
+| Deepening pass (techniques, keystones, hunts, device rooms, altar consequences, notices) | **None** | No | `deep` (3 and 4 players, moderate and stress links), regressions | Yes | Most; Focus and a held grown weapon not clearly seen |
+| A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Solo bots **without god mode**, real builds, three skill levels (`bossbench.py`) | Partly |
 | Steam: one account, private lobby, hosted session | No | No | Yes, on one account | | |
 | **Steam: a second player joining** | **No** | **No** | **Impossible on one account** | | |
 | Internet route | **Not recorded.** The owner never said how the two PCs connected. | | Simulated links only | | |

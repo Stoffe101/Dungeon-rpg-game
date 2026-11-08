@@ -273,8 +273,17 @@ func _build() -> void:
 			_sprite("vigil_lamp", 0.0, 0.0, "lit")
 			_solid([tile])
 			_light(Color(1.0, 0.68, 0.35), 0.9, 5.5, Vector3(0, 1.6 * Iso.SQ2, 0.1))
+			data["prompt"] = "Take a flame from the lamp"
+			interact_radius = 1.3
 		"scar":
 			_flat("floor_scar", String(data.get("anim", "broken")))
+		"rubble":
+			# what the Broken altar let loose brought down: dig, there may be something under it
+			_sprite("rubble", 0.0, 0.0, String(data.get("anim", "a")))
+			_solid([tile])
+			data["prompt"] = "Dig through the rubble"
+			data["label"] = "Fallen Stone"
+			interact_radius = 1.3
 		"lever":
 			_sprite("lever", 0.0, 0.0, "up")
 			_solid([tile])
@@ -471,6 +480,9 @@ func _spike_tick() -> void:
 		state = "warn"
 	if sprite.anim != state:
 		sprite.play(state)
+		if state == "warn" and stage.nearest_player(pos) != null and stage.nearest_player(pos).pos.distance_to(pos) < 6.0:
+			# (a quiet danger: the bot's eyes, not an off-screen chevron - the trap is in plain sight)
+			stage.note_danger(pos, SPIKE_CYCLE - k, {"kind": Fx.Shape.DISC, "size": Vector2(1.5, 1.5), "quiet": true})
 		if state == "up":
 			used = false
 			Audio.play_at("spikes", pos, -10.0, randf_range(0.9, 1.1), 120)
@@ -479,7 +491,7 @@ func _spike_tick() -> void:
 		# spikes don't care whose foot is on them
 		for a in stage.actors.duplicate():
 			if a.alive and not a.flying and a.height < 0.3 and absf(a.pos.x - pos.x) < 0.5 + a.radius * 0.5 and absf(a.pos.y - pos.y) < 0.5 + a.radius * 0.5:
-				var h := Hit.make(null, 14.0, ["melee"])
+				var h := Hit.make(null, 14.0, ["melee", "spikes"])
 				h.can_crit = false
 				h.knockback = Vector2.ZERO
 				if a is Player:
@@ -512,8 +524,10 @@ func interactable() -> bool:
 
 ## The name over it in the world ("" for none): what it is, at a glance.
 func label_name() -> String:
-	if kind in ["lever", "lock_plate", "key_altar", "cold_lantern"]:
+	if kind in ["lever", "lock_plate", "key_altar", "cold_lantern", "rubble"]:
 		return "" if used else String(data.get("label", ""))
+	if kind == "lamp" and data.has("prompt"):
+		return "" if used else "A Vigil Lamp"
 	match kind:
 		"chest":
 			if data.get("sealed", false):
