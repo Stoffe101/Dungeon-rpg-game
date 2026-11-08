@@ -815,10 +815,10 @@ static func enemy_drops(enemy_id: String, region: String) -> Array:
 		"archer":
 			out.append(["soul_glass", 0.08, 1, 1])
 		"moth", "sporeling", "toad":
-			out.append(["spore_silk", 0.3, 1, 1])
+			out.append(["spore_silk", 0.18, 1, 1])
 		"thornback", "rootweaver":
-			out.append(["spore_silk", 0.15, 1, 1])
-			out.append(["rootwood", 0.2, 1, 1])
+			out.append(["spore_silk", 0.1, 1, 1])
+			out.append(["rootwood", 0.12, 1, 1])
 		"sentinel":
 			out.append(["grave_iron", 0.35, 1, 2])
 			out.append(["sun_gold", 0.2, 1, 1])
