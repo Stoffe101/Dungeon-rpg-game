@@ -143,6 +143,9 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 				ids = a.substr(4).split(",")
 		for k in ids.size():
 			var parts := String(ids[k]).split(":")
+			if not EnemyDB.ENEMIES.has(parts[0]):
+				print("[hitlab] no foe called '%s' (EnemyDB.ENEMIES)" % parts[0])
+				continue
 			var e := _make_enemy(parts[0])
 			if parts.size() > 1:
 				e.make_elite(parts[1])
