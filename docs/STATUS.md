@@ -4,6 +4,15 @@ Last updated: 2026-11-08.
 
 ## Implemented
 
+- **The next evolution (branch feature/gameplay-world-evolution)** - details in DESIGN, "The next evolution":
+  - *Armour*: chest, helm, hands and feet redrawn for silhouette; it stays on through death; every sheet audited against the body, pose by pose. A chest piece's make carries a small role (Heavy, Measured, Flowing, Fitted, Light); four item pairs.
+  - *Rooms*: `RoomCraft`: eight room concepts, region room shapes, floor inlays, door thresholds and posts, column capstones; the Hollow's six moods have their own light, ground cover and standing things; milestone depths; altars show in the rooms.
+  - *Guardians*: the Warden's Harvest and Reaping; the Bloom chokes, its breath takes everyone, thorn hedges and ridges; the King's Court Falls and a Ward that defies the Eclipse. Hunt dens.
+  - *Foes*: Penitent, Canopy Mother, Slagbearer, and the Harvest's souls. Two new Omens.
+  - *Uniques and tree*: six new behaviour uniques, two numeric ones rebuilt; four Hearthtree nodes that change actions.
+  - *Places*: five kinds of secret room, workshops, settlements. Sanctuary grows from them; residents talk about them and each other.
+  - *Economy*: costs and income measured; common drops cut; the smith's Refine tab; Attune; duplicates feed the one kept; Resonance slower (save v17).
+  - *Hints*, said once. Four new sound cues. `BG_FROZEN`, `TEST_ONLY`, `econreport`, `econrun`.
 - **The world of depth (branch feature/world-of-depth)** - details in DESIGN, "The world of depth":
   - *What stops you*: `Physical` table; drawings stand on the front of the tile they block; things that looked solid
     and were not (or the reverse) fixed; misleading decals gone; a near wall covers a quarter tile; nobody is trapped
@@ -464,6 +473,11 @@ Last updated: 2026-11-08.
 
 ## Known issues / limitations
 
+- The next evolution: nobody has played it. Open questions in docs/TESTING.md "Human playtest: the next evolution". Not done or only partly done: armour in the
+  real game was viewed only in a few outfits and mostly mid-fight; the build trace was captured but could not be told apart in the shot; hunts have dens but no new
+  region-specific objectives; controller navigation of the new Refine tab is untested; four-player guardian fights to the end have not been run; the bow is still the
+  slowest guardian killer in bots (6 of 12 against 9-12 for the others). The economy was measured with god-mode bots on one seed per region and tier, without deaths:
+  it shows what a clear pays, not what a person earns. Gear counts in those runs include the dev stockpile, so loot per run is not measured.
 - World of depth: nobody has played it, and readability is exactly what a person must judge. Open questions: ground cover density,
   whether canopies thinning flickers, 0.75 s of trap warning, whether hedges hem fights in, whether grown daggers read at
   their size. Bow is the slowest guardian killer in bots (7 of 12); its Throne fights run about twice as long as melee.
@@ -615,6 +629,7 @@ Last updated: 2026-11-08.
 
 ## Next priorities
 
+0. The next evolution with people: docs/TESTING.md "Human playtest: the next evolution".
 0. The world of depth with people: docs/TESTING.md "Human playtest: the world of depth": is the Rootmire readable and beautiful, do traps feel fair.
 0. The deepening pass with people: docs/TESTING.md "Human playtest: the deepening pass" - each
    weapon's technique, one keystone, a whole hunt, the altars' consequences, a grown weapon,

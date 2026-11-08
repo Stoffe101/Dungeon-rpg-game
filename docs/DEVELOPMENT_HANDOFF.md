@@ -144,6 +144,7 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
 | #12 | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
 | #14 (draft) | `feature/world-of-depth` | 11-08 | What stops you is what you see: a table of what things are made of, a new Rootmire, real spike traps, grown weapons drawn per path, hybrids, great halls, hunts that differ, errands, residents that notice | "The World of Depth" brief |
+| (draft) | `feature/gameplay-world-evolution` | 11-09 | Armour redrawn and audited, rooms built as something, guardians that change decisions, four foes, behaviour uniques, secret rooms and settlements, measured economy with a Refine tab, hints | "The Next Evolution" brief |
 | #13 (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
 
 ### Content inventory (checked against code at handoff)
@@ -358,6 +359,7 @@ Use this rather than assuming. "None reported" means the owner has not said.
 | Great Evolution pass (keys, devices, rule rooms, new foes, forms, evolutions, notices, HUD) | **None** | No | `ways` (2 and 4 players, netsim), regressions | Yes | Most |
 | Deepening pass (techniques, keystones, hunts, device rooms, altar consequences, notices) | **None** | No | `deep` (3 and 4 players, moderate and stress links), regressions | Yes | Most; Focus and a held grown weapon not clearly seen |
 | World of depth (collision language, Rootmire, traps, grown weapons, halls, hunts, errands) | **None** | No | `depthworld` (2, 4 players, stress), full regression | Yes | Most (see STATUS) |
+| The next evolution (armour, rooms, guardians, foes, uniques, places, economy) | **None** | No | `newfoes` (2, 4 players), full regression | Mostly (see STATUS) | Partly |
 | A party fighting a guardian to the end | **No** | No | **No**: the scenario fells it by dev call | Solo bots **without god mode**, real builds, three skill levels (`bossbench.py`) | Partly |
 | Steam: one account, private lobby, hosted session | No | No | Yes, on one account | | |
 | **Steam: a second player joining** | **No** | **No** | **Impossible on one account** | | |
