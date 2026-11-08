@@ -198,6 +198,13 @@ static func bark(id: String, rng: RandomNumberGenerator) -> String:
 		pool.append("You came back. That's what matters.")
 	if int(Profile.data.world.get("warden_kills", 0)) > 0:
 		pool.append("The Warden's gone. I still can't believe it.")
+	# they talk about each other, and about what the camp has become
+	var others: Dictionary = {"teodric": "Wren's been asking Teodric about bells again. He pretends to mind.", "wren": "Teodric says I can ring the small one if I am good. I am being very good.",
+		"ama": "Bram brings me ash for the beds. He says it's for the cat.", "bram": "Ama talks to the seedlings. They do better than the rest of us."}
+	if others.has(id):
+		pool.append(String(others[id]))
+	if Chronicle.marks("settlements") > 0:
+		pool.append("New folk by the far wall. They say someone lit their old hearth.")
 	if Profile.skill_points_free() > 0:
 		pool.append("The Hearth is humming. It wants you.")
 	if Chronicle.rescued("maren"):

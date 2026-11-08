@@ -778,3 +778,55 @@ func test_notices_about_a_guardian_wait_until_it_has_been_met() -> void:
 	Profile.data.world["warden_kills"] = 1
 	check(Contracts._huntable(Contracts.def_of("cage")), "after")
 	Profile.data = Profile.fresh()
+
+
+# --- what things are worth -------------------------------------------------------------------------
+
+func test_a_surplus_can_be_worked_into_something_scarce() -> void:
+	Profile.data = Profile.fresh()
+	var r: Array = ItemDB.REFINES[0]
+	check(not Profile.refine(r), "not without the stuff")
+	Profile.inv().materials[r[0]] = int(r[1]) + 1
+	check(Profile.refine(r), "with it")
+	eq(Profile.material(String(r[0])), 1, "paid")
+	eq(Profile.material(String(r[2])), int(r[3]), "made")
+	for rf: Array in ItemDB.REFINES:
+		check(ItemDB.MATERIALS.has(rf[0]) and ItemDB.MATERIALS.has(rf[2]), "%s becomes %s" % [rf[0], rf[2]])
+	Profile.data = Profile.fresh()
+
+
+func test_attuning_brings_a_great_thing_on_and_costs_what_it_says() -> void:
+	Profile.data = Profile.fresh()
+	var it := ItemDB.make_item("thornmail", "legendary", 1, RandomNumberGenerator.new(), 1)
+	Profile.add_item(it)
+	var id := int(Profile.inv().bag[-1].uid)
+	check(not Profile.attune(id), "not without the price")
+	Profile.add_currency("sunshards", 5)
+	Profile.add_currency("embers", 1000)
+	check(Profile.attune(id), "with it")
+	eq(int(Profile.find_item(id).res), ItemDB.ATTUNE_RES, "it gathered")
+	eq(Profile.currency("sunshards"), 3, "and it cost")
+	Profile.data = Profile.fresh()
+
+
+func test_a_second_copy_of_a_great_thing_is_not_wasted() -> void:
+	Profile.data = Profile.fresh()
+	var rng := RandomNumberGenerator.new()
+	Profile.add_item(ItemDB.make_item("thornmail", "legendary", 1, rng, 1))
+	Profile.add_item(ItemDB.make_item("thornmail", "legendary", 1, rng, 1))
+	var a := int(Profile.inv().bag[0].uid)
+	var b := int(Profile.inv().bag[1].uid)
+	Profile.find_item(b)["res"] = 100
+	Profile.salvage(b)
+	eq(int(Profile.find_item(a).res), Profile.DUPLICATE_RES + 50, "what it knew went into the one kept")
+	Profile.data = Profile.fresh()
+
+
+func test_an_old_save_keeps_what_its_great_things_had_become() -> void:
+	var old := Profile.fresh()
+	old["version"] = 16
+	old["inventory"] = {"bag": [{"uid": 1, "base": "thornmail", "rarity": "legendary", "level": 1, "res": 500}], "equipped": {"ring": {"uid": 2, "base": "vampires_kiss", "rarity": "legendary", "level": 1, "res": 150}}, "materials": {}, "next_uid": 3}
+	var d := Profile.migrate(old)
+	eq(int(d.version), Profile.VERSION, "up to date")
+	check(int(d.inventory.bag[0].res) >= Evolutions.ASCEND, "ready to choose stays ready")
+	check(int(d.inventory.equipped.ring.res) >= Evolutions.AWAKE, "awake stays awake")

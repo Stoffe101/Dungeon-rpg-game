@@ -76,7 +76,8 @@ static func camp_of_profile() -> Dictionary:
 		"shrine": Profile.building("shrine"), "level": Profile.level(), "garden": Residents.garden_stage(),
 		"residents": Residents.count_present(), "feats": Feats.earned_count(), "trophies": trophies,
 		"cat": int(Profile.data.stats.get("runs", 0)) > 0, "forged": forged, "host": String(Settings.get_value("player_name", "Kindled")),
-		"sites": (Chronicle.snapshot().sites as Dictionary).duplicate(), "rescued": (Chronicle.snapshot().rescued as Array).duplicate()}
+		"sites": (Chronicle.snapshot().sites as Dictionary).duplicate(), "rescued": (Chronicle.snapshot().rescued as Array).duplicate(),
+		"settled": Chronicle.marks("settlements"), "workshops": Chronicle.marks("workshops"), "deepest": int(Profile.data.world.get("delve_best", 0))}
 
 
 ## The camp to build: the host's while this machine is a guest in a party.
@@ -502,6 +503,17 @@ func _keepsakes() -> void:
 		if int(Profile.data.world.get(pair[0], 0)) > 0:
 			Prop.make(self, "trophy", Vector2i(24 + hung * 2, 3), {"sheet": "guardian_trophy", "anim": pair[1], "h": 1.1, "z": 0.05})
 			hung += 1
+	# what the expeditions brought home: people who heard of hearths being lit, tools carried back
+	# up, a stone from further down than anyone has charted
+	for i in mini(int(camp.get("settled", 0)), 2):
+		Prop.make(self, "stand", Vector2i(34 + i * 3, 9), {"sheet": "settlers_hut", "solid_tiles": [Vector2i(34 + i * 3, 9), Vector2i(35 + i * 3, 9)], "ox": 0.5,
+			"prompt": "Someone moved in", "lines": ["There were people down there once, with hearths. Word got round that somebody lit them again."], "radius": 1.4})
+	if int(camp.get("workshops", 0)) >= 1:
+		Prop.make(self, "stand", Vector2i(12, 8), {"sheet": "workbench", "anim": "anvil", "solid": true, "prompt": "A bench carried up in pieces",
+			"lines": ["Someone's tools. They were left in the middle of something. You finished it."], "radius": 1.3})
+	if int(camp.get("deepest", 0)) >= 10:
+		Prop.make(self, "stand", Vector2i(27, 8), {"sheet": "hollow_riftstone", "solid": true, "prompt": "A stone from a long way down",
+			"lines": ["It should not have come up. It hums at night. The cat sleeps beside it."], "radius": 1.3, "light": [Color(0.5, 1.0, 0.9), 0.5, 3.0], "light_h": 1.2})
 	# feat lanterns along the south wall
 	var xs := [5, 7, 9, 11, 13, 15, 27, 29, 32, 34, 36]
 	var lit := int(ceil(int(camp.feats) * xs.size() / float(Feats.FEATS.size())))

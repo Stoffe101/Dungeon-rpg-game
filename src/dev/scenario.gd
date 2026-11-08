@@ -69,6 +69,8 @@ func _run() -> void:
 			await depthworld()
 		"guardian":
 			await guardian()
+		"newfoes":
+			await newfoes()
 		"bestiary":
 			await bestiary()
 		"partyhud":
@@ -1326,6 +1328,36 @@ func _spawn_near(id: String, p: Player, dist := 3.0) -> Enemy:
 
 ## A party's guardian: the stairs to depth 3, its arrival, the fight turning and
 ## its fall, on every machine; its spoils land after the fall, for everyone.
+## The foes of the campaign pass, on every machine: seen, pictured, felled.
+func newfoes() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	var ids := ["penitent", "canopy_mother", "slagbearer"]
+	if role == "host":
+		dun().player.godmode = true
+		for k in ids.size():
+			var e: Enemy = dun()._make_enemy(ids[k])
+			e.pos = dun().random_floor_near(dun().player.pos + Vector2(3.0 + k, 0.0), 1.5)
+			e.room_id = dun().layout.start_id
+			dun().add_actor(e)
+	var seen := func() -> Array:
+		return dun().actors.filter(func(a): return a is Enemy and is_instance_valid(a) and a.alive and (a as Enemy).id in ids)
+	if not await until(func() -> bool: return seen.call().size() == ids.size(), 20.0, "all three on my screen"):
+		return
+	await wait(2.5)
+	Net.i.dev_shot("e2e/newfoes")
+	for e: Enemy in seen.call():
+		expect(e.sprite != null and e.sprite.has_anim(String(e.sprite.anim)), "%s is drawn" % e.id)
+	if role == "host":
+		for e: Enemy in seen.call():
+			e.hp = 0.0
+			e.die(dun().player)
+	await until(func() -> bool: return seen.call().is_empty(), 15.0, "and all three fell on my screen")
+	if role == "host":
+		expect(not dun().hazards.is_empty(), "what the Slagbearer carried spilled")
+	await wait(1.0)
+
+
 func guardian() -> void:
 	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
 	_strip_bot()

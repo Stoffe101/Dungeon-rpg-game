@@ -778,16 +778,33 @@ static func salvage_yield(item: Dictionary) -> Dictionary:
 
 # --- drops ---------------------------------------------------------------------
 
+## What the smith can make of a surplus: [from, how many, to, how many]. Common things
+## stop being worthless and rare things can be worked toward instead of hoped for.
+const REFINES := [
+	["bone_dust", 12, "grave_iron", 3],
+	["bone_dust", 24, "ember_core", 1],
+	["grave_iron", 10, "soul_glass", 3],
+	["soul_glass", 10, "sun_gold", 3],
+	["rootwood", 10, "spore_silk", 3],
+	["spore_silk", 10, "ember_core", 1],
+	["sun_gold", 8, "ember_core", 1],
+]
+## Sunshards and Embers for Resonance: a late use for both, and a way to bring on the one
+## great thing you actually care about.
+const ATTUNE_COST := {"sunshards": 3, "embers": 300}
+const ATTUNE_RES := 70
+
+
 ## Materials an enemy can drop: [[material, chance, min, max], ...]
 static func enemy_drops(enemy_id: String, region: String) -> Array:
 	var out: Array = []
 	match region:
 		"rootmire":
-			out.append(["rootwood", 0.25, 1, 2])
+			out.append(["rootwood", 0.16, 1, 2])
 		"throne":
-			out.append(["sun_gold", 0.22, 1, 2])
+			out.append(["sun_gold", 0.12, 1, 2])
 		_:
-			out.append(["bone_dust", 0.28, 1, 2])
+			out.append(["bone_dust", 0.18, 1, 2])
 	match enemy_id:
 		"guard":
 			out.append(["grave_iron", 0.4, 1, 2])

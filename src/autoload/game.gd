@@ -555,7 +555,7 @@ func end_run(outcome: String, killer_id := "") -> void:
 	if "econrun" in Dev.args():
 		# dev: one line of what this expedition paid, then stop
 		var by_rarity := {}
-		for g: Dictionary in spoils.gear:
+		for g: Dictionary in Profile.inv().get("bag", []):
 			var rk := "unique" if ItemDB.is_unique(String(g.get("base", ""))) else String(g.get("rarity", "?"))
 			by_rarity[rk] = int(by_rarity.get(rk, 0)) + 1
 		print("[econ] ", JSON.stringify({"outcome": outcome, "region": run.region, "tier": run.tier, "depth": run.depth, "embers": s.embers_kept,
