@@ -99,6 +99,28 @@ func _techniques(delta: float) -> bool:
 	return false
 
 
+## The Eclipse: once noticed, into the nearest lit brazier's light before the dark lands.
+func _shelter() -> bool:
+	for a in pl.stage.actors:
+		if not (a is Enemy and a.alive and a.state == "eclipse" and a.has_method("sheltered")):
+			continue
+		if a.state_t < float(skill.react) or a.sheltered(pl.pos):
+			return false
+		var best: Node = null
+		for b in a._lit():
+			if best == null or b.pos.distance_to(pl.pos) < best.pos.distance_to(pl.pos):
+				best = b
+		if best == null:
+			return false
+		_goal = best.pos
+		pl.move_in = (pl.stage.path_step(pl.pos, best.pos) - pl.pos).normalized()
+		if best.pos.distance_to(pl.pos) > 4.0 and _dodge_cd <= 0.0 and pl.dodge_charges >= 1.0:
+			pl.press("dodge")
+			_dodge_cd = 0.7
+		return true
+	return false
+
+
 ## The warning this Kindled stands in and has noticed, or [] for none.
 func _threat() -> Array:
 	var st := pl.stage
@@ -159,6 +181,8 @@ func _process(delta: float) -> void:
 		pl.move_in = Vector2.ZERO     # the ritual needs stillness (moving breaks it)
 		return
 	var target := _pick_target()
+	if _shelter():
+		return
 	# boss phase 2: relight the braziers to sear the Warden
 	for a in pl.stage.actors:
 		var warden_window: bool = a is Enemy and a.def.get("boss", false) and a.get("phase") == 2 and a.get("seared_t") != null and a.get("seared_t") <= 0.0

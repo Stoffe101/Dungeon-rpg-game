@@ -669,7 +669,7 @@ func _draw_dangers(st: Stage) -> void:
 	var col := Color(1.0, 0.36, 0.4) if not bool(Settings.get_value("strong_tells", false)) else Color(1.0, 1.0, 0.9)
 	var now := st.elapsed
 	for d in st.dangers:
-		if float(d[1]) < now or (d[3] as Dictionary).has("wave"):
+		if float(d[1]) < now or (d[3] as Dictionary).has("wave") or (d[3] as Dictionary).has("quiet"):
 			continue
 		var p := _screen_of(st, d[0])
 		if area.has_point(p):

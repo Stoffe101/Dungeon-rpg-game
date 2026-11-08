@@ -1327,6 +1327,8 @@ func _blow_name(attacker: Node, h: Hit) -> String:
 		return "Spore clouds"
 	if h.has_tag("shockwave"):
 		return "A guardian's shockwave"
+	if h.has_tag("spikes"):
+		return "Floor spikes"
 	if h.has_tag("gloamfire"):
 		return "Gloamfire"
 	if h.has_tag("fire"):

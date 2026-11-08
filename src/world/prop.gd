@@ -480,6 +480,9 @@ func _spike_tick() -> void:
 		state = "warn"
 	if sprite.anim != state:
 		sprite.play(state)
+		if state == "warn" and stage.nearest_player(pos) != null and stage.nearest_player(pos).pos.distance_to(pos) < 6.0:
+			# (a quiet danger: the bot's eyes, not an off-screen chevron - the trap is in plain sight)
+			stage.note_danger(pos, SPIKE_CYCLE - k, {"kind": Fx.Shape.DISC, "size": Vector2(1.5, 1.5), "quiet": true})
 		if state == "up":
 			used = false
 			Audio.play_at("spikes", pos, -10.0, randf_range(0.9, 1.1), 120)
@@ -488,7 +491,7 @@ func _spike_tick() -> void:
 		# spikes don't care whose foot is on them
 		for a in stage.actors.duplicate():
 			if a.alive and not a.flying and a.height < 0.3 and absf(a.pos.x - pos.x) < 0.5 + a.radius * 0.5 and absf(a.pos.y - pos.y) < 0.5 + a.radius * 0.5:
-				var h := Hit.make(null, 14.0, ["melee"])
+				var h := Hit.make(null, 14.0, ["melee", "spikes"])
 				h.can_crit = false
 				h.knockback = Vector2.ZERO
 				if a is Player:

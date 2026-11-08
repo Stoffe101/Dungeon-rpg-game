@@ -599,3 +599,40 @@ func test_deep_hollow_echoes_wear_their_rarer_forms() -> void:
 	var src := FileAccess.get_file_as_string("res://src/world/dungeon.gd")
 	check(src.contains("layout.depth >= 12"), "from depth 12")
 	check(Delve.MILESTONES.has(25) and Delve.MILESTONES.has(40), "new milestones deeper down")
+
+
+# --- saves -----------------------------------------------------------------------------------
+
+func test_a_save_with_everything_new_survives_many_load_and_save_cycles() -> void:
+	Profile.data = Profile.fresh()
+	Profile.data.world["warden_kills"] = 2
+	Profile.data.contracts = {"offer": [], "taken": [{"id": "hunt_ossuary", "n": 0}, {"id": "t_cadence", "n": 7}], "done": 3}
+	var it := Profile.add_item(ItemDB.make_item("gloamfang", "legendary", 3, RandomNumberGenerator.new(), 2))
+	it["res"] = 640
+	Evolutions.choose(it, "storm")
+	Profile.equip(int(it.uid))
+	Profile.data.grudges = [{"id": "g1", "enemy": "husk", "name": "Oth", "level": 3, "embers": 50, "settled": false, "marks": ["hardened"], "history": ["x"]}]
+	Chronicle.rescue("maren")
+	Chronicle.set_site("ossuary", "broken")
+	Profile.data.skills = ["hearth", "t_cadence", "s_cadence"]
+	var txt := JSON.stringify(Profile.data)
+	for k in 6:
+		var d: Dictionary = Profile.migrate(JSON.parse_string(txt))
+		txt = JSON.stringify(d)
+	var back: Dictionary = JSON.parse_string(txt)
+	var w: Dictionary = {}
+	for e in back.inventory.bag:
+		if int(e.uid) == int(it.uid):
+			w = e
+	if w.is_empty():
+		var worn: Variant = back.inventory.equipped
+		w = worn.get("weapon", {}) if worn is Dictionary else {}
+	eq(String(w.get("path", "")), "storm", "the weapon has still chosen")
+	eq(int(w.get("res", 0)), 640, "with its Resonance")
+	eq((back.contracts.taken as Array).size(), 2, "the notices carried")
+	eq(int(back.contracts.taken[1].n), 7, "and their progress")
+	eq(back.grudges[0].marks, ["hardened"], "a Grudge's mark")
+	check((back.chronicle.rescued as Array).has("maren"), "Maren")
+	eq(String(back.chronicle.sites.ossuary), "broken", "the altar's answer")
+	eq(back.skills, ["hearth", "t_cadence", "s_cadence"], "the tree")
+	eq(int(back.version), Profile.VERSION, "and the version")

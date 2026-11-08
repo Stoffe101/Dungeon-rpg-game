@@ -231,6 +231,7 @@ func _sunfall(n: int) -> void:
 				return
 			var at: Vector2 = k.target().pos + k.target().vel * 0.25
 			k.stage.fx.shape(Fx.Shape.DISC, at, Vector2.RIGHT, Vector2(3.0, 3.0), TELE_COLOR, TELE_EDGE, 0.9, {"progress": 0.0})
+			k.stage.share_danger(at, 0.85, {"kind": Fx.Shape.DISC, "dir": Vector2.RIGHT, "size": Vector2(3.0, 3.0)})
 			k.stage.after(0.85, func() -> void:
 				var k2 = me.get_ref()
 				if k2 and k2.alive:

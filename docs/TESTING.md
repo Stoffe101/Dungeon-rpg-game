@@ -251,7 +251,17 @@ Everything below runs through `tools/dev/bg.py`, so nothing appears on screen or
 5. **A great thing that grows.** Does the weapon look different once awake and once it has
    chosen? Was the choice clear before you made it?
 6. **The map.** Is it cleaner without the facing line? Can you still tell yourself apart?
-7. **Listening** (nobody has heard these): cadence, evolve, snuff, chain throw, chain haul.
+7. **Listening** (nobody has heard any sound in this game; only measured). New this pass: `cadence`
+   (a short bright glint, 0.35 s), `evolve` (1.6 s, the path choice), and from the last pass `snuff`,
+   `chain_throw`, `chain_haul`. Ask of each: can you tell it apart in a crowded fight; is it too
+   loud or too quiet beside the swings; does it ever grate after an hour?
+   **On laptop speakers or small headphones**: these older sounds put most of their energy below
+   120 Hz (measured with `tools/audio/analyze.py`) and may vanish or turn to mud there: heartbeat,
+   crumble, slam, seal_close, satchel_close, the moss steps, explode, player_death, aftershock,
+   swing_heavy, seal_open, deny, bow_draw, sweep, lantern. Listen to a guardian's slam and a
+   death on small speakers. None of the 178 effects clip.
+8. **Floor spikes and the King's sun-pillars** now say who hurt you ("Floor spikes") in the
+   death summary; the pillars also show as off-screen arrows on the other players' screens.
 
 ## Human playtest: the great evolution pass
 

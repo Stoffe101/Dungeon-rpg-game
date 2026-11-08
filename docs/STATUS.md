@@ -451,8 +451,8 @@ Last updated: 2026-11-08.
 - Foes and guardians pass: nobody has played it. The new foes' numbers are first
   guesses from two seeds of bots, who never dodge. To judge in play: is the rim too
   loud; is the Tollkeeper's ring too bright; does the Lurecap feel fair; is the
-  Herald's +25% worth chasing. Tier II at the Throne wipes bots with or without
-  the Herald. No sound was listened to. The guardian scenario fells guardians by dev call: a real fight to
+  Herald's +25% worth chasing. Tier II at the Throne wiped bots with or without
+  the Herald (then: bots that never dodged; see the deepening pass's entry for the re-check). No sound was listened to. The guardian scenario fells guardians by dev call: a real fight to
   the end in a party was not run. A guardian's spoils wait about 3 s: whether that
   is a pause or a wait is a question for people.
 - Living Undervault pass: nobody has played it. All balance numbers are bots'
