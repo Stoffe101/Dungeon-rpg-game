@@ -143,7 +143,7 @@ Each pass is one branch and one draft PR, stacked on the one before.
 | #10 | `feature/living-undervault` | 11-05 | Redrawn stone, Chronicle, rival Grudges, Deep Events, Hollow identity, stockpile fix | "Great Underdeep" brief |
 | #11 | `feature/enemy-presentation` | 11-05 | Foes that read, guardian moments, three new foes, ring fix | Follow-up from #10 |
 | #12 | `feature/great-evolution` | 11-06 to 11-07 | Floor plans, keys and levers, room devices, rule rooms, Maren, Snuffer and Gravehook, guardian forms, evolving legendaries, the noticeboard, Grudge marks and nemeses, ultrawide HUD, how-it-ended, a bot that reads warnings | "Great Evolution" brief |
-| (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
+| #13 (draft) | `feature/combat-progression-deepening` | 11-08 | Background-only test runs, no map facing line, weapon techniques and the tree that lends them, keystones, uniques, guardian hunts, a guardian bench without god mode, device rooms, altar consequences in play | "The Deepening" brief |
 
 ### Content inventory (checked against code at handoff)
 
