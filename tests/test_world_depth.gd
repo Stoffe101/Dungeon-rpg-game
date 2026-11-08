@@ -111,6 +111,38 @@ func test_a_chest_made_on_top_of_someone_never_traps_them() -> void:
 	d.queue_free()
 
 
+func test_what_falls_or_bursts_stops_nobody_afterwards() -> void:
+	var d := _floor("ossuary")
+	var t := _free_tile(d)
+	var j := Prop.make(d, "kindle_jar", t, {})
+	eq(d.grid.at(t.x, t.y), TileGrid.PROP, "a jar stands in the way")
+	d.room_device(j, d.player)
+	for k in 30:
+		d.simulate(0.05)
+	eq(d.grid.at(t.x, t.y), TileGrid.FLOOR, "burst, its tile is open")
+	var t2 := _free_tile(d)
+	var s := Prop.make(d, "strut", t2, {})
+	d.room_device(s, d.player)
+	for k in 30:
+		d.simulate(0.05)
+	eq(d.grid.at(t2.x, t2.y), TileGrid.FLOOR, "fallen, its tile is open")
+	d.queue_free()
+
+
+func test_a_hair_inside_a_prop_is_not_a_way_through_it() -> void:
+	var d := _floor("rootmire")
+	var t := _free_tile(d)
+	Prop.make(d, "thicket", t, {"anim": "a"})
+	var r: float = d.player.box()
+	# just south of it, rounded a hair into it (what a position across the network can be)
+	var p := Vector2(t.x + 0.5, t.y + 1.0 + r - 0.004)
+	var y0 := p.y
+	for k in 40:
+		p = d.grid.move_box(p, r, Vector2(0.0, -0.1))
+	check(p.y >= y0 - 0.02, "it stays out (%.3f from %.3f)" % [p.y, y0])
+	d.queue_free()
+
+
 func test_a_broken_thing_gives_its_tile_back() -> void:
 	var d := _floor("rootmire")
 	var t := _free_tile(d)

@@ -702,6 +702,7 @@ func _fell_strut(p: Prop, by: Node) -> void:
 			return
 		p.sprite.play("down")
 		p.stops_shots = false
+		p.unsolid()       # (down, it is rubble underfoot: it no longer stops anyone)
 		var covers := func(a: Actor) -> bool:
 			var v: Vector2 = a.pos - p.pos
 			var along := v.dot(dir)
@@ -725,6 +726,7 @@ func _burst_jar(p: Prop, by: Node) -> void:
 			return
 		if is_instance_valid(p) and p.sprite:
 			p.sprite.visible = false
+			p.unsolid()
 			if p.light:
 				p.light.visible = false
 		var covers := func(a: Actor) -> bool:

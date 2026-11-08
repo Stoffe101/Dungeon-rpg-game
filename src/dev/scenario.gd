@@ -1256,6 +1256,7 @@ func depthworld() -> void:
 		if host_off != "":
 			var diff := absf(float(host_off) - mine)
 			expect(diff < 0.35, "my trap clock agrees with the host's (%.0f ms apart)" % (diff * 1000.0))
+	if _tag() == "guest1":
 		# a solid thorn really stops me
 		var target: Vector2 = thorn.pos
 		await walk_to(target + Vector2(0.0, 1.05), 0.5, 10.0)

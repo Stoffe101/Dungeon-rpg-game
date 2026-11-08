@@ -1005,6 +1005,15 @@ func _burn_tick(dt: float) -> void:
 		_clear_bramble(true)
 
 
+## What is left of a thorn lies low and dark: plainly no longer a wall of thorns.
+func show_cleared() -> void:
+	if sprite == null:
+		return
+	sprite.play("burnt")
+	sprite.scale = Vector3(1.0, 0.45, 1.0)
+	sprite.set_tint(Color(0.55, 0.5, 0.5, 1.0))
+
+
 func _clear_bramble(burnt: bool) -> void:
 	if data.get("spoor", false) and not used and stage is Dungeon and not Net.is_client():
 		(stage as Dungeon).hunt_sign("You cut its mark out of the thorns")
@@ -1020,10 +1029,7 @@ func _clear_bramble(burnt: bool) -> void:
 	if kind == "bramble_wall":
 		stage.request("secret", self)
 		return
-	sprite.play("burnt" if burnt else "burnt")
-	# what is left lies low and dark: plainly no longer a wall of thorns
-	sprite.scale = Vector3(1.0, 0.45, 1.0)
-	sprite.set_tint(Color(0.55, 0.5, 0.5, 1.0))
+	show_cleared()
 	if not burnt:
 		stage.fx.burst(pos, 0.5, Color(0.45, 0.6, 0.3), 12, 4.0, 0.4, 6.0)
 	if kind == "root_node":

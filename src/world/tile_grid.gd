@@ -196,13 +196,22 @@ func _box_hits(p: Vector2, r: float, can_cross_pits: bool) -> bool:
 
 
 ## Something solid appeared on top of this box (a chest out of a won fight, a wall of
-## ice): nobody is ever trapped in a prop. They walk off it; walls still stop them.
+## ice): nobody is ever trapped in a prop. They walk off it; walls still stop them, and no
+## step may take them further into it (a position rounded on its way across the network
+## sits a hair inside one: that must not become a way through).
 func _on_prop(p: Vector2, r: float) -> bool:
+	return _prop_overlap(p, r) > 0.0
+
+
+func _prop_overlap(p: Vector2, r: float) -> float:
+	var total := 0.0
 	for ty in range(floori(p.y - r), floori(p.y + r) + 1):
 		for tx in range(floori(p.x - r), floori(p.x + r) + 1):
 			if at(tx, ty) == PROP:
-				return true
-	return false
+				var ox := minf(p.x + r, tx + 1.0) - maxf(p.x - r, float(tx))
+				var oy := minf(p.y + r, ty + 1.0) - maxf(p.y - r, float(ty))
+				total += maxf(0.0, ox) * maxf(0.0, oy)
+	return total
 
 
 func _walk_off(p: Vector2, r: float, motion: Vector2, cross: bool) -> Vector2:
@@ -212,6 +221,15 @@ func _walk_off(p: Vector2, r: float, motion: Vector2, cross: bool) -> Vector2:
 			var t := at(tx, ty)
 			if t != FLOOR and t != PROP and not (t == PIT and cross):
 				return p
+	if _prop_overlap(out, r) > _prop_overlap(p, r) + 0.0001:
+		# (one axis at a time, so a step along the edge of what it touches still slides)
+		var a := Vector2(p.x + motion.x, p.y)
+		if _prop_overlap(a, r) <= _prop_overlap(p, r) + 0.0001:
+			return a
+		var b := Vector2(p.x, p.y + motion.y)
+		if _prop_overlap(b, r) <= _prop_overlap(p, r) + 0.0001:
+			return b
+		return p
 	return out
 
 
