@@ -887,8 +887,50 @@ func _aura_tick(dt: float) -> void:
 	Net.mute -= 1
 
 
+## Greaves of the Long Way: how long these feet have kept going.
+const MOMENTUM_READY := 1.5
+var momentum_t := 0.0
+## Heart of the Mountain: the weight of what you stood through (a fraction: +0.4 at most).
+var mountain_store := 0.0
+## Counterpoise: until the counter is struck, what lands is halved.
+var counter_guard_t := 0.0
+## Whetstone of Habit: payoffs banked, each 8% off the next spell.
+var habit := 0
+
+
+## A technique paid off (Weapon).
+func on_technique() -> void:
+	if stats.has("habit"):
+		habit = mini(5, habit + 1)
+
+
+## Sapper's Charm: something just broke beside these foes.
+func sapper_shock(at: Vector2) -> void:
+	gain_kindle(8.0)
+	stage.fx.ring(at, 2.4, Color(1.0, 0.8, 0.45), 0.25, 0.3)
+	for a in stage.in_circle(team, at, 2.4):
+		var h := Hit.make(self, 22.0 * stats.damage_mult(["melee"]), ["melee", "ability"])
+		h.can_crit = false
+		h.proc = false
+		h.poise = 18.0
+		h.knockback = (a.pos - at).normalized() * 5.0
+		h.from_dir = (a.pos - at).normalized()
+		deal_hit(a, h)
+
+
 func _timers(dt: float) -> void:
 	_aura_tick(dt)
+	if stats.has("momentum"):
+		if vel.length() > 2.5:
+			var was := momentum_t
+			momentum_t = minf(momentum_t + dt, MOMENTUM_READY + 0.01)
+			if was < MOMENTUM_READY and momentum_t >= MOMENTUM_READY:
+				cosmetic(func() -> void:
+					stage.fx.motes(pos, 0.2, Color(1.0, 0.85, 0.5), 6, 1.2, 0.4, 0.3))
+		elif weapon == null or not weapon.is_busy():
+			momentum_t = maxf(0.0, momentum_t - dt * 3.0)
+	if counter_guard_t > 0.0:
+		counter_guard_t -= dt
 	if stats.has("moth_swarm") and stage is Dungeon:
 		_moth(dt)
 	for i in ability_cd.size():
@@ -1032,7 +1074,7 @@ func _ash_trail() -> void:
 		stage.after(k * 0.08, func() -> void:
 			if not is_inside_tree():
 				return
-			var h := Hazard.spawn(stage, pos if k > 0 else from, 0.9, 2.4, team, Color(1.0, 0.5, 0.2), func(_h: Hazard, a: Actor) -> void:
+			var h := Hazard.spawn(stage, pos if k > 0 else from, 0.9, 4.0 if stats.has("walking_fire") else 2.4, team, Color(1.0, 0.5, 0.2), func(_h: Hazard, a: Actor) -> void:
 				if a is Enemy and is_instance_valid(self):
 					var hit := Hit.make(self, 3.0 + stats.v("fire_damage") * 4.0, ["dot", "fire"])
 					hit.can_crit = false
@@ -1150,6 +1192,8 @@ func _try_ability(slot: int) -> void:
 	var cost: float = d.cost * stats.v("ability_cost") * Runes.cost_mult(self, id)
 	if id == "gloamstep" and stats.has("twin_shade"):
 		cost *= 0.6
+	if stats.has("habit") and habit > 0:
+		cost *= 1.0 - 0.08 * habit
 	var pay_hp := 0.0
 	if kindle < cost:
 		if stats.has("bonfire_soul"):
@@ -1190,6 +1234,9 @@ func _try_ability(slot: int) -> void:
 	var cast_dir := aim
 	if not Abilities.cast(self, id):
 		return
+	if stats.has("weave") and last_spell != "" and last_spell != id:
+		gain_kindle(12.0 / maxf(stats.v("kindle_gain"), 0.01))
+	habit = 0
 	last_spell = id
 	if stats.has("furnace_heart"):
 		furnace = minf(60.0, furnace + cost)
@@ -1448,6 +1495,21 @@ func _deal_hit(t: Actor, h: Hit, finisher: bool) -> Combat.Result:
 		mult *= 0.4      # a Grudge's red ward: step back and wait it out
 	if stats.has("berserk"):
 		mult *= 1.0 + 0.03 * floorf((1.0 - hp_ratio()) * 10.0)
+	if stats.has("dark_eyes"):
+		mult *= 1.0 + 0.35 * (1.0 - clampf(kindle / maxf(1.0, kindle_max()), 0.0, 1.0))
+	if direct and not h.has_tag("ability"):
+		if stats.has("mountain") and mountain_store > 0.0:
+			mult *= 1.0 + mountain_store
+			mountain_store = 0.0
+		if stats.has("momentum") and momentum_t >= MOMENTUM_READY:
+			mult *= 1.6
+			h.knockback *= 2.0
+			momentum_t = 0.0
+			cosmetic(func() -> void:
+				stage.fx.number(t.pos, 2.2, "MOMENTUM", Color(1.0, 0.85, 0.5))
+				stage.fx.burst(t.pos, 0.6, Color(1.0, 0.85, 0.5), 10, 4.0, 0.25, 0.0, h.from_dir, 0.5))
+		if stats.has("counterpoise"):
+			counter_guard_t = 0.0
 	if stats.has("ember_crown") and run:
 		mult *= 1.0 + minf(0.4, 0.02 * floorf(run.embers / 50.0))
 	if stats.has("grudgebearer"):
@@ -1790,7 +1852,7 @@ func _unique_on_hit(t: Actor, h: Hit, res: Combat.Result, direct: bool) -> void:
 		_call_lightning(t, res.amount)
 	if direct and h.proc and h.has_tag("melee") and stats.has("echo_strike"):
 		_echo_n += 1
-		if _echo_n % 4 == 0:
+		if _echo_n % 4 == 0 or (stats.has("kept_time") and weapon and weapon.cadenced):
 			Player._echo_later(stage, weakref(self), weakref(t), h.amount * 0.6, h.from_dir)
 
 
@@ -1921,13 +1983,13 @@ func _crit_chain(from: Actor, dmg: float) -> void:
 
 
 func _thermal_shock(t: Actor) -> void:
-	t.status.chill = 0.0
+	t.status.chill = 0.35 if stats.has("rimefire") else 0.0
 	stage.fx.ring(t.pos, 2.2, Color(0.9, 0.95, 1.0), 0.3, 0.3)
 	stage.fx.burst(t.pos, 0.6, Color(0.9, 0.95, 1.0), 20, 4.0, 0.6, -1.5)
 	Audio.play("steam", -2.0)
 	stage.strike_props_circle(t.pos, 2.2, self, false)
 	for a in stage.in_circle(team, t.pos, 2.2):
-		var h := Combat.player_hit(self, stats, 32.0, ["fire", "frost"])
+		var h := Combat.player_hit(self, stats, 48.0 if stats.has("rimefire") else 32.0, ["fire", "frost"])
 		h.proc = false
 		h.knockback = (a.pos - t.pos).normalized() * 4.0
 		h.from_dir = (a.pos - t.pos).normalized()
@@ -2006,6 +2068,14 @@ func _take_enemy_hit(h: Hit, attacker: Node) -> Combat.Result:
 	if h.amount <= 0.0:
 		return empty
 	h.can_crit = false
+	if counter_guard_t > 0.0 and not h.has_tag("dot"):
+		h.amount *= 0.5
+	if stats.has("mountain"):
+		h.knockback = Vector2.ZERO
+		if not h.has_tag("dot"):
+			mountain_store = minf(0.4, mountain_store + 0.1)
+	elif stats.has("braced"):
+		h.knockback *= 0.5
 	if attacker is Enemy and is_instance_valid(attacker):
 		last_attacker_id = (attacker as Enemy).id
 	elif h.source is Enemy and is_instance_valid(h.source):
@@ -2100,6 +2170,8 @@ func _bramble_burst(taken: float) -> void:
 		th.can_crit = false
 		th.proc = false
 		th.knockback = (a.pos - pos).normalized() * 4.0
+		if stats.has("burning_briar"):
+			th.burn = 2
 		deal_hit(a, th)
 
 
@@ -2162,7 +2234,7 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	if stats.has("perfect_answer"):
 		answer_ready = true
 	if stats.has("deep_mirror") and mirror_t <= 0.0 and last_spell != "" and not predicting:
-		mirror_t = 6.0
+		mirror_t = 3.0 if stats.has("hall_of_mirrors") else 6.0
 		Abilities.cast(self, last_spell, 0.8)
 		stage.fx.number(pos, 2.4, "ANSWERED", Color(0.55, 0.9, 1.0))
 	if weapon:
@@ -2210,6 +2282,8 @@ func _on_ward(attacker: Node, projectile: bool) -> void:
 	gain_kindle(15.0 / maxf(stats.v("kindle_gain"), 0.01))
 	if stats.has("riposte"):
 		riposte_t = 2.0
+	if stats.has("counterpoise"):
+		counter_guard_t = 2.0
 	if stats.has("ward_barrier"):
 		barrier = 20.0
 		barrier_t = 4.0
@@ -2480,6 +2554,8 @@ func _update_lantern(dt: float) -> void:
 		var hk := clampf(hearthcall_t / HEARTHCALL_TIME, 0.0, 1.0)
 		en *= 1.0 + 2.2 * hk * hk
 		rng *= 1.0 + 0.35 * hk
+	if stats.has("dark_eyes"):
+		rng *= 0.66
 	lantern.omni_range = rng
 	lantern.light_energy = en
 	var side := 1.0 if look.x >= 0.0 else -1.0

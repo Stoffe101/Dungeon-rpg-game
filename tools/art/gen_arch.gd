@@ -56,6 +56,7 @@ static func build(dir: String) -> void:
 	_throne(dir)
 	_hollow(dir)
 	_jambs(dir)
+	_settlements(dir)
 
 
 # --- what lies in the floor ---------------------------------------------------------
@@ -461,6 +462,54 @@ static func _hollow(dir: String) -> void:
 		rs.put(x + 1, y, Pal.INK)
 	rs.outline(Pal.INK)
 	single(dir, "hollow_riftstone", rs, Vector2i(11, 49))
+
+
+# --- places people worked and lived ---------------------------------------------------------
+
+static func _settlements(dir: String) -> void:
+	var s := Sheet.new(36, 38, Vector2i(18, 34))
+	s.add("anvil", [_bench("anvil")], 1.0)
+	s.add("kiln", [_bench("kiln")], 1.0)
+	s.add("lathe", [_bench("lathe")], 1.0)
+	s.save(dir, "workbench")
+	# a house made of what was to hand, its door a shield
+	var h := Px.new(36, 34)
+	h.paint(h.mask().rect(3, 15, 30, 18), Pal.WOOD, 1, true)
+	h.paint(h.mask().poly(V([[0, 16], [18, 2], [36, 16]])), Pal.EARTH, 1, true)
+	for x in range(4, 33, 5):
+		h.line(x, 16, x, 32, Pal.WOOD[0])
+	h.paint(h.mask().ellipse(18.0, 25.0, 5.0, 7.5), Pal.STEEL, 1, true)
+	h.fill(h.mask().ellipse(18.0, 25.0, 2.0, 3.5), Pal.INK)
+	h.line(5, 8, 13, 5, Pal.EARTH[3])
+	h.outline(Pal.INK)
+	single(dir, "settlers_hut", h, Vector2i(18, 33))
+
+
+static func _bench(kind: String) -> Px:
+	var c := Px.new(36, 38)
+	match kind:
+		"anvil":
+			c.paint(c.mask().rect(12, 26, 12, 11), Pal.WOOD, 1, true)
+			c.paint(c.mask().poly(V([[6, 16], [30, 16], [27, 22], [22, 22], [22, 27], [14, 27], [14, 22], [10, 22]])), Pal.STEEL, 2, true)
+			c.line(7, 16, 29, 16, Pal.STEEL[4])
+			c.paint(c.mask().poly(V([[12, 15], [24, 15], [20, 12], [14, 12]])), Pal.EMBER, 1, true)
+			c.lit(18, 13, Pal.EMBER[3])
+		"kiln":
+			c.paint(c.mask().ellipse(18.0, 22.0, 13.0, 14.0), Pal.EARTH, 2, true)
+			c.paint(c.mask().rect(4, 32, 28, 5), Pal.STONE, 2, true)
+			c.fill(c.mask().ellipse(18.0, 26.0, 6.0, 5.0), Pal.INK)
+			for k in 7:
+				c.lit(13 + k * 2, 28 + (k % 2), Pal.ramp(Pal.EMBER, 2 + k % 3))
+			c.paint(c.mask().rect(15, 2, 6, 9), Pal.EARTH, 1, true)
+		"lathe":
+			c.paint(c.mask().rect(3, 20, 30, 4), Pal.WOOD, 3, true)
+			c.paint(c.mask().rect(5, 24, 3, 13), Pal.WOOD, 1, true)
+			c.paint(c.mask().rect(28, 24, 3, 13), Pal.WOOD, 1, true)
+			c.paint(c.mask().poly(V([[8, 19], [26, 16], [28, 19], [10, 21]])), Pal.BONE, 3, true)
+			c.line(11, 19, 24, 17, Pal.FROST[2])
+			c.line(13, 20, 20, 19, Pal.FROST[2])
+	c.outline(Pal.INK)
+	return c
 
 
 # --- what stands either side of a way through a wall -------------------------------------

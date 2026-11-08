@@ -151,6 +151,7 @@ func _open_page(id: String) -> void:
 		"access":
 			_slider("Screen shake", "screen_shake", 0.0, 1.5, 0.05, "How hard the camera kicks on impacts.")
 			_slider("Effect intensity", "effects_intensity", 0.25, 1.0, 0.05, "Particles and flashes from your own Kindled.")
+			_switch("Hints", "hints", "A line the first time you meet something new. Stops by itself after a dozen expeditions.")
 			_switch("Reduce flashes", "reduce_flashes", "Softens bright flashes and the damage pulse at the screen's edges.")
 			_switch("Strong warnings", "strong_tells", "Attack warnings on the floor are brighter, with a pale hard edge that does not rely on red.")
 			_stepper("Object names", "world_names", ["all", "nearest", "off"], ["All nearby", "Only the nearest", "Off"],

@@ -190,7 +190,7 @@ func test_the_harvest_sends_three_souls_and_they_feed_the_reaping() -> void:
 	for m in _motes(st):
 		m.pos = w.pos + Vector2(1.2, 0)
 	_run(st, 9.0)
-	eq(w.souls, 3, "they reached the cage")
+	eq(w.harvest_fed, 3, "they reached the cage")
 	eq(_motes(st).size(), 0, "and are gone")
 	st.queue_free()
 
@@ -484,3 +484,297 @@ func test_new_foes_are_on_their_regions_rosters_and_never_in_the_way_of_a_cap() 
 		check(EnemyDB.roll_affix(RandomNumberGenerator.new(), id) != "", id + " can still be an elite")
 	for id in ["penitent", "canopy_mother", "slagbearer", "soul_mote"]:
 		check(ResourceLoader.exists("res://assets/sprites/%s.png" % id), id + " has art")
+
+
+# --- things worn that change the fight ----------------------------------------------------------
+
+func _armed(flags: Dictionary) -> Array:
+	var st := _stage()
+	var pl := _player(st)
+	pl.stats.apply_flags(flags)
+	var e := _foe(st, "husk", pl.pos + Vector2(1.2, 0))
+	e.speed = 0.0
+	e.max_hp = 5000.0
+	e.hp = 5000.0
+	return [st, pl, e]
+
+
+func _blow(pl: Player, e: Enemy, amount := 100.0) -> float:
+	var before := e.hp
+	var h := Hit.make(pl, amount, ["melee"])
+	h.can_crit = false
+	h.from_dir = Vector2.RIGHT
+	pl.deal_hit(e, h)
+	return before - e.hp
+
+
+func test_the_dimmed_wick_hits_harder_the_lower_the_flame() -> void:
+	var a := _armed({"dark_eyes": 1})
+	a[1].kindle = 0.0
+	var low := _blow(a[1], a[2])
+	a[1].kindle = a[1].kindle_max()
+	var full := _blow(a[1], a[2])
+	check(low > full * 1.25, "with no Kindle it hits harder (%.0f against %.0f)" % [low, full])
+	a[0].queue_free()
+
+
+func test_momentum_is_spent_on_one_blow() -> void:
+	var a := _armed({"momentum": 1})
+	var plain := _blow(a[1], a[2])
+	a[1].momentum_t = a[1].MOMENTUM_READY
+	var charged := _blow(a[1], a[2])
+	var after := _blow(a[1], a[2])
+	check(charged > plain * 1.4, "the run lands (%.0f against %.0f)" % [charged, plain])
+	near(after, plain, 1.0, "and is spent")
+	a[0].queue_free()
+
+
+func test_the_mountain_stores_what_it_stood_through_and_cannot_be_moved() -> void:
+	var a := _armed({"mountain": 1})
+	var pl: Player = a[1]
+	pl.max_hp = 5000.0
+	pl.hp = 5000.0
+	var plain := _blow(pl, a[2])
+	var h := Hit.make(a[2], 10.0, ["melee"])
+	h.knockback = Vector2(20, 0)
+	pl.invuln_t = 0.0
+	pl.take_enemy_hit(h, a[2])
+	near(h.knockback.length(), 0.0, 0.01, "nothing moves it")
+	near(pl.mountain_store, 0.1, 0.001, "the blow is kept")
+	var stored := _blow(pl, a[2])
+	check(stored > plain * 1.05, "and given back (%.0f against %.0f)" % [stored, plain])
+	near(pl.mountain_store, 0.0, 0.001, "once")
+	a[0].queue_free()
+
+
+func test_counterpoise_halves_what_lands_until_the_counter_is_struck() -> void:
+	var a := _armed({"counterpoise": 1})
+	var pl: Player = a[1]
+	pl.max_hp = 5000.0
+	pl.hp = 5000.0
+	pl.counter_guard_t = 2.0
+	var h := Hit.make(a[2], 100.0, ["melee"])
+	var before := pl.hp
+	pl.invuln_t = 0.0
+	pl.take_enemy_hit(h, a[2])
+	var guarded := before - pl.hp
+	_blow(pl, a[2])
+	near(pl.counter_guard_t, 0.0, 0.001, "striking ends it")
+	var h2 := Hit.make(a[2], 100.0, ["melee"])
+	before = pl.hp
+	pl.invuln_t = 0.0
+	pl.take_enemy_hit(h2, a[2])
+	var bare := before - pl.hp
+	check(guarded < bare * 0.7, "it was halved (%.0f against %.0f)" % [guarded, bare])
+	a[0].queue_free()
+
+
+func test_a_sappers_charm_makes_breaking_things_a_weapon() -> void:
+	var st := _stage()
+	var pl := _player(st)
+	pl.stats.apply_flags({"sapper": 1})
+	pl.kindle = 0.0
+	var e := _foe(st, "husk", Vector2(12, 13))
+	e.speed = 0.0
+	e.max_hp = 5000.0
+	e.hp = 5000.0
+	var urn := Prop.make(st, "urn", Vector2i(11, 13), {"mat": "clay"})
+	urn.on_struck(pl)
+	check(e.hp < 5000.0, "the foe beside it was hurt")
+	check(pl.kindle > 0.0, "and the flame came back")
+	st.queue_free()
+
+
+func test_whetstone_banks_techniques_and_a_spell_spends_them() -> void:
+	var a := _armed({"habit": 1})
+	var pl: Player = a[1]
+	for k in 7:
+		pl.on_technique()
+	eq(pl.habit, 5, "at most five")
+	a[0].queue_free()
+
+
+func test_a_chest_pieces_make_is_what_it_asks_of_you() -> void:
+	eq(String(ItemDB.weight_of("emberwrought_plate").name), "Heavy", "plate is heavy")
+	eq(String(ItemDB.weight_of("grave_iron_mail").name), "Measured", "mail is measured")
+	eq(String(ItemDB.weight_of("gravecloth_robe").name), "Flowing", "cloth flows")
+	eq(String(ItemDB.weight_of("tattered_cloak").name), "Light", "a cloak is light")
+	var heavy := Stats.for_player()
+	var it := ItemDB.make_item("emberwrought_plate", "common", 1, RandomNumberGenerator.new(), 1)
+	ItemDB.apply_equipped({"chest": it}, heavy)
+	check(heavy.has("braced"), "plate braces")
+	var light := Stats.for_player()
+	var it2 := ItemDB.make_item("tattered_cloak", "common", 1, RandomNumberGenerator.new(), 1)
+	ItemDB.apply_equipped({"chest": it2}, light)
+	check(not light.has("braced"), "a cloak does not")
+
+
+func test_two_things_made_for_each_other_do_more_together() -> void:
+	var rng := RandomNumberGenerator.new()
+	var solo := Stats.for_player()
+	ItemDB.apply_equipped({"chest": ItemDB.make_item("thornmail", "legendary", 1, rng, 1)}, solo)
+	check(not solo.has("burning_briar"), "alone, nothing")
+	var both := Stats.for_player()
+	ItemDB.apply_equipped({"chest": ItemDB.make_item("thornmail", "legendary", 1, rng, 1), "hands": ItemDB.make_item("firebrand_gauntlets", "legendary", 1, rng, 1)}, both)
+	check(both.has("burning_briar"), "together, the pair")
+	for p: Dictionary in ItemDB.PAIRS:
+		check(ItemDB.BASES.has(p.a) and ItemDB.BASES.has(p.b), "%s is two real items" % p.name)
+		check(String(ItemDB.BASES[p.a].slot) != String(ItemDB.BASES[p.b].slot) or String(ItemDB.BASES[p.a].slot) in ["ring", "charm"], "%s can be worn together" % p.name)
+
+
+func test_every_new_unique_is_craftable_and_says_what_it_does() -> void:
+	for id in ["sappers_charm", "dimmed_wick", "counterpoise", "long_way_greaves", "rimefire_band", "whetstone_of_habit"]:
+		var b: Dictionary = ItemDB.BASES[id]
+		check(b.has("recipe"), id + " has a recipe")
+		check(String(b.desc).length() > 30, id + " says what it does")
+		check(not (b.flags as Dictionary).is_empty(), id + " changes a rule")
+
+
+# --- the hybrid nodes, doing what they say ----------------------------------------------------
+
+func _weaponed(flags: Dictionary, arch := "sword") -> Array:
+	var st := _stage()
+	var pl := _player(st)
+	pl.set_weapon(arch, 0)
+	pl.stats.apply_flags(flags)
+	var e := _foe(st, "husk", pl.pos + Vector2(1.2, 0))
+	e.speed = 0.0
+	e.max_hp = 5000.0
+	e.hp = 5000.0
+	return [st, pl, e]
+
+
+func test_banked_strikes_pay_kindle_for_a_strike_in_time() -> void:
+	var a := _weaponed({"banked_strikes": 1})
+	var pl: Player = a[1]
+	pl.kindle = 0.0
+	pl.weapon.cadenced = true
+	pl.weapon.cadence_run = 1
+	var h := Hit.make(pl, 10.0, ["melee"])
+	pl.weapon._technique(a[2], h)
+	check(pl.kindle > 0.0, "a strike in time pays")
+	a[0].queue_free()
+
+
+func test_breakers_coal_lights_the_broken() -> void:
+	var a := _weaponed({"breakers_coal": 1, "tech_breaker": 1}, "hammer")
+	var pl: Player = a[1]
+	pl.kindle = 0.0
+	var e: Enemy = a[2]
+	e.status.stagger_t = 2.0
+	var h := Hit.make(pl, 10.0, ["melee"])
+	pl.weapon._after_blow(e, h, false)
+	check(pl.kindle >= 10.0, "the coal pays Kindle (%.0f)" % pl.kindle)
+	eq(h.burn, 1, "and burns")
+	a[0].queue_free()
+
+
+func test_cold_aim_freezes_the_chilled_at_full_focus() -> void:
+	var a := _weaponed({})
+	var pl: Player = a[1]
+	var e: Enemy = a[2]
+	e.status.chill = 0.5
+	var h := Hit.make(pl, 10.0, ["ranged", "freeze_chilled"])
+	h.can_crit = false
+	pl.deal_hit(e, h)
+	check(e.status.is_frozen() or e.status.chill >= 0.9, "the cold one froze")
+	var b := _weaponed({})
+	var f: Enemy = b[2]
+	var h2 := Hit.make(b[1], 10.0, ["ranged", "freeze_chilled"])
+	h2.can_crit = false
+	b[1].deal_hit(f, h2)
+	check(not f.status.is_frozen(), "a warm one does not")
+	a[0].queue_free()
+	b[0].queue_free()
+
+
+# --- places, and what they remember -------------------------------------------------------------
+
+func test_a_secret_room_can_be_more_than_a_chest() -> void:
+	Profile.data = Profile.fresh()
+	var seen := {}
+	for s in range(1, 90):
+		var lay := DungeonGen.generate(s, 2, ["ossuary", "rootmire", "throne"][s % 3], false)
+		for r: Room in lay.rooms:
+			if r.type == Room.Type.SECRET:
+				seen[r.vignette] = true
+				check(r.vignette != "", "room %d knows what it is" % r.id)
+	for k in ["stash", "camp", "reliquary", "cache", "smith"]:
+		check(seen.has(k), "a secret can be a " + k)
+
+
+func test_a_workshop_lets_the_party_take_one_thing() -> void:
+	Profile.data = Profile.fresh()
+	eq(DeepEvents.voted(_site("bench", "anvil")), true, "a party agrees")
+	for c in ["anvil", "kiln", "lathe"]:
+		check(DeepEvents.BENCHES.has(c), c)
+		var d := DeepEvents.site_data({"event": "bench", "choice": c}, "ossuary", {})
+		eq(String(d.sheet), "workbench", "its own art")
+		check(SpriteLib.get_sheet("workbench").anims.has(c), "drawn: " + c)
+
+
+func _site(ev: String, choice := "") -> Prop:
+	var p := Prop.new()
+	p.kind = "site"
+	p.data = {"event": ev, "choice": choice}
+	return p
+
+
+func test_how_an_altar_was_answered_shows_in_the_rooms() -> void:
+	Profile.data = Profile.fresh()
+	var marked := {}
+	for state: String in ["kindled", "broken", "pact"]:
+		for s in range(1, 8):
+			var lay := DungeonGen.generate(s, 2, "ossuary", false, "", {"sites": {"ossuary": state}})
+			for r: Room in lay.rooms:
+				if r.marked != "":
+					marked[r.marked] = true
+	for state in ["kindled", "broken", "pact"]:
+		check(marked.has(state), state + " shows")
+	var plain := DungeonGen.generate(3, 2, "ossuary", false)
+	for r: Room in plain.rooms:
+		eq(r.marked, "", "an untouched altar marks nothing")
+
+
+func test_a_foe_behind_stone_is_outlined_on_a_floor_with_no_trees() -> void:
+	var st := _stage()
+	_player(st)
+	st.grid.put(14, 13, TileGrid.PILLAR)
+	var e := _foe(st, "husk", Vector2(14.5, 12.5))
+	e.speed = 0.0
+	eq(st.occluders.size(), 0, "no trees here")
+	st.update_occlusion(0.2)
+	near(float(e.sprite.get_instance_shader_parameter("silhouette")), 1.0, 0.01, "behind the pillar it is outlined")
+	e.pos = Vector2(10.5, 10.5)
+	st.update_occlusion(0.2)
+	near(float(e.sprite.get_instance_shader_parameter("silhouette")), 0.0, 0.01, "in the open it is not")
+	st.queue_free()
+
+
+func test_hints_are_said_once_and_stop_for_the_experienced() -> void:
+	Profile.data = Profile.fresh()
+	check(Hints.give("spikes"), "the first time")
+	check(not Hints.give("spikes"), "and not again")
+	Profile.data = Profile.fresh()
+	Profile.data.stats["runs"] = Hints.EXPERIENCED
+	check(not Hints.give("spikes"), "an old hand is not told")
+	Profile.data = Profile.fresh()
+
+
+func test_a_den_changes_the_guardian_it_belongs_to() -> void:
+	var r := RunState.create(1, "ossuary", "sword", 0, ["flare", ""])
+	r.hunt_den = "snare"
+	var back := RunState.from_dict(r.to_dict())
+	eq(back.hunt_den, "snare", "what was done at the den travels with the run")
+	for c in ["snare", "hoard"]:
+		var d := DeepEvents.site_data({"event": "den", "choice": c}, "ossuary", {})
+		check(String(d.prompt) != "", c + " says what it does")
+	eq(DeepEvents.voted(_site("den", "snare")), true, "a party agrees on it")
+
+
+func test_notices_about_a_guardian_wait_until_it_has_been_met() -> void:
+	Profile.data = Profile.fresh()
+	check(not Contracts._huntable(Contracts.def_of("cage")), "not before the Warden has fallen")
+	Profile.data.world["warden_kills"] = 1
+	check(Contracts._huntable(Contracts.def_of("cage")), "after")
+	Profile.data = Profile.fresh()

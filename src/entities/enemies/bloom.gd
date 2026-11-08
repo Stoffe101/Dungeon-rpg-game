@@ -71,6 +71,8 @@ func _choke() -> void:
 	set_state("wilt")
 	sprite.play("wilt")
 	stage.fx.number(pos, 5.0, "CHOKED", Color(1.0, 0.75, 0.35), true)
+	if stage is Dungeon:
+		(stage as Dungeon).note_request("choke")
 	stage.fx.burst(pos, 3.0, Color(0.75, 0.9, 0.5), 30, 5.0, 0.7, 2.0)
 	Audio.play("boss_hurt", 0.0, 1.5)
 

@@ -14,6 +14,8 @@ const EVENTS := {
 	"procession": {"regions": ["ossuary", "throne"], "min_depth": 2, "weight": 2},
 	"survivor": {"regions": [], "min_depth": 2, "weight": 5, "once": "maren"},
 	"artisan": {"regions": [], "min_depth": 2, "weight": 1},
+	"workshop": {"regions": [], "min_depth": 1, "weight": 2},
+	"settlement": {"regions": [], "min_depth": 2, "weight": 2},
 }
 
 ## A fight that plays by a rule of its own: rare, named as it starts, on the
@@ -56,6 +58,15 @@ static func rule_room(lay, seed_v: int) -> void:
 			r.props.append({"kind": "scar", "tile": t, "anim": String(RULES[r.rule].scar)})
 
 ## site choices: label over it, what it asks, its sheet and frame.
+const DEN := {
+	"snare": {"name": "Set a Snare", "ask": "Set a snare in its den", "line": "It will come to the fight already hurt, and it will know you were here."},
+	"hoard": {"name": "Rob Its Hoard", "ask": "Rob the den", "line": "Rich pickings now. It will come to the fight angry."},
+}
+const BENCHES := {
+	"anvil": {"name": "The Cold Anvil", "ask": "Finish what was left on the anvil", "line": "A piece of good work, near done, for each Kindled."},
+	"kiln": {"name": "The Banked Kiln", "ask": "Rake out the kiln", "line": "Ember cores and whatever was still smelting."},
+	"lathe": {"name": "The Drawing Table", "ask": "Take the drawings", "line": "A blueprint nobody came back for."},
+}
 const COFFERS := {
 	"gold": {"name": "The Gilded Coffer", "ask": "Open the gilded coffer", "line": "Arms and armour for each Kindled."},
 	"bone": {"name": "The Bone Casket", "ask": "Open the bone casket", "line": "Rare materials, and a rune for each Kindled."},
@@ -146,6 +157,23 @@ static func build(lay, r: Room, rng: RandomNumberGenerator) -> void:
 			r.props.append({"kind": "site", "tile": at.call(c), "event": "artisan"})
 			r.props.append({"kind": "candles", "tile": at.call(c + Vector2i(3, 0))})
 			r.props.append({"kind": "lore", "tile": at.call(c + Vector2i(-4, 2))})
+		"workshop":
+			# the tools are where they were put down: the party takes one thing and the rest is ruined
+			var bench := ["anvil", "kiln", "lathe"]
+			for k in 3:
+				r.props.append({"kind": "site", "tile": at.call(c + Vector2i(-5 + k * 5, -2 + (k % 2) * 3)), "event": "bench", "choice": String(bench[k])})
+			for k in 4:
+				r.props.append({"kind": "dressing", "tile": at.call(c + Vector2i(rng.randi_range(-7, 7), rng.randi_range(2, 4))), "sheet": "rubble", "anim": "a" if k % 2 == 0 else "b", "low": true, "scene": true})
+			r.props.append({"kind": "lore", "tile": at.call(c + Vector2i(7, -3))})
+		"settlement":
+			# people lived here, after the sun; three cold hearths, one for each house
+			for k in 3:
+				var hut: Vector2i = at.call(c + Vector2i(-7 + k * 6, -3))
+				var along: Array[Vector2i] = [hut, hut + Vector2i(1, 0)]
+				if DungeonGen._floor_whole(lay, r, along) and g.at(hut.x + 1, hut.y) == TileGrid.FLOOR:
+					r.props.append({"kind": "dressing", "tile": hut, "sheet": "settlers_hut", "wide": true, "scene": true})
+				r.props.append({"kind": "site", "tile": at.call(c + Vector2i(-7 + k * 6, -1)), "event": "cold_hearth"})
+			r.props.append({"kind": "lore", "tile": at.call(c + Vector2i(0, 3))})
 
 
 ## A `site` prop's look and words (Dungeon._place_props).
@@ -172,6 +200,19 @@ static func site_data(pd: Dictionary, region: String, world: Dictionary) -> Dict
 		"artisan":
 			return {"sheet": "whetstone", "anim": "idle", "label": "A Travelling Grindstone", "prompt": "Whet your weapon", "radius": 1.5,
 				"col": Color(1.0, 0.82, 0.5), "solid": true, "light": [Color(1.0, 0.7, 0.4), 0.9, 3.5], "light_h": 0.8}
+		"den":
+			var dn: Dictionary = DEN[choice]
+			return {"sheet": "spoor", "anim": "fresh", "label": String(dn.name), "prompt": String(dn.ask), "radius": 1.6, "flat": true,
+				"col": Color(1.0, 0.7, 0.4), "light": [Color(1.0, 0.6, 0.3), 0.7, 3.0], "light_h": 0.2}
+		"bench":
+			var bn: Dictionary = BENCHES[choice]
+			return {"sheet": "workbench", "anim": choice, "label": String(bn.name), "prompt": String(bn.ask), "radius": 1.5, "col": Color(1.0, 0.78, 0.45), "solid": true,
+				"light": [Color(1.0, 0.65, 0.3), 0.7, 3.0], "light_h": 0.7}
+		"cold_hearth":
+			return {"sheet": "dead_brazier", "anim": "dead", "label": "A Cold Hearth", "prompt": "Light it", "radius": 1.5, "col": Color(1.0, 0.7, 0.4), "solid": true}
+		"hidden_smith":
+			return {"sheet": "whetstone", "anim": "idle", "label": "Someone's Forgotten Bench", "prompt": "Let it teach your weapon something", "radius": 1.5,
+				"col": Color(0.6, 1.0, 0.9), "solid": true, "light": [Color(0.5, 1.0, 0.9), 1.0, 4.0], "light_h": 0.8}
 		"dead_brazier":
 			return {"sheet": "dead_brazier", "anim": "dead", "label": "A Cold Brazier", "prompt": "Rekindle it", "radius": 1.5, "col": Color(1.0, 0.7, 0.4), "solid": true}
 		"bowl":
@@ -185,7 +226,7 @@ static func site_data(pd: Dictionary, region: String, world: Dictionary) -> Dict
 
 ## Is this site a choice the whole party answers (else whoever stands there)?
 static func voted(prop: Prop) -> bool:
-	return String(prop.data.get("event", "")) in ["altar", "coffer"]
+	return String(prop.data.get("event", "")) in ["altar", "coffer", "bench", "den"]
 
 
 ## The vote's kind for a site: "site:<event>:<choice>".
@@ -202,6 +243,12 @@ static func ask(ev: String, choice: String) -> Array:
 		"coffer":
 			var cf: Dictionary = COFFERS.get(choice, {})
 			return ["%s?" % cf.get("name", "Open it"), "%s The others seal for good." % cf.get("line", "")]
+		"den":
+			var dn: Dictionary = DEN.get(choice, {})
+			return ["%s?" % dn.get("name", "Do it"), String(dn.get("line", ""))]
+		"bench":
+			var bn: Dictionary = BENCHES.get(choice, {})
+			return ["%s?" % bn.get("name", "Take it"), "%s The rest of the shop is past saving." % bn.get("line", "")]
 	return ["Agree?", ""]
 
 
@@ -210,7 +257,7 @@ static func ask(ev: String, choice: String) -> Array:
 static func interact(d: Dungeon, who: Player, prop: Prop) -> void:
 	var ev := String(prop.data.get("event", ""))
 	match ev:
-		"altar", "coffer":
+		"altar", "coffer", "bench", "den":
 			var q := ask(ev, String(prop.data.get("choice", "")))
 			d._ask(String(q[0]), String(q[1]), func() -> void: resolve(d, prop, who))
 		_:
@@ -232,6 +279,14 @@ static func resolve(d: Dungeon, prop: Prop, who: Player) -> void:
 			_bowl(d, prop, who)
 		"coffer":
 			_coffer(d, prop, choice)
+		"bench":
+			_bench(d, prop, choice)
+		"den":
+			_den(d, prop, choice)
+		"cold_hearth":
+			_cold_hearth(d, prop)
+		"hidden_smith":
+			_hidden_smith(d, prop, who)
 		"spoor":
 			prop.used = true
 			if prop.sprite:
@@ -341,6 +396,135 @@ static func _artisan(d: Dungeon, prop: Prop, who: Player) -> void:
 	Audio.play("forge_upgrade", -8.0, 1.4)
 	Events.toast.emit("Whetted: +12% weapon damage this expedition.", Color(1.0, 0.82, 0.5))
 	Chronicle.mark("whetted")
+
+
+## A guardian's den, found on a hunt. One or the other; the guardian remembers either.
+static func _den(d: Dungeon, prop: Prop, choice: String) -> void:
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "den":
+			p.used = true
+			d.fx.unmark(p)
+			if p.light:
+				p.light.visible = false
+			if p.sprite:
+				p.sprite.play("read")
+	d.run.hunt_den = choice
+	match choice:
+		"snare":
+			Events.banner.emit("A Snare Is Set", "It will come to the fight already hurt")
+		"hoard":
+			var c := prop.pos + Vector2(0, 1.0)
+			Pickup.spawn(d, "ember", c, 14)
+			Pickup.spawn(d, "material", c, 2, {"id": "ember_core"})
+			d._gear_drop(c, func() -> Dictionary: return ItemDB.random_drop(d.layout.region, d.layout.depth + 2, d.rng, 0.4, d.run.tier, d._favour))
+			Events.banner.emit("The Den Is Robbed", "It will come to the fight angry")
+	Audio.play("ping", -2.0, 0.6)
+	Chronicle.mark("dens")
+
+
+## A workshop nobody came back to: the party takes one thing.
+static func _bench(d: Dungeon, prop: Prop, choice: String) -> void:
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "bench":
+			p.used = true
+			d.fx.unmark(p)
+			if p.light:
+				p.light.visible = false
+	var c := prop.pos + Vector2(0, 1.2)
+	match choice:
+		"anvil":
+			d._gear_drop(c, func() -> Dictionary: return ItemDB.make_item(ItemDB.random_drop(d.layout.region, d.layout.depth + 2, d.rng, 0.5, d.run.tier, d._favour).base, "epic", 1, d.rng, d.run.tier))
+		"kiln":
+			Pickup.spawn(d, "material", c, 2, {"id": "ember_core"})
+			Pickup.spawn(d, "material", c, 3, {"id": "sun_gold" if d.layout.region == "throne" else ("rootwood" if d.layout.region == "rootmire" else "grave_iron")})
+			Pickup.spawn(d, "ember", c, 8)
+		"lathe":
+			var have: Array = Profile.known_blueprints() + Profile.scrolls()
+			var b := ItemDB.roll_blueprint(d.rng, have)
+			if b != "":
+				Profile.scrolls().append(b)
+				Events.toast.emit("A blueprint: %s." % String(ItemDB.base(b).get("name", b)), Color(1.0, 0.82, 0.5))
+			else:
+				Pickup.spawn(d, "material", c, 4, {"id": "soul_glass"})
+	d.fx.burst(prop.pos, 0.8, Color(1.0, 0.75, 0.4), 22, 3.0, 0.5, 3.0, Vector2.UP, 1.2)
+	Audio.play("forge_upgrade", -6.0, 1.1)
+	Chronicle.mark("workshops")
+	Chronicle.note("A workshop nobody came back to, and something made use of.")
+
+
+## Someone lived here. Light all three and the place is, for a moment, somewhere again.
+static func _cold_hearth(d: Dungeon, prop: Prop) -> void:
+	prop.used = true
+	d.fx.unmark(prop)
+	if prop.sprite:
+		prop.sprite.play("lit")
+	if not prop.light:
+		prop._light(Color(1.0, 0.65, 0.35), 1.6, 6.0, Vector3(0, 1.4 * Iso.SQ2, 0.2))
+	Audio.play("ignite", -2.0)
+	d.fx.burst(prop.pos, 0.8, Color(1.0, 0.65, 0.3), 16, 3.0, 0.5, 3.0, Vector2.UP, 1.2)
+	for p in d.props:
+		if is_instance_valid(p) and p.kind == "site" and String(p.data.get("event", "")) == "cold_hearth" and not p.used:
+			return
+	Prop.make(d, "chest", Vector2i(d._open_spot(prop.pos + Vector2(1.5, 2.0))), {"tier": 2})
+	Pickup.spawn(d, "ember", prop.pos, 10)
+	for pl: Player in d.active_players():
+		pl.flask = mini(pl.flask + 1, int(pl.stats.v("flask_charges")))
+	Chronicle.mark("settlements")
+	d.note_request("settlement")
+	Chronicle.note("Three hearths lit in a place where people once stayed.")
+	Events.banner.emit("Somebody Lived Here", "For a moment, somebody does again")
+	Net.rec(["wit", "settlement"])
+
+
+## A secret room's rarest find: a bench that remembers how great things are made.
+static func _hidden_smith(d: Dungeon, prop: Prop, who: Player) -> void:
+	var taken: Array = prop.data.get("taken", [])
+	if taken.has(who.peer_id):
+		Events.toast.emit("It has shown you what it knows.", Color(0.6, 1.0, 0.9))
+		return
+	taken.append(who.peer_id)
+	prop.data["taken"] = taken
+	who.run.resonance_bonus += HIDDEN_SMITH_RES
+	d.fx.burst(prop.pos, 0.8, Color(0.55, 1.0, 0.9), 20, 3.0, 0.5, 3.0, Vector2.UP, 1.2)
+	Audio.play("forge_upgrade", -6.0, 0.8)
+	Events.toast.emit("What you carry will remember this (+%d Resonance)." % HIDDEN_SMITH_RES, Color(0.6, 1.0, 0.9))
+	Chronicle.mark("hidden_smith")
+
+
+## What a secret room turned out to be. Its own numbers, so a seed's floor is the same.
+const HIDDEN_SMITH_RES := 60
+const SECRETS := ["stash", "stash", "camp", "camp", "reliquary", "cache", "smith"]
+
+
+static func secret_of(lay, r: Room) -> String:
+	return String(SECRETS[posmod(hash([r.rect.position, lay.depth, lay.region, "secret"]), SECRETS.size())])
+
+
+## A hidden room's contents (DungeonGen._decorate).
+static func build_secret(r: Room, c: Vector2i, kind: String) -> void:
+	r.vignette = kind
+	match kind:
+		"camp":
+			# someone made it this far and got no further: what they had is still here
+			r.props.append({"kind": "chest", "tile": c, "tier": 1})
+			r.props.append({"kind": "rug", "tile": c + Vector2i(-3, 1)})
+			r.props.append({"kind": "candles", "tile": c + Vector2i(3, 0)})
+			r.props.append({"kind": "lore", "tile": c + Vector2i(0, -3)})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, -1)})
+		"reliquary":
+			r.props.append({"kind": "relic_altar", "tile": c + Vector2i(0, -1), "tier": 2})
+			r.props.append({"kind": "candles", "tile": c + Vector2i(-3, -1)})
+			r.props.append({"kind": "candles", "tile": c + Vector2i(3, -1)})
+		"cache":
+			r.props.append({"kind": "chest", "tile": c + Vector2i(-2, 0), "tier": 2})
+			r.props.append({"kind": "chest", "tile": c + Vector2i(2, 0), "tier": 1})
+		"smith":
+			r.props.append({"kind": "site", "tile": c + Vector2i(0, -1), "event": "hidden_smith"})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
+		_:
+			r.props.append({"kind": "chest", "tile": c, "tier": 2})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
+			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(3, 1)})
 
 
 ## A treasury: the party chooses one, the others seal.

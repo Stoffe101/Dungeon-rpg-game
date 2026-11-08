@@ -94,6 +94,8 @@ func _defied(pl: Player) -> bool:
 		return false
 	pl.kindle -= DEFY_KINDLE
 	stage.fx.number(pl.pos, 3.5, "THE LANTERN HOLDS", Color(1.0, 0.85, 0.5), true)
+	if stage is Dungeon:
+		(stage as Dungeon).note_request("defy")
 	stage.fx.ring(pl.pos, 4.0, Color(1.0, 0.85, 0.5), 0.5, 0.3)
 	stage.fx.flash_light(pl.pos, 2.0, Color(1.0, 0.8, 0.45), 5.0, 8.0, 0.6)
 	Audio.play_at("perfect", pl.pos, 2.0, 0.6)

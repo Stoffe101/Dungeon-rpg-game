@@ -45,6 +45,7 @@ var scars: Array = []          # this Kindled's own Grudges scarred on this run 
 var scar_marks: Dictionary = {}   # ...and what each was marked by (Profile.GRUDGE_MARKS)
 var taken: Dictionary = {}     # damage this Kindled took, by who dealt it
 var hunt_signs := 0            # a hunt's signs read so far (the quarry is weaker for each)
+var hunt_den := ""             # what was done at its den: "snare", "hoard" or nothing
 var resonance_bonus := 0       # Resonance earned beyond kills (a hunt's end)
 var dealt: Dictionary = {}     # damage this Kindled dealt, by what with
 var blows: Array = []          # the last few that landed: [when, who, how much]
@@ -87,7 +88,7 @@ func to_dict() -> Dictionary:
 		"elapsed": elapsed, "weapon_id": weapon_id, "weapon_level": weapon_level, "abilities": abilities.duplicate(),
 		"loot": loot.duplicate(true), "found": found.duplicate(true), "omens": omens.duplicate(), "delve": delve, "run_id": run_id,
 		"kill_counts": kill_counts.duplicate(), "bosses": bosses.duplicate(), "grudges_won": grudges_won.duplicate(),
-		"route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "scar_marks": scar_marks.duplicate(), "taken": taken.duplicate(), "dealt": dealt.duplicate(), "hunt_signs": hunt_signs, "resonance_bonus": resonance_bonus, "blows": blows.duplicate(), "wounded": wounded.duplicate(), "scars": scars.duplicate()}
+		"hunt_den": hunt_den, "route": route, "routes": routes.duplicate(), "world": world.duplicate(true), "pale": pale, "scar_marks": scar_marks.duplicate(), "taken": taken.duplicate(), "dealt": dealt.duplicate(), "hunt_signs": hunt_signs, "resonance_bonus": resonance_bonus, "blows": blows.duplicate(), "wounded": wounded.duplicate(), "scars": scars.duplicate()}
 
 
 static func from_dict(d: Dictionary) -> RunState:
@@ -114,6 +115,7 @@ static func from_dict(d: Dictionary) -> RunState:
 	r.scar_marks = (d.get("scar_marks", {}) as Dictionary).duplicate()
 	r.taken = (d.get("taken", {}) as Dictionary).duplicate()
 	r.hunt_signs = int(d.get("hunt_signs", 0))
+	r.hunt_den = String(d.get("hunt_den", ""))
 	r.resonance_bonus = int(d.get("resonance_bonus", 0))
 	r.dealt = (d.get("dealt", {}) as Dictionary).duplicate()
 	r.blows = (d.get("blows", []) as Array).duplicate()

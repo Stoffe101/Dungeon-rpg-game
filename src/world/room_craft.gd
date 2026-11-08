@@ -25,8 +25,20 @@ static var force_concept := ""
 const DOOR_CLEAR := 4
 
 
+## The depths the Hollow marks with a milestone open on standing stones in a ring.
+static func _milestone(lay: DungeonGen.Layout) -> void:
+	if not Delve.MILESTONES.has(lay.depth):
+		return
+	var r: Room = lay.room(lay.start_id)
+	var c := Vector2i(r.rect.get_center())
+	inlay(lay, r, "inlay_ring", "idle", c - Vector2i(1, 1), 3, 3)
+	for o: Vector2i in [Vector2i(-6, -3), Vector2i(6, -3), Vector2i(-6, 3), Vector2i(6, 3)]:
+		stand(lay, r, "hollow_riftstone", c + o)
+
+
 static func compose(lay: DungeonGen.Layout, seed_v: int) -> void:
 	var band := String(Delve.band(lay.depth).get("id", ""))
+	_milestone(lay)
 	for r: Room in lay.rooms:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash([seed_v, lay.depth, r.id, "craft"])
@@ -50,8 +62,10 @@ static func compose(lay: DungeonGen.Layout, seed_v: int) -> void:
 			"throne":
 				r.concept = THRONE[rng.randi_range(0, THRONE.size() - 1)]
 			_:
+				_marked(lay, r, rng)
 				continue
 		_build(lay, r, rng)
+		_marked(lay, r, rng)
 
 
 static func _floor_count(lay: DungeonGen.Layout, r: Room) -> int:
@@ -214,6 +228,28 @@ static func _build(lay: DungeonGen.Layout, r: Room, rng: RandomNumberGenerator) 
 			for t: Vector2i in _back_row(r, 2):
 				stand(lay, r, "chain_winch", t, 2)
 			_axis(lay, r, "inlay_carpet", ["whole", "torn"], 3, 2, rng)
+
+
+## How this region's altar was answered shows in the rooms themselves: kept Vigils have
+## candles along the walls, broken ones have brought the ceiling down, and a Pact has set
+## pale things listening in halls that had none.
+static func _marked(lay: DungeonGen.Layout, r: Room, rng: RandomNumberGenerator) -> void:
+	var state := Chronicle.site_of(lay.world, lay.region)
+	if state == "":
+		return
+	r.marked = state
+	var w := r.rect.size.x
+	var along: Array[Vector2i] = [Vector2i(r.rect.position.x + w / 5, r.rect.position.y), Vector2i(r.rect.end.x - w / 5 - 1, r.rect.position.y)]
+	match state:
+		"kindled":
+			for t: Vector2i in along:
+				if lay.grid.at(t.x, t.y) == TileGrid.FLOOR and not _near_door(r, t):
+					r.props.append({"kind": "candles", "tile": t})
+		"broken":
+			var heap: String = {"throne": "fallen_vault"}.get(lay.region, "bone_cairn")
+			stand(lay, r, heap, Vector2i(r.rect.end.x - 4, r.rect.end.y - 3 - rng.randi_range(0, 1)), 2)
+		"pact":
+			stand(lay, r, "hollow_listener", along[rng.randi_range(0, 1)] + Vector2i(0, 1))
 
 
 static func _hollow(lay: DungeonGen.Layout, r: Room, rng: RandomNumberGenerator, band: String) -> void:

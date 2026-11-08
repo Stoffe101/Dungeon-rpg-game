@@ -149,6 +149,8 @@ func _soul_settled() -> void:
 		set_state("recover")
 		sprite.play("stagger")
 		stage.fx.number(pos, 4.0, "THE CAGE IS EMPTY", Color(1.0, 0.8, 0.45), true)
+		if stage is Dungeon:
+			(stage as Dungeon).note_request("cage")
 		Audio.play("boss_hurt", 0.0, 1.1)
 
 

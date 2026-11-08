@@ -506,6 +506,15 @@ static func _hunt_signs(lay: Layout, seed_v: int) -> void:
 				r.props.append({"kind": "site", "tile": t, "event": "spoor"})
 	if cands.size() > 2:
 		(cands[2] as Room).harbinger = true
+	# the floor above the guardian holds its den, once a hunt has got that far
+	if lay.depth == 2 and cands.size() > 1:
+		var den: Room = cands[cands.size() - 1]
+		var t2 := _clear_tile(lay, den, rng, false)
+		if t2.x >= 0 and t2 != Vector2i(-1, -1):
+			for k in 2:
+				var at2 := t2 + Vector2i(-2 + k * 4, 0)
+				if lay.grid.at(at2.x, at2.y) == TileGrid.FLOOR and not _prop_at(den, at2):
+					den.props.append({"kind": "site", "tile": at2, "event": "den", "choice": ["snare", "hoard"][k]})
 
 
 ## Dev (`plan=wing`): every floor takes this plan.
@@ -1054,6 +1063,8 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 	var made: Array = AUTHORED_BY_REGION.get(lay.region, [])
 	if w == 22 and h == 12 and (r.type == Room.Type.COMBAT or r.type == Room.Type.ELITE) and not made.is_empty() and rng.randf() < 0.22:
 		authored = String(made[rng.randi_range(0, made.size() - 1)])
+	if force_authored != "" and w == 22 and h == 12 and r.type == Room.Type.COMBAT:
+		authored = force_authored
 	for attempt in 12:
 		layout.resize(w * h)
 		layout.fill(TileGrid.FLOOR)
@@ -1090,6 +1101,10 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 			g.put(gx, gy, t)
 			if t != TileGrid.VOID:
 				g.room_of[gy * g.width + gx] = r.id
+
+
+## Dev (`authored=<id>`): every plain fight happens in this hand-made room.
+static var force_authored := ""
 
 
 static func _stamp_pool(lay: Layout, r: Room) -> Array:
@@ -1636,9 +1651,7 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 				for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
 					r.props.append({"kind": "candles", "tile": c + o})
 		Room.Type.SECRET:
-			r.props.append({"kind": "chest", "tile": c, "tier": 2})
-			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
-			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(3, 1)})
+			DeepEvents.build_secret(r, c, DeepEvents.secret_of(lay, r))
 		Room.Type.SHRINE:
 			r.props.append({"kind": "shrine", "tile": c + Vector2i(0, -2)})
 			r.props.append({"kind": "brazier", "tile": c + Vector2i(-4, -2)})

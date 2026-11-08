@@ -31,6 +31,10 @@ var landmark := ""                   # a great centrepiece's id (DungeonGen.LAND
 var rule := ""                       # this fight's own rule (DeepEvents.RULES), else ""
 ## What this room was built as (RoomCraft), if anything.
 var concept := ""
+## What a secret room turned out to be (DeepEvents.build_secret).
+var vignette := ""
+## How the region's altar shows in this room ("" = it does not).
+var marked := ""
 var flora: Array = []                # ground cover (FloraField): {pos, row, seed, flip}
 var harbinger := false               # a hunt's harbinger leads this fight
 

@@ -88,9 +88,10 @@ func update_occlusion(dt: float) -> void:
 	if flora:
 		flora.tick(dt)
 	_occ_t -= dt
-	if _occ_t > 0.0 or occluders.is_empty():
+	if _occ_t > 0.0:
 		return
 	_occ_t = 0.1
+	# (first: most floors have no trees, and foes still stand behind stone there)
 	_foes_behind_stone()
 	for o in occluders:
 		if not is_instance_valid(o):

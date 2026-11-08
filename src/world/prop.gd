@@ -932,6 +932,8 @@ static func _urn_loot(st: Stage, p: Vector2, rich: bool, mat: String) -> void:
 
 
 func on_struck(src: Node, fire := false) -> void:
+	if src is Player and (src as Player).stats.has("sapper") and kind in ["urn", "strut", "kindle_jar", "bramble"] and not used:
+		(src as Player).sapper_shock(pos)
 	match kind:
 		"bramble", "root_node", "bramble_wall":
 			if data.get("burning", 0.0) > 0.0 or used:

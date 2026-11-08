@@ -138,6 +138,13 @@ const NEWS := [
 	["grudge", "m:grudges_settled", {
 		"bram": ["You look lighter. Someone paid what they owed you, then."],
 		"ama": ["You got your embers back from that thing. Good. Nothing should keep what it took."]}],
+	["settlement", "m:settlements", {
+		"ama": ["You lit somebody's hearth down there. A long way down, and you stopped to do that.", "We are going to get along."],
+		"wren": ["Were there beds? Did they have a dog?"]}],
+	["workshop", "m:workshops", {
+		"bram": ["Whoever left those tools meant to come back in the morning. Everyone always does."]}],
+	["smith", "m:hidden_smith", {
+		"teodric": ["There is a bench down there that nobody built. I sat at it once. Do not ask me what it asked me."]}],
 	["grown", "m:grown", {
 		"wren": ["Your sword looks different. Can it talk now? Mine can't."],
 		"teodric": ["That blade has been deciding things, and so have you. Mind which of you is doing it."]}],

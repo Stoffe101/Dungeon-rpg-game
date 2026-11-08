@@ -68,7 +68,7 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 	if "craftlab" in Dev.args():
 		# dev: start in the first room RoomCraft built something in
 		for built in layout.rooms:
-			if built.concept != "":
+			if built.concept != "" or built.authored != "":
 				player.pos = built.center() + Vector2(0.5, 3.5)
 				break
 	if "autopilot" in Dev.args():
@@ -220,6 +220,26 @@ func build(lay: DungeonGen.Layout, r: RunState, v: PixelView) -> void:
 		after(1.5 + k * 0.45, func() -> void:
 			if is_instance_valid(un) and not un.used:
 				strike_props_circle(un.pos, 0.1, player, false))
+	if "occlab" in Dev.args() and not replica:
+		# dev: foes standing behind stone, the Kindled in front of it (occlusion: what still reads)
+		var seen := 0
+		var start_room := layout.room(layout.start_id)
+		for y in range(start_room.rect.position.y + 2, start_room.rect.end.y):
+			for x in range(start_room.rect.position.x, start_room.rect.end.x):
+				if grid.at(x, y) != TileGrid.PILLAR or grid.at(x, y - 1) != TileGrid.FLOOR or seen >= 3:
+					continue
+				var fid: String = ["husk", "guard", "sentinel"][seen]
+				var scr: GDScript = load(EnemyDB.get_def(fid).script)
+				var e: Enemy = scr.new()
+				e.configure(fid)
+				e.pos = Vector2(x, y - 1) + Vector2(0.5, 0.5)
+				e.speed = 0.0
+				e.attack_rate = 0.0
+				e.tempo = 0.0
+				add_actor(e)
+				if seen == 0:
+					player.pos = Vector2(x, y + 2) + Vector2(0.5, 0.2)
+				seen += 1
 	if "lootlab" in Dev.args() and not replica:
 		# dev: one drop of each grade near the player, to look at loot beams
 		var lr := RandomNumberGenerator.new()
@@ -903,7 +923,14 @@ func _pick_grudge_room() -> void:
 
 # --- per-frame -----------------------------------------------------------------------
 
+var _hint_t := 0.0
+
+
 func _stage_tick(dt: float) -> void:
+	_hint_t -= dt
+	if _hint_t <= 0.0:
+		_hint_t = 0.5
+		Hints.look_around(self, player)
 	for pg in pings:
 		pg.t -= dt
 	pings = pings.filter(func(pg): return pg.t > 0.0)
@@ -1091,6 +1118,7 @@ func _enter_room(r: Room, mine := true) -> void:
 		run.seen_rooms += 1
 		Events.room_entered.emit(r.id)
 		if r.type == Room.Type.SECRET:
+			note_request("secret")
 			Events.banner.emit("Hidden Chamber", "The Undervault forgot this place")
 		elif r.type == Room.Type.SHRINE:
 			Events.toast.emit("A shrine hums with cursed power.", Color(0.8, 0.6, 1.0))
@@ -1244,6 +1272,10 @@ func _spawn_wave(r: Room) -> void:
 		closing = r.get_meta("party_wave", false) and wave == r.encounter.size() - 1
 		share = Party.PARTY_WAVE_SHARE if closing else Party.wave_share(own_v, all_v, players.size())
 	var tempered := run.has_omen("tempered") and r.type != Room.Type.ELITE
+	var watched := run.has_omen("watchers") and r.type != Room.Type.BOSS and not r.has_meta("watcher")
+	if watched:
+		r.set_meta("watcher", true)
+		ids = ids + ["penitent"]
 	var memory := int(Profile.data.world.get("memory", 0)) + int(region.get("memory_bonus", 0))
 	for i in ids.size():
 		var id: String = ids[i]
@@ -2073,6 +2105,10 @@ func _start_boss(r: Room) -> void:
 			if hunted():
 				var n := mini(run.hunt_signs, HUNT_SIGNS)
 				e.max_hp *= 1.0 - HUNT_WEAKEN * n
+				if run.hunt_den == "snare":
+					e.max_hp *= 0.88
+				elif run.hunt_den == "hoard":
+					e.attack_rate *= 1.12
 				e.hp = e.max_hp
 				e.set_meta("quarry", true)
 				sub_line = "The quarry. You read %d sign%s of it on the way down" % [n, "" if n == 1 else "s"]
@@ -2751,6 +2787,8 @@ func _on_actor_died(a: Actor, killer: Node) -> void:
 		var e := a as Enemy
 		if e.has_meta("fled"):
 			return     # (no death: it is waiting further down)
+		if run.has_omen("slag_floor") and not e.def.get("boss", false) and not e.summoned and rng.randf() < 0.3:
+			preload("res://src/entities/enemies/slagbearer.gd").spill(self, e.pos, 1.15, 5.0)
 		if run.has_omen("volatile") and not e.def.get("boss", false) and e.id != "ash_seal" and rng.randf() < 0.5:
 			var at := e.pos
 			var dmg := e.damage * 0.8

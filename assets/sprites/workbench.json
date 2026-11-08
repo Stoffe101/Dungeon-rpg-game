@@ -1,0 +1,31 @@
+{
+	"anims": {
+		"anvil": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"kiln": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"lathe": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 2
+		}
+	},
+	"emit": true,
+	"frame": [
+		36,
+		38
+	],
+	"origin": [
+		18,
+		34
+	]
+}
