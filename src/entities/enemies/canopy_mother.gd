@@ -34,8 +34,8 @@ func behave(dt: float) -> void:
 	_ring_t -= dt
 	if _ring_t <= 0.0:
 		# (a warning every machine draws: this ground is hers)
-		_ring_t = 1.9
-		stage.fx.shape(Fx.Shape.DISC, pos, Vector2.RIGHT, Vector2(CANOPY_R * 2.0, CANOPY_R * 2.0), Color(0.55, 0.85, 0.35, 0.1), Color(0.75, 1.0, 0.5, 0.75), 1.95, {"progress": 1.0})
+		_ring_t = 3.8
+		stage.fx.shape(Fx.Shape.RING, pos, Vector2.RIGHT, Vector2(CANOPY_R * 2.0, CANOPY_R * 2.0), Color(0.75, 1.0, 0.5, 0.7), Color(0.85, 1.0, 0.6, 0.9), 3.85, {"inner": 0.95})
 	match state:
 		"windup":
 			if timer(0.7):

@@ -376,6 +376,8 @@ func _wall_lab(lay: DungeonGen.Layout) -> void:
 
 
 func _grow_flora() -> void:
+	if "noflora" in Dev.args():
+		return       # (dev: what the ground cover costs)
 	var rooms: Array = []
 	for r in layout.rooms:
 		# (what was set down last, a landmark's foot or a site, keeps its tile bare)
