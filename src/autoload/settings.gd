@@ -31,6 +31,7 @@ const DEFAULTS := {
 	"damage_numbers": true,
 	"hud_width": "centered",     # very wide screens: the HUD's corners sit near the fight, or at the edges
 	"strong_tells": false,       # brighter, harder-edged warnings on the floor
+	"hints": true,               # a line the first time something is met
 	"world_names": "all",        # names over things and finds: all nearby | nearest | off (the prompt below instead)
 	"show_fps": false,
 	"aim_assist": 0.5,

@@ -8,7 +8,7 @@ extends Node
 
 signal changed
 
-const VERSION := 16
+const VERSION := 17
 ## Levels stop at the cap: the Hearthtree costs far more points than a Kindled
 ## can ever have, so a build is a choice. Experience past the cap becomes Renown.
 const MAX_LEVEL := 60
@@ -305,6 +305,15 @@ static func migrate(d: Dictionary) -> Dictionary:
 					out[k][k2] = f[k][k2]
 	if not (out.skills as Array).has("hearth"):
 		out.skills.push_front("hearth")
+	if v < 17:
+		# v17: Resonance now takes longer; what was earned rises with it, so nothing falls back asleep
+		var iv: Variant = out.get("inventory")
+		if iv is Dictionary:
+			var all: Array = (iv as Dictionary).get("bag", []).duplicate()
+			all.append_array(((iv as Dictionary).get("equipped", {}) as Dictionary).values())
+			for it in all:
+				if it is Dictionary and (it as Dictionary).has("res"):
+					it["res"] = int(ceil(float(it.res) * 1.8))
 	out["version"] = VERSION
 	return out
 
@@ -1148,8 +1157,49 @@ func salvage(uid: int) -> Dictionary:
 	var y := ItemDB.salvage_yield(it)
 	for k in y:
 		inv().materials[k] = material(k) + int(y[k])
+	# a second copy of a great thing is not wasted: what it knew goes into the one you keep
+	if Evolutions.can_evolve(it):
+		var kin := _kin_of(it)
+		if not kin.is_empty():
+			kin["res"] = int(kin.get("res", 0)) + DUPLICATE_RES + int(it.get("res", 0)) / 2
 	_changed()
 	return y
+
+
+const DUPLICATE_RES := 60
+
+
+## The copy of this great thing still kept: the one being worn, or the furthest along.
+func _kin_of(it: Dictionary) -> Dictionary:
+	var best := {}
+	for slot in equipped():
+		var e: Variant = equipped()[slot]
+		if e is Dictionary and String((e as Dictionary).get("base", "")) == String(it.base):
+			return e
+	for b: Dictionary in inv().get("bag", []):
+		if String(b.get("base", "")) == String(it.base) and int(b.get("res", 0)) >= int(best.get("res", -1)):
+			best = b
+	return best
+
+
+## The smith works a surplus into something scarcer ([from, n, to, m] from ItemDB.REFINES).
+func refine(r: Array) -> bool:
+	if material(String(r[0])) < int(r[1]):
+		return false
+	inv().materials[String(r[0])] = material(String(r[0])) - int(r[1])
+	inv().materials[String(r[2])] = material(String(r[2])) + int(r[3])
+	_changed()
+	return true
+
+
+## Spends Sunshards and Embers to bring a great thing on.
+func attune(uid: int) -> bool:
+	var it := find_item(uid)
+	if it.is_empty() or not Evolutions.can_evolve(it) or String(it.get("path", "")) != "" or not pay(ItemDB.ATTUNE_COST):
+		return false
+	it["res"] = int(it.get("res", 0)) + ItemDB.ATTUNE_RES
+	_changed()
+	return true
 
 
 func apply_gear(stats: Stats) -> void:

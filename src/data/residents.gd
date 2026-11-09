@@ -138,6 +138,13 @@ const NEWS := [
 	["grudge", "m:grudges_settled", {
 		"bram": ["You look lighter. Someone paid what they owed you, then."],
 		"ama": ["You got your embers back from that thing. Good. Nothing should keep what it took."]}],
+	["settlement", "m:settlements", {
+		"ama": ["You lit somebody's hearth down there. A long way down, and you stopped to do that.", "We are going to get along."],
+		"wren": ["Were there beds? Did they have a dog?"]}],
+	["workshop", "m:workshops", {
+		"bram": ["Whoever left those tools meant to come back in the morning. Everyone always does."]}],
+	["smith", "m:hidden_smith", {
+		"teodric": ["There is a bench down there that nobody built. I sat at it once. Do not ask me what it asked me."]}],
 	["grown", "m:grown", {
 		"wren": ["Your sword looks different. Can it talk now? Mine can't."],
 		"teodric": ["That blade has been deciding things, and so have you. Mind which of you is doing it."]}],
@@ -191,6 +198,13 @@ static func bark(id: String, rng: RandomNumberGenerator) -> String:
 		pool.append("You came back. That's what matters.")
 	if int(Profile.data.world.get("warden_kills", 0)) > 0:
 		pool.append("The Warden's gone. I still can't believe it.")
+	# they talk about each other, and about what the camp has become
+	var others: Dictionary = {"teodric": "Wren's been asking Teodric about bells again. He pretends to mind.", "wren": "Teodric says I can ring the small one if I am good. I am being very good.",
+		"ama": "Bram brings me ash for the beds. He says it's for the cat.", "bram": "Ama talks to the seedlings. They do better than the rest of us."}
+	if others.has(id):
+		pool.append(String(others[id]))
+	if Chronicle.marks("settlements") > 0:
+		pool.append("New folk by the far wall. They say someone lit their old hearth.")
 	if Profile.skill_points_free() > 0:
 		pool.append("The Hearth is humming. It wants you.")
 	if Chronicle.rescued("maren"):

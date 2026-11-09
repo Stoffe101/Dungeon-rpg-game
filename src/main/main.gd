@@ -70,6 +70,14 @@ func _ready() -> void:
 			Profile.data.world["%s_kills" % EnemyDB.REGIONS[reg].boss] = maxi(1, int(Profile.data.world.get("%s_kills" % EnemyDB.REGIONS[reg].boss, 0)))
 			Profile.data["contracts"] = {"offer": ["hunt_" + reg], "taken": [], "done": 0}
 			Contracts.take("hunt_" + reg)
+		elif a == "strong":
+			Settings.set_value("strong_tells", true)
+		elif a.begins_with("authored="):
+			DungeonGen.force_authored = a.substr(9)
+		elif a == "econreport":
+			EconReport.run()
+		elif a.begins_with("concept="):
+			RoomCraft.force_concept = a.substr(8)
 		elif a.begins_with("huntstyle="):
 			DungeonGen.force_hunt_style = a.substr(10)
 		elif a.begins_with("evolve="):
@@ -165,7 +173,18 @@ func _ready() -> void:
 
 func _open_dev_screen(what: String) -> void:
 	match what:
+		"talk":
+			# dev: what a resident says to you now (their reaction first, if they have one)
+			for a in Dev.args():
+				if a.begins_with("to="):
+					Game.ui.dialogue(a.substr(3).capitalize(), Residents.talk(a.substr(3)), func() -> void: pass)
 		"noticeboard":
+			for a in Dev.args():
+				if a.begins_with("carry="):
+					# dev: these notices already taken (an errand shows its stage)
+					for id: String in a.substr(6).split(","):
+						Profile.data.contracts["offer"] = (Profile.data.contracts.get("offer", []) as Array) + [id]
+						Contracts.take(id)
 			Game.ui.noticeboard()
 		"skilltree":
 			ui.skill_tree()

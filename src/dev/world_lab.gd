@@ -51,6 +51,18 @@ static func add(lay: DungeonGen.Layout) -> void:
 		r.props.append({"kind": "spikes", "tile": c + Vector2i(-7 + i, 2), "phase": i * 0.22})
 	r.props.append({"kind": "rime_vent", "tile": c + Vector2i(1, 2)})
 	# a walled gap one tile wide
+	# what the region builds with (RoomCraft)
+	var arch: Dictionary = {"ossuary": {"stand": [["tomb_effigy", 2], ["charnel_bank", 2], ["broken_obelisk", 1], ["bone_cairn", 2]], "lay": [["inlay_tomb", "figure", 2, 1], ["inlay_tomb", "open", 2, 1], ["inlay_aisle", "whole", 3, 1]]},
+		"throne": {"stand": [["broken_throne", 3], ["colossus_foot", 2], ["chain_winch", 2], ["fallen_vault", 2]], "lay": [["inlay_carpet", "torn", 3, 2], ["inlay_sun", "idle", 4, 4]]}}.get(lay.region, {})
+	if not arch.is_empty():
+		var ax := -9
+		for st: Array in arch.stand:
+			RoomCraft.stand(lay, r, String(st[0]), c + Vector2i(ax, -5), int(st[1]))
+			ax += int(st[1]) + 1
+		var lx := -9
+		for l: Array in arch.lay:
+			RoomCraft.inlay(lay, r, String(l[0]), String(l[1]), c + Vector2i(lx, 3), int(l[2]), int(l[3]))
+			lx += int(l[2]) + 1
 	# what you walk through, one strip of each
 	if lay.region == "rootmire":
 		for row in 6:

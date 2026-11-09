@@ -206,13 +206,13 @@ const BASES := {
 		"mods": [["move_speed", "inc", 0.12], ["dodge_charges", "add", 1.0]],
 		"desc": "Squeak. Squeak. Enemies nearby sometimes stop to wonder what that was.",
 		"recipe": {"rootwood": 5, "spore_silk": 3, "warden_sigil": 1, "embers": 200}},
-	"heart_of_the_mountain": {"name": "Heart of the Mountain", "slot": "chest", "icon": "mountain_plate", "unique": true,
+	"heart_of_the_mountain": {"name": "Heart of the Mountain", "slot": "chest", "icon": "mountain_plate", "unique": true, "flags": {"mountain": 1},
 		"mods": [["max_hp", "add", 60.0], ["armor", "add", 0.15], ["move_speed", "inc", -0.1]],
-		"desc": "Immovable. Mostly by choice.",
+		"desc": "Nothing moves you. Each blow you stand through stores its weight for your next: up to +40% damage.",
 		"recipe": {"grave_iron": 12, "sun_gold": 3, "warden_sigil": 1, "embers": 350}},
-	"spellweaver_circlet": {"name": "Spellweaver's Circlet", "slot": "head", "icon": "spell_circlet", "unique": true,
-		"mods": [["ability_damage", "add", 0.35], ["ability_cost", "more", -0.2], ["melee_damage", "add", -0.15]],
-		"desc": "Your gifts burn brighter; your blade, a little duller.",
+	"spellweaver_circlet": {"name": "Spellweaver's Circlet", "slot": "head", "icon": "spell_circlet", "unique": true, "flags": {"weave": 1},
+		"mods": [["ability_damage", "add", 0.25], ["ability_cost", "more", -0.1], ["melee_damage", "add", -0.15]],
+		"desc": "A spell cast straight after a different one gives back 12 Kindle. Your blade is a little duller for it.",
 		"recipe": {"soul_glass": 6, "ember_core": 3, "eclipse_shard": 1, "embers": 350}},
 	"echoing_gauntlets": {"name": "Echoing Gauntlets", "slot": "hands", "icon": "echo_gauntlets", "unique": true, "flags": {"echo_strike": 1},
 		"mods": [["melee_damage", "add", 0.08]],
@@ -234,6 +234,31 @@ const BASES := {
 		"mods": [["melee_damage", "add", 0.05], ["flask_charges", "add", -1.0]],
 		"desc": "Melee hits heal you for 4% of the damage dealt. You carry one flask fewer.",
 		"recipe": {"bone_dust": 8, "spore_silk": 4, "bloom_heart": 1, "embers": 300}},
+	# uniques that change how a fight is fought (the campaign pass): the room, the lantern, the feet
+	"sappers_charm": {"name": "Sapper's Charm", "slot": "charm", "icon": "totem", "unique": true, "flags": {"sapper": 1},
+		"mods": [["melee_damage", "add", 0.05]],
+		"desc": "Whatever you break, breaks loudly: pots, struts, jars and thorn burst against every foe near them and give back 8 Kindle.",
+		"recipe": {"bone_dust": 8, "grave_iron": 4, "warden_sigil": 1, "embers": 260}},
+	"dimmed_wick": {"name": "The Dimmed Wick", "slot": "charm", "icon": "lantern_charm", "unique": true, "flags": {"dark_eyes": 1},
+		"mods": [["crit_chance", "add", 0.04]],
+		"desc": "Your lantern reaches two-thirds as far. The lower your Kindle, the harder you hit: up to +35% with none left.",
+		"recipe": {"soul_glass": 4, "bone_dust": 6, "eclipse_shard": 1, "embers": 300}},
+	"counterpoise": {"name": "Counterpoise", "slot": "chest", "icon": "mail", "unique": true, "flags": {"counterpoise": 1, "riposte": 1},
+		"mods": [["armor", "add", 0.05], ["parry_window", "add", 0.02]],
+		"desc": "A Ward readies the counter: your next blow within two seconds is a critical for +60%, and until you strike it, what hits you is halved.",
+		"recipe": {"grave_iron": 8, "soul_glass": 3, "warden_sigil": 1, "embers": 320}},
+	"long_way_greaves": {"name": "Greaves of the Long Way", "slot": "feet", "icon": "greaves", "unique": true, "flags": {"momentum": 1},
+		"mods": [["move_speed", "inc", 0.06]],
+		"desc": "Keep moving for a second and a half and your next blow lands with all of it: +60% damage and it throws them back. Standing still spends it.",
+		"recipe": {"rootwood": 5, "grave_iron": 4, "bloom_heart": 1, "embers": 280}},
+	"rimefire_band": {"name": "Rimefire Band", "slot": "ring", "icon": "band", "unique": true, "flags": {"thermal_shock": 1, "rimefire": 1},
+		"mods": [["burn_chance", "add", 0.08], ["chill_chance", "add", 0.08]],
+		"desc": "Cold and fire stop being opposites: Thermal Shock bursts half again as hard, and leaves the foe still cold.",
+		"recipe": {"soul_glass": 5, "ember_core": 3, "bloom_heart": 1, "embers": 320}},
+	"whetstone_of_habit": {"name": "Whetstone of Habit", "slot": "charm", "icon": "totem", "unique": true, "flags": {"habit": 1},
+		"mods": [["attack_speed", "add", 0.03]],
+		"desc": "Every time your weapon's technique pays off, your next spell costs 8% less. Up to 40%; a spell spends it all.",
+		"recipe": {"grave_iron": 5, "spore_silk": 4, "eclipse_shard": 1, "embers": 300}},
 	# uniques of the deepening pass: a technique for any weapon, and a twist on it
 	"metronome_hilt": {"name": "Metronome Hilt", "slot": "charm", "icon": "totem", "unique": true, "flags": {"tech_cadence": 1, "metronome": 1},
 		"mods": [["attack_speed", "add", 0.04]],
@@ -584,6 +609,47 @@ static func tier_might(item: Dictionary) -> float:
 
 
 ## Equipped gear: mods, unique flags, and set bonuses for 2 / 4 pieces.
+## What a chest piece asks of you, by how it is made (GearLooks style): the shape on the
+## body and the way it plays are the same fact, and any piece of that make carries it.
+const WEIGHTS := {
+	"plate": {"name": "Heavy", "line": "Heavy: +4% armor, knockback halved, dodges a little shorter", "mods": [["armor", "add", 0.04], ["dodge_distance", "inc", -0.08]], "flags": {"braced": 1}},
+	"mail": {"name": "Measured", "line": "Measured: a slightly longer Ward", "mods": [["parry_window", "add", 0.02]]},
+	"robe": {"name": "Flowing", "line": "Flowing: +8% Kindle gain, -2% armor", "mods": [["kindle_gain", "inc", 0.08], ["armor", "add", -0.02]]},
+	"coat": {"name": "Fitted", "line": "Fitted: spells cost 5% less", "mods": [["ability_cost", "more", -0.05]]},
+	"cloak": {"name": "Light", "line": "Light: dodges recharge 6% sooner, a little faster on your feet", "mods": [["dodge_recharge", "more", -0.06], ["move_speed", "inc", 0.02]]},
+}
+## Two things that were made to be worn together. Never a whole set, and nothing depends on it.
+const PAIRS := [
+	{"a": "thornmail", "b": "firebrand_gauntlets", "name": "Burning Briar", "line": "Thorns set alight whatever they strike.", "flags": {"burning_briar": 1}},
+	{"a": "metronome_hilt", "b": "echoing_gauntlets", "name": "Kept Time", "line": "A strike in time echoes at once.", "flags": {"kept_time": 1}},
+	{"a": "mirrorguard_bracers", "b": "deep_mirror", "name": "Hall of Mirrors", "line": "The Mirror's spell comes back twice as often.", "flags": {"hall_of_mirrors": 1}},
+	{"a": "ash_cinder", "b": "seven_league_boots", "name": "Walking Fire", "line": "The ground you burn burns longer.", "flags": {"walking_fire": 1}},
+]
+
+
+## The pairs worn right now.
+static func worn_pairs(equipped: Dictionary) -> Array:
+	var have := {}
+	for slot in SLOTS:
+		var it: Variant = equipped.get(slot)
+		if it is Dictionary and not (it as Dictionary).is_empty():
+			have[String(it.base)] = true
+	return PAIRS.filter(func(p): return have.has(p.a) and have.has(p.b))
+
+
+## The other half of a pair this base belongs to ({} if none).
+static func pair_of(base_id: String) -> Dictionary:
+	for p: Dictionary in PAIRS:
+		if p.a == base_id or p.b == base_id:
+			return p
+	return {}
+
+
+static func weight_of(base_id: String) -> Dictionary:
+	var vis: Array = GearLooks.VIS.get(base_id, [])
+	return {} if vis.is_empty() else WEIGHTS.get(String(vis[0]), {})
+
+
 static func apply_equipped(equipped: Dictionary, stats: Stats) -> void:
 	for slot in SLOTS:
 		var it: Variant = equipped.get(slot)
@@ -591,6 +657,12 @@ static func apply_equipped(equipped: Dictionary, stats: Stats) -> void:
 			stats.apply_mods(mods_of(it))
 			stats.apply_flags(base(String(it.base)).get("flags", {}))
 			stats.apply_flags(Evolutions.path_flags(it))
+			if slot == "chest":
+				var w := weight_of(String(it.base))
+				stats.apply_mods(w.get("mods", []))
+				stats.apply_flags(w.get("flags", {}))
+	for p: Dictionary in worn_pairs(equipped):
+		stats.apply_flags(p.flags)
 	var counts := set_counts(equipped)
 	for s in counts:
 		for n in [2, 4]:
@@ -706,16 +778,33 @@ static func salvage_yield(item: Dictionary) -> Dictionary:
 
 # --- drops ---------------------------------------------------------------------
 
+## What the smith can make of a surplus: [from, how many, to, how many]. Common things
+## stop being worthless and rare things can be worked toward instead of hoped for.
+const REFINES := [
+	["bone_dust", 12, "grave_iron", 3],
+	["bone_dust", 24, "ember_core", 1],
+	["grave_iron", 10, "soul_glass", 3],
+	["soul_glass", 10, "sun_gold", 3],
+	["rootwood", 10, "spore_silk", 3],
+	["spore_silk", 10, "ember_core", 1],
+	["sun_gold", 8, "ember_core", 1],
+]
+## Sunshards and Embers for Resonance: a late use for both, and a way to bring on the one
+## great thing you actually care about.
+const ATTUNE_COST := {"sunshards": 3, "embers": 300}
+const ATTUNE_RES := 70
+
+
 ## Materials an enemy can drop: [[material, chance, min, max], ...]
 static func enemy_drops(enemy_id: String, region: String) -> Array:
 	var out: Array = []
 	match region:
 		"rootmire":
-			out.append(["rootwood", 0.25, 1, 2])
+			out.append(["rootwood", 0.16, 1, 2])
 		"throne":
-			out.append(["sun_gold", 0.22, 1, 2])
+			out.append(["sun_gold", 0.12, 1, 2])
 		_:
-			out.append(["bone_dust", 0.28, 1, 2])
+			out.append(["bone_dust", 0.18, 1, 2])
 	match enemy_id:
 		"guard":
 			out.append(["grave_iron", 0.4, 1, 2])
@@ -726,10 +815,10 @@ static func enemy_drops(enemy_id: String, region: String) -> Array:
 		"archer":
 			out.append(["soul_glass", 0.08, 1, 1])
 		"moth", "sporeling", "toad":
-			out.append(["spore_silk", 0.3, 1, 1])
+			out.append(["spore_silk", 0.18, 1, 1])
 		"thornback", "rootweaver":
-			out.append(["spore_silk", 0.15, 1, 1])
-			out.append(["rootwood", 0.2, 1, 1])
+			out.append(["spore_silk", 0.1, 1, 1])
+			out.append(["rootwood", 0.12, 1, 1])
 		"sentinel":
 			out.append(["grave_iron", 0.35, 1, 2])
 			out.append(["sun_gold", 0.2, 1, 1])

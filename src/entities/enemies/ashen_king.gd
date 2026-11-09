@@ -9,6 +9,10 @@
 ## dawn sears him, staggered and exposed. His sweeps now cast lances, and ash
 ## hounds answer his call.
 ## Enrage (20%): faster, double rings.
+## The Court Falls: he calls the vault down in lanes across the whole arena; the slag stays
+## a while, and the floor he leaves you is smaller. Defying the dark: a Ward struck the
+## instant an eclipse lands holds it off with the lantern alone, at the price of the Kindle
+## it burns, and throws him back on his heels.
 extends Enemy
 
 const ECLIPSE_T := 2.8
@@ -30,6 +34,74 @@ var _step_t := 0.0
 var _eclipses := 0
 var safe_r := 2.6
 var _long_night := false
+var lane_cd := 9.0
+var _lanes: Array = []
+const LANE_WIDE := 2.6
+const LANE_LONG := 26.0
+const LANE_WARN := 1.25
+const DEFY_KINDLE := 45.0
+
+
+## Three lanes across the arena, a walkable floor left between them.
+func _begin_lanes() -> void:
+	lane_cd = 15.0 if phase == 1 else 11.0
+	set_state("lanes")
+	sprite.play("cast")
+	Audio.play("court_falls", 2.0)
+	stage.fx.number(pos, 4.5, "THE COURT FALLS", Color(1.0, 0.72, 0.35), true)
+	var along := Vector2.RIGHT if randf() < 0.5 else Vector2(0, 1)
+	var side := along.orthogonal()
+	var shift := randf_range(-1.5, 1.5)
+	_lanes.clear()
+	for k in [-1, 0, 1]:
+		var c: Vector2 = arena_center + side * (float(k) * 6.5 + shift)
+		_lanes.append([c - along * LANE_LONG * 0.5, along])
+		stage.fx.shape(Fx.Shape.RECT, c - along * LANE_LONG * 0.5, along, Vector2(LANE_LONG, LANE_WIDE), TELE_COLOR, TELE_EDGE, LANE_WARN / attack_rate, {"progress": 0.0})
+		stage.share_danger(c, LANE_WARN / attack_rate, {"kind": Fx.Shape.RECT, "dir": along, "size": Vector2(LANE_LONG, LANE_WIDE), "from": c - along * LANE_LONG * 0.5})
+
+
+func _lanes_land() -> void:
+	stage.fx.shake(0.7)
+	Audio.play("slam", 3.0, 0.5)
+	for l: Array in _lanes:
+		var o: Vector2 = l[0]
+		var d: Vector2 = l[1]
+		strike_line(o, d, LANE_LONG, LANE_WIDE, damage * 1.1, 6.0)
+		var r := 1.0
+		while r < LANE_LONG:
+			var p := o + d * r
+			r += 2.0
+			var ti := Vector2i(floori(p.x), floori(p.y))
+			if stage.grid.at(ti.x, ti.y) != TileGrid.FLOOR:
+				continue
+			stage.fx.burst(p, 0.2, Color(1.0, 0.7, 0.35), 8, 4.0, 0.5, 3.0)
+			var hz := Hazard.spawn(stage, p, 1.25, 6.0, Team.ENEMY, Color(1.0, 0.5, 0.2), _slag_tick)
+			hz.period = 0.5
+	_lanes.clear()
+
+
+static func _slag_tick(_h: Hazard, a: Actor) -> void:
+	if a is Player:
+		var h := Hit.make(null, 6.0, ["dot", "fire"])
+		h.can_crit = false
+		h.silent = true
+		(a as Player).take_enemy_hit(h, null)
+
+
+## A Ward struck in the instant the dark lands: the lantern alone holds it off.
+func _defied(pl: Player) -> bool:
+	if pl.ward_t <= 0.0 or pl.kindle < DEFY_KINDLE:
+		return false
+	pl.kindle -= DEFY_KINDLE
+	stage.fx.number(pl.pos, 3.5, "THE LANTERN HOLDS", Color(1.0, 0.85, 0.5), true)
+	if stage is Dungeon:
+		(stage as Dungeon).note_request("defy")
+	stage.fx.ring(pl.pos, 4.0, Color(1.0, 0.85, 0.5), 0.5, 0.3)
+	stage.fx.flash_light(pl.pos, 2.0, Color(1.0, 0.8, 0.45), 5.0, 8.0, 0.6)
+	Audio.play_at("perfect", pl.pos, 2.0, 0.6)
+	status.stagger_t = maxf(status.stagger_t, 1.6)
+	status.exposed_t = maxf(status.exposed_t, 3.0)
+	return true
 
 
 ## The Eclipsed King: the Eclipse from the first blow, and past half his life the
@@ -57,6 +129,7 @@ func hit_color() -> Color:
 func behave(dt: float) -> void:
 	cooldown -= dt * attack_rate * tempo
 	sunrise_cd -= dt
+	lane_cd -= dt
 	if phase == 2:
 		eclipse_t -= dt
 		hound_t -= dt
@@ -137,6 +210,11 @@ func behave(dt: float) -> void:
 			invuln_t = 0.1
 			if timer(ECLIPSE_T):
 				_eclipse_land()
+		"lanes":
+			vel = Vector2.ZERO
+			if timer(LANE_WARN):
+				_lanes_land()
+				set_state("recover")
 		"recover":
 			vel = Vector2.ZERO
 			sprite.play("idle")
@@ -179,12 +257,16 @@ func _stalk(dt: float) -> void:
 	if d > 3.5:
 		opts.append("corona")
 	opts.append("leap")
+	if lane_cd <= 0.0:
+		opts.append_array(["lanes", "lanes"])
 	opts.erase(last_attack)
 	var pick: String = opts[randi() % opts.size()]
 	last_attack = pick
 	aim_dir = dir_to_player()
 	facing = aim_dir
 	match pick:
+		"lanes":
+			_begin_lanes()
 		"sweep":
 			set_state("sweep_windup")
 			sprite.play("windup")
@@ -311,7 +393,7 @@ func _begin_eclipse_phase() -> void:
 	Audio.play("boss_roar", 3.0, 0.7)
 	stage.fx.shake(0.8)
 	stage.fx.number(pos, 4.5, "THE ECLIPSE", Color(1.0, 0.75, 0.35), true)
-	phase_moment("The Eclipse", "When the sun goes out, stand in a brazier's light", Color(1.0, 0.72, 0.32))
+	phase_moment("The Eclipse", "When the sun goes out, stand in a brazier's light, or Ward the instant it lands", Color(1.0, 0.72, 0.32))
 	eclipse_t = 3.0
 	hound_t = 4.0
 
@@ -349,7 +431,7 @@ func _eclipse_land() -> void:
 	Audio.play("boss_hurt", 0.0, 0.5)
 	# (the dark takes every Kindled outside the light, not only the King's choice)
 	for pl in stage.active_players():
-		if sheltered(pl.pos):
+		if sheltered(pl.pos) or _defied(pl):
 			continue
 		var h := make_hit(damage * 2.2, pos, 0.0)
 		h.tags = ["eclipse"]

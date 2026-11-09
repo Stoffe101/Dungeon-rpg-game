@@ -69,6 +69,8 @@ func _run() -> void:
 			await depthworld()
 		"guardian":
 			await guardian()
+		"newfoes":
+			await newfoes()
 		"bestiary":
 			await bestiary()
 		"partyhud":
@@ -1269,15 +1271,20 @@ func depthworld() -> void:
 	if _tag() == "guest1":
 		# a solid thorn really stops me
 		var target: Vector2 = thorn.pos
-		await walk_to(target + Vector2(0.0, 1.05), 0.5, 10.0)
-		var t_end := now() + 1.2
-		while now() < t_end:
-			steer(Vector2.UP)
-			await wait(0.05)
-		steer(Vector2.ZERO)
-		expect(dun().player.pos.y > target.y + 0.35, "the thorn stopped me at its foot (%.2f past it)" % (dun().player.pos.y - target.y))
+		# (under a bad link the walk can take a while: being there is what the check needs)
+		var arrived: bool = await walk_to(target + Vector2(0.0, 1.05), 0.5, 25.0)
+		arrived = arrived and await settle_on(target + Vector2(0.0, 1.05), 0.2)
+		expect(arrived, "I reached the thorn's south side")
+		if arrived:
+			var t_end := now() + 1.2
+			while now() < t_end:
+				steer(Vector2.UP)
+				await wait(0.05)
+			steer(Vector2.ZERO)
+			expect(dun().player.pos.y > target.y + 0.35, "the thorn stopped me at its foot (%.2f past it)" % (dun().player.pos.y - target.y))
 		# I step onto the plate and stand there through its cycle
 		await walk_to(trap.pos, 0.3, 12.0)
+		expect(await settle_on(trap.pos, 0.2), "I came to rest on the plate")
 		var hp0: float = dun().player.hp
 		await wait(Prop.SPIKE_CYCLE + 0.8)
 		expect(dun().player.hp < hp0, "the teeth bit me on the plate (%d -> %d)" % [int(hp0), int(dun().player.hp)])
@@ -1326,6 +1333,36 @@ func _spawn_near(id: String, p: Player, dist := 3.0) -> Enemy:
 
 ## A party's guardian: the stairs to depth 3, its arrival, the fight turning and
 ## its fall, on every machine; its spoils land after the fall, for everyone.
+## The foes of the campaign pass, on every machine: seen, pictured, felled.
+func newfoes() -> void:
+	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
+	_strip_bot()
+	var ids := ["penitent", "canopy_mother", "slagbearer"]
+	if role == "host":
+		dun().player.godmode = true
+		for k in ids.size():
+			var e: Enemy = dun()._make_enemy(ids[k])
+			e.pos = dun().random_floor_near(dun().player.pos + Vector2(3.0 + k, 0.0), 1.5)
+			e.room_id = dun().layout.start_id
+			dun().add_actor(e)
+	var seen := func() -> Array:
+		return dun().actors.filter(func(a): return a is Enemy and is_instance_valid(a) and a.alive and (a as Enemy).id in ids)
+	if not await until(func() -> bool: return seen.call().size() == ids.size(), 20.0, "all three on my screen"):
+		return
+	await wait(2.5)
+	Net.i.dev_shot("e2e/newfoes")
+	for e: Enemy in seen.call():
+		expect(e.sprite != null and e.sprite.has_anim(String(e.sprite.anim)), "%s is drawn" % e.id)
+	if role == "host":
+		for e: Enemy in seen.call():
+			e.hp = 0.0
+			e.die(dun().player)
+	await until(func() -> bool: return seen.call().is_empty(), 15.0, "and all three fell on my screen")
+	if role == "host":
+		expect(not dun().hazards.is_empty(), "what the Slagbearer carried spilled")
+	await wait(1.0)
+
+
 func guardian() -> void:
 	await until(func() -> bool: return dun() != null and not dun().paused_sim, 60.0, "depth 1")
 	_strip_bot()
@@ -1533,6 +1570,21 @@ func walk_dir(d: Vector2, secs: float) -> void:
 	steer(d)
 	await wait(secs)
 	steer(Vector2.ZERO)
+
+
+## A walk ends at speed, and over a slow link a Kindled coasts past: taps it back to a stop.
+func settle_on(target: Vector2, tol := 0.2, tries := 12) -> bool:
+	for k in tries:
+		steer(Vector2.ZERO)
+		await wait(0.25)
+		var off := target - dun().player.pos
+		if off.length() <= tol:
+			return true
+		steer(off.normalized())
+		await wait(minf(0.12, off.length() / 7.0))
+	steer(Vector2.ZERO)
+	await wait(0.25)
+	return (target - dun().player.pos).length() <= tol
 
 
 func walk_to(target: Vector2, tol := 0.5, timeout := 10.0) -> bool:

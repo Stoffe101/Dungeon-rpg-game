@@ -31,6 +31,7 @@ class LevelTheme:
 	var pit_tex: Texture2D
 	var pit_wall_tex: Texture2D
 	var pillar_tex: Texture2D
+	var pillar_top_tex: Texture2D
 	var floor_tint := Color.WHITE
 	var wall_tint := Color.WHITE
 	var grime := 0.0
@@ -51,6 +52,8 @@ class LevelTheme:
 		t.pit_tex = load("res://assets/textures/pit.png")
 		t.pit_wall_tex = load("res://assets/textures/pit_wall.png")
 		t.pillar_tex = load("res://assets/textures/%s_pillar.png" % n)
+		var pt := "res://assets/textures/%s_ptop.png" % n
+		t.pillar_top_tex = load(pt) if ResourceLoader.exists(pt) else t.top_tex
 		match n:
 			"crypt":
 				t.grime = 0.55
@@ -128,7 +131,10 @@ static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: in
 		"pit": material(theme.pit_tex, Color.WHITE, SURFACE.pit),
 		"pillar": material(theme.pillar_tex, theme.wall_tint, SURFACE.pillar),
 		"pitwall": material(theme.pit_wall_tex, Color.WHITE, SURFACE.pit),
+		"ptop": material(theme.pillar_top_tex, theme.wall_tint, SURFACE.top),
 	}
+	(mats.ptop as ShaderMaterial).set_shader_parameter("keep_detail", 1.0)
+	(mats.ptop as ShaderMaterial).set_shader_parameter("rim_color", theme.rim)
 	mats["rock"] = mats.top        # the caps of the rock beyond the walls (no shadows)
 	var fm := mats.floor as ShaderMaterial
 	fm.set_shader_parameter("grime", theme.grime)
@@ -147,6 +153,7 @@ static func _build_into(root: Node3D, grid: TileGrid, theme: LevelTheme, odd: in
 		"pit": theme.pit_tex.get_size(),
 		"pillar": theme.pillar_tex.get_size(),
 		"pitwall": theme.pit_wall_tex.get_size(),
+		"ptop": theme.pillar_top_tex.get_size(),
 	}
 	var mass := mass_depth(grid)
 	for cy in cy_n:
@@ -287,7 +294,10 @@ static func _emit_tile(grid: TileGrid, x: int, y: int, tools: Dictionary, ts: Di
 	elif t == TileGrid.WALL or t == TileGrid.PILLAR:
 		var hh := grid.wall_height(x, y)
 		var top := hh * S
-		_cap(tools.top, grid, x, y, hh, ts.top, mass)
+		if t == TileGrid.PILLAR:
+			_cap(tools.ptop, grid, x, y, hh, ts.ptop, mass)
+		else:
+			_cap(tools.top, grid, x, y, hh, ts.top, mass)
 		# every wall face is masonry at the texture's own scale, anchored at the
 		# foot (a low wall shows the bottom courses: no stretched trim strip)
 		var key := "wall"

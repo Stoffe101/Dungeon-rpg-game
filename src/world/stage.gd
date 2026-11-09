@@ -75,6 +75,8 @@ func hazard_time() -> float:
 	return elapsed
 
 
+## Canopy Mothers in the room: foes under one can only be hurt from under it.
+var canopies: Array = []
 var occluders: Array = []         # tall things that thin when someone is under them
 var flora: FloraField = null
 var _occ_t := 0.0
@@ -86,9 +88,10 @@ func update_occlusion(dt: float) -> void:
 	if flora:
 		flora.tick(dt)
 	_occ_t -= dt
-	if _occ_t > 0.0 or occluders.is_empty():
+	if _occ_t > 0.0:
 		return
 	_occ_t = 0.1
+	# (first: most floors have no trees, and foes still stand behind stone there)
 	_foes_behind_stone()
 	for o in occluders:
 		if not is_instance_valid(o):
@@ -120,7 +123,9 @@ func _foes_behind_stone() -> void:
 			var t := grid.at(x, y + k)
 			if t == TileGrid.PILLAR or (t == TileGrid.WALL and grid.wall_height(x, y + k) >= 1.0):
 				hidden = true
-		(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
+		if (a as Enemy).behind_stone != hidden:
+			(a as Enemy).behind_stone = hidden
+			(a as Enemy).sprite.set_instance_shader_parameter("silhouette", 1.0 if hidden else 0.0)
 
 
 func set_tile_solid(t: Vector2i, solid: bool) -> void:

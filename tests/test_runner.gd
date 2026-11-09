@@ -13,6 +13,9 @@ func _ready() -> void:
 	var d := DirAccess.open("res://tests")
 	var files := Array(d.get_files()).filter(func(f): return f.begins_with("test_") and f.ends_with(".gd") and f != "test_runner.gd" and f != "test_case.gd")
 	files.sort()
+	var only := OS.get_environment("TEST_ONLY")     # (dev: just the files with this in their name)
+	if only != "":
+		files = files.filter(func(f): return only in f)
 	for f in files:
 		var scr: GDScript = load("res://tests/" + f)
 		if scr == null or not scr.can_instantiate():

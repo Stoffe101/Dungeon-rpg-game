@@ -32,6 +32,16 @@ const OMENS := {
 		"cost": "Your flask holds one charge fewer.",
 		"unlock": {"bloom_kills": 1},
 	},
+	"watchers": {
+		"name": "The Watchers", "embers": 0.3, "xp": 0.15,
+		"cost": "A Penitent stands in every fight. Someone has to keep a lantern on it.",
+		"unlock": {"delve_best": 3},
+	},
+	"slag_floor": {
+		"name": "Slag Floor", "embers": 0.2, "xp": 0.2,
+		"cost": "Three foes in ten spill slag where they fall. It burns everyone: mind where you finish them.",
+		"unlock": {"delve_best": 6},
+	},
 	# (these change how a fight is played; the Hollow reads them too)
 	"volatile": {
 		"name": "Volatile Dead", "embers": 0.25, "xp": 0.1,

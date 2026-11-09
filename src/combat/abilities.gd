@@ -16,6 +16,8 @@ static func cast(pl: Player, id: String, power := 1.0, at := Vector2.INF, dir :=
 	_power = power * Runes.damage_mult(pl, id)
 	if pl.stats.has("runebound"):
 		_power *= 1.0 + 0.08 * Runes.total(pl)
+	if pl.stats.has("wide_wick") and pl.kindle >= pl.kindle_max() * 0.8:
+		_power *= 1.2
 	var ok := false
 	match id:
 		"flare":

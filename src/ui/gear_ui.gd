@@ -133,6 +133,12 @@ static func item_info(item: Dictionary, compare: Dictionary = {}, width := 160) 
 		v.add_child(UIKit.para(("  " if i < nb else "+ ") + txt, width, UIKit.C_TEXT if i < nb else Color(0.6, 0.85, 1.0)))
 	if b.has("desc"):
 		v.add_child(UIKit.para(String(b.desc), width, Color(1.0, 0.8, 0.5)))
+	if String(b.get("slot", "")) == "chest" and not ItemDB.weight_of(String(item.base)).is_empty():
+		v.add_child(UIKit.para(String(ItemDB.weight_of(String(item.base)).line), width, UIKit.C_DIM))
+	var pair := ItemDB.pair_of(String(item.base))
+	if not pair.is_empty():
+		var other := String(pair.b if pair.a == String(item.base) else pair.a)
+		v.add_child(UIKit.para("With %s: %s. %s" % [String(ItemDB.base(other).name), String(pair.name), String(pair.line)], width, UIKit.C_SOUL))
 	var grown := Evolutions.progress(item)
 	if grown != "":
 		v.add_child(UIKit.para(grown, width, UIKit.C_SOUL if Evolutions.stage(item) < 2 else UIKit.C_GOLD))

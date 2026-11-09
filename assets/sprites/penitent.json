@@ -1,0 +1,56 @@
+{
+	"anims": {
+		"death": {
+			"fps": 10.0,
+			"frames": 5,
+			"loop": false,
+			"row": 6
+		},
+		"hurt": {
+			"fps": 12.0,
+			"frames": 2,
+			"loop": false,
+			"row": 5
+		},
+		"idle": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 0
+		},
+		"stone": {
+			"fps": 1.0,
+			"frames": 1,
+			"loop": true,
+			"row": 1
+		},
+		"strike": {
+			"fps": 8.0,
+			"frames": 1,
+			"loop": false,
+			"row": 4
+		},
+		"walk": {
+			"fps": 13.0,
+			"frames": 6,
+			"loop": true,
+			"row": 2
+		},
+		"windup": {
+			"fps": 7.0,
+			"frames": 2,
+			"loop": false,
+			"row": 3
+		}
+	},
+	"emit": true,
+	"frame": [
+		44,
+		44
+	],
+	"origin": [
+		22,
+		42
+	],
+	"self_light": 0.22
+}

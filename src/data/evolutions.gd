@@ -7,8 +7,8 @@
 class_name Evolutions
 extends RefCounted
 
-const AWAKE := 150       # Resonance to Awaken
-const ASCEND := 500      # Resonance to choose a path
+const AWAKE := 260       # Resonance to Awaken (about two expeditions in which it is worn)
+const ASCEND := 900      # Resonance to choose a path (about four more)
 const AWAKE_MULT := 1.15     # an Awakened item's own powers
 
 ## Two ways for each great weapon. `flags` are the same ones the uniques use.

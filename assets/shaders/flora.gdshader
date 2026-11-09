@@ -9,6 +9,8 @@ uniform sampler2D atlas : source_color, filter_nearest;
 uniform sampler2D emit_atlas : source_color, filter_nearest, hint_default_black;
 uniform vec2 frame_uv = vec2(1.0, 1.0);
 uniform float emit_strength = 2.4;
+// a mood of the Hollow Below repaints what grows there (a = how much)
+uniform vec4 tint = vec4(0.0);
 uniform float bands = 4.0;
 uniform float dither_strength = 0.5;
 uniform float falloff = 0.62;
@@ -43,8 +45,9 @@ void fragment() {
 	if (c.a < 0.5) {
 		discard;
 	}
-	ALBEDO = c.rgb;
-	EMISSION = c.rgb * texture(emit_atlas, auv).r * emit_strength;
+	vec3 col = mix(c.rgb, vec3(dot(c.rgb, vec3(0.34, 0.5, 0.16))) * tint.rgb * 2.2, tint.a);
+	ALBEDO = col;
+	EMISSION = col * texture(emit_atlas, auv).r * emit_strength;
 }
 
 void light() {

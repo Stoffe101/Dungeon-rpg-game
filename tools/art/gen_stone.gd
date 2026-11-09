@@ -40,6 +40,10 @@ static func build(dir: String) -> void:
 	_column(dir.path_join("throne_pillar.png"), Pal.OBSIDIAN, 3, "gold")
 	_trunk(dir.path_join("root_pillar.png"))
 	_pit_wall(dir.path_join("pit_wall.png"), 81)
+	_capstone(dir.path_join("crypt_ptop.png"), Pal.STONE, 3, "skull")
+	_capstone(dir.path_join("throne_ptop.png"), Pal.OBSIDIAN, 3, "gold")
+	_capstone(dir.path_join("hearth_ptop.png"), Pal.WOOD, 3, "")
+	_capstone(dir.path_join("root_ptop.png"), Pal.WOOD, 2, "rings")
 
 
 ## The inside of a pit: rough strata, nothing built by anyone.
@@ -536,6 +540,33 @@ static func _column(path: String, r: Array, base: int, kind: String) -> void:
 			for y in range(6, 25, 6):
 				for x in 16:
 					c.put(x, y, Pal.WOOD[1])
+	c.save(path)
+
+
+## The top of a column seen from above: a dressed capstone, so that it reads as a thing
+## standing up and not as a hole in the floor.
+static func _capstone(path: String, r: Array, base: int, kind: String) -> void:
+	var c := Px.new(16, 16)
+	for y in 16:
+		for x in 16:
+			var e := mini(mini(x, y), mini(15 - x, 15 - y))
+			var col: Color = r[base + 1] if e == 0 else (r[base] if e == 1 else (r[base - 1] if e == 2 else r[base]))
+			if e == 0 and (x == 15 or y == 15):
+				col = r[base - 1]
+			c.put(x, y, col)
+	match kind:
+		"skull":
+			c.paint(c.mask().ellipse(7.5, 7.0, 3.0, 2.6), Pal.BONE, 1)
+			c.put(6, 7, Pal.INK)
+			c.put(9, 7, Pal.INK)
+			c.put(7, 9, Pal.BONE[0])
+		"gold":
+			for p: Array in [[3, 3], [12, 3], [3, 12], [12, 12]]:
+				c.put(int(p[0]), int(p[1]), Pal.GOLD[3])
+			c.paint(c.mask().ellipse(7.5, 7.5, 2.4, 2.4), Pal.GOLD, 2)
+		"rings":
+			for rr: float in [2.5, 5.0]:
+				c.fill(c.mask().ellipse(7.5, 7.5, rr + 0.5, rr + 0.5).subtract(c.mask().ellipse(7.5, 7.5, rr - 0.4, rr - 0.4)), r[base - 1])
 	c.save(path)
 
 

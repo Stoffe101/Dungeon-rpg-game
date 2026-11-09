@@ -1588,3 +1588,71 @@ a toll about every 8 seconds instead of 7).
 - **Measure rewards with an exact audit, not bots in a time window.** The
   bots' Embers-per-room swung with how many rooms they cleared; the audit
   counts what the rules pay.
+
+
+## The next evolution (branch feature/gameplay-world-evolution)
+
+The rule of this pass: finish what the world of depth left open, then make things that
+change a decision. A thing that only adds a number was rejected or rebuilt.
+
+**Armour is drawn for its wearer** (`tools/art/gen_gear.gd`). Plate has great shoulders past
+the body, mail is a shaped shirt with a belt and a split skirt, cloth flares at the hem and
+is widest at the feet, a cloak lies across the shoulders from the front, gauntlets and
+greaves are bigger than the limb, wraps and sandals add nothing to the outline. It stays on
+through death: the piece settles on the heap and a helm rolls clear. `tests/test_gear_art.gd`
+measures every sheet against the body, pose by pose.
+
+**A chest piece's make is what it asks of you** (`ItemDB.WEIGHTS`, read from `GearLooks`):
+Heavy, Measured, Flowing, Fitted, Light. The shape on the body and the way it plays are one
+fact. **Pairs** (`ItemDB.PAIRS`): two things made for each other, never a whole set.
+
+**Rooms are built as something** (`src/world/room_craft.gd`): after the floor is laid out, a
+larger room may take a concept, on its own rng: burial aisle, charnel, mausoleum, monuments;
+processional, audience, collapse, foundry. Everything that stands stops you and is as wide as
+it looks (`span`); everything let into the floor is walked over (`inlay`, Physical GROUND).
+Each door has a threshold and a door in the back wall has posts. Each region also has room
+outlines of its own (`_stamp_pool`). Columns have capstones (`*_ptop.png`), because a flat dark
+square read as a hole.
+
+**Each mood of the Hollow is a place** (`Delve.BANDS`: `ambient`, `cover`; `RoomCraft.HOLLOW`):
+its own light, its own ground cover (`FloraField` tint), its own standing things: listeners,
+black glass, ribs, road stones and stairs to nowhere, jaws, pale caps. Milestone depths open
+on a ring of riftstones.
+
+**How an altar was answered shows in the rooms** (`RoomCraft._marked`): candles along the
+walls of a kept Vigil, the ceiling down in a broken one, listeners in a Pact's halls. Always
+reversible, like the altar itself.
+
+**Guardians.** No phase is an invulnerable wait; each new thing is a decision.
+- Gloam Warden: the Harvest. Three souls come in over eight seconds. Strike all three and it
+  reels; any that arrive feed the Reaping, a turning blade that passes over anyone close: run
+  in, or dodge through it.
+- Hollow Bloom: hurt it enough while it inhales and it chokes (no bite). The breath now takes
+  every Kindled. At Full Bloom hedges grow between its roots; a lash leaves a thorn ridge.
+- Ashen King: the Court Falls, three lanes with floor left between them, slag that stays.
+  Defying the dark: a Ward the instant an Eclipse lands, paid in Kindle, throws him back.
+
+**Foes that are about where you look and stand.** The Penitent is stone while any lantern is
+turned on it: one Kindled looking is enough, so a party covers each other's backs. Under a
+Canopy Mother a foe can only be hurt from under her: a bow behind a hedge does nothing.
+A Slagbearer's slag burns both sides, and spills when it falls: lead it past its friends.
+
+**Uniques.** Numbers-only ones were rebuilt (Heart of the Mountain, Spellweaver's Circlet).
+New: Sapper's Charm (breaking things is a weapon), the Dimmed Wick (the less Kindle the harder
+you hit), Counterpoise, Greaves of the Long Way (momentum), Rimefire Band, Whetstone of Habit.
+
+**Places.** Secret rooms are no longer always a chest: stash, a dead Kindled's camp, reliquary,
+cache, or a bench that teaches what you carry. Workshops (the party takes one thing) and
+settlements (light three hearths). A hunt's den: snare it, or rob it and meet it angry.
+
+**The economy.** Measured in `-- econreport` and `econrun` expeditions (`tools/dev/econ_compare.py`
+was not needed: the numbers are in STATUS). Common materials outran every use for them, so
+there is now a sink that is also a choice: the smith's Refine tab turns surplus into scarcity.
+Sunshards and Embers can Attune a great thing. A second copy of a great thing gives what it
+knew to the one you keep. Resonance takes longer (save v17 scales what was earned).
+
+**Hints** (`src/data/hints.gd`): said once, per machine, off after a dozen expeditions.
+
+**Rejected.** A second boss health bar for phases (delay, not a decision). A full set system
+for uniques (it makes slots mandatory). Permanent world penalties for altar answers. Timed
+sanctuary chores. A new damage type (the game has enough words already).

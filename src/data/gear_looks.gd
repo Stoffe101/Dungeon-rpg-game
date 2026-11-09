@@ -40,6 +40,7 @@ const VIS := {
 	"mothwing_cloak": ["cloak", "ASH", "GOLD", "moth"],
 	"thornmail": ["mail", "MOSS", "WOOD", "thorn"],
 	"sunfall_mantle": ["cloak", "GOLD", "GOLD", "sunfall"],
+	"counterpoise": ["mail", "STEEL", "GOLD", "scale"],
 	# hands
 	"bone_gauntlets": ["gauntlets", "BONE", "BONE", ""],
 	"ember_gloves": ["gloves", "EMBER", "EMBER", ""],
@@ -66,6 +67,7 @@ const VIS := {
 	"gloamweave_treads": ["treads", "GLOAM", "GLOAM", ""],
 	"verdant_boots": ["boots", "MOSS", "WOOD", ""],
 	"seven_league_boots": ["boots", "EARTH", "BONE", "winged"],
+	"long_way_greaves": ["greaves", "EARTH", "GOLD", ""],
 	"squeaky_clogs": ["clogs", "WOOD", "GOLD", ""],
 	"sandals_of_still_time": ["sandals", "GOLD", "SOUL", "glow"],
 }

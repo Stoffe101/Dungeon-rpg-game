@@ -26,6 +26,7 @@ func add(anim: String, frames: Array, fps: float, loop := true) -> void:
 ## soul-light leaves their eyes, upright fighters topple backwards, crawlers
 ## fold up, soft and growing things slump and melt into the floor.
 const FALL_STYLE := {
+	"penitent": "crumble", "soul_mote": "curl", "slagbearer": "topple", "canopy_mother": "melt",
 	"husk": "crumble", "ash_seal": "crumble", "bonecaller": "crumble", "lampwight": "crumble", "wraith": "crumble", "sunwatcher": "crumble",
 	"gravehook": "topple", "snuffer": "crumble", "tollkeeper": "topple", "herald": "topple", "guard": "topple", "archer": "topple", "duelist": "topple", "sentinel": "topple", "acolyte": "topple", "gravemole": "topple",
 	"skitter": "curl", "spider": "curl", "moth": "curl", "hound": "curl", "thornback": "curl",
@@ -45,11 +46,11 @@ const BOSS_FALL := {"warden": ["topple", "stagger"], "ashen_king": ["crumble", "
 ## survives any light (`self_light`, the sidecar tells the sprite's material).
 const RIM := {
 	"gravehook": "soul", "snuffer": "soul", "tollkeeper": "soul", "husk": "soul", "skitter": "soul", "archer": "soul", "guard": "soul", "bonecaller": "soul", "bloat": "soul",
-	"spider": "soul", "gravemole": "soul", "lampwight": "soul", "warden": "soul",
+	"spider": "soul", "gravemole": "soul", "lampwight": "soul", "warden": "soul", "penitent": "soul", "soul_mote": "soul",
 	"lurecap": "moss", "sporeling": "moss", "thornback": "moss", "moth": "moss", "rootweaver": "moss", "toad": "moss",
-	"spore_mortar": "moss", "bramblewright": "moss", "bloom": "moss",
+	"spore_mortar": "moss", "bramblewright": "moss", "bloom": "moss", "canopy_mother": "moss",
 	"herald": "ember", "sentinel": "ember", "hound": "ember", "acolyte": "ember", "wraith": "ember", "duelist": "ember",
-	"sunwatcher": "ember", "ashen_king": "ember",
+	"sunwatcher": "ember", "ashen_king": "ember", "slagbearer": "ember",
 }
 const RIM_COL := {"soul": Color8(28, 88, 90), "moss": Color8(58, 96, 46), "ember": Color8(116, 64, 32)}
 const SELF_LIGHT := 0.22

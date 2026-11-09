@@ -5,7 +5,7 @@ extends SceneTree
 
 const GearLooks = preload("res://src/data/gear_looks.gd")
 
-const POSES := [["idle_down", 0], ["run_down", 2], ["idle_side", 0], ["run_side", 1], ["run_side", 4], ["dash_side", 0], ["cast_down", 1], ["idle_up", 0], ["run_up", 2], ["hurt_side", 0]]
+const POSES := [["idle_down", 0], ["run_down", 2], ["idle_side", 0], ["run_side", 1], ["run_side", 4], ["dash_side", 0], ["cast_down", 1], ["idle_up", 0], ["run_up", 2], ["hurt_side", 0], ["death", 1], ["death", 3], ["death", 4]]
 
 
 func _init() -> void:

@@ -15,7 +15,8 @@ draw, so they never show up or take focus; they still render, and captures work.
     python tools/dev/bg.py clean                        # stop only processes this tool started (batches too)
     python tools/dev/bg.py sync                         # refresh the copy (every command does it)
 
-BG_COPY=<name> in the environment uses its own frozen copy of the project, so a long bench
+BG_COPY=<name> in the environment uses its own copy of the project (with BG_FROZEN=1 it is
+not refreshed once it exists, across many separate runs), so a long bench
 keeps running the code it started with while the work goes on. Only one co-op run at a time
 holds the network port: a second waits for the first (BG_WAIT seconds, default 900).
 
@@ -87,6 +88,8 @@ def sync(quiet=False):
     """The copy: sources and assets refreshed; its own import cache, brought up to date by
     a headless import whenever anything changed (new classes, new art), never the repo's
     .godot (which the owner's editor may be writing)."""
+    if os.environ.get("BG_FROZEN") and os.path.exists(os.path.join(SNAP, "project.godot")):
+        return 0      # (BG_COPY + BG_FROZEN: a job of many runs keeps the code it started with)
     os.makedirs(SNAP, exist_ok=True)
     first = not os.path.isdir(os.path.join(SNAP, ".godot"))
     if first and os.path.isdir(os.path.join(ROOT, ".godot")):

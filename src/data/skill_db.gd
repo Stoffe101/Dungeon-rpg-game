@@ -280,6 +280,14 @@ const NODES := [
 	# ---------------- Hybrids (between branches) ----------------
 	# the deep hybrids: a second step between two branches, each a way of fighting
 	# where one way of fighting meets another: each joins a technique to something else
+	{"id": "w_kb", "name": "The Wide Wick", "branch": "kindle|blade", "kind": "hybrid", "ring": 7.0, "links": ["z_kb"], "flags": {"wide_wick": 1},
+		"desc": "A spell cast with your lantern at four-fifths full or more lands a fifth harder. Fill it before you spend it."},
+	{"id": "w_gw", "name": "Slipstream", "branch": "gloam|bulwark", "kind": "hybrid", "ring": 7.0, "links": ["z_gw"], "flags": {"slipstream": 1},
+		"desc": "A perfect dodge makes your next spell free."},
+	{"id": "w_wk", "name": "Overflowing Light", "branch": "bulwark|kindle", "kind": "hybrid", "ring": 7.0, "links": ["z_wk"], "flags": {"overflow": 1},
+		"desc": "Kindle gained past full becomes health, a quarter as much."},
+	{"id": "w_rg", "name": "Shatterpoint", "branch": "rime|gloam", "kind": "hybrid", "ring": 7.0, "links": ["z_rg"], "flags": {"shatterpoint": 1},
+		"desc": "Break the guard of something cold and it freezes where it stands."},
 	{"id": "z_kb", "name": "Banked Strikes", "branch": "kindle|blade", "kind": "hybrid", "ring": 6.4, "links": ["y_kb"], "flags": {"banked_strikes": 1},
 		"desc": "Strikes in Cadence give back Kindle. A run of three lights your lantern for a moment."},
 	{"id": "z_bp", "name": "Searing Time", "branch": "blade|pyre", "kind": "hybrid", "ring": 5.3, "links": ["x_bp"], "flags": {"searing_time": 1},

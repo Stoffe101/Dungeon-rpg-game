@@ -25,7 +25,14 @@ const LIST := [
 	{"id": "wards", "title": "Late, Not Early", "line": "Turn aside ten blows with a clean Ward.", "key": "ward", "goal": 10, "pay": {"embers": 150, "xp": 110}},
 	{"id": "lantern", "title": "What You Dropped", "line": "Relight your own cold lantern.", "key": "lantern", "goal": 1, "pay": {"embers": 200, "sunshards": 1}},
 	{"id": "shard", "title": "Warm Stones", "line": "Bring home two Sunshards.", "key": "sunshard", "goal": 2, "pay": {"embers": 220, "material": ["sun_gold", 1]}},
+	{"id": "secret", "title": "Behind the Walls", "line": "Find two hidden rooms.", "key": "secret", "goal": 2, "pay": {"embers": 220, "material": ["soul_glass", 2]}},
+	{"id": "hearths", "title": "Somebody's Home", "line": "Light the three hearths of a settlement.", "key": "settlement", "goal": 1, "pay": {"embers": 240, "xp": 140}},
+	{"id": "cage", "title": "An Empty Cage", "line": "Strike down every soul of the Warden's Harvest before they reach it.", "key": "cage", "goal": 1, "after": "warden_kills", "pay": {"sunshards": 1, "rune": true}},
+	{"id": "choke", "title": "A Mouthful", "line": "Choke the Hollow Bloom as it breathes in.", "key": "choke", "goal": 1, "after": "bloom_kills", "pay": {"sunshards": 1, "material": ["bloom_heart", 1]}},
+	{"id": "defy", "title": "The Lantern Holds", "line": "Hold off an Eclipse with a Ward as it lands.", "key": "defy", "goal": 1, "after": "ashen_king_kills", "pay": {"sunshards": 2, "rune": true}},
 	# longer errands: one thing leads to the next
+	{"id": "c_lamplighter", "title": "The Lamplighter's Round", "line": "Bram wants the old round walked, one more time.", "key": "", "goal": 3,
+		"stages": [["settlement", 1, "Light a settlement's hearths: start where people lived."], ["secret", 1, "Find what the lamplighters walled up."], ["lantern", 1, "Relight your own cold lantern: end where you fell."]], "pay": {"embers": 420, "sunshards": 2, "rune": true}},
 	{"id": "c_clapper", "title": "The Bellfounder's Clapper", "line": "Teodric swears the old bell's clapper is still down there.", "key": "", "goal": 3,
 		"stages": [["chest", 3, "Open three chests for word of it."], ["vault", 1, "Open the barred vault it was kept in."], ["grudge", 1, "Whatever took it holds a Grudge: settle one."]], "pay": {"embers": 420, "sunshards": 2, "rune": true}},
 	{"id": "c_tremor", "title": "What Moves Under the Floor", "line": "The Hearth shook. Three nights, the same hour.", "key": "", "goal": 3,
@@ -69,6 +76,8 @@ static func _huntable(c: Dictionary) -> bool:
 	if c.has("tech"):
 		var arch := Profile.equipped_weapon()
 		return String(Weapon.TECHNIQUES.get(arch, "")) == String(c.tech) or Profile.skills().has("t_" + String(c.tech))
+	if c.has("after") and int(Profile.data.world.get(String(c.after), 0)) <= 0:
+		return false       # (a thing you have to have met, first)
 	if not c.has("hunt"):
 		return true
 	var boss: String = EnemyDB.REGIONS[String(c.hunt)].boss

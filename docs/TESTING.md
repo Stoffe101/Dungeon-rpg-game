@@ -248,6 +248,24 @@ Everything below runs through `tools/dev/bg.py`, so nothing appears on screen or
   guests alone.
 - Dev switches: `hunt=<region>`, `evolve=<path id>`, `botskill=`, `bossquit` (also on a death).
 
+## Human playtest: the next evolution
+
+Nothing in this list has been played by a person. Each is a question only someone playing can answer.
+
+1. Armour: wear plate, then a cloak. Does it feel like two different people at game zoom?
+2. Ossuary and Throne: walk three floors of each. Do rooms feel like places? Is it always clear what stops you?
+3. The Hollow, depths 4 to 21: does each mood read as somewhere different?
+4. Warden: can you tell what the souls are, and do you decide to go for them? Is "get close" for the Reaping discoverable?
+5. Bloom: does anyone find the choke without being told? Do hedges feel fair or like being walled in?
+6. King: are the lanes readable in the dark? Is the Ward-the-Eclipse timing fair?
+7. Penitent: does it feel eerie or just annoying? Canopy Mother: is it obvious you must go in? Slagbearer: is the slag readable?
+8. Uniques: try the Dimmed Wick, Counterpoise, the Greaves of the Long Way. Is each worth building around?
+9. The economy: after ten expeditions, is anything you wanted out of reach? Is anything already worthless?
+10. Secret rooms, workshops, settlements, dens: do they feel like finds?
+11. Hints: too many, too few, right moment?
+12. Listening (nothing has been heard, only measured): the four new cues (`soul_rise`, `reap_turn`, `court_falls`, `penitent_scrape`), the earlier bass-heavy set on laptop speakers, trap warning against music.
+13. Two PCs over Steam: none of this has been tried there.
+
 ## Human playtest: the world of depth
 
 Nothing here has been played by a person. Half an hour in the Rootmire is the most useful thing.

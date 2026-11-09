@@ -276,6 +276,7 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 			player.stage.fx.number(a.pos, 1.9, "TURNED ASIDE", Color(0.8, 0.6, 1.0)))
 	if cadenced:
 		h.amount *= CADENCE_MULT
+		player.on_technique()
 		if player.stats.has("banked_strikes") and not predicting:
 			player.gain_kindle(2.5)
 			if cadence_run == 3:
@@ -295,6 +296,7 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 		h.amount *= POINT_MULT
 		h.knockback *= 1.5
 		_practised("point")
+		player.on_technique()
 		player.cosmetic(func() -> void:
 			player.stage.fx.burst(a.pos, 0.6, Color(1.0, 0.9, 0.55), 6, 4.0, 0.18, 0.0, h.from_dir, 0.4))
 	if has_technique("behind") and a is Enemy and not (a as Enemy).def.get("boss", false):
@@ -302,6 +304,7 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 		if e.facing.dot((a.pos - player.pos).normalized()) > 0.35:
 			h.forced_crit = true
 			_practised("behind")
+			player.on_technique()
 			if player.stats.has("rime_knife") and a.status.chill > 0.0:
 				h.amount *= 1.5
 				a.status.chill = 0.0
@@ -312,10 +315,14 @@ func _technique(a: Actor, h: Hit, along := -1.0) -> void:
 ## After a blow: a hammer's break spreads to those standing beside the one it broke.
 func _after_blow(a: Actor, h: Hit, was_staggered: bool) -> void:
 	_evo_mark(a)
+	if player.stats.has("shatterpoint") and not predicting and is_instance_valid(a) and not was_staggered and a.status.is_staggered() and a.status.chill > 0.0:
+		if a.status.apply_chill(1.0):
+			a.on_frozen()
 	if _breaking or not has_technique("breaker") or was_staggered or not is_instance_valid(a) or not a.status.is_staggered():
 		return
 	_breaking = true
 	_practised("breaker")
+	player.on_technique()
 	if player.stats.has("breakers_coal") and not predicting:
 		player.gain_kindle(12.0)
 		h.burn = maxi(h.burn, 1)

@@ -23,12 +23,13 @@ var _t := 0.0
 
 
 ## `rooms`: Array of Array of {"pos": Vector2, "row": int, "seed": float, "flip": bool}.
-func build(st: Stage, rooms: Array) -> void:
+func build(st: Stage, rooms: Array, tint := Color(0, 0, 0, 0)) -> void:
 	stage = st
 	var info := SpriteLib.get_sheet("flora_low")
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
 	mat.set_shader_parameter("atlas", info.texture)
+	mat.set_shader_parameter("tint", tint)
 	mat.set_shader_parameter("frame_uv", Vector2(1.0 / info.cols, 1.0 / info.rows))
 	if ResourceLoader.exists("res://assets/sprites/flora_low_emit.png"):
 		mat.set_shader_parameter("emit_atlas", load("res://assets/sprites/flora_low_emit.png"))

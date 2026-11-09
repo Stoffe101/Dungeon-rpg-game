@@ -11,7 +11,7 @@
 class_name SmithyUI
 extends Control
 
-const TABS := [["craft", "Craft"], ["temper", "Temper"], ["salvage", "Salvage"]]
+const TABS := [["craft", "Craft"], ["temper", "Temper"], ["salvage", "Salvage"], ["refine", "Refine"]]
 const RARITY_RANK := {"common": 0, "rare": 1, "epic": 2, "set": 3, "legendary": 4}
 const RARITY_STEPS := [["", "Any rarity"], ["rare", "Rare and up"], ["epic", "Epic and up"]]
 const SLOT_ICONS := {"head": "helm", "chest": "robe", "hands": "gloves", "feet": "boots", "ring": "band", "charm": "totem", "weapon": "wpn_sword"}
@@ -239,6 +239,8 @@ func _refresh_list(filters_changed := false) -> void:
 			_item_list(func(it: Dictionary) -> bool: return int(it.level) < ItemDB.MAX_LEVEL, true)
 		"salvage":
 			_item_list(func(_it: Dictionary) -> bool: return true, false)
+		"refine":
+			_refine_list()
 	if not _rows.has(selected):
 		var was := selected
 		selected = _first_row()
@@ -410,6 +412,8 @@ func _refresh_detail() -> void:
 			_temper_detail(_dv)
 		"salvage":
 			_salvage_detail(_dv)
+		"refine":
+			_refine_detail(_dv)
 
 
 func _refresh_mats() -> void:
@@ -527,6 +531,42 @@ func _temper_detail(dv: VBoxContainer) -> void:
 				(Game.stage as Hub).workshop_flare(false), 110)
 	b.disabled = not Profile.can_pay(cost)
 	dv.add_child(b)
+
+
+## Surplus into scarcity, and a great thing brought on: rows that are not items.
+func _refine_list() -> void:
+	for i in ItemDB.REFINES.size():
+		var r: Array = ItemDB.REFINES[i]
+		var txt := "%d %s  >  %d %s" % [int(r[1]), ItemDB.MATERIALS[r[0]].name, int(r[3]), ItemDB.MATERIALS[r[2]].name]
+		_add_row("r%d" % i, String(ItemDB.MATERIALS[r[2]].icon), txt, UIKit.C_TEXT, Profile.material(String(r[0])) >= int(r[1]))
+	for it: Dictionary in _all_items(true):
+		if Evolutions.can_evolve(it) and String(it.get("path", "")) == "":
+			_add_row("a%d" % int(it.uid), ItemDB.icon(it), "Attune %s" % ItemDB.item_name(it), UIKit.C_SOUL, Profile.can_pay(ItemDB.ATTUNE_COST))
+
+
+func _refine_detail(dv: VBoxContainer) -> void:
+	if selected == "":
+		dv.add_child(UIKit.para("Pick a line on the left. Common things can be worked into scarce ones, and Sunshards can bring on a great thing you wear.", 250, UIKit.C_DIM))
+		return
+	if selected.begins_with("r"):
+		var r: Array = ItemDB.REFINES[int(selected.substr(1))]
+		dv.add_child(UIKit.para("%d %s becomes %d %s." % [int(r[1]), ItemDB.MATERIALS[r[0]].name, int(r[3]), ItemDB.MATERIALS[r[2]].name], 250, UIKit.C_TEXT))
+		dv.add_child(UIKit.label("You have %d" % Profile.material(String(r[0])), 8, UIKit.C_DIM))
+		dv.add_child(UIKit.button("Refine", func() -> void:
+			if Profile.refine(r):
+				Audio.play("forge", -2.0, 1.1), 70))
+		return
+	var uid := int(selected.substr(1))
+	var it := Profile.find_item(uid)
+	if it.is_empty():
+		return
+	dv.add_child(GearUI.item_info(it, {}, 250))
+	dv.add_child(UIKit.para("Attuning costs %d Sunshards and %d Embers, and gives it %d Resonance." % [int(ItemDB.ATTUNE_COST.sunshards), int(ItemDB.ATTUNE_COST.embers), ItemDB.ATTUNE_RES], 250, UIKit.C_SOUL))
+	dv.add_child(UIKit.button("Attune", func() -> void:
+		if Profile.attune(uid):
+			Audio.play("relic", -4.0, 0.9)
+		else:
+			Audio.play("deny", -4.0), 70))
 
 
 func _salvage_detail(dv: VBoxContainer) -> void:

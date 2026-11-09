@@ -453,7 +453,8 @@ static func generate(seed_v: int, depth: int, region: String, boss_depth: bool, 
 			_landmark(lay, seed_v)
 			DeepEvents.rule_room(lay, seed_v)
 			_hunt_signs(lay, seed_v)
-			if lay.region == "rootmire" or String(Delve.band(depth).get("id", "")) == "overgrown":
+			RoomCraft.compose(lay, seed_v)
+			if lay.region == "rootmire" or not Delve.band(depth).is_empty():
 				for r in lay.rooms:
 					_ground_cover(lay, r)     # (last: it grows around whatever else was placed)
 			_route = ""
@@ -505,6 +506,15 @@ static func _hunt_signs(lay: Layout, seed_v: int) -> void:
 				r.props.append({"kind": "site", "tile": t, "event": "spoor"})
 	if cands.size() > 2:
 		(cands[2] as Room).harbinger = true
+	# the floor above the guardian holds its den, once a hunt has got that far
+	if lay.depth == 2 and cands.size() > 1:
+		var den: Room = cands[cands.size() - 1]
+		var t2 := _clear_tile(lay, den, rng, false)
+		if t2.x >= 0 and t2 != Vector2i(-1, -1):
+			for k in 2:
+				var at2 := t2 + Vector2i(-2 + k * 4, 0)
+				if lay.grid.at(at2.x, at2.y) == TileGrid.FLOOR and not _prop_at(den, at2):
+					den.props.append({"kind": "site", "tile": at2, "event": "den", "choice": ["snare", "hoard"][k]})
 
 
 ## Dev (`plan=wing`): every floor takes this plan.
@@ -1046,13 +1056,15 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 				keep.append(Rect2i(p.x - 1, p.y - 1, 3, 3))
 	var layout := PackedByteArray()
 	var best := PackedByteArray()
-	var stamps_for := _stamp_pool(r)
+	var stamps_for := _stamp_pool(lay, r)
 	var mirror_auth := false
 	# now and then a single-cell fight takes place in a hand-made room
 	var authored := ""
 	var made: Array = AUTHORED_BY_REGION.get(lay.region, [])
 	if w == 22 and h == 12 and (r.type == Room.Type.COMBAT or r.type == Room.Type.ELITE) and not made.is_empty() and rng.randf() < 0.22:
 		authored = String(made[rng.randi_range(0, made.size() - 1)])
+	if force_authored != "" and w == 22 and h == 12 and r.type == Room.Type.COMBAT:
+		authored = force_authored
 	for attempt in 12:
 		layout.resize(w * h)
 		layout.fill(TileGrid.FLOOR)
@@ -1091,7 +1103,11 @@ static func _shape_room(lay: Layout, r: Room, rng: RandomNumberGenerator) -> voi
 				g.room_of[gy * g.width + gx] = r.id
 
 
-static func _stamp_pool(r: Room) -> Array:
+## Dev (`authored=<id>`): every plain fight happens in this hand-made room.
+static var force_authored := ""
+
+
+static func _stamp_pool(lay: Layout, r: Room) -> Array:
 	match r.type:
 		Room.Type.COMBAT, Room.Type.ELITE:
 			var big := r.cells.size() > 1
@@ -1099,6 +1115,11 @@ static func _stamp_pool(r: Room) -> Array:
 				"ring_pillars", "chasm", "pillar_grid", "split_wall", "l_room", "islands"]
 			if big:
 				pool.append_array(["pit_ring", "pillar_rows", "center_pit", "chasm", "ring_pillars"])
+			# each region has shapes of its own, twice as likely as any other
+			var own: Array = {"ossuary": ["cruciform", "open_graves", "loculi"], "throne": ["great_columns", "apse", "broken_span"]}.get(lay.region, [])
+			if not Delve.band(lay.depth).is_empty():
+				own = ["fractured", "shard_ring"]
+			pool.append_array(own + own)
 			return pool
 		Room.Type.BOSS:
 			return ["octagon"]
@@ -1147,6 +1168,64 @@ static func _put(layout: PackedByteArray, w: int, h: int, x: int, y: int, t: int
 
 static func _stamp(kind: String, L: PackedByteArray, w: int, h: int, rng: RandomNumberGenerator) -> void:
 	match kind:
+		"cruciform":
+			# a burial chapel: the four corners are rock
+			var cw := maxi(3, w / 4)
+			var ch := maxi(2, h / 4)
+			for y in h:
+				for x in w:
+					if (x < cw or x >= w - cw) and (y < ch or y >= h - ch):
+						_put(L, w, h, x, y, TileGrid.WALL)
+		"open_graves":
+			# rows of graves cut in the floor, ways left between them
+			for y: int in [2, h - 3]:
+				for x in range(3, w - 4, 5):
+					_put(L, w, h, x, y, TileGrid.PIT)
+					_put(L, w, h, x + 1, y, TileGrid.PIT)
+		"loculi":
+			# the long walls are all niches and the piers between them
+			for x in range(1, w - 1, 4):
+				for k in 2:
+					_put(L, w, h, x + k, 0, TileGrid.WALL)
+					_put(L, w, h, x + k, h - 1, TileGrid.WALL)
+		"great_columns":
+			# columns two tiles through: the court built for giants
+			var step := rng.randi_range(6, 8)
+			for x in range(3, w - 4, step):
+				for y0: int in [2, h - 4]:
+					for dx in 2:
+						for dy in 2:
+							_put(L, w, h, x + dx, y0 + dy, TileGrid.PILLAR)
+		"apse":
+			# the far end of the room curves in, a place for something to have stood
+			var far := w - 1
+			for y in h:
+				var d: float = absf(float(y) - float(h - 1) * 0.5) / (float(h) * 0.5)
+				var cut := int(round(pow(d, 2.0) * float(mini(7, w / 3))))
+				for k in cut:
+					_put(L, w, h, far - k, y, TileGrid.WALL)
+		"broken_span":
+			# the floor has gone in a band across the room; what is left of the span crosses it
+			var cx := w / 2
+			for y in h:
+				var off := int((float(y) - float(h) * 0.5) * 0.6)
+				for x in range(cx - 2 + off, cx + 2 + off):
+					if y < h / 2 - 1 or y > h / 2 + 1:
+						_put(L, w, h, x, y, TileGrid.PIT)
+		"fractured":
+			# the floor has slipped along a line, and not all of it came back
+			var x0 := rng.randi_range(4, w - 8)
+			for k in range(1, h - 1):
+				var x: int = x0 + (k * 3) / 2
+				if k % 4 != 0:
+					_put(L, w, h, x, k, TileGrid.PIT)
+					_put(L, w, h, x + 1, k, TileGrid.PIT)
+		"shard_ring":
+			var c := Vector2(w, h) * 0.5
+			for k in 8:
+				var a := TAU * float(k) / 8.0
+				var p := c + Vector2(cos(a) * float(w) * 0.32, sin(a) * float(h) * 0.34)
+				_put(L, w, h, int(p.x), int(p.y), TileGrid.PILLAR)
 		"pillars4":
 			var px := maxi(3, int(w * rng.randf_range(0.2, 0.3)))
 			var py := maxi(2, int(h * rng.randf_range(0.25, 0.32)))
@@ -1572,9 +1651,7 @@ static func _decorate(lay: Layout, r: Room, rng: RandomNumberGenerator) -> void:
 				for o in [Vector2i(-2, -1), Vector2i(2, -1), Vector2i(-2, 1), Vector2i(2, 1)]:
 					r.props.append({"kind": "candles", "tile": c + o})
 		Room.Type.SECRET:
-			r.props.append({"kind": "chest", "tile": c, "tier": 2})
-			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(-3, 1)})
-			r.props.append({"kind": "ember_pile", "tile": c + Vector2i(3, 1)})
+			DeepEvents.build_secret(r, c, DeepEvents.secret_of(lay, r))
 		Room.Type.SHRINE:
 			r.props.append({"kind": "shrine", "tile": c + Vector2i(0, -2)})
 			r.props.append({"kind": "brazier", "tile": c + Vector2i(-4, -2)})
@@ -1883,13 +1960,18 @@ static func _ground_cover(lay: Layout, r: Room) -> void:
 				floor_tiles.append(Vector2i(x, y))
 	var taken := {}
 	for p in r.props:
-		if String(p.kind) != "decal":
+		if not String(p.kind) in ["decal", "inlay"]:
 			taken[p.tile] = true
-			if p.get("wide", false):
-				taken[p.tile + Vector2i(1, 0)] = true
+			for n in range(1, span_of(p)):
+				taken[p.tile + Vector2i(n, 0)] = true
 	# the sporefields grow caps, the Bloom's heart little else
 	var kinds: Array = [[0, 5], [1, 2], [2, 3], [3, 2], [4, 1], [5, 2]]
-	if lay.depth == 2:
+	var thick := 1.0
+	var band := Delve.band(lay.depth)
+	if band.has("cover"):
+		kinds = band.cover.kinds
+		thick = float(band.cover.thick)
+	elif lay.depth == 2:
 		kinds = [[0, 3], [1, 2], [2, 3], [4, 2], [5, 3]]
 	elif lay.depth >= 3:
 		kinds = [[1, 4], [2, 4], [4, 1], [5, 2]]
@@ -1907,7 +1989,7 @@ static func _ground_cover(lay: Layout, r: Room) -> void:
 			continue
 		var edge: float = maxf(absf(float(t.x) + 0.5 - c.x) / maxf(half.x, 1.0), absf(float(t.y) + 0.5 - c.y) / maxf(half.y, 1.0))
 		var patch: float = _patchy(t.x, t.y, lay.seed)
-		var chance := 0.05 + 0.5 * pow(edge, 3.0) + (0.3 if patch > 0.62 else 0.0)
+		var chance := (0.05 + 0.5 * pow(edge, 3.0) + (0.3 if patch > 0.62 else 0.0)) * thick
 		if rng.randf() > chance:
 			continue
 		var row: int = bag[int(_patchy(t.x * 3, t.y * 3, r.id) * 0.999 * float(bag.size()))] if patch > 0.5 else bag[rng.randi_range(0, bag.size() - 1)]
@@ -1998,14 +2080,19 @@ static func _solid_of(r: Room) -> Dictionary:
 	for pd in r.props:
 		var k := String(pd.kind)
 		if k == "dressing":
-			if pd.get("wide", false):
-				out[pd.tile] = true
-				out[pd.tile + Vector2i(1, 0)] = true
+			if span_of(pd) > 1:
+				for n in span_of(pd):
+					out[pd.tile + Vector2i(n, 0)] = true
 			elif not WALKABLE_DRESSING.has(String(pd.sheet)) and not pd.get("low", false):
 				out[pd.tile] = true
 		elif k in SOLID_KINDS:
 			out[pd.tile] = true
 	return out
+
+
+## How many tiles a piece of dressing stands across.
+static func span_of(pd: Dictionary) -> int:
+	return int(pd.get("span", 2 if pd.get("wide", false) else 1))
 
 
 ## Would the room's floor still be one walkable piece with `more` made solid

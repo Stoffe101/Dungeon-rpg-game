@@ -29,6 +29,12 @@ var authored := ""                   # a hand-made room's id (DungeonGen.AUTHORE
 var objective := ""                  # the route's own task here (DungeonGen._objectives): "" | seals | flame
 var landmark := ""                   # a great centrepiece's id (DungeonGen.LANDMARKS), else ""
 var rule := ""                       # this fight's own rule (DeepEvents.RULES), else ""
+## What this room was built as (RoomCraft), if anything.
+var concept := ""
+## What a secret room turned out to be (DeepEvents.build_secret).
+var vignette := ""
+## How the region's altar shows in this room ("" = it does not).
+var marked := ""
 var flora: Array = []                # ground cover (FloraField): {pos, row, seed, flip}
 var harbinger := false               # a hunt's harbinger leads this fight
 
